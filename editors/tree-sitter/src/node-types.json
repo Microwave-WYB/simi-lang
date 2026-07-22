@@ -398,10 +398,6 @@
             "named": false
           },
           {
-            "type": "is",
-            "named": false
-          },
-          {
             "type": "or",
             "named": false
           }
@@ -2135,10 +2131,6 @@
   {
     "type": "integer",
     "named": true
-  },
-  {
-    "type": "is",
-    "named": false
   },
   {
     "type": "let",

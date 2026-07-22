@@ -90,8 +90,11 @@ test("TextMate grammar assigns semantic scopes to representative Simi syntax", a
   assertScope(lines, 23, "do", "keyword.control.block.simi");
   assertScope(lines, 25, "state", "variable.other.readwrite.simi");
   assertScope(lines, 28, "\\q", "invalid.illegal.escape.simi");
-  assertScope(lines, 29, "is", "keyword.operator.comparison.simi");
+  assertScope(lines, 29, "type", "support.function.builtin.simi");
+  assertScope(lines, 29, "==", "keyword.operator.comparison.simi");
   assertScope(lines, 29, "\"integer\"", "string.quoted.double.simi");
-  assertScope(lines, 30, "is", "keyword.operator.comparison.simi");
+  assertScope(lines, 30, "type", "support.function.builtin.simi");
+  assertScope(lines, 30, "==", "keyword.operator.comparison.simi");
   assertScope(lines, 30, "\"function\"", "string.quoted.double.simi");
+  assertScope(lines, 31, "is", "variable.other.readwrite.simi");
 });

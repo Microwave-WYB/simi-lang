@@ -9,18 +9,12 @@ use crate::runtime::{List, MapKey, NativeFunction, NativeResult, TraceFrame};
 use crate::{lexer, parser};
 
 static PROTECTED_EVALUATIONS: AtomicUsize = AtomicUsize::new(0);
-static IS_EVALUATIONS: AtomicUsize = AtomicUsize::new(0);
 
 fn count_protected_evaluation(_: &[Value], _: Span) -> NativeResult {
     let count = PROTECTED_EVALUATIONS.fetch_add(1, Ordering::SeqCst) + 1;
     Ok(Ok(Value::Int(
         i64::try_from(count).expect("test call count should fit in i64"),
     )))
-}
-
-fn count_is_evaluation(_: &[Value], _: Span) -> NativeResult {
-    IS_EVALUATIONS.fetch_add(1, Ordering::SeqCst);
-    Ok(Ok(Value::Int(1)))
 }
 
 fn evaluate_script(source: &str) -> RuntimeResult<ScriptResult> {
@@ -251,30 +245,6 @@ fn try_evaluates_its_protected_expression_exactly_once() {
 
     assert_eq!(value.render(), "1");
     assert_eq!(PROTECTED_EVALUATIONS.load(Ordering::SeqCst), 1);
-}
-
-#[test]
-fn is_evaluates_its_operand_once_without_calling_global_type() {
-    IS_EVALUATIONS.store(0, Ordering::SeqCst);
-    let globals = Environment::new();
-    globals.define(
-        "tick",
-        Value::NativeFunction(NativeFunction::new(
-            "tick",
-            0,
-            Arc::new(count_is_evaluation),
-        )),
-    );
-    globals.define("type", Value::String("shadowed".to_owned()));
-    let tokens = lexer::lex("tick() is \"integer\"").expect("test source should lex");
-    let program = parser::parse(tokens).expect("test source should parse");
-    let outcome = Interpreter::with_globals(globals)
-        .evaluate(&program)
-        .expect("type inspection should not produce a hard error")
-        .expect("type inspection should not raise");
-
-    assert!(matches!(outcome, Value::Bool(true)));
-    assert_eq!(IS_EVALUATIONS.load(Ordering::SeqCst), 1);
 }
 
 #[test]

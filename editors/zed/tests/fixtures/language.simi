@@ -25,7 +25,8 @@ end
 
 let values = [1, 2.5e1, 3]
 let result = values |> list.map() <| transform
-let has_runtime_label = result is "list"
+let has_runtime_label = type(result) == "list"
+let is = has_runtime_label
 let final = loop state = 0 do
     if state < 2 or state <= -1 then
         continue state + 1

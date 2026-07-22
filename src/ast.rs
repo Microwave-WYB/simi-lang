@@ -148,10 +148,6 @@ pub enum ExprKind {
         op: UnaryOp,
         value: Box<Expr>,
     },
-    Is {
-        value: Box<Expr>,
-        expected: RuntimeType,
-    },
     Binary {
         left: Box<Expr>,
         op: BinaryOp,
@@ -169,18 +165,6 @@ pub struct PipelineStage {
     pub callee: Expr,
     pub args: Vec<Expr>,
     pub span: Span,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum RuntimeType {
-    Nil,
-    Boolean,
-    Integer,
-    Float,
-    String,
-    List,
-    Map,
-    Function,
 }
 
 #[derive(Clone, Debug)]

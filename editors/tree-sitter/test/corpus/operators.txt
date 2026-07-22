@@ -51,20 +51,23 @@ map.answer = values[0] = 42
       (integer))))
 
 ==================
-Runtime-label tests use comparison precedence
+Type calls use ordinary equality and boolean precedence
 ==================
 
-value + 1 is "integer" and ready
+type(value + 1) == label and ready
 
 ---
 
 (program
   (binary_expression
     (binary_expression
-      (binary_expression
+      (call_expression
         (identifier)
-        (integer))
-      (string))
+        (arguments
+          (binary_expression
+            (identifier)
+            (integer))))
+      (identifier))
     (identifier)))
 
 ==================

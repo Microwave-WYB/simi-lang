@@ -228,7 +228,7 @@
         },
         {
           "name": "keyword.operator.comparison.simi",
-          "match": "\\b(?:is)\\b|==|!=|<=|>=|<|>"
+          "match": "==|!=|<=|>=|<|>"
         },
         {
           "name": "keyword.operator.arithmetic.simi",

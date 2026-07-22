@@ -23,7 +23,6 @@ pub enum TokenKind {
     And,
     Or,
     Not,
-    Is,
     Loop,
     Break,
     Continue,

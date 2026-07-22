@@ -33,7 +33,6 @@
   "and"
   "or"
   "not"
-  "is"
 ] @operator
 
 [

@@ -54,7 +54,7 @@ The shared `editors/tree-sitter` parser is the structural syntax source for Zed 
 
 Canonical pattern dispatch is `case expression of pattern [when guard] do block end ... end`. `try`/`catch` uses the same pattern-clause form. The removed `match`, `with`, per-arm `case`, and `->` spellings are not highlighted as control syntax.
 
-The runtime-label operator is highlighted as a comparison operator in expressions such as `value is "integer"` and `callback is "function"`. TextMate highlights tokens only; it does not validate whether the right operand is a string literal or whether the literal is a supported runtime label.
+Runtime-category checks use the builtin call and ordinary comparison syntax, such as `type(value) == "integer"` and `type(callback) == "function"`. The shadowable builtin is highlighted as a builtin only when called, `==` uses the normal comparison scope, and `is` is an ordinary identifier.
 
 ## Validation
 

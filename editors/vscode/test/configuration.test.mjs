@@ -75,8 +75,22 @@ test("grammar keyword inventory follows the current Simi lexer", async () => {
   for (const keyword of lexerKeywords) {
     assert.match(keywordInventory, new RegExp(`\\b${keyword}\\b`), `grammar should contain lexer keyword ${keyword}`);
   }
-  for (const removed of ["match", "with"]) {
+  for (const removed of ["match", "with", "is"]) {
     assert.doesNotMatch(keywordInventory, new RegExp(`\\b${removed}\\b`));
   }
-  assert.ok(!JSON.stringify(grammar.repository.operators).includes("->"), "legacy clause arrow must not be scoped");
+  const operatorInventory = grammar.repository.operators.patterns
+    .map(({ match }) => match)
+    .join("\n")
+    .replaceAll("\\b", "");
+  assert.ok(!operatorInventory.includes("->"), "legacy clause arrow must not be scoped");
+  assert.doesNotMatch(
+    operatorInventory,
+    /\bis\b/,
+    "ordinary identifier is must not be scoped as an operator",
+  );
+  assert.match(
+    grammar.repository.builtins.patterns[0].match,
+    /type/,
+    "type calls should retain builtin highlighting",
+  );
 });

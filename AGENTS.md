@@ -145,14 +145,14 @@ Boolean operators are strict and short-circuiting. Simi does not use Lua-style t
 
 The portable `std/number` module provides explicit numeric conversions. `number.from_string(text)` accepts complete signed decimal integer and decimal/exponent float forms with no surrounding whitespace. Integer syntax returns an integer and never falls back to float on overflow; float syntax returns only finite floats. Overflow and malformed text return `nil`. `number.to_string(value)` accepts only integers and floats and uses canonical Simi numeric rendering, including a visible float marker for whole-valued floats.
 
-The comparison-precedence `is` operator performs runtime type inspection with a validated string-literal label:
+Runtime categories are inspected with the shadowable builtin `type(value)` and ordinary equality:
 
 ```simi
-value is "integer"
-callback is "function"
+type(value) == "integer"
+type(callback) == "function"
 ```
 
-Accepted labels are `"nil"`, `"boolean"`, `"integer"`, `"float"`, `"string"`, `"list"`, `"map"`, and `"function"`. The operand is evaluated exactly once. The label must be a literal and is validated by the parser; dynamic or unknown labels are rejected. Both user and native functions match `"function"`. This syntax is intrinsic and does not call the shadowable `type` global.
+Stable labels are `"nil"`, `"boolean"`, `"integer"`, `"float"`, `"string"`, `"list"`, `"map"`, and `"function"`. Both user and native functions produce `"function"`. Labels are ordinary string values, and these checks follow normal call, equality, precedence, and shadowing rules. There is no dedicated runtime-category operator or syntax.
 
 ### Pipelines
 
@@ -182,7 +182,7 @@ let list = require("std/list")
 list.length([ 1, 2, 3 ])
 ```
 
-Normal/default interpreters and all `Engine` evaluations provide the shadowable globals `type(value)` and `inspect(value)` alongside `require`. The low-level `Interpreter::with_globals` constructor intentionally treats its environment as complete and does not add a prelude. `type` returns the same stable reflective labels accepted by `is`, including `"function"` for both user and native functions. Detailed runtime diagnostics may still distinguish native functions. `inspect` is cycle-safe human-readable rendering, not serialization.
+Normal/default interpreters and all `Engine` evaluations provide the shadowable globals `type(value)` and `inspect(value)` alongside `require`. The low-level `Interpreter::with_globals` constructor intentionally treats its environment as complete and does not add a prelude. `type` returns the stable reflective labels listed above, including `"function"` for both user and native functions. Detailed runtime diagnostics may still distinguish native functions. `inspect` is cycle-safe human-readable rendering, not serialization.
 
 Modules are registered by the embedding host and cached per `Engine`. Repeated `require` calls return the same mutable export map, and module state persists across evaluations performed by that engine. Separate engines have separate module registries. `Engine::new()` has no registered modules; `Engine::with_stdlib()` includes `std/list`, `std/map`, `std/number`, and `std/string`. The root `eval` convenience function uses a fresh standard-library engine.
 
@@ -317,5 +317,7 @@ Add tests at the lowest useful layer and at the public language boundary when se
 The portable standard library currently includes `std/list`, `std/map`, `std/number`, and `std/string`; `type` and `inspect` are globals. Anonymous functions, trailing callback application, and Gleam-inspired higher-order list queries are implemented. The CLI additionally registers the opt-in `std/io/*` standard-stream modules.
 
 Likely later milestones include CLI arguments, filesystem/script module loading, formatting, optional static typing, and editor tooling. These are roadmap items, not implemented features. Do not add them opportunistically outside an approved task.
+
+Builtin `type(value) == "label"` comparisons are the primitive runtime category check and may later be recognized by an analyzer for narrowing. A user-facing `TypeIs` construct is a future language-design question only and is not implemented.
 
 Filesystem/script module loading, serialization, formatter/LSP work, tuples, and static typing remain out of scope until explicitly requested.

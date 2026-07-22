@@ -152,7 +152,15 @@ def run_tree_sitter_checks(extension: Path, grammar: Path) -> None:
     highlight_captures = set(
         re.findall(r"capture: \d+ - ([A-Za-z0-9_.-]+),", highlight_result.stdout)
     )
-    required_highlights = {"comment", "function", "keyword", "operator", "property", "string"}
+    required_highlights = {
+        "comment",
+        "function",
+        "keyword",
+        "operator",
+        "property",
+        "string",
+        "variable",
+    }
     missing_highlights = sorted(required_highlights - highlight_captures)
     check(not missing_highlights, f"fixture is missing semantic highlights: {missing_highlights}")
 

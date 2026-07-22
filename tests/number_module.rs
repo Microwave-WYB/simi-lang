@@ -10,10 +10,10 @@ fn from_string_accepts_signed_simi_numeric_forms_with_syntax_directed_types() {
         let decimal = number.from_string("-12.50")
         let exponent = number.from_string("2E+3")
         [
-            positive, positive is "integer",
-            negative, negative is "integer",
-            decimal, decimal is "float",
-            exponent, exponent is "float",
+            positive, type(positive) == "integer",
+            negative, type(negative) == "integer",
+            decimal, type(decimal) == "float",
+            exponent, type(exponent) == "float",
         ]
         "#,
     )
@@ -68,7 +68,7 @@ fn float_finiteness_boundary_and_integer_overflow_category_are_exact() {
         let maximum_text = number.to_string(maximum)
         let round_trip = number.from_string(maximum_text)
         let overflow_integer = number.from_string("9223372036854775808")
-        [maximum is "float", round_trip is "float", overflow_integer]
+        [type(maximum) == "float", type(round_trip) == "float", overflow_integer]
         "#,
     )
     .expect("boundary conversions should have no hard diagnostic")
@@ -95,9 +95,9 @@ fn to_string_is_canonical_and_round_trips_numeric_categories() {
             negative_zero_text,
             decimal_text,
             integer,
-            integer is "integer",
+            type(integer) == "integer",
             whole_float,
-            whole_float is "float",
+            type(whole_float) == "float",
         ]
         "#,
     )
