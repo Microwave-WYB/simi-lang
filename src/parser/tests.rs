@@ -73,6 +73,45 @@ fn accepts_trailing_commas_in_all_comma_separated_constructs() {
 }
 
 #[test]
+fn parses_anonymous_functions_as_postfix_and_nested_expressions() {
+    let source = "fn(value) do fn(inner) do value + inner end end(2)";
+    let program = parse_source(source).unwrap();
+    let StmtKind::Expr(Expr {
+        kind: ExprKind::Call { callee, args },
+        span,
+    }) = &program.items[0].kind
+    else {
+        panic!("expected an immediately invoked anonymous function");
+    };
+    let ExprKind::Function { params, body } = &callee.kind else {
+        panic!("expected anonymous function call target");
+    };
+    assert_eq!(params, &["value"]);
+    assert_eq!(args.len(), 1);
+    assert_eq!(*span, Span::new(0, source.len()));
+    assert!(matches!(
+        body.items[0].kind,
+        StmtKind::Expr(Expr {
+            kind: ExprKind::Function { .. },
+            ..
+        })
+    ));
+}
+
+#[test]
+fn anonymous_functions_compose_with_indexing_and_pipelines() {
+    let program = parse_source("[fn(value) do value end][0] |> apply(1)").unwrap();
+    let StmtKind::Expr(Expr {
+        kind: ExprKind::Pipeline { input, .. },
+        ..
+    }) = &program.items[0].kind
+    else {
+        panic!("expected pipeline");
+    };
+    assert!(matches!(input.kind, ExprKind::Index { .. }));
+}
+
+#[test]
 fn parses_if_followed_by_another_block_item() {
     let program = parse_source(
         "fn partition(value) do if value < 1 then nil else value end consume(value) end",
@@ -162,6 +201,38 @@ fn rejects_duplicate_parameters_and_invalid_pipeline_stage() {
             .contains("pipeline stage function name")
     );
     assert_eq!(invalid_stage.span.start, 9);
+}
+
+#[test]
+fn reports_anonymous_function_parameter_and_delimiter_spans() {
+    let duplicate_source = "let f = fn(value, value) do value end";
+    let duplicate = parse_source(duplicate_source).unwrap_err();
+    let duplicate_start = duplicate_source.find(", value").unwrap() + 2;
+    assert_eq!(duplicate.message, "duplicate parameter `value`");
+    assert_eq!(
+        duplicate.span,
+        Span::new(duplicate_start, duplicate_start + 5)
+    );
+
+    let missing_open_source = "let f = fn value do value end";
+    let missing_open = parse_source(missing_open_source).unwrap_err();
+    let value_start = missing_open_source.find("value").unwrap();
+    assert_eq!(
+        missing_open.message,
+        "expected `(` after `fn`, found `identifier`"
+    );
+    assert_eq!(missing_open.span, Span::new(value_start, value_start + 5));
+
+    let missing_end_source = "let f = fn(value) do value";
+    let missing_end = parse_source(missing_end_source).unwrap_err();
+    assert_eq!(
+        missing_end.message,
+        "expected `end` after function body, found `end of file`"
+    );
+    assert_eq!(
+        missing_end.span,
+        Span::new(missing_end_source.len(), missing_end_source.len())
+    );
 }
 
 #[test]

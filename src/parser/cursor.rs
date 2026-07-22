@@ -45,6 +45,11 @@ impl Parser {
         expected.matches(&self.current().kind)
     }
 
+    pub(super) fn next_is_simple(&self, expected: SimpleToken) -> bool {
+        let next = (self.cursor + 1).min(self.tokens.len() - 1);
+        expected.matches(&self.tokens[next].kind)
+    }
+
     pub(super) fn at_block_terminator(&self) -> bool {
         matches!(
             &self.current().kind,

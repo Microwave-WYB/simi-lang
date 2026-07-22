@@ -37,11 +37,15 @@ The language is dynamically typed. Optional static typing may be explored later,
 
 ### Functions and expressions
 
-Functions use expression-valued bodies and capture lexical environments. Recursion and closures are supported.
+Functions use expression-valued bodies and capture lexical environments. Recursion and closures are supported. Named functions are declarations, while anonymous functions use `fn(parameters) do body end` anywhere an expression is accepted.
 
 ```simi
 fn add(left, right) do
     left + right
+end
+
+let add_one = fn(value) do
+    value + 1
 end
 ```
 
@@ -285,7 +289,7 @@ The next intended milestone is a practical non-higher-order standard library:
 3. map inspection utilities;
 4. general utilities such as `type` and `inspect`.
 
-Likely later milestones include anonymous functions, higher-order collection operations, CLI arguments and basic I/O, filesystem/script module loading, formatting, optional static typing, and editor tooling.
+Likely later milestones include higher-order collection operations, CLI arguments and basic I/O, filesystem/script module loading, formatting, optional static typing, and editor tooling.
 
 These are roadmap items, not implemented features. Do not add them opportunistically outside an approved task.
 

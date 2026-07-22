@@ -98,6 +98,10 @@ pub enum ExprKind {
     List(Vec<Expr>),
     Map(Vec<(Expr, Expr)>),
     Variable(String),
+    Function {
+        params: Vec<String>,
+        body: Block,
+    },
     Assign {
         target: AssignmentTarget,
         value: Box<Expr>,

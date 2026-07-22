@@ -117,6 +117,12 @@ impl Interpreter {
                     message: format!("undefined name `{name}`"),
                 })
             }),
+            ExprKind::Function { params, body } => Ok(Value::Function(Gc::new(UserFunction {
+                name: "<anonymous>".to_owned(),
+                params: params.clone(),
+                body: body.clone(),
+                closure: env.clone(),
+            }))),
             ExprKind::Assign { target, value } => {
                 let target = self.prepare_assignment_target(target, env)?;
                 let value = self.evaluate_expression(value, env)?;

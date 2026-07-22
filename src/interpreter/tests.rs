@@ -68,6 +68,48 @@ fn evaluates_recursion_and_elseif() {
 }
 
 #[test]
+fn anonymous_functions_capture_lexical_environments_and_recurse_through_let() {
+    let value = evaluate(
+        r#"
+            fn make_counter(start) do
+                let current = start
+                fn(step) do
+                    current = current + step
+                end
+            end
+            let counter = make_counter(10)
+            let factorial = fn(n) do
+                if n == 0 then 1 else n * factorial(n - 1) end
+            end
+            [counter(2), counter(3), factorial(5)]
+        "#,
+    )
+    .expect("anonymous closures should evaluate");
+
+    assert_eq!(value.render(), "[12, 15, 120]");
+}
+
+#[test]
+fn anonymous_function_names_are_used_for_rendering_arity_and_raise_frames() {
+    assert_eq!(
+        evaluate("fn() do nil end")
+            .expect("anonymous function should evaluate")
+            .render(),
+        "<fn <anonymous>>"
+    );
+
+    let arity = expect_runtime_error("fn(value) do value end()");
+    assert_eq!(
+        arity.message,
+        "function `<anonymous>` expects 1 arguments, got 0"
+    );
+
+    let raised = expect_raised("fn() do raise \"boom\" end()");
+    assert_eq!(raised.frames.len(), 1);
+    assert_eq!(raised.frames[0].function, "<anonymous>");
+}
+
+#[test]
 fn missing_else_returns_nil_and_selected_branch_has_child_scope() {
     let value = evaluate(
         r#"

@@ -72,6 +72,28 @@ fn lexes_every_keyword_operator_and_delimiter() {
 }
 
 #[test]
+fn lexes_anonymous_function_expression_tokens_with_exact_spans() {
+    let tokens = lex("fn(value) do value end").expect("anonymous function should lex");
+    assert_eq!(
+        tokens.iter().map(|token| &token.kind).collect::<Vec<_>>(),
+        vec![
+            &TokenKind::Fn,
+            &TokenKind::LParen,
+            &TokenKind::Ident("value".to_owned()),
+            &TokenKind::RParen,
+            &TokenKind::Do,
+            &TokenKind::Ident("value".to_owned()),
+            &TokenKind::End,
+            &TokenKind::Eof,
+        ]
+    );
+    assert_eq!(tokens[0].span, Span::new(0, 2));
+    assert_eq!(tokens[1].span, Span::new(2, 3));
+    assert_eq!(tokens[6].span, Span::new(19, 22));
+    assert_eq!(tokens[7].span, Span::new(22, 22));
+}
+
+#[test]
 fn lexes_match_expression_tokens() {
     assert_eq!(
         kinds("match value with case [x, ..xs] when true -> x end"),

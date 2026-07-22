@@ -317,6 +317,7 @@ impl Parser {
                     span,
                 })
             }
+            TokenKind::Fn => self.parse_function_expression(),
             TokenKind::LParen => {
                 self.advance_span();
                 let mut expression = self.parse_expression()?;
@@ -338,6 +339,15 @@ impl Parser {
                 self.current_name()
             ))),
         }
+    }
+
+    fn parse_function_expression(&mut self) -> Result<Expr, ParseError> {
+        let start = self.expect_simple(SimpleToken::Fn, "`fn`")?;
+        let (params, body, end) = self.parse_function_parts("`(` after `fn`")?;
+        Ok(Expr {
+            kind: ExprKind::Function { params, body },
+            span: start.merge(end),
+        })
     }
 
     fn parse_list(&mut self) -> Result<Expr, ParseError> {

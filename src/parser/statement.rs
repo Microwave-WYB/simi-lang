@@ -8,7 +8,9 @@ use crate::span::Span;
 impl Parser {
     pub(super) fn parse_stmt(&mut self) -> Result<Stmt, ParseError> {
         match &self.current().kind {
-            TokenKind::Fn => self.parse_function(),
+            TokenKind::Fn if !self.next_is_simple(SimpleToken::LParen) => {
+                self.parse_function_declaration()
+            }
             TokenKind::Let => self.parse_let(),
             _ => {
                 let expression = self.parse_expression()?;
@@ -21,10 +23,22 @@ impl Parser {
         }
     }
 
-    fn parse_function(&mut self) -> Result<Stmt, ParseError> {
+    fn parse_function_declaration(&mut self) -> Result<Stmt, ParseError> {
         let start = self.expect_simple(SimpleToken::Fn, "`fn`")?;
         let (name, _) = self.expect_ident("function name")?;
-        self.expect_simple(SimpleToken::LParen, "`(` after function name")?;
+        let (params, body, end) = self.parse_function_parts("`(` after function name")?;
+
+        Ok(Stmt {
+            kind: StmtKind::Function { name, params, body },
+            span: start.merge(end),
+        })
+    }
+
+    pub(super) fn parse_function_parts(
+        &mut self,
+        open_description: &str,
+    ) -> Result<(Vec<String>, Block, Span), ParseError> {
+        self.expect_simple(SimpleToken::LParen, open_description)?;
 
         let mut params = Vec::new();
         let mut seen = HashSet::new();
@@ -52,11 +66,7 @@ impl Parser {
         let body = body?;
 
         let end = self.expect_simple(SimpleToken::End, "`end` after function body")?;
-
-        Ok(Stmt {
-            kind: StmtKind::Function { name, params, body },
-            span: start.merge(end),
-        })
+        Ok((params, body, end))
     }
 
     fn parse_let(&mut self) -> Result<Stmt, ParseError> {
