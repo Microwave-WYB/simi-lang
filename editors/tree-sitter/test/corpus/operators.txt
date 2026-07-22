@@ -51,6 +51,24 @@ map.answer = values[0] = 42
       (integer))))
 
 ==================
+Runtime-label tests use comparison precedence
+==================
+
+value + 1 is "integer" and ready
+
+---
+
+(program
+  (binary_expression
+    (binary_expression
+      (binary_expression
+        (identifier)
+        (integer))
+      (string
+        (string_content)))
+    (identifier)))
+
+==================
 Pipelines, tap stages, and right-associative trailing arguments
 ==================
 

@@ -42,3 +42,20 @@ Only supported string escapes are accepted
     (ERROR
       (UNEXPECTED 'q')
       (identifier))))
+
+==================
+Runtime-label tests require a string literal right-hand side
+==================
+
+value is label
+value is 42
+
+---
+
+(program
+  (identifier)
+  (ERROR)
+  (identifier)
+  (identifier)
+  (ERROR)
+  (integer))

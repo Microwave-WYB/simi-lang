@@ -140,6 +140,11 @@ module.exports = grammar({
     ),
 
     binary_expression: ($) => choice(
+      prec.left(PREC.COMPARISON, seq(
+        field("left", $._logical_or_expression),
+        field("operator", "is"),
+        field("right", $.string),
+      )),
       ...[
         ["or", PREC.OR],
         ["and", PREC.AND],
