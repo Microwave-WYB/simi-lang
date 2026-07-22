@@ -3,7 +3,7 @@ use std::io::{self, Write};
 use crate::runtime::{NativeResult, Raised, Value};
 use crate::span::Span;
 
-pub(crate) fn stdin_read_line(_: &[Value], span: Span) -> NativeResult {
+pub(crate) fn stdin_readline(_: &[Value], span: Span) -> NativeResult {
     let mut line = String::new();
     match io::stdin().read_line(&mut line) {
         Ok(0) => Ok(Ok(Value::Nil)),
@@ -16,7 +16,7 @@ pub(crate) fn stdin_read_line(_: &[Value], span: Span) -> NativeResult {
             }
             Ok(Ok(Value::String(line)))
         }
-        Err(error) => Ok(Err(Raised::io_error("read_line", error.to_string(), span))),
+        Err(error) => Ok(Err(Raised::io_error("readline", error.to_string(), span))),
     }
 }
 
@@ -56,7 +56,8 @@ fn write_stream(
         writeln!(stream, "{rendered}")
     } else {
         write!(stream, "{rendered}")
-    };
+    }
+    .and_then(|()| stream.flush());
     match result {
         Ok(()) => Ok(Ok(Value::Nil)),
         Err(error) => Ok(Err(Raised::io_error(operation, error.to_string(), span))),
@@ -93,6 +94,18 @@ mod tests {
         }
     }
 
+    struct FlushFailingWriter;
+
+    impl Write for FlushFailingWriter {
+        fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+            Ok(bytes.len())
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            Err(io::Error::other("flush failed"))
+        }
+    }
+
     #[test]
     fn strings_print_raw_while_other_values_use_inspection_rendering() {
         assert_eq!(printable(&Value::String("hello".to_owned())), "hello");
@@ -121,6 +134,30 @@ mod tests {
             raised.value.render(),
             "{error=\"io_error\", operation=\"flush\", message=\"closed\"}"
         );
+    }
+
+    #[test]
+    fn automatic_flush_failures_use_the_print_operation() {
+        for (newline, operation) in [(false, "print"), (true, "println")] {
+            let raised = match write_stream(
+                FlushFailingWriter,
+                &Value::String("hello".to_owned()),
+                newline,
+                operation,
+                Span::new(0, 0),
+            )
+            .unwrap()
+            {
+                Err(raised) => raised,
+                Ok(_) => panic!("failing automatic flush should raise"),
+            };
+            assert_eq!(
+                raised.value.render(),
+                format!(
+                    "{{error=\"io_error\", operation=\"{operation}\", message=\"flush failed\"}}"
+                )
+            );
+        }
     }
 
     #[test]

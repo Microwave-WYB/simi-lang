@@ -326,7 +326,8 @@ fn stdio_modules_are_opt_in_capabilities() {
             let stdout = require("std/io/stdout")
             let stderr = require("std/io/stderr")
             [
-                type(stdin.read_line),
+                type(stdin.readline),
+                stdin.read_line,
                 type(stdout.print),
                 type(stdout.println),
                 type(stdout.flush),
@@ -340,7 +341,7 @@ fn stdio_modules_are_opt_in_capabilities() {
         .unwrap();
     assert_eq!(
         value.render(),
-        "[\"function\", \"function\", \"function\", \"function\", \"function\", \"function\", \"function\"]"
+        "[\"function\", nil, \"function\", \"function\", \"function\", \"function\", \"function\", \"function\"]"
     );
 }
 
