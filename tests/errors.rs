@@ -25,18 +25,18 @@ fn every_value_category_can_be_raised_and_caught() {
             let list = require("std/list")
             fn identity(value) do value end
             [
-                try raise nil catch case nil -> "nil" end,
-                try raise true catch case true -> "true" end,
-                try raise false catch case false -> "false" end,
-                try raise 42 catch case 42 -> "integer" end,
-                try raise 4.5 catch case 4.5 -> "float" end,
-                try raise "boom" catch case "boom" -> "string" end,
-                try raise [1, 2, 3] catch case [head, ..tail] -> [head, tail] end,
+                try raise nil catch nil do "nil" end end,
+                try raise true catch true do "true" end end,
+                try raise false catch false do "false" end end,
+                try raise 42 catch 42 do "integer" end end,
+                try raise 4.5 catch 4.5 do "float" end end,
+                try raise "boom" catch "boom" do "string" end end,
+                try raise [1, 2, 3] catch [head, ..tail] do [head, tail] end end,
                 try raise {kind="missing", payload=[1, 2]} catch
-                    case {kind="missing", payload=payload} -> payload
+                    {kind="missing", payload=payload} do payload end
                 end,
-                try raise identity catch case callable -> callable("function") end,
-                try raise list.length catch case callable -> callable([1, 2]) end
+                try raise identity catch callable do callable("function") end end,
+                try raise list.length catch callable do callable([1, 2]) end end
             ]
         "#,
         "[\"nil\", \"true\", \"false\", \"integer\", \"float\", \"string\", [1, [2, 3]], [1, 2], \"function\", 2]",
@@ -50,7 +50,7 @@ fn successful_try_is_a_transparent_passthrough() {
             let list = require("std/list")
             let shared = []
             let result = try shared catch
-                case _ -> missing_handler_must_not_run
+                _ do missing_handler_must_not_run end
             end
             list.append(shared, "after")
             result
@@ -66,9 +66,10 @@ fn catch_bindings_and_handler_locals_are_case_scoped() {
             let error = "outer error"
             let local = "outer local"
             let handled = try raise "inner" catch
-                case error ->
+                error do
                     let local = "inner local"
                     [error, local]
+                end
             end
             [handled, error, local]
         "#,
@@ -83,12 +84,13 @@ fn catch_cases_use_structural_patterns_and_ordered_guards() {
             let list = require("std/list")
             let events = []
             try raise {kind="missing", payload=[1, 2]} catch
-                case {kind="other"} when missing_guard_must_not_run -> nil
-                case {kind="missing", payload=[head, ..tail]} when head == 0 -> "wrong"
-                case {kind="missing", payload=[head, ..tail]} when head == 1 ->
+                {kind="other"} when missing_guard_must_not_run do nil end
+                {kind="missing", payload=[head, ..tail]} when head == 0 do "wrong" end
+                {kind="missing", payload=[head, ..tail]} when head == 1 do
                     list.append(events, "selected")
                     [tail, events]
-                case _ -> "fallback"
+                end
+                _ do "fallback" end
             end
         "#,
         "[[2], [\"selected\"]]",
@@ -97,7 +99,7 @@ fn catch_cases_use_structural_patterns_and_ordered_guards() {
 
 #[test]
 fn unmatched_catch_propagates_the_original_raise_unchanged() {
-    let source = "try raise [1, 2] catch case [3, ..rest] -> rest end";
+    let source = "try raise [1, 2] catch [3, ..rest] do rest end end";
     let raised = assert_raised(source);
     let origin_start = source.find("raise").expect("source contains raise");
     let origin_end = source.find(" catch").expect("source contains catch");
@@ -117,19 +119,19 @@ fn nested_tries_catch_propagated_and_handler_raised_values() {
         r#"
             let propagated = try
                 try raise "old" catch
-                    case "different" -> "wrong"
+                    "different" do "wrong" end
                 end
             catch
-                case "old" -> "outer caught unmatched"
+                "old" do "outer caught unmatched" end
             end
 
             let handler_raised = try
                 try raise "old" catch
-                    case error -> raise "new"
+                    error do raise "new" end
                 end
             catch
-                case "old" -> "wrong cause"
-                case "new" -> "outer caught current"
+                "old" do "wrong cause" end
+                "new" do "outer caught current" end
             end
             [propagated, handler_raised]
         "#,
@@ -186,9 +188,10 @@ fn handler_mutation_is_observable_and_reraise_preserves_the_caught_context() {
     let source = concat!(
         "let list = require(\"std/list\")\n",
         "try raise [\"old\"] catch\n",
-        "    case error ->\n",
+        "    error do\n",
         "        list.append(error, \"mutated\")\n",
         "        raise error\n",
+        "    end\n",
         "end",
     );
     let raised = assert_raised(source);
@@ -226,8 +229,8 @@ fn a_catch_does_not_catch_a_raise_from_its_own_handler() {
     let raised = assert_raised(
         r#"
             try raise "first" catch
-                case error -> raise "second"
-                case _ -> "must not run"
+                error do raise "second" end
+                _ do "must not run" end
             end
         "#,
     );
@@ -247,10 +250,10 @@ fn raises_propagate_through_loop_initialization_and_iterations() {
         r#"
             [
                 try loop state = raise "initial" do break state end catch
-                    case value -> value
+                    value do value end
                 end,
                 try loop state = 0 do raise "iteration" end catch
-                    case value -> value
+                    value do value end
                 end
             ]
         "#,
@@ -262,15 +265,15 @@ fn raises_propagate_through_loop_initialization_and_iterations() {
 fn hard_runtime_errors_bypass_language_catches() {
     for (source, expected_message) in [
         (
-            "try missing_name catch case _ -> \"must not catch\" end",
+            "try missing_name catch _ do \"must not catch\" end end",
             "undefined name `missing_name`",
         ),
         (
-            "try raise missing_name catch case _ -> \"must not catch\" end",
+            "try raise missing_name catch _ do \"must not catch\" end end",
             "undefined name `missing_name`",
         ),
         (
-            "try raise 1 catch case _ when 2 -> \"must not catch\" end",
+            "try raise 1 catch _ when 2 do \"must not catch\" end end",
             "catch guard must be boolean, got integer",
         ),
     ] {

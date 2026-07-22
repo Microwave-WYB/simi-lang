@@ -14,7 +14,7 @@ fn lexes_every_keyword_operator_and_delimiter() {
     assert_eq!(
         kinds(
             "fn do end if then elseif else let tap nil true false and or not is loop break continue \
-             match with case when raise try catch ( ) [ ] { } , . .. = == != + - * / // % -> < <= > >= |> <|"
+             case of when raise try catch ( ) [ ] { } , . .. = == != + - * / // % < <= > >= |> <|"
         ),
         vec![
             TokenKind::Fn,
@@ -36,9 +36,8 @@ fn lexes_every_keyword_operator_and_delimiter() {
             TokenKind::Loop,
             TokenKind::Break,
             TokenKind::Continue,
-            TokenKind::Match,
-            TokenKind::With,
             TokenKind::Case,
+            TokenKind::Of,
             TokenKind::When,
             TokenKind::Raise,
             TokenKind::Try,
@@ -61,7 +60,6 @@ fn lexes_every_keyword_operator_and_delimiter() {
             TokenKind::Slash,
             TokenKind::SlashSlash,
             TokenKind::Percent,
-            TokenKind::Arrow,
             TokenKind::Less,
             TokenKind::LessEqual,
             TokenKind::Greater,
@@ -103,14 +101,13 @@ fn lexes_anonymous_function_expression_tokens_with_exact_spans() {
 }
 
 #[test]
-fn lexes_match_expression_tokens() {
+fn lexes_case_expression_tokens() {
     assert_eq!(
-        kinds("match value with case [x, ..xs] when true -> x end"),
+        kinds("case value of [x, ..xs] when true do x end end"),
         vec![
-            TokenKind::Match,
-            TokenKind::Ident("value".to_owned()),
-            TokenKind::With,
             TokenKind::Case,
+            TokenKind::Ident("value".to_owned()),
+            TokenKind::Of,
             TokenKind::LBracket,
             TokenKind::Ident("x".to_owned()),
             TokenKind::Comma,
@@ -119,8 +116,9 @@ fn lexes_match_expression_tokens() {
             TokenKind::RBracket,
             TokenKind::When,
             TokenKind::True,
-            TokenKind::Arrow,
+            TokenKind::Do,
             TokenKind::Ident("x".to_owned()),
+            TokenKind::End,
             TokenKind::End,
             TokenKind::Eof,
         ]
@@ -128,16 +126,18 @@ fn lexes_match_expression_tokens() {
 }
 
 #[test]
-fn match_keywords_are_exact_and_case_sensitive() {
+fn case_keywords_are_exact_and_case_sensitive() {
     assert_eq!(
-        kinds("matching Match withhold With cases Case whenever When"),
+        kinds("case cases Case of often Of match with whenever When"),
         vec![
-            TokenKind::Ident("matching".to_owned()),
-            TokenKind::Ident("Match".to_owned()),
-            TokenKind::Ident("withhold".to_owned()),
-            TokenKind::Ident("With".to_owned()),
+            TokenKind::Case,
             TokenKind::Ident("cases".to_owned()),
             TokenKind::Ident("Case".to_owned()),
+            TokenKind::Of,
+            TokenKind::Ident("often".to_owned()),
+            TokenKind::Ident("Of".to_owned()),
+            TokenKind::Ident("match".to_owned()),
+            TokenKind::Ident("with".to_owned()),
             TokenKind::Ident("whenever".to_owned()),
             TokenKind::Ident("When".to_owned()),
             TokenKind::Eof,
@@ -194,41 +194,37 @@ fn raise_try_and_catch_tokens_use_utf8_byte_spans() {
 }
 
 #[test]
-fn match_tokens_use_utf8_byte_spans() {
+fn case_tokens_use_utf8_byte_spans() {
     assert_eq!(
-        lex("\"é\" match with case when -> ..").expect("source should lex"),
+        lex("\"é\" case of when do ..").expect("source should lex"),
         vec![
             Token {
                 kind: TokenKind::String("é".to_owned()),
                 span: Span::new(0, 4),
             },
             Token {
-                kind: TokenKind::Match,
-                span: Span::new(5, 10),
-            },
-            Token {
-                kind: TokenKind::With,
-                span: Span::new(11, 15),
-            },
-            Token {
                 kind: TokenKind::Case,
-                span: Span::new(16, 20),
+                span: Span::new(5, 9),
+            },
+            Token {
+                kind: TokenKind::Of,
+                span: Span::new(10, 12),
             },
             Token {
                 kind: TokenKind::When,
-                span: Span::new(21, 25),
+                span: Span::new(13, 17),
             },
             Token {
-                kind: TokenKind::Arrow,
-                span: Span::new(26, 28),
+                kind: TokenKind::Do,
+                span: Span::new(18, 20),
             },
             Token {
                 kind: TokenKind::DotDot,
-                span: Span::new(29, 31),
+                span: Span::new(21, 23),
             },
             Token {
                 kind: TokenKind::Eof,
-                span: Span::new(31, 31),
+                span: Span::new(23, 23),
             },
         ]
     );
@@ -244,8 +240,12 @@ fn preserves_comments_minus_and_single_dot() {
                 span: Span::new(0, 1),
             },
             Token {
-                kind: TokenKind::Arrow,
-                span: Span::new(2, 4),
+                kind: TokenKind::Minus,
+                span: Span::new(2, 3),
+            },
+            Token {
+                kind: TokenKind::Greater,
+                span: Span::new(3, 4),
             },
             Token {
                 kind: TokenKind::Dot,

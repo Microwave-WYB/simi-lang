@@ -17,8 +17,8 @@ fn variable_assignment_is_expression_valued_right_associative_and_lexical() {
             [outer, other, parameter]
         end
         let inside = update(3)
-        let matched = match [4] with
-            case [item] -> item = item + 1
+        let matched = case [4] of
+            [item] do item = item + 1 end
         end
         let looped = loop state = 0 do
             if state == 3 then break state else state = state + 1 end
@@ -131,11 +131,11 @@ fn list_bounds_reads_return_nil_while_writes_raise_without_growth() {
         let rhs_ran = []
         let read = values[2]
         let write = try values[3] = list.append(rhs_ran, true) catch
-            case {error=error, index=index, length=length} -> [error, index, length]
+            {error=error, index=index, length=length} do [error, index, length] end
         end
         let get = list.get(values, 4)
         let set = try list.set(values, 5, 9) catch
-            case {error=error, index=index, length=length} -> [error, index, length]
+            {error=error, index=index, length=length} do [error, index, length] end
         end
         [read, write, get, set, values, rhs_ran]
         "#,
@@ -170,10 +170,10 @@ fn native_set_bounds_raises_preserve_the_call_origin_and_user_frame() {
 #[test]
 fn negative_and_wrong_type_list_indices_remain_hard_errors() {
     for source in [
-        "try [1][0 - 1] catch case _ -> nil end",
-        "try [1][\"0\"] = 2 catch case _ -> nil end",
-        "let list = require(\"std/list\")\ntry list.get([1], 0 - 1) catch case _ -> nil end",
-        "let list = require(\"std/list\")\ntry list.set([1], \"0\", 2) catch case _ -> nil end",
+        "try [1][0 - 1] catch _ do nil end end",
+        "try [1][\"0\"] = 2 catch _ do nil end end",
+        "let list = require(\"std/list\")\ntry list.get([1], 0 - 1) catch _ do nil end end",
+        "let list = require(\"std/list\")\ntry list.set([1], \"0\", 2) catch _ do nil end end",
     ] {
         assert!(matches!(eval(source), Err(SimiError::Runtime(_))));
     }

@@ -83,7 +83,7 @@ fn callback_raises_propagate_through_higher_order_calls() {
         try list.map([1], fn(value) do
             raise {error="callback_failed", value=value}
         end) catch
-            case {error="callback_failed", value=value} -> value
+            {error="callback_failed", value=value} do value end
         end
         "#,
         "1",
@@ -162,7 +162,7 @@ fn list_queries_snapshot_mutated_sources_and_propagate_raises() {
         let caught = try list.find(values, fn(value) do
             raise { error = "query_failed", value = value }
         end) catch
-        case { error = "query_failed", value = value } -> value
+        { error = "query_failed", value = value } do value end
         end
         [count, caught, values]
         "#,

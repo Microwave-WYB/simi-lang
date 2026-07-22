@@ -143,14 +143,14 @@ impl Interpreter {
                 branches,
                 else_branch,
             } => self.evaluate_if(branches, else_branch.as_ref(), env),
-            ExprKind::Match { value, cases } => {
-                self.evaluate_match(value, cases, expression.span, env)
+            ExprKind::Case { value, clauses } => {
+                self.evaluate_case(value, clauses, expression.span, env)
             }
             ExprKind::Raise { value } => {
                 let value = self.evaluate_expression(value, env)?;
                 Err(EvaluationError::Raised(Raised::new(value, expression.span)))
             }
-            ExprKind::Try { protected, cases } => self.evaluate_try(protected, cases, env),
+            ExprKind::Try { protected, clauses } => self.evaluate_try(protected, clauses, env),
             ExprKind::Loop {
                 state,
                 initial,

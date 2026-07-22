@@ -72,7 +72,7 @@ let { name = name, ..settings } = user
 count = count + 1
 ```
 
-Use `match` when pattern failure is expected and requires recovery. Assignment updates the nearest existing lexical binding and evaluates to its right-hand value. Assigning to an undefined name is a hard runtime error. Assignment is right-associative.
+Use `case` when pattern failure is expected and requires recovery. Assignment updates the nearest existing lexical binding and evaluates to its right-hand value. Assigning to an undefined name is a hard runtime error. Assignment is right-associative.
 
 Field and index assignments mutate containers:
 
@@ -201,15 +201,17 @@ Maintain the existing loop syntax and control-flow contracts in the parser and i
 Simi has structural, expression-valued matching:
 
 ```simi
-match value with
-case pattern when guard ->
-    body
-case _ ->
-    fallback
+case value of
+    pattern when guard do
+        body
+    end
+    _ do
+        fallback
+    end
 end
 ```
 
-Patterns support literals, bindings, wildcards, nested list/map patterns, and list/map rests. Guards must evaluate to booleans. Bindings are scoped to the selected case.
+Patterns support literals, bindings, wildcards, nested list/map patterns, and list/map rests. Guards must evaluate to booleans. Bindings are scoped to the selected clause. Clause bodies are explicitly delimited by `do ... end`, so clauses remain whitespace-independent and may appear on one line.
 
 Map fields normally require key presence. The literal nil field pattern is the exception: `{ missing = nil }` matches an absent field, consistent with map lookup and deletion semantics.
 
@@ -223,8 +225,9 @@ Any value may be raised and structurally caught:
 raise { error = "invalid_input", value = input }
 
 try operation() catch
-    case { error = "invalid_input", value = value } ->
+    { error = "invalid_input", value = value } do
         recover(value)
+    end
 end
 ```
 

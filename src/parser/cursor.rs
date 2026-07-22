@@ -53,11 +53,7 @@ impl Parser {
     pub(super) fn at_block_terminator(&self) -> bool {
         matches!(
             &self.current().kind,
-            TokenKind::ElseIf
-                | TokenKind::Else
-                | TokenKind::Case
-                | TokenKind::Catch
-                | TokenKind::End
+            TokenKind::ElseIf | TokenKind::Else | TokenKind::Catch | TokenKind::End
         )
     }
 
@@ -100,9 +96,8 @@ pub(super) enum SimpleToken {
     Raise,
     Try,
     Catch,
-    Match,
-    With,
     Case,
+    Of,
     When,
     If,
     Then,
@@ -119,7 +114,6 @@ pub(super) enum SimpleToken {
     Comma,
     Dot,
     DotDot,
-    Arrow,
     Equal,
     EqualEqual,
     BangEqual,
@@ -152,9 +146,8 @@ impl SimpleToken {
                 | (Self::Raise, TokenKind::Raise)
                 | (Self::Try, TokenKind::Try)
                 | (Self::Catch, TokenKind::Catch)
-                | (Self::Match, TokenKind::Match)
-                | (Self::With, TokenKind::With)
                 | (Self::Case, TokenKind::Case)
+                | (Self::Of, TokenKind::Of)
                 | (Self::When, TokenKind::When)
                 | (Self::If, TokenKind::If)
                 | (Self::Then, TokenKind::Then)
@@ -171,7 +164,6 @@ impl SimpleToken {
                 | (Self::Comma, TokenKind::Comma)
                 | (Self::Dot, TokenKind::Dot)
                 | (Self::DotDot, TokenKind::DotDot)
-                | (Self::Arrow, TokenKind::Arrow)
                 | (Self::Equal, TokenKind::Equal)
                 | (Self::EqualEqual, TokenKind::EqualEqual)
                 | (Self::BangEqual, TokenKind::BangEqual)
@@ -210,9 +202,8 @@ fn token_name(kind: &TokenKind) -> &'static str {
         TokenKind::Catch => "catch",
         TokenKind::Do => "do",
         TokenKind::End => "end",
-        TokenKind::Match => "match",
-        TokenKind::With => "with",
         TokenKind::Case => "case",
+        TokenKind::Of => "of",
         TokenKind::When => "when",
         TokenKind::If => "if",
         TokenKind::Then => "then",
@@ -236,7 +227,6 @@ fn token_name(kind: &TokenKind) -> &'static str {
         TokenKind::Comma => ",",
         TokenKind::Dot => ".",
         TokenKind::DotDot => "..",
-        TokenKind::Arrow => "->",
         TokenKind::Equal => "=",
         TokenKind::EqualEqual => "==",
         TokenKind::BangEqual => "!=",

@@ -38,7 +38,7 @@ pub struct Expr {
 }
 
 #[derive(Clone, Debug)]
-pub struct MatchCase {
+pub struct PatternClause {
     pub pattern: Pattern,
     pub guard: Option<Expr>,
     pub body: Block,
@@ -111,11 +111,11 @@ pub enum ExprKind {
     },
     Try {
         protected: Box<Expr>,
-        cases: Vec<MatchCase>,
+        clauses: Vec<PatternClause>,
     },
-    Match {
+    Case {
         value: Box<Expr>,
-        cases: Vec<MatchCase>,
+        clauses: Vec<PatternClause>,
     },
     If {
         branches: Vec<(Expr, Block)>,

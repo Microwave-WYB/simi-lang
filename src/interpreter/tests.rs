@@ -207,15 +207,15 @@ fn try_catches_values_with_match_semantics_and_unmatched_raises_are_unchanged() 
     let value = evaluate(
         r#"
                 try raise {kind="missing", payload=[1, 2]} catch
-                    case {kind="missing", payload=[head, ..tail]} when head == 1 -> tail
-                    case _ -> nil
+                    {kind="missing", payload=[head, ..tail]} when head == 1 do tail end
+                    _ do nil end
                 end
             "#,
     )
-    .expect("the structural catch case should match");
+    .expect("the structural catch should match");
     assert_eq!(value.render(), "[2]");
 
-    let source = "try raise 1 catch case 2 -> nil end";
+    let source = "try raise 1 catch 2 do nil end end";
     let raised = expect_raised(source);
     let raise_start = source
         .find("raise 1")
@@ -238,7 +238,7 @@ fn try_evaluates_its_protected_expression_exactly_once() {
             Arc::new(count_protected_evaluation),
         )),
     );
-    let source = "try raise tick() catch case count -> count end";
+    let source = "try raise tick() catch count do count end end";
     let tokens = lexer::lex(source).expect("test source should lex");
     let program = parser::parse(tokens).expect("test source should parse");
     let outcome = Interpreter::with_globals(globals)
@@ -280,22 +280,22 @@ fn is_evaluates_its_operand_once_without_calling_global_type() {
 #[test]
 fn loops_propagate_raises_from_initialization_and_iterations() {
     let initializer =
-        evaluate("try loop state = raise 4 do break state end catch case value -> value end")
+        evaluate("try loop state = raise 4 do break state end catch value do value end end")
             .expect("the enclosing try should catch an initializer raise");
     assert_eq!(initializer.render(), "4");
 
-    let iteration = evaluate("try loop state = 0 do raise state end catch case 0 -> 9 end")
+    let iteration = evaluate("try loop state = 0 do raise state end catch 0 do 9 end end")
         .expect("the enclosing try should catch an iteration raise");
     assert_eq!(iteration.render(), "9");
 }
 
 #[test]
 fn hard_errors_and_non_boolean_catch_guards_bypass_language_catches() {
-    let undefined = expect_runtime_error("try missing_name catch case _ -> \"must not catch\" end");
+    let undefined = expect_runtime_error("try missing_name catch _ do \"must not catch\" end end");
     assert_eq!(undefined.span, Span::new(4, 16));
     assert!(undefined.message.contains("undefined name"));
 
-    let guard_source = "try raise 1 catch case _ when 2 -> nil end";
+    let guard_source = "try raise 1 catch _ when 2 do nil end end";
     let guard = expect_runtime_error(guard_source);
     let guard_start = guard_source.find("2").expect("guard should exist");
     assert_eq!(guard.span, Span::new(guard_start, guard_start + 1));
@@ -305,11 +305,11 @@ fn hard_errors_and_non_boolean_catch_guards_bypass_language_catches() {
 #[test]
 fn handler_raises_escape_siblings_and_append_the_caught_chain() {
     let source = r#"try try raise "old" catch
-                case _ -> raise "middle"
-                case _ -> "inner sibling must not run"
+                _ do raise "middle" end
+                _ do "inner sibling must not run" end
             end catch
-                case _ -> raise "new"
-                case _ -> "outer sibling must not run"
+                _ do raise "new" end
+                _ do "outer sibling must not run" end
             end"#;
     let raised = expect_raised(source);
 
@@ -345,7 +345,7 @@ fn handler_raises_escape_siblings_and_append_the_caught_chain() {
 fn handler_reraise_records_a_new_origin_and_freezes_caught_frames_in_its_cause() {
     let source = r#"fn leaf() do raise "old" end
 try leaf() catch
-case error -> raise error
+error do raise error end
 end"#;
     let raised = expect_raised(source);
     let reraised_start = source.rfind("raise error").expect("re-raise should exist");
@@ -380,8 +380,8 @@ end"#;
 #[test]
 fn a_raise_from_a_catch_guard_escapes_without_trying_siblings() {
     let source = r#"try raise "caught" catch
-case _ when raise "guard" -> "body must not run"
-case _ -> "sibling must not run"
+_ when raise "guard" do "body must not run" end
+_ do "sibling must not run" end
 end"#;
     let raised = expect_raised(source);
     assert_eq!(raised.value.render(), "\"guard\"");
@@ -637,12 +637,12 @@ fn list_rest_has_a_new_container_and_retains_nested_aliases() {
     let match_span = Span::new(0, 40);
     let value = evaluate_ast(
         expression(
-            ExprKind::Match {
+            ExprKind::Case {
                 value: Box::new(expression(
                     ExprKind::Variable("source".to_owned()),
                     Span::new(6, 12),
                 )),
-                cases: vec![MatchCase {
+                clauses: vec![PatternClause {
                     pattern: pattern(
                         PatternKind::List {
                             elements: vec![pattern(PatternKind::Wildcard, Span::new(24, 25))],
@@ -695,12 +695,12 @@ fn map_rest_has_a_new_ordered_container_and_retains_nested_aliases() {
 
     let value = evaluate_ast(
         expression(
-            ExprKind::Match {
+            ExprKind::Case {
                 value: Box::new(expression(
                     ExprKind::Variable("source".to_owned()),
                     Span::new(6, 12),
                 )),
-                cases: vec![MatchCase {
+                clauses: vec![PatternClause {
                     pattern: pattern(
                         PatternKind::Map {
                             fields: vec![
@@ -769,13 +769,13 @@ fn failed_patterns_do_not_expose_partial_bindings_or_evaluate_guards() {
 
     let result = evaluate_ast(
         expression(
-            ExprKind::Match {
+            ExprKind::Case {
                 value: Box::new(expression(
                     ExprKind::Variable("source".to_owned()),
                     Span::new(6, 12),
                 )),
-                cases: vec![
-                    MatchCase {
+                clauses: vec![
+                    PatternClause {
                         pattern: first_pattern,
                         guard: Some(expression(
                             ExprKind::Variable("guard_must_not_run".to_owned()),
@@ -786,7 +786,7 @@ fn failed_patterns_do_not_expose_partial_bindings_or_evaluate_guards() {
                             Span::new(58, 64),
                         )),
                     },
-                    MatchCase {
+                    PatternClause {
                         pattern: pattern(PatternKind::Wildcard, Span::new(70, 71)),
                         guard: None,
                         body: expression_block(expression(ExprKind::Int(7), Span::new(75, 76))),
@@ -811,10 +811,10 @@ fn bindings_are_visible_to_guards_and_bodies_but_do_not_escape_case_scopes() {
 
     let result = evaluate_ast(
         expression(
-            ExprKind::Match {
+            ExprKind::Case {
                 value: Box::new(expression(ExprKind::Int(2), Span::new(6, 7))),
-                cases: vec![
-                    MatchCase {
+                clauses: vec![
+                    PatternClause {
                         pattern: n_pattern(),
                         guard: Some(expression(ExprKind::Bool(false), Span::new(27, 32))),
                         body: expression_block(expression(
@@ -822,7 +822,7 @@ fn bindings_are_visible_to_guards_and_bodies_but_do_not_escape_case_scopes() {
                             Span::new(36, 53),
                         )),
                     },
-                    MatchCase {
+                    PatternClause {
                         pattern: n_pattern(),
                         guard: Some(expression(
                             ExprKind::Binary {
@@ -862,10 +862,10 @@ fn a_false_guard_discards_its_fresh_case_scope() {
 
     let result = evaluate_ast(
         expression(
-            ExprKind::Match {
+            ExprKind::Case {
                 value: Box::new(expression(ExprKind::Int(2), Span::new(6, 7))),
-                cases: vec![
-                    MatchCase {
+                clauses: vec![
+                    PatternClause {
                         pattern: pattern(
                             PatternKind::Binding("attempt".to_owned()),
                             Span::new(18, 25),
@@ -873,7 +873,7 @@ fn a_false_guard_discards_its_fresh_case_scope() {
                         guard: Some(expression(ExprKind::Bool(false), Span::new(31, 36))),
                         body: expression_block(expression(ExprKind::Nil, Span::new(40, 43))),
                     },
-                    MatchCase {
+                    PatternClause {
                         pattern: pattern(PatternKind::Wildcard, Span::new(49, 50)),
                         guard: None,
                         body: expression_block(expression(
@@ -898,9 +898,9 @@ fn match_errors_use_the_guard_and_complete_match_spans() {
     let match_span = Span::new(0, 31);
     let guard_error = match evaluate_ast(
         expression(
-            ExprKind::Match {
+            ExprKind::Case {
                 value: Box::new(expression(ExprKind::Int(1), Span::new(6, 7))),
-                cases: vec![MatchCase {
+                clauses: vec![PatternClause {
                     pattern: pattern(PatternKind::Wildcard, Span::new(18, 19)),
                     guard: Some(expression(ExprKind::Int(1), guard_span)),
                     body: Block {
@@ -919,15 +919,15 @@ fn match_errors_use_the_guard_and_complete_match_spans() {
     assert_eq!(guard_error.span, guard_span);
     assert_eq!(
         guard_error.message,
-        "match guard must be boolean, got integer"
+        "case guard must be boolean, got integer"
     );
 
     let no_match_span = Span::new(40, 72);
     let no_match_error = match evaluate_ast(
         expression(
-            ExprKind::Match {
+            ExprKind::Case {
                 value: Box::new(expression(ExprKind::Int(1), Span::new(46, 47))),
-                cases: vec![MatchCase {
+                clauses: vec![PatternClause {
                     pattern: pattern(PatternKind::Int(2), Span::new(58, 59)),
                     guard: None,
                     body: expression_block(expression(ExprKind::Nil, Span::new(63, 66))),
@@ -937,9 +937,9 @@ fn match_errors_use_the_guard_and_complete_match_spans() {
         ),
         Environment::new(),
     ) {
-        Ok(_) => panic!("a match with no selected case should fail"),
+        Ok(_) => panic!("a case expression with no selected clause should fail"),
         Err(error) => error,
     };
     assert_eq!(no_match_error.span, no_match_span);
-    assert_eq!(no_match_error.message, "no match case matched");
+    assert_eq!(no_match_error.message, "no case clause matched");
 }

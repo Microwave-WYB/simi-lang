@@ -161,7 +161,7 @@ fn missing_modules_raise_exact_values_at_the_call_span_and_are_catchable() {
         .eval(
             r#"
             try require("missing") catch
-                case {error="module_not_found", module=module} -> module
+                {error="module_not_found", module=module} do module end
             end
             "#,
         )

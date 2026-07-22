@@ -1,40 +1,40 @@
 use gc::{Gc, GcCell};
 
 use super::{EvaluationError, EvaluationResult, Interpreter, operations::numeric_equal};
-use crate::ast::{Expr, MatchCase, Pattern, PatternKind, PatternRest};
+use crate::ast::{Expr, Pattern, PatternClause, PatternKind, PatternRest};
 use crate::runtime::{Environment, MapKey, RuntimeError, RuntimeResult, Value};
 use crate::span::Span;
 
 impl Interpreter {
-    pub(super) fn evaluate_match(
+    pub(super) fn evaluate_case(
         &mut self,
         value: &Expr,
-        cases: &[MatchCase],
+        clauses: &[PatternClause],
         span: Span,
         env: &Environment,
     ) -> EvaluationResult<Value> {
         let value = self.evaluate_expression(value, env)?;
 
-        for case in cases {
+        for clause in clauses {
             let mut bindings = Vec::new();
-            if !match_pattern(&case.pattern, &value, &mut bindings)? {
+            if !match_pattern(&clause.pattern, &value, &mut bindings)? {
                 continue;
             }
 
-            let case_env = env.child();
+            let clause_env = env.child();
             for (name, value) in bindings {
-                case_env.define(name, value);
+                clause_env.define(name, value);
             }
 
-            if let Some(guard) = &case.guard {
-                match self.evaluate_expression(guard, &case_env)? {
+            if let Some(guard) = &clause.guard {
+                match self.evaluate_expression(guard, &clause_env)? {
                     Value::Bool(true) => {}
                     Value::Bool(false) => continue,
                     value => {
                         return Err(EvaluationError::Runtime(RuntimeError {
                             span: guard.span,
                             message: format!(
-                                "match guard must be boolean, got {}",
+                                "case guard must be boolean, got {}",
                                 value.type_name()
                             ),
                         }));
@@ -42,19 +42,19 @@ impl Interpreter {
                 }
             }
 
-            return self.evaluate_block(&case.body, &case_env);
+            return self.evaluate_block(&clause.body, &clause_env);
         }
 
         Err(EvaluationError::Runtime(RuntimeError {
             span,
-            message: "no match case matched".to_owned(),
+            message: "no case clause matched".to_owned(),
         }))
     }
 
     pub(super) fn evaluate_try(
         &mut self,
         protected: &Expr,
-        cases: &[MatchCase],
+        clauses: &[PatternClause],
         env: &Environment,
     ) -> EvaluationResult<Value> {
         let caught = match self.evaluate_expression(protected, env) {
@@ -63,19 +63,19 @@ impl Interpreter {
             Err(error) => return Err(error),
         };
 
-        for case in cases {
+        for clause in clauses {
             let mut bindings = Vec::new();
-            if !match_pattern(&case.pattern, &caught.value, &mut bindings)? {
+            if !match_pattern(&clause.pattern, &caught.value, &mut bindings)? {
                 continue;
             }
 
-            let case_env = env.child();
+            let clause_env = env.child();
             for (name, value) in bindings {
-                case_env.define(name, value);
+                clause_env.define(name, value);
             }
 
-            if let Some(guard) = &case.guard {
-                match self.evaluate_expression(guard, &case_env) {
+            if let Some(guard) = &clause.guard {
+                match self.evaluate_expression(guard, &clause_env) {
                     Ok(Value::Bool(true)) => {}
                     Ok(Value::Bool(false)) => continue,
                     Ok(value) => {
@@ -95,7 +95,7 @@ impl Interpreter {
                 }
             }
 
-            return match self.evaluate_block(&case.body, &case_env) {
+            return match self.evaluate_block(&clause.body, &clause_env) {
                 Err(EvaluationError::Raised(mut raised)) => {
                     raised.append_cause(caught);
                     Err(EvaluationError::Raised(raised))

@@ -380,7 +380,7 @@ impl Parser {
             TokenKind::LBrace => self.parse_map(),
             TokenKind::Raise => self.parse_raise(),
             TokenKind::Try => self.parse_try(),
-            TokenKind::Match => self.parse_match(),
+            TokenKind::Case => self.parse_case(),
             TokenKind::If => self.parse_if(),
             TokenKind::Loop => self.parse_loop(),
             TokenKind::Continue => self.parse_continue(),

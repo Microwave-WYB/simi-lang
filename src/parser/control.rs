@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use super::{ParseError, Parser, SimpleToken};
-use crate::ast::{Expr, ExprKind, MatchCase};
+use crate::ast::{Expr, ExprKind, PatternClause};
 use crate::lexer::TokenKind;
 use crate::span::Span;
 
@@ -22,51 +22,41 @@ impl Parser {
         let start = self.expect_simple(SimpleToken::Try, "`try`")?;
         let protected = self.parse_expression()?;
         self.expect_simple(SimpleToken::Catch, "`catch` after protected expression")?;
-
-        if !self.at_simple(SimpleToken::Case) {
-            return Err(self.error_current(format!(
-                "expected `case` after `catch`, found `{}`",
-                self.current_name()
-            )));
-        }
-
-        let cases = self.parse_cases("`->` after catch case")?;
+        let clauses = self.parse_pattern_clauses("catch")?;
         let end = self.expect_simple(SimpleToken::End, "`end` after try expression")?;
         Ok(Expr {
             kind: ExprKind::Try {
                 protected: Box::new(protected),
-                cases,
+                clauses,
             },
             span: start.merge(end),
         })
     }
 
-    pub(super) fn parse_match(&mut self) -> Result<Expr, ParseError> {
-        let start = self.expect_simple(SimpleToken::Match, "`match`")?;
+    pub(super) fn parse_case(&mut self) -> Result<Expr, ParseError> {
+        let start = self.expect_simple(SimpleToken::Case, "`case`")?;
         let value = self.parse_expression()?;
-        self.expect_simple(SimpleToken::With, "`with` after match value")?;
+        self.expect_simple(SimpleToken::Of, "`of` after case value")?;
+        let clauses = self.parse_pattern_clauses("case")?;
+        let end = self.expect_simple(SimpleToken::End, "`end` after case expression")?;
+        Ok(Expr {
+            kind: ExprKind::Case {
+                value: Box::new(value),
+                clauses,
+            },
+            span: start.merge(end),
+        })
+    }
 
-        if !self.at_simple(SimpleToken::Case) {
-            return Err(self.error_current(format!(
-                "expected `case` after `with`, found `{}`",
-                self.current_name()
-            )));
+    fn parse_pattern_clauses(&mut self, construct: &str) -> Result<Vec<PatternClause>, ParseError> {
+        if self.at_simple(SimpleToken::End) {
+            return Err(
+                self.error_current(format!("expected pattern after `{construct}`, found `end`"))
+            );
         }
 
-        let cases = self.parse_cases("`->` after match case")?;
-        let end = self.expect_simple(SimpleToken::End, "`end` after match expression")?;
-        Ok(Expr {
-            kind: ExprKind::Match {
-                value: Box::new(value),
-                cases,
-            },
-            span: start.merge(end),
-        })
-    }
-
-    fn parse_cases(&mut self, arrow_description: &str) -> Result<Vec<MatchCase>, ParseError> {
-        let mut cases = Vec::new();
-        while self.consume_simple(SimpleToken::Case) {
+        let mut clauses = Vec::new();
+        while !self.at_simple(SimpleToken::End) && !self.at_eof() {
             let mut bindings = HashSet::new();
             let pattern = self.parse_pattern(&mut bindings)?;
             let guard = if self.consume_simple(SimpleToken::When) {
@@ -74,15 +64,16 @@ impl Parser {
             } else {
                 None
             };
-            let arrow = self.expect_simple(SimpleToken::Arrow, arrow_description)?;
-            let body = self.parse_block(arrow.end)?;
-            cases.push(MatchCase {
+            let do_span = self.expect_simple(SimpleToken::Do, "`do` before clause body")?;
+            let body = self.parse_block(do_span.end)?;
+            self.expect_simple(SimpleToken::End, "`end` after clause body")?;
+            clauses.push(PatternClause {
                 pattern,
                 guard,
                 body,
             });
         }
-        Ok(cases)
+        Ok(clauses)
     }
 
     pub(super) fn parse_loop(&mut self) -> Result<Expr, ParseError> {
@@ -187,7 +178,7 @@ impl Parser {
                 | TokenKind::Raise
                 | TokenKind::Try
                 | TokenKind::Catch
-                | TokenKind::Match
+                | TokenKind::Case
                 | TokenKind::If
                 | TokenKind::Loop
                 | TokenKind::Break

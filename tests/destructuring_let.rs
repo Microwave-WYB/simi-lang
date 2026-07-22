@@ -76,7 +76,7 @@ fn mismatch_is_a_hard_runtime_error_at_the_pattern_span() {
             x + y
         end
         try unpack([1]) catch
-            case _ -> 0
+            _ do 0 end
         end
     "#;
     match eval(attempted_catch) {
