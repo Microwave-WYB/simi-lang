@@ -1,18 +1,12 @@
 use crate::Module;
 use crate::native::{
-    core_inspect, core_type, list_append, list_contains, list_extend, list_get, list_insert,
-    list_length, list_pop, list_remove, list_reverse, list_set, list_slice, map_clear, map_entries,
-    map_has, map_keys, map_length, map_values, string_contains, string_ends_with, string_length,
+    list_append, list_contains, list_extend, list_get, list_insert, list_length, list_pop,
+    list_remove, list_reverse, list_set, list_slice, map_clear, map_entries, map_has, map_keys,
+    map_length, map_values, stderr_flush, stderr_print, stderr_println, stdin_read_line,
+    stdout_flush, stdout_print, stdout_println, string_contains, string_ends_with, string_length,
     string_lower, string_slice, string_split, string_starts_with, string_trim, string_upper,
 };
 use crate::runtime::{NativeFunction, Value};
-
-pub fn core() -> Module {
-    Module::builder("core")
-        .function("type", 1, core_type)
-        .function("inspect", 1, core_inspect)
-        .build()
-}
 
 pub fn list() -> Module {
     Module::builder("list")
@@ -33,6 +27,15 @@ pub fn list() -> Module {
             Value::NativeFunction(NativeFunction::list_filter()),
         )
         .value("fold", Value::NativeFunction(NativeFunction::list_fold()))
+        .value("find", Value::NativeFunction(NativeFunction::list_find()))
+        .value(
+            "find_index",
+            Value::NativeFunction(NativeFunction::list_find_index()),
+        )
+        .value("any", Value::NativeFunction(NativeFunction::list_any()))
+        .value("all", Value::NativeFunction(NativeFunction::list_all()))
+        .value("each", Value::NativeFunction(NativeFunction::list_each()))
+        .value("count", Value::NativeFunction(NativeFunction::list_count()))
         .build()
 }
 
@@ -47,6 +50,28 @@ pub fn string() -> Module {
         .function("trim", 1, string_trim)
         .function("lower", 1, string_lower)
         .function("upper", 1, string_upper)
+        .build()
+}
+
+pub fn stdin() -> Module {
+    Module::builder("std/io/stdin")
+        .function("read_line", 0, stdin_read_line)
+        .build()
+}
+
+pub fn stdout() -> Module {
+    Module::builder("std/io/stdout")
+        .function("print", 1, stdout_print)
+        .function("println", 1, stdout_println)
+        .function("flush", 0, stdout_flush)
+        .build()
+}
+
+pub fn stderr() -> Module {
+    Module::builder("std/io/stderr")
+        .function("print", 1, stderr_print)
+        .function("println", 1, stderr_println)
+        .function("flush", 0, stderr_flush)
         .build()
 }
 

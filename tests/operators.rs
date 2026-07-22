@@ -126,3 +126,64 @@ fn numeric_type_overflow_and_non_finite_failures_remain_hard() {
         assert!(matches!(eval(source), Err(SimiError::Runtime(_))));
     }
 }
+
+#[test]
+fn trailing_argument_appends_to_calls_and_composes_with_pipelines() {
+    let result = value(
+        r#"
+        fn pair(left, right) do [left, right] end
+        fn wrap(value) do [value] end
+        let assigned = nil
+        assigned = pair(6) <| 7
+        [
+            pair(1) <| 2,
+            wrap() <| wrap() <| 3,
+            4 |> pair() <| 5,
+            assigned,
+        ]
+        "#,
+    );
+    assert_eq!(result.render(), "[[1, 2], [[3]], [4, 5], [6, 7]]");
+}
+
+#[test]
+fn trailing_argument_is_right_associative_and_requires_call_left_operands() {
+    for source in ["1 <| 2", "fn f(a, b) do a end f() <| 1 <| 2"] {
+        let error = match eval(source) {
+            Err(error) => error,
+            Ok(_) => panic!("invalid trailing argument should fail to parse"),
+        };
+        assert!(matches!(error, SimiError::Parse(_)));
+        let invalid_start = source.rfind('1').unwrap();
+        assert_eq!(
+            error.span(),
+            simiscript::span::Span::new(invalid_start, invalid_start + 1)
+        );
+        assert!(
+            error
+                .to_string()
+                .contains("left side of `<|` must be a call")
+        );
+    }
+}
+
+#[test]
+fn trailing_argument_preserves_callee_then_argument_evaluation_order() {
+    let result = value(
+        r#"
+        let list = require("list")
+        let events = []
+        fn mark(value) do
+            list.append(events, value)
+            value
+        end
+        fn choose() do
+            mark(0)
+            fn(first, second) do [first, second] end
+        end
+        let result = choose()(mark(1)) <| mark(2)
+        [events, result]
+        "#,
+    );
+    assert_eq!(result.render(), "[[0, 1, 2], [1, 2]]");
+}

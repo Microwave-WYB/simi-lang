@@ -52,6 +52,10 @@ impl<'a> Lexer<'a> {
                     self.position += 2;
                     self.push(TokenKind::BangEqual, start);
                 }
+                b'<' if self.peek_byte(1) == Some(b'|') => {
+                    self.position += 2;
+                    self.push(TokenKind::LessPipe, start);
+                }
                 b'<' => self.one_or_two(TokenKind::Less, b'=', TokenKind::LessEqual),
                 b'>' => self.one_or_two(TokenKind::Greater, b'=', TokenKind::GreaterEqual),
                 b'|' if self.peek_byte(1) == Some(b'>') => {

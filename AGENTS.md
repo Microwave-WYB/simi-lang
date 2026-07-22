@@ -99,7 +99,7 @@ A nonnegative out-of-range read returns `nil`. Negative and non-integer indices 
 
 Ordinary aliases observe the same mutations. List-rest pattern captures and `list.slice` create independent copy-on-write views in O(1), while nested values retain shallow alias identity.
 
-The standard `list` module provides mutation, slicing, inspection, and the higher-order `map`, `filter`, and `fold` operations. Higher-order operations iterate over a snapshot, invoke Simi or native callables through the active interpreter, and propagate callback raises. `filter` predicates must return booleans.
+The standard `list` module provides mutation, slicing, inspection, and higher-order operations. In addition to `map`, `filter`, and `fold`, its Gleam-inspired query surface includes `find`, `find_index`, `any`, `all`, `each`, and predicate-based `count`. Higher-order operations iterate over a snapshot, invoke Simi or native callables through the active interpreter, and propagate callback raises. Predicates must return booleans. Searches and boolean queries short-circuit; `all([])` is true and `any([])` is false. `each` returns the original list alias after visiting the snapshot from left to right.
 
 ### Maps
 
@@ -132,6 +132,7 @@ Simi supports finite decimal and exponent floats, integer/float arithmetic, exac
 +  -  *  /  //  %
 ==  !=  <  <=  >  >=
 and  or  not
+<|  |>
 ```
 
 `/` always produces a float. `//` and `%` follow Lua floor-division semantics. Division by zero raises:
@@ -150,7 +151,16 @@ A pipeline stage must be a call. The incoming value is inserted as the first arg
 value |> transform(extra)
 ```
 
-`tap` performs a call while preserving the piped value, which is useful for mutation-oriented operations.
+The right-associative trailing-argument operator `<|` requires a call on its left and appends its right operand as exactly one final argument. It binds more tightly than `|>`, allowing callback-heavy pipelines without nested closing parentheses:
+
+```simi
+values
+|> list.map() <| fn(value) do
+    value * 2
+end
+```
+
+`operation(first) <| second <| third` is rejected because right associativity makes `second <| third` invalid. `tap` performs a call while preserving the piped value, which is useful for mutation-oriented operations.
 
 ### Modules and native extensions
 
@@ -161,9 +171,13 @@ let list = require("list")
 list.length([ 1, 2, 3 ])
 ```
 
-Modules are registered by the embedding host and cached per `Engine`. Repeated `require` calls return the same mutable export map, and module state persists across evaluations performed by that engine. Separate engines have separate module registries. `Engine::new()` has no registered modules; `Engine::with_stdlib()` includes `core`, `list`, `map`, and `string`. The root `eval` convenience function uses a fresh standard-library engine.
+Normal/default interpreters and all `Engine` evaluations provide the shadowable globals `type(value)` and `inspect(value)` alongside `require`. The low-level `Interpreter::with_globals` constructor intentionally treats its environment as complete and does not add a prelude. `type` returns stable strings for Simi's runtime value categories. `inspect` is cycle-safe human-readable rendering, not serialization.
 
-Rust extension crates construct modules with `Module::builder`. Module and export registration is infallible and last-wins. Native callbacks may capture Rust state but must be `Send + Sync + 'static`; this prevents safe callbacks from capturing Simi's non-`Send` managed values as untraced edges. Do not weaken this boundary or implement `require` as a closure that captures managed module values. Interpreter-aware standard operations such as `list.map`, `list.filter`, and `list.fold` use private, data-free intrinsic variants rather than exposing the interpreter to host callbacks.
+Modules are registered by the embedding host and cached per `Engine`. Repeated `require` calls return the same mutable export map, and module state persists across evaluations performed by that engine. Separate engines have separate module registries. `Engine::new()` has no registered modules; `Engine::with_stdlib()` includes `list`, `map`, and `string`. The root `eval` convenience function uses a fresh standard-library engine.
+
+Standard streams are separate opt-in capabilities named `std/io/stdin`, `std/io/stdout`, and `std/io/stderr`. The CLI registers them; `Engine::with_stdlib()` and root `eval` do not. Embedders can opt in with `Engine::builder().stdlib().stdio()`. Input supplies `read_line`; output streams supply `print`, `println`, and `flush`. Strings print raw while other values use inspector rendering. EOF returns `nil`, successful writes return `nil`, and stream failures raise `{ error = "io_error", operation = operation, message = message }`.
+
+Rust extension crates construct modules with `Module::builder`. Module and export registration is infallible and last-wins. Native callbacks may capture Rust state but must be `Send + Sync + 'static`; this prevents safe callbacks from capturing Simi's non-`Send` managed values as untraced edges. Do not weaken this boundary or implement `require` as a closure that captures managed module values. Interpreter-aware standard list operations use private, data-free intrinsic variants rather than exposing the interpreter to host callbacks.
 
 A missing module raises `{ error = "module_not_found", module = name }`. A non-string module name is a hard runtime error. Filesystem and script-source module loading are not implemented.
 
@@ -179,10 +193,10 @@ Simi has structural, expression-valued matching:
 
 ```simi
 match value with
-    case pattern when guard ->
-        body
-    case _ ->
-        fallback
+case pattern when guard ->
+    body
+case _ ->
+    fallback
 end
 ```
 
@@ -286,8 +300,8 @@ Add tests at the lowest useful layer and at the public language boundary when se
 
 ## Near-Term Direction
 
-The standard library currently includes `core`, `list`, `map`, and `string` modules. Anonymous functions and higher-order list operations are implemented.
+The portable standard library currently includes `list`, `map`, and `string`; `type` and `inspect` are globals. Anonymous functions, trailing callback application, and Gleam-inspired higher-order list queries are implemented. The CLI additionally registers the opt-in `std/io/*` standard-stream modules.
 
-Likely later milestones include CLI arguments and basic I/O, filesystem/script module loading, formatting, optional static typing, and editor tooling. These are roadmap items, not implemented features. Do not add them opportunistically outside an approved task.
+Likely later milestones include CLI arguments, filesystem/script module loading, formatting, optional static typing, and editor tooling. These are roadmap items, not implemented features. Do not add them opportunistically outside an approved task.
 
-Broader I/O, filesystem/script module loading, serialization, formatter/LSP work, tuples, and static typing remain out of scope until explicitly requested.
+Filesystem/script module loading, serialization, formatter/LSP work, tuples, and static typing remain out of scope until explicitly requested.

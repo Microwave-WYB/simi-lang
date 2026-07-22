@@ -1,6 +1,8 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use crate::ast::Program;
+use crate::native::{global_inspect, global_type};
 use crate::runtime::{
     Environment, NativeFunction, Raised, RuntimeError, RuntimeResult, ScriptResult, Value,
 };
@@ -69,6 +71,14 @@ impl Interpreter {
     pub(crate) fn with_modules(modules: HashMap<String, Value>) -> Self {
         let prelude = Environment::new();
         prelude.define("require", Value::NativeFunction(NativeFunction::require()));
+        prelude.define(
+            "type",
+            Value::NativeFunction(NativeFunction::new("type", 1, Arc::new(global_type))),
+        );
+        prelude.define(
+            "inspect",
+            Value::NativeFunction(NativeFunction::new("inspect", 1, Arc::new(global_inspect))),
+        );
         let globals = prelude.child();
         Self { globals, modules }
     }

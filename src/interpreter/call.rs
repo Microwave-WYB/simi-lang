@@ -97,6 +97,95 @@ impl Interpreter {
         Ok(accumulator)
     }
 
+    fn list_find(&mut self, arguments: &[Value], span: Span) -> EvaluationResult<Value> {
+        let values = list_snapshot(&arguments[0], "find", span)?;
+        validate_callback(&arguments[1], 1, span)?;
+        for value in values {
+            if self.call_list_predicate("find", &arguments[1], value.clone(), span)? {
+                return Ok(value);
+            }
+        }
+        Ok(Value::Nil)
+    }
+
+    fn list_find_index(&mut self, arguments: &[Value], span: Span) -> EvaluationResult<Value> {
+        let values = list_snapshot(&arguments[0], "find_index", span)?;
+        validate_callback(&arguments[1], 1, span)?;
+        for (index, value) in values.into_iter().enumerate() {
+            if self.call_list_predicate("find_index", &arguments[1], value, span)? {
+                let index = i64::try_from(index).map_err(|_| {
+                    EvaluationError::Runtime(RuntimeError::new(span, "list index exceeds i64"))
+                })?;
+                return Ok(Value::Int(index));
+            }
+        }
+        Ok(Value::Nil)
+    }
+
+    fn list_any(&mut self, arguments: &[Value], span: Span) -> EvaluationResult<Value> {
+        let values = list_snapshot(&arguments[0], "any", span)?;
+        validate_callback(&arguments[1], 1, span)?;
+        for value in values {
+            if self.call_list_predicate("any", &arguments[1], value, span)? {
+                return Ok(Value::Bool(true));
+            }
+        }
+        Ok(Value::Bool(false))
+    }
+
+    fn list_all(&mut self, arguments: &[Value], span: Span) -> EvaluationResult<Value> {
+        let values = list_snapshot(&arguments[0], "all", span)?;
+        validate_callback(&arguments[1], 1, span)?;
+        for value in values {
+            if !self.call_list_predicate("all", &arguments[1], value, span)? {
+                return Ok(Value::Bool(false));
+            }
+        }
+        Ok(Value::Bool(true))
+    }
+
+    fn list_each(&mut self, arguments: &[Value], span: Span) -> EvaluationResult<Value> {
+        let values = list_snapshot(&arguments[0], "each", span)?;
+        validate_callback(&arguments[1], 1, span)?;
+        for value in values {
+            self.call_value(arguments[1].clone(), vec![value], span)?;
+        }
+        Ok(arguments[0].clone())
+    }
+
+    fn list_count(&mut self, arguments: &[Value], span: Span) -> EvaluationResult<Value> {
+        let values = list_snapshot(&arguments[0], "count", span)?;
+        validate_callback(&arguments[1], 1, span)?;
+        let mut count = 0_i64;
+        for value in values {
+            if self.call_list_predicate("count", &arguments[1], value, span)? {
+                count = count.checked_add(1).ok_or_else(|| {
+                    EvaluationError::Runtime(RuntimeError::new(span, "list count exceeds i64"))
+                })?;
+            }
+        }
+        Ok(Value::Int(count))
+    }
+
+    fn call_list_predicate(
+        &mut self,
+        operation: &str,
+        callback: &Value,
+        value: Value,
+        span: Span,
+    ) -> EvaluationResult<bool> {
+        match self.call_value(callback.clone(), vec![value], span)? {
+            Value::Bool(result) => Ok(result),
+            value => Err(EvaluationError::Runtime(RuntimeError::new(
+                span,
+                format!(
+                    "list.{operation} callback must return a boolean, got {}",
+                    value.type_name()
+                ),
+            ))),
+        }
+    }
+
     pub(super) fn call_value(
         &mut self,
         callee: Value,
@@ -158,6 +247,12 @@ impl Interpreter {
                     NativeImplementation::ListMap => self.list_map(&arguments, span),
                     NativeImplementation::ListFilter => self.list_filter(&arguments, span),
                     NativeImplementation::ListFold => self.list_fold(&arguments, span),
+                    NativeImplementation::ListFind => self.list_find(&arguments, span),
+                    NativeImplementation::ListFindIndex => self.list_find_index(&arguments, span),
+                    NativeImplementation::ListAny => self.list_any(&arguments, span),
+                    NativeImplementation::ListAll => self.list_all(&arguments, span),
+                    NativeImplementation::ListEach => self.list_each(&arguments, span),
+                    NativeImplementation::ListCount => self.list_count(&arguments, span),
                 }
             }
             value => Err(EvaluationError::Runtime(RuntimeError {

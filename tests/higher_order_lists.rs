@@ -27,9 +27,8 @@ fn higher_order_list_calls_compose_with_pipelines_and_native_callbacks() {
     assert_eval(
         r#"
         let list = require("list")
-        let core = require("core")
         let doubled = [1, 2, 3] |> list.map(fn(value) do value * 2 end)
-        [doubled, list.map([1, "two", true], core.type)]
+        [doubled, list.map([1, "two", true], type)]
         "#,
         "[[2, 4, 6], [\"integer\", \"string\", \"boolean\"]]",
     );
@@ -108,6 +107,96 @@ fn callback_raise_frames_include_the_anonymous_callback_and_caller() {
     assert_eq!(raised.frames.len(), 2);
     assert_eq!(raised.frames[0].function, "<anonymous>");
     assert_eq!(raised.frames[1].function, "outer");
+}
+
+#[test]
+fn list_queries_follow_gleam_style_short_circuit_and_empty_identities() {
+    assert_eval(
+        r#"
+        let list = require("list")
+        [
+            list.find([1, 4, 6], fn(value) do value >= 4 end),
+            list.find([1], fn(value) do false end),
+            list.find_index([1, 4, 6], fn(value) do value >= 4 end),
+            list.find_index([], fn(value) do true end),
+            list.any([], fn(value) do true end),
+            list.all([], fn(value) do false end),
+            list.count([1, 2, 3, 4], fn(value) do value >= 3 end),
+        ]
+        "#,
+        "[4, nil, 1, nil, false, true, 2]",
+    );
+}
+
+#[test]
+fn list_queries_short_circuit_and_each_returns_the_original_alias() {
+    assert_eval(
+        r#"
+        let list = require("list")
+        let seen = []
+        let values = [1, 2, 3]
+        let found = list.find(values, fn(value) do
+            list.append(seen, value)
+            value == 2
+        end)
+        let any = list.any(values, fn(value) do value == 1 end)
+        let all = list.all(values, fn(value) do value < 2 end)
+        let returned = list.each(values, fn(value) do list.append(seen, value + 10) end)
+        list.append(returned, 4)
+        [found, any, all, seen, values]
+        "#,
+        "[2, true, false, [1, 2, 11, 12, 13], [1, 2, 3, 4]]",
+    );
+}
+
+#[test]
+fn list_queries_snapshot_mutated_sources_and_propagate_raises() {
+    assert_eval(
+        r#"
+        let list = require("list")
+        let values = [1, 2]
+        let count = list.count(values, fn(value) do
+            list.append(values, value + 10)
+            true
+        end)
+        let caught = try list.find(values, fn(value) do
+            raise { error = "query_failed", value = value }
+        end) catch
+        case { error = "query_failed", value = value } -> value
+        end
+        [count, caught, values]
+        "#,
+        "[2, 1, [1, 2, 11, 12]]",
+    );
+}
+
+#[test]
+fn list_query_predicates_are_strict_even_for_first_results() {
+    for operation in ["find", "find_index", "any", "all", "count"] {
+        let source =
+            format!("let list = require(\"list\") list.{operation}([1], fn(value) do value end)");
+        let error = match Engine::with_stdlib().eval(&source) {
+            Err(error) => error,
+            Ok(_) => panic!("non-boolean predicate should fail"),
+        };
+        assert!(error.to_string().contains(&format!(
+            "list.{operation} callback must return a boolean, got integer"
+        )));
+    }
+}
+
+#[test]
+fn empty_list_queries_still_validate_callback_arity() {
+    for operation in ["find", "find_index", "any", "all", "each", "count"] {
+        let source = format!(
+            "let list = require(\"list\") list.{operation}([], fn(left, right) do left end)"
+        );
+        let error = match Engine::with_stdlib().eval(&source) {
+            Err(error) => error,
+            Ok(_) => panic!("wrong callback arity should fail"),
+        };
+        assert!(error.to_string().contains("expects 2 arguments, got 1"));
+    }
 }
 
 #[test]

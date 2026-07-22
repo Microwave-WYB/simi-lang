@@ -42,7 +42,7 @@ impl Parser {
     }
 
     fn parse_pipeline(&mut self) -> Result<Expr, ParseError> {
-        let input = self.parse_or()?;
+        let input = self.parse_trailing_argument()?;
         let mut stages = Vec::new();
 
         while self.at_simple(SimpleToken::PipeGreater) {
@@ -92,8 +92,34 @@ impl Parser {
         }
 
         self.expect_simple(SimpleToken::LParen, "`(` in pipeline stage call")?;
-        let (args, close_span) = self.parse_arguments()?;
+        let (mut args, mut close_span) = self.parse_arguments()?;
+        if self.consume_simple(SimpleToken::LessPipe) {
+            let trailing = self.parse_trailing_argument()?;
+            close_span = trailing.span;
+            args.push(trailing);
+        }
         Ok((callee, args, close_span))
+    }
+
+    fn parse_trailing_argument(&mut self) -> Result<Expr, ParseError> {
+        let mut call = self.parse_or()?;
+        if !self.consume_simple(SimpleToken::LessPipe) {
+            return Ok(call);
+        }
+
+        let trailing = self.parse_trailing_argument()?;
+        let span = call.span.merge(trailing.span);
+        match &mut call.kind {
+            ExprKind::Call { args, .. } => args.push(trailing),
+            _ => {
+                return Err(ParseError {
+                    span: call.span,
+                    message: "left side of `<|` must be a call".to_owned(),
+                });
+            }
+        }
+        call.span = span;
+        Ok(call)
     }
 
     fn parse_or(&mut self) -> Result<Expr, ParseError> {

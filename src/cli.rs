@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use clap::Parser;
 
 use crate::span::line_column;
-use crate::{Raised, ScriptResult, SimiError};
+use crate::{Engine, Raised, ScriptResult, SimiError};
 
 #[derive(Parser)]
 #[command(name = "simi")]
@@ -27,7 +27,12 @@ pub fn run(cli: Cli) -> Result<ScriptResult, CliError> {
         path: cli.file.clone(),
         source,
     })?;
-    crate::eval(&source).map_err(CliError::Simi)
+    Engine::builder()
+        .stdlib()
+        .stdio()
+        .build()
+        .eval(&source)
+        .map_err(CliError::Simi)
 }
 
 pub fn format_raised_trace(path: &Path, source: &str, raised: &Raised) -> String {
@@ -93,6 +98,26 @@ mod tests {
             Err(error) => error,
         };
         assert!(matches!(error, CliError::Io { path: error_path, .. } if error_path == path));
+    }
+
+    #[test]
+    fn cli_registers_standard_stream_modules() {
+        let path = std::env::temp_dir().join(format!("simi-stdio-{}.simi", std::process::id()));
+        fs::write(
+            &path,
+            r#"
+            let stdout = require("std/io/stdout")
+            let stderr = require("std/io/stderr")
+            [type(stdout.println), type(stderr.println)]
+            "#,
+        )
+        .unwrap();
+        let result = run(Cli { file: path.clone() }).unwrap().unwrap();
+        fs::remove_file(path).unwrap();
+        assert_eq!(
+            result.render(),
+            "[\"native function\", \"native function\"]"
+        );
     }
 
     #[test]

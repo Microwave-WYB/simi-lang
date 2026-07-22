@@ -137,6 +137,7 @@ pub(super) enum SimpleToken {
     Greater,
     GreaterEqual,
     PipeGreater,
+    LessPipe,
 }
 
 impl SimpleToken {
@@ -187,6 +188,7 @@ impl SimpleToken {
                 | (Self::Greater, TokenKind::Greater)
                 | (Self::GreaterEqual, TokenKind::GreaterEqual)
                 | (Self::PipeGreater, TokenKind::PipeGreater)
+                | (Self::LessPipe, TokenKind::LessPipe)
         )
     }
 }
@@ -246,6 +248,7 @@ fn token_name(kind: &TokenKind) -> &'static str {
         TokenKind::Greater => ">",
         TokenKind::GreaterEqual => ">=",
         TokenKind::PipeGreater => "|>",
+        TokenKind::LessPipe => "<|",
         TokenKind::Eof => "end of file",
     }
 }

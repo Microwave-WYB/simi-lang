@@ -138,6 +138,12 @@ pub(crate) enum NativeImplementation {
     ListMap,
     ListFilter,
     ListFold,
+    ListFind,
+    ListFindIndex,
+    ListAny,
+    ListAll,
+    ListEach,
+    ListCount,
 }
 
 impl NativeFunction {
@@ -175,6 +181,30 @@ impl NativeFunction {
 
     pub(crate) fn list_fold() -> Self {
         Self::intrinsic("list.fold", 3, NativeImplementation::ListFold)
+    }
+
+    pub(crate) fn list_find() -> Self {
+        Self::intrinsic("list.find", 2, NativeImplementation::ListFind)
+    }
+
+    pub(crate) fn list_find_index() -> Self {
+        Self::intrinsic("list.find_index", 2, NativeImplementation::ListFindIndex)
+    }
+
+    pub(crate) fn list_any() -> Self {
+        Self::intrinsic("list.any", 2, NativeImplementation::ListAny)
+    }
+
+    pub(crate) fn list_all() -> Self {
+        Self::intrinsic("list.all", 2, NativeImplementation::ListAll)
+    }
+
+    pub(crate) fn list_each() -> Self {
+        Self::intrinsic("list.each", 2, NativeImplementation::ListEach)
+    }
+
+    pub(crate) fn list_count() -> Self {
+        Self::intrinsic("list.count", 2, NativeImplementation::ListCount)
     }
 
     fn intrinsic(name: &str, arity: usize, implementation: NativeImplementation) -> Self {

@@ -14,7 +14,7 @@ fn lexes_every_keyword_operator_and_delimiter() {
     assert_eq!(
         kinds(
             "fn do end if then elseif else let tap nil true false and or not loop break continue \
-             match with case when raise try catch ( ) [ ] { } , . .. = == != + - * / // % -> < <= > >= |>"
+             match with case when raise try catch ( ) [ ] { } , . .. = == != + - * / // % -> < <= > >= |> <|"
         ),
         vec![
             TokenKind::Fn,
@@ -66,9 +66,17 @@ fn lexes_every_keyword_operator_and_delimiter() {
             TokenKind::Greater,
             TokenKind::GreaterEqual,
             TokenKind::PipeGreater,
+            TokenKind::LessPipe,
             TokenKind::Eof,
         ]
     );
+}
+
+#[test]
+fn trailing_argument_token_has_its_exact_two_byte_span() {
+    let tokens = lex("call()<|value").unwrap();
+    assert_eq!(tokens[3].kind, TokenKind::LessPipe);
+    assert_eq!(tokens[3].span, Span::new(6, 8));
 }
 
 #[test]

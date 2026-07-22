@@ -238,21 +238,20 @@ fn standard_modules_are_explicit_capabilities_and_require_is_shadowable() {
 }
 
 #[test]
-fn core_type_reports_every_runtime_value_category() {
+fn global_type_reports_every_runtime_value_category() {
     let value = eval(
         r#"
-        let core = require("core")
         fn sample() do nil end
         [
-            core.type(1),
-            core.type(1.5),
-            core.type("text"),
-            core.type(true),
-            core.type(nil),
-            core.type([]),
-            core.type({}),
-            core.type(sample),
-            core.type(core.type),
+            type(1),
+            type(1.5),
+            type("text"),
+            type(true),
+            type(nil),
+            type([]),
+            type({}),
+            type(sample),
+            type(type),
         ]
         "#,
     )
@@ -266,23 +265,73 @@ fn core_type_reports_every_runtime_value_category() {
 }
 
 #[test]
-fn core_inspect_renders_cyclic_containers_without_becoming_a_global() {
+fn global_inspect_renders_cyclic_containers_and_builtins_are_shadowable() {
     let value = eval(
         r#"
-        let core = require("core")
         let list = require("list")
         let values = []
         list.append(values, values)
         let object = {}
         object.self = object
-        [core.inspect(values), core.inspect(object)]
+        [inspect(values), inspect(object)]
         "#,
     )
     .expect("core inspect calls should have no hard diagnostic")
     .expect("core inspect calls should not raise");
 
     assert_eq!(value.render(), "[\"[<cycle>]\", \"{self=<cycle>}\"]");
-    assert!(matches!(eval("core"), Err(SimiError::Runtime(_))));
+
+    let value = Engine::new()
+        .eval("[type(1), inspect(1)]")
+        .unwrap()
+        .unwrap();
+    assert_eq!(value.render(), "[\"integer\", \"1\"]");
+
+    let value = Engine::new()
+        .eval("let type = 41 let inspect = 42 [type, inspect]")
+        .unwrap()
+        .unwrap();
+    assert_eq!(value.render(), "[41, 42]");
+
+    let missing = Engine::with_stdlib().eval("require(\"core\")").unwrap();
+    assert!(missing.is_err());
+}
+
+#[test]
+fn stdio_modules_are_opt_in_capabilities() {
+    for name in ["std/io/stdin", "std/io/stdout", "std/io/stderr"] {
+        let result = Engine::with_stdlib()
+            .eval(&format!("require(\"{name}\")"))
+            .expect("missing stdio module should raise, not hard fail");
+        assert!(result.is_err());
+    }
+
+    let value = Engine::builder()
+        .stdlib()
+        .stdio()
+        .build()
+        .eval(
+            r#"
+            let stdin = require("std/io/stdin")
+            let stdout = require("std/io/stdout")
+            let stderr = require("std/io/stderr")
+            [
+                type(stdin.read_line),
+                type(stdout.print),
+                type(stdout.println),
+                type(stdout.flush),
+                type(stderr.print),
+                type(stderr.println),
+                type(stderr.flush),
+            ]
+            "#,
+        )
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        value.render(),
+        "[\"native function\", \"native function\", \"native function\", \"native function\", \"native function\", \"native function\", \"native function\"]"
+    );
 }
 
 #[test]

@@ -20,12 +20,7 @@ impl Engine {
     }
 
     pub fn with_stdlib() -> Self {
-        Self::builder()
-            .module(stdlib::core())
-            .module(stdlib::list())
-            .module(stdlib::map())
-            .module(stdlib::string())
-            .build()
+        Self::builder().stdlib().build()
     }
 
     pub fn eval(&self, source: &str) -> Result<ScriptResult, SimiError> {
@@ -56,6 +51,18 @@ impl EngineBuilder {
     pub fn module(mut self, module: Module) -> Self {
         self.modules.insert(module.name().to_owned(), module);
         self
+    }
+
+    pub fn stdlib(self) -> Self {
+        self.module(stdlib::list())
+            .module(stdlib::map())
+            .module(stdlib::string())
+    }
+
+    pub fn stdio(self) -> Self {
+        self.module(stdlib::stdin())
+            .module(stdlib::stdout())
+            .module(stdlib::stderr())
     }
 
     pub fn build(self) -> Engine {

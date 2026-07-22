@@ -42,6 +42,23 @@ impl Raised {
         )
     }
 
+    pub(crate) fn io_error(operation: &str, message: String, origin: Span) -> Self {
+        Self::new(
+            Value::Map(Gc::new(GcCell::new(vec![
+                (
+                    MapKey::String("error".to_owned()),
+                    Value::String("io_error".to_owned()),
+                ),
+                (
+                    MapKey::String("operation".to_owned()),
+                    Value::String(operation.to_owned()),
+                ),
+                (MapKey::String("message".to_owned()), Value::String(message)),
+            ]))),
+            origin,
+        )
+    }
+
     pub(crate) fn index_out_of_bounds(
         index: i64,
         length: usize,
