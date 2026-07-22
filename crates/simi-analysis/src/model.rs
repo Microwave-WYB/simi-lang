@@ -1,7 +1,7 @@
 use std::collections::{BTreeSet, HashMap};
 
 use la_arena::{Arena, Idx};
-use simi_syntax::span::Span;
+use simi_syntax::{lexer::is_identifier, span::Span};
 
 pub type ScopeId = Idx<ScopeData>;
 pub type SymbolId = Idx<SymbolData>;
@@ -172,7 +172,7 @@ impl Resolution {
             let data = &self.hir.scopes[id];
             for symbol in data.symbols.iter().rev().copied() {
                 let data = &self.hir.symbols[symbol];
-                if names.insert(data.name.clone()) {
+                if data.activation <= offset && names.insert(data.name.clone()) {
                     result.push(symbol);
                 }
             }
@@ -276,10 +276,4 @@ fn contains(span: Span, offset: usize) -> bool {
 
 fn contains_inclusive(span: Span, offset: usize) -> bool {
     span.start <= offset && offset <= span.end
-}
-
-fn is_identifier(name: &str) -> bool {
-    let mut chars = name.chars();
-    matches!(chars.next(), Some(first) if first == '_' || first.is_alphabetic())
-        && chars.all(|character| character == '_' || character.is_alphanumeric())
 }

@@ -157,7 +157,7 @@ fn repeated_bindings_resolve_to_latest_preceding_declaration() {
 }
 
 #[test]
-fn unresolved_host_reads_and_assignments_are_not_diagnostics() {
+fn unresolved_host_reads_and_assignments_are_not_diagnostics_or_rename_targets() {
     let source = "host_value host_value = other_host";
     let db = AnalysisDatabase::default();
     let file = db.add_file(source);
@@ -165,6 +165,14 @@ fn unresolved_host_reads_and_assignments_are_not_diagnostics() {
     let resolution = resolve(&db, file);
     assert_eq!(resolution.hir.occurrences.len(), 3);
     assert!(resolution.occurrence_symbols.iter().all(Option::is_none));
+    for offset in [
+        source.find("host_value").unwrap(),
+        source.rfind("host_value").unwrap(),
+        source.find("other_host").unwrap(),
+    ] {
+        assert_eq!(resolution.symbol_at(offset), None);
+        assert_eq!(resolution.hover(offset), None);
+    }
 }
 
 #[test]
@@ -211,7 +219,59 @@ fn supports_symbol_lookup_hover_references_and_visible_symbols() {
 }
 
 #[test]
-fn rename_checks_same_scope_and_reference_rebinding_collisions() {
+fn visible_symbols_respect_activation_and_do_not_hide_outer_symbols() {
+    let source = "let value = 0 do value let value = 1 value end";
+    let db = AnalysisDatabase::default();
+    let file = db.add_file(source);
+    let resolution = resolve(&db, file);
+    let outer = resolution
+        .hir
+        .symbols
+        .iter()
+        .find_map(|(id, symbol)| {
+            (symbol.name == "value" && symbol.scope == resolution.hir.root_scope).then_some(id)
+        })
+        .expect("outer value");
+    let inner = resolution
+        .hir
+        .symbols
+        .iter()
+        .find_map(|(id, symbol)| {
+            (symbol.name == "value" && symbol.scope != resolution.hir.root_scope).then_some(id)
+        })
+        .expect("inner value");
+    let before = resolution.visible_symbols(source.find("value let").unwrap());
+    assert!(before.contains(&outer));
+    assert!(!before.contains(&inner));
+    let after = resolution.visible_symbols(source.rfind("value end").unwrap());
+    assert!(!after.contains(&outer));
+    assert!(after.contains(&inner));
+}
+
+#[test]
+fn future_symbols_do_not_appear_or_hide_prelude_symbols() {
+    let source =
+        "do type(nil) future let type = fn(value) do value end let future = 1 type(nil) future end";
+    let db = AnalysisDatabase::default();
+    let file = db.add_file(source);
+    let resolution = resolve(&db, file);
+    let builtin = symbol_named(&resolution, "type", SymbolKind::Builtin);
+    let local = symbol_named(&resolution, "type", SymbolKind::Let);
+    let future = symbol_named(&resolution, "future", SymbolKind::Let);
+
+    let before = resolution.visible_symbols(source.find("type(nil)").unwrap());
+    assert!(before.contains(&builtin));
+    assert!(!before.contains(&local));
+    assert!(!before.contains(&future));
+
+    let after = resolution.visible_symbols(source.rfind("type(nil)").unwrap());
+    assert!(!after.contains(&builtin));
+    assert!(after.contains(&local));
+    assert!(after.contains(&future));
+}
+
+#[test]
+fn rename_checks_collisions_and_exact_lexer_identifier_rules() {
     let source = "let first = 1 let second = 2 do let hidden = 3 first + hidden end";
     let db = AnalysisDatabase::default();
     let file = db.add_file(source);
@@ -225,11 +285,27 @@ fn rename_checks_same_scope_and_reference_rebinding_collisions() {
         resolution.check_rename(first, "hidden"),
         Err(RenameError::Collision { .. })
     ));
-    assert_eq!(resolution.check_rename(first, "renamed"), Ok(()));
-    assert_eq!(
-        resolution.check_rename(first, "not-valid"),
-        Err(RenameError::InvalidName)
-    );
+    for valid in ["renamed", "_", "_value2", "ASCII_9", "is"] {
+        assert_eq!(resolution.check_rename(first, valid), Ok(()), "{valid}");
+    }
+    for invalid in ["", "1value", "not-valid", "with space", "café", "é"] {
+        assert_eq!(
+            resolution.check_rename(first, invalid),
+            Err(RenameError::InvalidName),
+            "{invalid}"
+        );
+    }
+    for keyword in [
+        "fn", "do", "end", "if", "then", "elseif", "else", "let", "tap", "nil", "true", "false",
+        "and", "or", "not", "loop", "break", "continue", "case", "of", "when", "raise", "try",
+        "catch",
+    ] {
+        assert_eq!(
+            resolution.check_rename(first, keyword),
+            Err(RenameError::InvalidName),
+            "keyword {keyword}"
+        );
+    }
 }
 
 #[test]

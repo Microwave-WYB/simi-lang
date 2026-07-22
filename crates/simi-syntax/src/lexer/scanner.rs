@@ -308,33 +308,8 @@ impl<'a> Scanner<'a> {
             self.position += 1;
         }
         let text = &self.source[start..self.position];
-        let (syntax, token) = match text {
-            "fn" => (SyntaxKind::FN_KW, TokenKind::Fn),
-            "do" => (SyntaxKind::DO_KW, TokenKind::Do),
-            "end" => (SyntaxKind::END_KW, TokenKind::End),
-            "if" => (SyntaxKind::IF_KW, TokenKind::If),
-            "then" => (SyntaxKind::THEN_KW, TokenKind::Then),
-            "elseif" => (SyntaxKind::ELSEIF_KW, TokenKind::ElseIf),
-            "else" => (SyntaxKind::ELSE_KW, TokenKind::Else),
-            "let" => (SyntaxKind::LET_KW, TokenKind::Let),
-            "tap" => (SyntaxKind::TAP_KW, TokenKind::Tap),
-            "nil" => (SyntaxKind::NIL_KW, TokenKind::Nil),
-            "true" => (SyntaxKind::TRUE_KW, TokenKind::True),
-            "false" => (SyntaxKind::FALSE_KW, TokenKind::False),
-            "and" => (SyntaxKind::AND_KW, TokenKind::And),
-            "or" => (SyntaxKind::OR_KW, TokenKind::Or),
-            "not" => (SyntaxKind::NOT_KW, TokenKind::Not),
-            "loop" => (SyntaxKind::LOOP_KW, TokenKind::Loop),
-            "break" => (SyntaxKind::BREAK_KW, TokenKind::Break),
-            "continue" => (SyntaxKind::CONTINUE_KW, TokenKind::Continue),
-            "case" => (SyntaxKind::CASE_KW, TokenKind::Case),
-            "of" => (SyntaxKind::OF_KW, TokenKind::Of),
-            "when" => (SyntaxKind::WHEN_KW, TokenKind::When),
-            "raise" => (SyntaxKind::RAISE_KW, TokenKind::Raise),
-            "try" => (SyntaxKind::TRY_KW, TokenKind::Try),
-            "catch" => (SyntaxKind::CATCH_KW, TokenKind::Catch),
-            _ => (SyntaxKind::IDENT, TokenKind::Ident(text.to_owned())),
-        };
+        let (syntax, token) =
+            keyword(text).unwrap_or_else(|| (SyntaxKind::IDENT, TokenKind::Ident(text.to_owned())));
         self.push(syntax, token, start);
     }
 
@@ -434,4 +409,38 @@ impl<'a> Scanner<'a> {
     fn peek(&self, offset: usize) -> Option<u8> {
         self.source.as_bytes().get(self.position + offset).copied()
     }
+}
+
+pub(super) fn is_keyword(text: &str) -> bool {
+    keyword(text).is_some()
+}
+
+fn keyword(text: &str) -> Option<(SyntaxKind, TokenKind)> {
+    Some(match text {
+        "fn" => (SyntaxKind::FN_KW, TokenKind::Fn),
+        "do" => (SyntaxKind::DO_KW, TokenKind::Do),
+        "end" => (SyntaxKind::END_KW, TokenKind::End),
+        "if" => (SyntaxKind::IF_KW, TokenKind::If),
+        "then" => (SyntaxKind::THEN_KW, TokenKind::Then),
+        "elseif" => (SyntaxKind::ELSEIF_KW, TokenKind::ElseIf),
+        "else" => (SyntaxKind::ELSE_KW, TokenKind::Else),
+        "let" => (SyntaxKind::LET_KW, TokenKind::Let),
+        "tap" => (SyntaxKind::TAP_KW, TokenKind::Tap),
+        "nil" => (SyntaxKind::NIL_KW, TokenKind::Nil),
+        "true" => (SyntaxKind::TRUE_KW, TokenKind::True),
+        "false" => (SyntaxKind::FALSE_KW, TokenKind::False),
+        "and" => (SyntaxKind::AND_KW, TokenKind::And),
+        "or" => (SyntaxKind::OR_KW, TokenKind::Or),
+        "not" => (SyntaxKind::NOT_KW, TokenKind::Not),
+        "loop" => (SyntaxKind::LOOP_KW, TokenKind::Loop),
+        "break" => (SyntaxKind::BREAK_KW, TokenKind::Break),
+        "continue" => (SyntaxKind::CONTINUE_KW, TokenKind::Continue),
+        "case" => (SyntaxKind::CASE_KW, TokenKind::Case),
+        "of" => (SyntaxKind::OF_KW, TokenKind::Of),
+        "when" => (SyntaxKind::WHEN_KW, TokenKind::When),
+        "raise" => (SyntaxKind::RAISE_KW, TokenKind::Raise),
+        "try" => (SyntaxKind::TRY_KW, TokenKind::Try),
+        "catch" => (SyntaxKind::CATCH_KW, TokenKind::Catch),
+        _ => return None,
+    })
 }
