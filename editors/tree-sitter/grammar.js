@@ -143,7 +143,7 @@ module.exports = grammar({
       prec.left(PREC.COMPARISON, seq(
         field("left", $._logical_or_expression),
         field("operator", "is"),
-        field("right", $.string),
+        field("right", $._runtime_type_label),
       )),
       ...[
         ["or", PREC.OR],
@@ -404,6 +404,17 @@ module.exports = grammar({
 
     boolean: (_) => choice("true", "false"),
     nil: (_) => "nil",
+
+    _runtime_type_label: ($) => alias(choice(
+      '"nil"',
+      '"boolean"',
+      '"integer"',
+      '"float"',
+      '"string"',
+      '"list"',
+      '"map"',
+      '"function"',
+    ), $.string),
 
     float: (_) => token(choice(
       /[0-9]+\.[0-9]+([eE][+-]?[0-9]+)?/,

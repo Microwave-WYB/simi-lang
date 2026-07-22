@@ -64,8 +64,7 @@ value + 1 is "integer" and ready
       (binary_expression
         (identifier)
         (integer))
-      (string
-        (string_content)))
+      (string))
     (identifier)))
 
 ==================

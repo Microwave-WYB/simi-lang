@@ -59,3 +59,17 @@ value is 42
   (identifier)
   (ERROR)
   (integer))
+
+==================
+Runtime-label tests reject unknown string labels
+==================
+
+value is "number"
+
+---
+
+(program
+  (identifier)
+  (ERROR)
+  (string
+    (string_content)))

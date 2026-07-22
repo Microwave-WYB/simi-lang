@@ -490,7 +490,7 @@
                 "name": "right",
                 "content": {
                   "type": "SYMBOL",
-                  "name": "string"
+                  "name": "_runtime_type_label"
                 }
               }
             ]
@@ -2268,6 +2268,48 @@
     "nil": {
       "type": "STRING",
       "value": "nil"
+    },
+    "_runtime_type_label": {
+      "type": "ALIAS",
+      "content": {
+        "type": "CHOICE",
+        "members": [
+          {
+            "type": "STRING",
+            "value": "\"nil\""
+          },
+          {
+            "type": "STRING",
+            "value": "\"boolean\""
+          },
+          {
+            "type": "STRING",
+            "value": "\"integer\""
+          },
+          {
+            "type": "STRING",
+            "value": "\"float\""
+          },
+          {
+            "type": "STRING",
+            "value": "\"string\""
+          },
+          {
+            "type": "STRING",
+            "value": "\"list\""
+          },
+          {
+            "type": "STRING",
+            "value": "\"map\""
+          },
+          {
+            "type": "STRING",
+            "value": "\"function\""
+          }
+        ]
+      },
+      "named": true,
+      "value": "string"
     },
     "float": {
       "type": "TOKEN",
