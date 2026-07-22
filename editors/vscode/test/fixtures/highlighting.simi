@@ -24,3 +24,5 @@ loop state = 0 do
     if state > 1 then break state else continue state + 1 end
 end
 let bad_escape = "\q"
+let integer_check = threshold is "integer"
+let function_check = mapper is "function"

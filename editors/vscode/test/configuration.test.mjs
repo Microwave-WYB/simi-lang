@@ -63,7 +63,7 @@ test("grammar keyword inventory follows the current Simi lexer", async () => {
   const lexerKeywords = [
     "fn", "do", "end", "if", "then", "elseif", "else", "let", "tap", "nil", "true",
     "false", "and", "or", "not", "loop", "break", "continue", "match", "with", "case",
-    "when", "raise", "try", "catch",
+    "when", "raise", "try", "catch", "is",
   ];
 
   for (const keyword of lexerKeywords) {

@@ -52,6 +52,8 @@ VS Code's stable declarative grammar contribution point consumes TextMate gramma
 
 The planned shared `editors/tree-sitter` parser will be the structural syntax source for Zed and other consumers after that component is integrated. Keep this TextMate grammar's token and keyword inventory aligned with that source, but expect contextual highlighting to remain an independently maintained TextMate approximation unless VS Code exposes a supported Tree-sitter contribution mechanism. Language configuration remains editor-specific in either case.
 
+The runtime-label operator is highlighted as a comparison operator in expressions such as `value is "integer"` and `callback is "function"`. TextMate highlights tokens only; it does not validate whether the right operand is a string literal or whether the literal is a supported runtime label.
+
 ## Validation
 
 The tests load the grammar through the same `vscode-textmate` and Oniguruma libraries used by VS Code and assert scopes against a representative Simi fixture. They also validate package contributions, language configuration regexes, and the current lexer keyword inventory.

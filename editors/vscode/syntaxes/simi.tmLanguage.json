@@ -232,7 +232,7 @@
         },
         {
           "name": "keyword.operator.comparison.simi",
-          "match": "==|!=|<=|>=|<|>"
+          "match": "\\b(?:is)\\b|==|!=|<=|>=|<|>"
         },
         {
           "name": "keyword.operator.arithmetic.simi",
