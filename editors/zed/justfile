@@ -1,0 +1,47 @@
+set shell := ["bash", "-euo", "pipefail", "-c"]
+
+component := justfile_directory()
+local_dir := component / ".local"
+
+# List component recipes.
+default:
+    @just --list
+
+# Check portable metadata, configuration, and query capture names.
+check:
+    python3 "{{component}}/scripts/validate.py"
+
+# Snapshot the shared grammar into a local Git repository and generate an extension.
+setup-local grammar_source=(component / "../tree-sitter"):
+    python3 "{{component}}/scripts/prepare_extension.py" local \
+        --grammar-source "{{grammar_source}}" \
+        --output "{{local_dir}}"
+
+# Validate against the generated parser and compile every query.
+test-local grammar_source=(component / "../tree-sitter"): (setup-local grammar_source)
+    python3 "{{component}}/scripts/validate.py" \
+        --extension "{{local_dir}}/extension" \
+        --tree-sitter
+
+# Run static checks, and grammar-backed checks when the sibling grammar is present.
+test grammar_source=(component / "../tree-sitter"):
+    python3 "{{component}}/scripts/validate.py"
+    if [[ -f "{{grammar_source}}/grammar.js" && -f "{{grammar_source}}/src/parser.c" ]]; then \
+        just --justfile "{{component}}/justfile" test-local "{{grammar_source}}"; \
+    else \
+        echo "SKIP: grammar-backed checks require {{grammar_source}}/grammar.js and src/parser.c"; \
+    fi
+
+# Build a clean extension directory for a future public grammar-root revision.
+prepare-publish grammar_repository grammar_rev extension_repository:
+    python3 "{{component}}/scripts/prepare_extension.py" publish \
+        --grammar-repository "{{grammar_repository}}" \
+        --grammar-commit "{{grammar_rev}}" \
+        --extension-repository "{{extension_repository}}" \
+        --output "{{local_dir}}/publish"
+    python3 "{{component}}/scripts/validate.py" --extension "{{local_dir}}/publish"
+    @echo "Before publishing, add an accepted license and complete Zed's manual review checklist."
+
+# Remove generated local grammar and extension directories.
+clean:
+    rm -rf "{{local_dir}}"

@@ -1,0 +1,17 @@
+name = "Simi"
+grammar = "simi"
+path_suffixes = ["simi"]
+line_comments = ["-- "]
+tab_size = 4
+hard_tabs = false
+autoclose_before = ";:.,=}])>"
+brackets = [
+    { start = "{", end = "}", close = true, newline = true },
+    { start = "[", end = "]", close = true, newline = true },
+    { start = "(", end = ")", close = true, newline = true },
+    { start = "\"", end = "\"", close = true, newline = false, not_in = ["string", "comment"] },
+]
+
+# These patterns complement indents.scm while a construct is incomplete.
+increase_indent_pattern = "^\\s*(fn\\b.*\\bdo|if\\b.*\\bthen|elseif\\b.*\\bthen|else\\b|loop\\b.*\\bdo|match\\b.*\\bwith|try\\b.*\\bcatch|catch\\b|case\\b.*->)\\s*$"
+decrease_indent_pattern = "^\\s*(elseif|else|catch|case|end)\\b"

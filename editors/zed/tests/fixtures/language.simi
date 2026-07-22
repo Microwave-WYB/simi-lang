@@ -1,0 +1,38 @@
+-- Exercises the syntax used by the Zed queries.
+let list = require("list")
+
+fn classify(value) do
+    match value with
+    case [first, ..rest] when first >= 1 ->
+        { kind = "positive\n", value = first, rest = rest }
+    case { error = message, ..details } ->
+        { kind = "error", message = message, details = details }
+    case _ ->
+        nil
+    end
+end
+
+let transform = fn(value) do
+    if value == 0 then
+        false
+    elseif value != 1 and not false then
+        true
+    else
+        value * 2 + 1 // 2 % 3
+    end
+end
+
+let values = [1, 2.5e1, 3]
+let result = values |> list.map() <| transform
+let final = loop state = 0 do
+    if state < 2 or state <= -1 then
+        continue state + 1
+    else
+        break state
+    end
+end
+
+try raise { error = "example" } catch
+case { error = message } ->
+    classify([final])
+end

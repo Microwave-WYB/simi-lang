@@ -1,0 +1,10 @@
+id = "simi"
+name = "Simi"
+description = "Simi language support."
+version = "0.0.1"
+schema_version = 1
+authors = ["Simi contributors"]
+
+# The grammar entry is injected by `just setup-local` or `just prepare-publish`.
+# Keeping it out of this source manifest avoids committing a machine-specific
+# file:// URL or an unassigned public repository.
