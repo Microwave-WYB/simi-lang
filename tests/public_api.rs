@@ -6,7 +6,8 @@ use simiscript::interpreter::Interpreter;
 use simiscript::lexer::{LexError, Token, TokenKind, lex};
 use simiscript::native::{
     list_append, list_contains, list_extend, list_get, list_insert, list_length, list_pop,
-    list_remove, list_reverse, list_set, list_slice,
+    list_remove, list_reverse, list_set, list_slice, map_clear, map_entries, map_has, map_keys,
+    map_length, map_values,
 };
 use simiscript::parser::{ParseError, Parser, parse};
 use simiscript::runtime::{
@@ -29,6 +30,7 @@ fn existing_public_paths_remain_available() {
     let _ = Engine::builder;
     let _ = EngineBuilder::new;
     let _: ModuleBuilder = Module::builder("example");
+    let _: Module = simiscript::stdlib::map();
     let _: Option<&NativeCallback> = None;
     let _ = [
         list_length,
@@ -42,6 +44,14 @@ fn existing_public_paths_remain_available() {
         list_slice,
         list_contains,
         list_reverse,
+    ];
+    let _ = [
+        map_length,
+        map_has,
+        map_keys,
+        map_values,
+        map_entries,
+        map_clear,
     ];
     let _: Option<TokenKind> = None;
     let _: Option<Environment> = None;

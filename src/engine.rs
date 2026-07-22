@@ -23,6 +23,7 @@ impl Engine {
         Self::builder()
             .module(stdlib::list())
             .module(stdlib::string())
+            .module(stdlib::map())
             .build()
     }
 

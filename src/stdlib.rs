@@ -1,9 +1,9 @@
 use crate::Module;
 use crate::native::{
     list_append, list_contains, list_extend, list_get, list_insert, list_length, list_pop,
-    list_remove, list_reverse, list_set, list_slice, string_contains, string_ends_with,
-    string_length, string_lower, string_slice, string_split, string_starts_with, string_trim,
-    string_upper,
+    list_remove, list_reverse, list_set, list_slice, map_clear, map_entries, map_has, map_keys,
+    map_length, map_values, string_contains, string_ends_with, string_length, string_lower,
+    string_slice, string_split, string_starts_with, string_trim, string_upper,
 };
 
 pub fn list() -> Module {
@@ -33,5 +33,16 @@ pub fn string() -> Module {
         .function("trim", 1, string_trim)
         .function("lower", 1, string_lower)
         .function("upper", 1, string_upper)
+        .build()
+}
+
+pub fn map() -> Module {
+    Module::builder("map")
+        .function("length", 1, map_length)
+        .function("has", 2, map_has)
+        .function("keys", 1, map_keys)
+        .function("values", 1, map_values)
+        .function("entries", 1, map_entries)
+        .function("clear", 1, map_clear)
         .build()
 }
