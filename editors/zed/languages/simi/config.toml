@@ -13,6 +13,6 @@ brackets = [
 ]
 
 # These patterns complement indents.scm while a construct is incomplete.
-# A clause header ends in `do`; a complete one-line `pattern do body end` does not match.
-increase_indent_pattern = "^.*\\b(do|then|of|catch|else|try)\\s*(--.*)?$"
-decrease_indent_pattern = "^\\s*(elseif|else|catch|end)\\b"
+# Branch markers realign before their `do` body; complete one-line forms do not match.
+increase_indent_pattern = "^.*\\b(do|then|else|try)\\s*(--.*)?$"
+decrease_indent_pattern = "^\\s*(elseif|else|of|catch|end)\\b"

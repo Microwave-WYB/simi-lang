@@ -21,6 +21,7 @@ pub struct Interpreter {
 pub(super) enum EvaluationError {
     Runtime(RuntimeError),
     Raised(Raised),
+    NilPropagate { span: Span },
     Break { value: Value, span: Span },
     Continue { value: Value, span: Span },
 }
@@ -38,6 +39,10 @@ impl EvaluationError {
         match self {
             Self::Runtime(error) => error,
             Self::Raised(_) => unreachable!("raised values have a separate public result boundary"),
+            Self::NilPropagate { span } => RuntimeError {
+                span,
+                message: "nil propagation escaped its standalone block".to_owned(),
+            },
             Self::Break { span, .. } => RuntimeError {
                 span,
                 message: "`break` outside of a loop".to_owned(),

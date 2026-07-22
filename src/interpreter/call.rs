@@ -26,6 +26,9 @@ impl Interpreter {
         let mut value = self.evaluate_expression(input, env)?;
 
         for stage in stages {
+            if stage.nil_aware && matches!(value, Value::Nil) {
+                continue;
+            }
             let callee = self.evaluate_expression(&stage.callee, env)?;
             let original = value.clone();
             let mut args = Vec::with_capacity(stage.args.len() + 1);
@@ -220,6 +223,9 @@ impl Interpreter {
                         Err(EvaluationError::Raised(raised))
                     }
                     Err(error @ EvaluationError::Runtime(_)) => Err(error),
+                    Err(error @ EvaluationError::NilPropagate { .. }) => {
+                        Err(EvaluationError::Runtime(error.into_runtime_error()))
+                    }
                     Err(
                         error @ (EvaluationError::Break { .. } | EvaluationError::Continue { .. }),
                     ) => Err(EvaluationError::Runtime(error.into_runtime_error())),

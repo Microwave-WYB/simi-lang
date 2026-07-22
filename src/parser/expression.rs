@@ -45,11 +45,15 @@ impl Parser {
         let input = self.parse_trailing_argument()?;
         let mut stages = Vec::new();
 
-        while self.at_simple(SimpleToken::PipeGreater) {
+        while self.at_simple(SimpleToken::PipeGreater)
+            || self.at_simple(SimpleToken::QuestionGreater)
+        {
+            let nil_aware = self.at_simple(SimpleToken::QuestionGreater);
             let pipe_span = self.advance_span();
             let tap = self.consume_simple(SimpleToken::Tap);
             let (callee, args, close_span) = self.parse_pipeline_call()?;
             stages.push(PipelineStage {
+                nil_aware,
                 tap,
                 callee,
                 args,
@@ -272,6 +276,22 @@ impl Parser {
                     },
                     span,
                 };
+            } else if self.at_simple(SimpleToken::Question) {
+                let question = self.advance_span();
+                if self.standalone_block_depth == 0 {
+                    return Err(ParseError {
+                        span: question,
+                        message: "nil propagation `?` outside of a standalone `do ... end` block"
+                            .to_owned(),
+                    });
+                }
+                let span = expression.span.merge(question);
+                expression = Expr {
+                    kind: ExprKind::NilPropagate {
+                        value: Box::new(expression),
+                    },
+                    span,
+                };
             } else {
                 break;
             }
@@ -344,6 +364,7 @@ impl Parser {
                 })
             }
             TokenKind::Fn => self.parse_function_expression(),
+            TokenKind::Do => self.parse_standalone_block(),
             TokenKind::LParen => {
                 self.advance_span();
                 let mut expression = self.parse_expression()?;
@@ -365,6 +386,19 @@ impl Parser {
                 self.current_name()
             ))),
         }
+    }
+
+    fn parse_standalone_block(&mut self) -> Result<Expr, ParseError> {
+        let start = self.expect_simple(SimpleToken::Do, "`do`")?;
+        self.standalone_block_depth += 1;
+        let body = self.parse_block(start.end);
+        self.standalone_block_depth -= 1;
+        let body = body?;
+        let end = self.expect_simple(SimpleToken::End, "`end` after standalone block")?;
+        Ok(Expr {
+            kind: ExprKind::Block(body),
+            span: start.merge(end),
+        })
     }
 
     fn parse_function_expression(&mut self) -> Result<Expr, ParseError> {

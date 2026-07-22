@@ -1,11 +1,13 @@
 [
   (function_declaration)
   (function_expression)
+  (block_expression)
   (if_expression)
   (loop_expression)
   (case_expression)
   (try_expression)
-  (pattern_clause)
+  (case_clause)
+  (catch_clause)
   (list)
   (map)
   (list_pattern)
@@ -24,5 +26,6 @@
 [
   "elseif"
   "else"
+  "of"
   "catch"
 ] @indent.branch

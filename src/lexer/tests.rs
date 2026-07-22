@@ -14,7 +14,7 @@ fn lexes_every_keyword_operator_and_delimiter() {
     assert_eq!(
         kinds(
             "fn do end if then elseif else let tap nil true false and or not loop break continue \
-             case of when raise try catch ( ) [ ] { } , . .. = == != + - * / // % < <= > >= |> <|"
+             case of when raise try catch ( ) [ ] { } , . .. = == != + - * / // % < <= > >= ? ?> |> <|"
         ),
         vec![
             TokenKind::Fn,
@@ -63,11 +63,26 @@ fn lexes_every_keyword_operator_and_delimiter() {
             TokenKind::LessEqual,
             TokenKind::Greater,
             TokenKind::GreaterEqual,
+            TokenKind::Question,
+            TokenKind::QuestionGreater,
             TokenKind::PipeGreater,
             TokenKind::LessPipe,
             TokenKind::Eof,
         ]
     );
+}
+
+#[test]
+fn question_operators_use_longest_match_and_exact_spans() {
+    let tokens = lex("\"é\" ? ?> > >=").unwrap();
+    assert_eq!(tokens[1].kind, TokenKind::Question);
+    assert_eq!(tokens[1].span, Span::new(5, 6));
+    assert_eq!(tokens[2].kind, TokenKind::QuestionGreater);
+    assert_eq!(tokens[2].span, Span::new(7, 9));
+    assert_eq!(tokens[3].kind, TokenKind::Greater);
+    assert_eq!(tokens[3].span, Span::new(10, 11));
+    assert_eq!(tokens[4].kind, TokenKind::GreaterEqual);
+    assert_eq!(tokens[4].span, Span::new(12, 14));
 }
 
 #[test]
@@ -102,7 +117,7 @@ fn lexes_anonymous_function_expression_tokens_with_exact_spans() {
 #[test]
 fn lexes_case_expression_tokens() {
     assert_eq!(
-        kinds("case value of [x, ..xs] when true do x end end"),
+        kinds("case value of [x, ..xs] when true do x end"),
         vec![
             TokenKind::Case,
             TokenKind::Ident("value".to_owned()),
@@ -117,7 +132,6 @@ fn lexes_case_expression_tokens() {
             TokenKind::True,
             TokenKind::Do,
             TokenKind::Ident("x".to_owned()),
-            TokenKind::End,
             TokenKind::End,
             TokenKind::Eof,
         ]

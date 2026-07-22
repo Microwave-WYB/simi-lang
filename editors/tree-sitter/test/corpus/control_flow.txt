@@ -52,16 +52,13 @@ end
 Case-of pattern clauses and nested patterns
 ==================
 
-let selected = case payload of
-  [head, {kind = "ok", value = value}, ..tail] when head >= 0 do
-    [value, tail]
-  end
-  {error = nil, .._rest} do
-    nil
-  end
-  _ignored do
-    case true of true do "fallback" end false do nil end end
-  end
+let selected = case payload
+of [head, {kind = "ok", value = value}, ..tail] when head >= 0 do
+  [value, tail]
+of {error = nil, .._rest} do
+  nil
+of _ignored do
+  case true of true do "fallback" of false do nil end
 end
 
 ---
@@ -71,7 +68,7 @@ end
     (identifier)
     (case_expression
       (identifier)
-      (pattern_clause
+      (case_clause
         (list_pattern
           (identifier)
           (map_pattern
@@ -91,7 +88,7 @@ end
           (list
             (identifier)
             (identifier))))
-      (pattern_clause
+      (case_clause
         (map_pattern
           (map_pattern_field
             (identifier)
@@ -100,17 +97,17 @@ end
             (wildcard_pattern)))
         (block
           (nil)))
-      (pattern_clause
+      (case_clause
         (wildcard_pattern)
         (block
           (case_expression
             (boolean)
-            (pattern_clause
+            (case_clause
               (boolean)
               (block
                 (string
                   (string_content))))
-            (pattern_clause
+            (case_clause
               (boolean)
               (block
                 (nil)))))))))
@@ -120,14 +117,12 @@ Raise, try, and guarded catch clauses
 ==================
 
 let handled = try
-  raise {error = "invalid", payload = [1, 2]}
-catch
-  {error = "invalid", payload = [head, ..tail]} when head == 1 do
-    tail
-  end
-  _ do
-    raise "unexpected"
-  end
+  let attempted = {error = "invalid", payload = [1, 2]}
+  raise attempted
+catch {error = "invalid", payload = [head, ..tail]} when head == 1 do
+  tail
+catch _ do
+  raise "unexpected"
 end
 
 ---
@@ -136,20 +131,24 @@ end
   (let_statement
     (identifier)
     (try_expression
-      (raise_expression
-        (map
-          (map_entry
-            (map_field
-              (identifier)
-              (string
-                (string_content))))
-          (map_entry
-            (map_field
-              (identifier)
-              (list
-                (integer)
-                (integer))))))
-      (pattern_clause
+      (block
+        (let_statement
+          (identifier)
+          (map
+            (map_entry
+              (map_field
+                (identifier)
+                (string
+                  (string_content))))
+            (map_entry
+              (map_field
+                (identifier)
+                (list
+                  (integer)
+                  (integer))))))
+        (raise_expression
+          (identifier)))
+      (catch_clause
         (map_pattern
           (map_pattern_field
             (identifier)
@@ -166,7 +165,7 @@ end
           (integer))
         (block
           (identifier)))
-      (pattern_clause
+      (catch_clause
         (wildcard_pattern)
         (block
           (raise_expression

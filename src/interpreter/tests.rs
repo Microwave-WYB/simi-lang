@@ -200,16 +200,16 @@ fn tap_pipeline_preserves_the_alias_to_the_mutated_list() {
 fn try_catches_values_with_match_semantics_and_unmatched_raises_are_unchanged() {
     let value = evaluate(
         r#"
-                try raise {kind="missing", payload=[1, 2]} catch
-                    {kind="missing", payload=[head, ..tail]} when head == 1 do tail end
-                    _ do nil end
+                try raise {kind="missing", payload=[1, 2]}
+                    catch {kind="missing", payload=[head, ..tail]} when head == 1 do tail
+                    catch _ do nil
                 end
             "#,
     )
     .expect("the structural catch should match");
     assert_eq!(value.render(), "[2]");
 
-    let source = "try raise 1 catch 2 do nil end end";
+    let source = "try raise 1 catch 2 do nil end";
     let raised = expect_raised(source);
     let raise_start = source
         .find("raise 1")
@@ -232,7 +232,7 @@ fn try_evaluates_its_protected_expression_exactly_once() {
             Arc::new(count_protected_evaluation),
         )),
     );
-    let source = "try raise tick() catch count do count end end";
+    let source = "try raise tick() catch count do count end";
     let tokens = lexer::lex(source).expect("test source should lex");
     let program = parser::parse(tokens).expect("test source should parse");
     let outcome = Interpreter::with_globals(globals)
@@ -250,22 +250,22 @@ fn try_evaluates_its_protected_expression_exactly_once() {
 #[test]
 fn loops_propagate_raises_from_initialization_and_iterations() {
     let initializer =
-        evaluate("try loop state = raise 4 do break state end catch value do value end end")
+        evaluate("try loop state = raise 4 do break state end catch value do value end")
             .expect("the enclosing try should catch an initializer raise");
     assert_eq!(initializer.render(), "4");
 
-    let iteration = evaluate("try loop state = 0 do raise state end catch 0 do 9 end end")
+    let iteration = evaluate("try loop state = 0 do raise state end catch 0 do 9 end")
         .expect("the enclosing try should catch an iteration raise");
     assert_eq!(iteration.render(), "9");
 }
 
 #[test]
 fn hard_errors_and_non_boolean_catch_guards_bypass_language_catches() {
-    let undefined = expect_runtime_error("try missing_name catch _ do \"must not catch\" end end");
+    let undefined = expect_runtime_error("try missing_name catch _ do \"must not catch\" end");
     assert_eq!(undefined.span, Span::new(4, 16));
     assert!(undefined.message.contains("undefined name"));
 
-    let guard_source = "try raise 1 catch _ when 2 do nil end end";
+    let guard_source = "try raise 1 catch _ when 2 do nil end";
     let guard = expect_runtime_error(guard_source);
     let guard_start = guard_source.find("2").expect("guard should exist");
     assert_eq!(guard.span, Span::new(guard_start, guard_start + 1));
@@ -274,12 +274,12 @@ fn hard_errors_and_non_boolean_catch_guards_bypass_language_catches() {
 
 #[test]
 fn handler_raises_escape_siblings_and_append_the_caught_chain() {
-    let source = r#"try try raise "old" catch
-                _ do raise "middle" end
-                _ do "inner sibling must not run" end
-            end catch
-                _ do raise "new" end
-                _ do "outer sibling must not run" end
+    let source = r#"try try raise "old"
+                catch _ do raise "middle"
+                catch _ do "inner sibling must not run"
+            end
+                catch _ do raise "new"
+                catch _ do "outer sibling must not run"
             end"#;
     let raised = expect_raised(source);
 
@@ -314,8 +314,8 @@ fn handler_raises_escape_siblings_and_append_the_caught_chain() {
 #[test]
 fn handler_reraise_records_a_new_origin_and_freezes_caught_frames_in_its_cause() {
     let source = r#"fn leaf() do raise "old" end
-try leaf() catch
-error do raise error end
+try leaf()
+catch error do raise error
 end"#;
     let raised = expect_raised(source);
     let reraised_start = source.rfind("raise error").expect("re-raise should exist");
@@ -349,9 +349,9 @@ end"#;
 
 #[test]
 fn a_raise_from_a_catch_guard_escapes_without_trying_siblings() {
-    let source = r#"try raise "caught" catch
-_ when raise "guard" do "body must not run" end
-_ do "sibling must not run" end
+    let source = r#"try raise "caught"
+catch _ when raise "guard" do "body must not run"
+catch _ do "sibling must not run"
 end"#;
     let raised = expect_raised(source);
     assert_eq!(raised.value.render(), "\"guard\"");

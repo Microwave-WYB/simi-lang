@@ -61,8 +61,10 @@ impl Parser {
         let do_span = self.expect_simple(SimpleToken::Do, "`do` before function body")?;
 
         let enclosing_loop_depth = std::mem::replace(&mut self.loop_depth, 0);
+        let enclosing_block_depth = std::mem::replace(&mut self.standalone_block_depth, 0);
         let body = self.parse_block(do_span.end);
         self.loop_depth = enclosing_loop_depth;
+        self.standalone_block_depth = enclosing_block_depth;
         let body = body?;
 
         let end = self.expect_simple(SimpleToken::End, "`end` after function body")?;

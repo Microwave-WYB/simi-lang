@@ -54,6 +54,8 @@ pub enum TokenKind {
     LessEqual,
     Greater,
     GreaterEqual,
+    Question,
+    QuestionGreater,
     PipeGreater,
     LessPipe,
     Eof,

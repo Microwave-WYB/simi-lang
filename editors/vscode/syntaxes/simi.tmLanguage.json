@@ -224,7 +224,7 @@
       "patterns": [
         {
           "name": "keyword.operator.pipeline.simi",
-          "match": "\\|>|<\\|"
+          "match": "\\?>|\\?|\\|>|<\\|"
         },
         {
           "name": "keyword.operator.comparison.simi",

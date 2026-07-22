@@ -75,10 +75,10 @@ def check_source_extension() -> None:
 
     increase = re.compile(config["increase_indent_pattern"])
     decrease = re.compile(config["decrease_indent_pattern"])
-    for line in ("case value of", "[head, ..tail] when ready do", "try"):
+    for line in ("of [head, ..tail] when ready do", "catch _ do", "try"):
         check(increase.search(line) is not None, f"line should increase indentation: {line}")
-    check(increase.search("_ do value end") is None, "one-line clause must not indent next line")
-    for line in ("end", "catch", "elseif ready then", "else"):
+    check(increase.search("of _ do value end") is None, "one-line clause must not indent next line")
+    for line in ("end", "of _ do", "catch _ do", "elseif ready then", "else"):
         check(decrease.search(line) is not None, f"line should decrease indentation: {line}")
     for legacy in ("match value with", "case value ->"):
         check(increase.search(legacy) is None, f"legacy syntax affects indentation: {legacy}")
@@ -92,13 +92,16 @@ def check_source_extension() -> None:
 
     indents = (language / "indents.scm").read_text(encoding="utf-8")
     check("(case_expression" in indents, "case_expression is not indented")
-    check("(pattern_clause" in indents, "pattern_clause is not indented")
-    for removed_node in ("match_expression", "case_clause"):
+    check("(case_clause" in indents, "case_clause is not indented")
+    check("(catch_clause" in indents, "catch_clause is not indented")
+    for removed_node in ("match_expression", "pattern_clause"):
         check(removed_node not in indents, f"legacy indent node remains: {removed_node}")
 
     fixture = (COMPONENT / "tests" / "fixtures" / "language.simi").read_text(encoding="utf-8")
-    check("case value of" in fixture, "fixture does not exercise case-of syntax")
-    check("_ do nil end" in fixture, "fixture does not exercise one-line clauses")
+    check("case value" in fixture and fixture.count("\n    of ") >= 2, "fixture does not exercise repeated-of syntax")
+    check("of _ do nil\n" in fixture, "fixture does not exercise final case clause")
+    check("catch _ do nil\n" in fixture, "fixture does not exercise repeated catches")
+    check("?>" in fixture and "?" in fixture, "fixture does not exercise nil control flow")
     for removed in ("match ", " with\n", " ->"):
         check(removed not in fixture, f"fixture contains legacy syntax: {removed.strip()}")
 

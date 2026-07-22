@@ -2,14 +2,12 @@
 let list = require("std/list")
 
 fn classify(value) do
-    case value of
-        [first, ..rest] when first >= 1 do
-            { kind = "positive\n", value = first, rest = rest }
-        end
-        { error = message, ..details } do
-            { kind = "error", message = message, details = details }
-        end
-        _ do nil end
+    case value
+    of [first, ..rest] when first >= 1 do
+        { kind = "positive\n", value = first, rest = rest }
+    of { error = message, ..details } do
+        { kind = "error", message = message, details = details }
+    of _ do nil
     end
 end
 
@@ -24,7 +22,8 @@ let transform = fn(value) do
 end
 
 let values = [1, 2.5e1, 3]
-let result = values |> list.map() <| transform
+let result = values ?> list.map() <| transform
+let optional = do result? end
 let has_runtime_label = type(result) == "list"
 let is = has_runtime_label
 let final = loop state = 0 do
@@ -35,9 +34,10 @@ let final = loop state = 0 do
     end
 end
 
-try raise { error = "example" } catch
-    { error = message } when message != nil do
-        classify([final])
-    end
-    _ do nil end
+try
+    let error = { error = "example" }
+    raise error
+catch { error = message } when message != nil do
+    classify([final])
+catch _ do nil
 end

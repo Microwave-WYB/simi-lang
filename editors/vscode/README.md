@@ -6,7 +6,7 @@ Local Visual Studio Code language support for Simi, including:
 - TextMate-based syntax highlighting for the current language syntax;
 - `--` line comments;
 - bracket matching, auto-closing, and surrounding pairs;
-- indentation rules for `do`/`then`/`of`/`catch`, explicit pattern-clause blocks, and their closing branches;
+- indentation rules for standalone `do` blocks and one-final-`end` repeated `of`/`catch` branches;
 - indentation-based folding plus `-- region` / `-- endregion` folding markers.
 
 This extension is declarative and has no activation-time JavaScript.
@@ -52,7 +52,7 @@ VS Code's stable declarative grammar contribution point consumes TextMate gramma
 
 The shared `editors/tree-sitter` parser is the structural syntax source for Zed and other Tree-sitter consumers. Keep this TextMate grammar's token and keyword inventory aligned with that source, but expect contextual highlighting to remain an independently maintained TextMate approximation unless VS Code exposes a supported Tree-sitter contribution mechanism. Language configuration remains editor-specific in either case.
 
-Canonical pattern dispatch is `case expression of pattern [when guard] do block end ... end`. `try`/`catch` uses the same pattern-clause form. The removed `match`, `with`, per-arm `case`, and `->` spellings are not highlighted as control syntax.
+Canonical pattern dispatch is `case expression of pattern [when guard] do block ... of pattern do block end`, with no per-branch `end`. Try handlers repeat `catch pattern [when guard] do block` under the try's single final `end`. Standalone `do ... end`, postfix `?`, and nil-aware `?>` pipelines share the normal block/operator highlighting. The removed `match`, `with`, per-arm `case`, catch-section headers, and `->` spellings are not highlighted as control syntax.
 
 Runtime-category checks use the builtin call and ordinary comparison syntax, such as `type(value) == "integer"` and `type(callback) == "function"`. The shadowable builtin is highlighted as a builtin only when called, `==` uses the normal comparison scope, and `is` is an ordinary identifier.
 

@@ -203,13 +203,11 @@ Maintain the existing loop syntax and control-flow contracts in the parser and i
 Simi has structural, expression-valued matching:
 
 ```simi
-case value of
-    pattern when guard do
-        body
-    end
-    _ do
-        fallback
-    end
+case value
+of pattern when guard do
+    body
+of _ do
+    fallback
 end
 ```
 
@@ -226,10 +224,10 @@ Any value may be raised and structurally caught:
 ```simi
 raise { error = "invalid_input", value = input }
 
-try operation() catch
-    { error = "invalid_input", value = value } do
-        recover(value)
-    end
+try
+    operation()
+catch { error = "invalid_input", value = value } do
+    recover(value)
 end
 ```
 

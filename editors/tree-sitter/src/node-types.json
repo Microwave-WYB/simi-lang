@@ -12,6 +12,10 @@
         "named": true
       },
       {
+        "type": "block_expression",
+        "named": true
+      },
+      {
         "type": "boolean",
         "named": true
       },
@@ -73,6 +77,10 @@
       },
       {
         "type": "nil",
+        "named": true
+      },
+      {
+        "type": "nil_propagation_expression",
         "named": true
       },
       {
@@ -256,6 +264,10 @@
             "named": true
           },
           {
+            "type": "block_expression",
+            "named": true
+          },
+          {
             "type": "boolean",
             "named": true
           },
@@ -317,6 +329,10 @@
           },
           {
             "type": "nil",
+            "named": true
+          },
+          {
+            "type": "nil_propagation_expression",
             "named": true
           },
           {
@@ -412,6 +428,10 @@
             "named": true
           },
           {
+            "type": "block_expression",
+            "named": true
+          },
+          {
             "type": "boolean",
             "named": true
           },
@@ -473,6 +493,10 @@
           },
           {
             "type": "nil",
+            "named": true
+          },
+          {
+            "type": "nil_propagation_expression",
             "named": true
           },
           {
@@ -515,6 +539,22 @@
     }
   },
   {
+    "type": "block_expression",
+    "named": true,
+    "fields": {
+      "body": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "block",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
     "type": "boolean",
     "named": true,
     "fields": {}
@@ -553,6 +593,10 @@
         "multiple": false,
         "required": true,
         "types": [
+          {
+            "type": "block_expression",
+            "named": true
+          },
           {
             "type": "boolean",
             "named": true
@@ -618,6 +662,10 @@
             "named": true
           },
           {
+            "type": "nil_propagation_expression",
+            "named": true
+          },
+          {
             "type": "parenthesized_expression",
             "named": true
           },
@@ -631,6 +679,42 @@
           },
           {
             "type": "try_expression",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "case_clause",
+    "named": true,
+    "fields": {
+      "body": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "block",
+            "named": true
+          }
+        ]
+      },
+      "guard": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "_expression",
+            "named": true
+          }
+        ]
+      },
+      "pattern": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "_pattern",
             "named": true
           }
         ]
@@ -657,10 +741,46 @@
       "required": true,
       "types": [
         {
-          "type": "pattern_clause",
+          "type": "case_clause",
           "named": true
         }
       ]
+    }
+  },
+  {
+    "type": "catch_clause",
+    "named": true,
+    "fields": {
+      "body": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "block",
+            "named": true
+          }
+        ]
+      },
+      "guard": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "_expression",
+            "named": true
+          }
+        ]
+      },
+      "pattern": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "_pattern",
+            "named": true
+          }
+        ]
+      }
     }
   },
   {
@@ -740,6 +860,10 @@
         "required": true,
         "types": [
           {
+            "type": "block_expression",
+            "named": true
+          },
+          {
             "type": "boolean",
             "named": true
           },
@@ -801,6 +925,10 @@
           },
           {
             "type": "nil",
+            "named": true
+          },
+          {
+            "type": "nil_propagation_expression",
             "named": true
           },
           {
@@ -944,6 +1072,10 @@
         "required": true,
         "types": [
           {
+            "type": "block_expression",
+            "named": true
+          },
+          {
             "type": "boolean",
             "named": true
           },
@@ -1005,6 +1137,10 @@
           },
           {
             "type": "nil",
+            "named": true
+          },
+          {
+            "type": "nil_propagation_expression",
             "named": true
           },
           {
@@ -1283,6 +1419,106 @@
     }
   },
   {
+    "type": "nil_propagation_expression",
+    "named": true,
+    "fields": {
+      "value": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "block_expression",
+            "named": true
+          },
+          {
+            "type": "boolean",
+            "named": true
+          },
+          {
+            "type": "break_expression",
+            "named": true
+          },
+          {
+            "type": "call_expression",
+            "named": true
+          },
+          {
+            "type": "case_expression",
+            "named": true
+          },
+          {
+            "type": "continue_expression",
+            "named": true
+          },
+          {
+            "type": "field_expression",
+            "named": true
+          },
+          {
+            "type": "float",
+            "named": true
+          },
+          {
+            "type": "function_expression",
+            "named": true
+          },
+          {
+            "type": "identifier",
+            "named": true
+          },
+          {
+            "type": "if_expression",
+            "named": true
+          },
+          {
+            "type": "index_expression",
+            "named": true
+          },
+          {
+            "type": "integer",
+            "named": true
+          },
+          {
+            "type": "list",
+            "named": true
+          },
+          {
+            "type": "loop_expression",
+            "named": true
+          },
+          {
+            "type": "map",
+            "named": true
+          },
+          {
+            "type": "nil",
+            "named": true
+          },
+          {
+            "type": "nil_propagation_expression",
+            "named": true
+          },
+          {
+            "type": "parenthesized_expression",
+            "named": true
+          },
+          {
+            "type": "raise_expression",
+            "named": true
+          },
+          {
+            "type": "string",
+            "named": true
+          },
+          {
+            "type": "try_expression",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
     "type": "parameter",
     "named": true,
     "fields": {},
@@ -1362,42 +1598,6 @@
     }
   },
   {
-    "type": "pattern_clause",
-    "named": true,
-    "fields": {
-      "body": {
-        "multiple": false,
-        "required": false,
-        "types": [
-          {
-            "type": "block",
-            "named": true
-          }
-        ]
-      },
-      "guard": {
-        "multiple": false,
-        "required": false,
-        "types": [
-          {
-            "type": "_expression",
-            "named": true
-          }
-        ]
-      },
-      "pattern": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "_pattern",
-            "named": true
-          }
-        ]
-      }
-    }
-  },
-  {
     "type": "pipeline_callee",
     "named": true,
     "fields": {},
@@ -1422,6 +1622,10 @@
         "types": [
           {
             "type": "binary_expression",
+            "named": true
+          },
+          {
+            "type": "block_expression",
             "named": true
           },
           {
@@ -1486,6 +1690,10 @@
           },
           {
             "type": "nil",
+            "named": true
+          },
+          {
+            "type": "nil_propagation_expression",
             "named": true
           },
           {
@@ -1559,6 +1767,10 @@
             "named": true
           },
           {
+            "type": "block_expression",
+            "named": true
+          },
+          {
             "type": "boolean",
             "named": true
           },
@@ -1620,6 +1832,10 @@
           },
           {
             "type": "nil",
+            "named": true
+          },
+          {
+            "type": "nil_propagation_expression",
             "named": true
           },
           {
@@ -1734,6 +1950,10 @@
             "named": true
           },
           {
+            "type": "block_expression",
+            "named": true
+          },
+          {
             "type": "boolean",
             "named": true
           },
@@ -1795,6 +2015,10 @@
           },
           {
             "type": "nil",
+            "named": true
+          },
+          {
+            "type": "nil_propagation_expression",
             "named": true
           },
           {
@@ -1848,7 +2072,7 @@
         "required": true,
         "types": [
           {
-            "type": "_expression",
+            "type": "block",
             "named": true
           }
         ]
@@ -1859,7 +2083,7 @@
       "required": true,
       "types": [
         {
-          "type": "pattern_clause",
+          "type": "catch_clause",
           "named": true
         }
       ]
@@ -1873,6 +2097,10 @@
         "multiple": false,
         "required": true,
         "types": [
+          {
+            "type": "block_expression",
+            "named": true
+          },
           {
             "type": "boolean",
             "named": true
@@ -1935,6 +2163,10 @@
           },
           {
             "type": "nil",
+            "named": true
+          },
+          {
+            "type": "nil_propagation_expression",
             "named": true
           },
           {
@@ -2053,6 +2285,14 @@
   },
   {
     "type": ">=",
+    "named": false
+  },
+  {
+    "type": "?",
+    "named": false
+  },
+  {
+    "type": "?>",
     "named": false
   },
   {

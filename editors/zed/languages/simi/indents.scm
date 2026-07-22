@@ -4,6 +4,9 @@
 (function_expression
   "end" @end) @indent
 
+(block_expression
+  "end" @end) @indent
+
 (if_expression
   "end" @end) @indent
 
@@ -16,8 +19,12 @@
 (try_expression
   "end" @end) @indent
 
-(pattern_clause
-  "end" @end) @indent
+(case_clause
+  "of" @end) @indent
+
+(catch_clause
+  "catch" @end) @indent
+
 (elseif_clause) @indent
 (else_clause) @indent
 

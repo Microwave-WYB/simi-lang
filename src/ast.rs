@@ -109,8 +109,12 @@ pub enum ExprKind {
     Raise {
         value: Box<Expr>,
     },
+    Block(Block),
+    NilPropagate {
+        value: Box<Expr>,
+    },
     Try {
-        protected: Box<Expr>,
+        protected: Block,
         clauses: Vec<PatternClause>,
     },
     Case {
@@ -161,6 +165,7 @@ pub enum ExprKind {
 
 #[derive(Clone, Debug)]
 pub struct PipelineStage {
+    pub nil_aware: bool,
     pub tap: bool,
     pub callee: Expr,
     pub args: Vec<Expr>,

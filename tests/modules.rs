@@ -160,8 +160,8 @@ fn missing_modules_raise_exact_values_at_the_call_span_and_are_catchable() {
     let value = engine
         .eval(
             r#"
-            try require("missing") catch
-                {error="module_not_found", module=module} do module end
+            try require("missing")
+                catch {error="module_not_found", module=module} do module
             end
             "#,
         )

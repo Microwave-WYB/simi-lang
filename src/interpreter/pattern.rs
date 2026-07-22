@@ -1,7 +1,7 @@
 use gc::{Gc, GcCell};
 
 use super::{EvaluationError, EvaluationResult, Interpreter, operations::numeric_equal};
-use crate::ast::{Expr, Pattern, PatternClause, PatternKind, PatternRest};
+use crate::ast::{Block, Expr, Pattern, PatternClause, PatternKind, PatternRest};
 use crate::runtime::{Environment, MapKey, RuntimeError, RuntimeResult, Value};
 use crate::span::Span;
 
@@ -53,11 +53,12 @@ impl Interpreter {
 
     pub(super) fn evaluate_try(
         &mut self,
-        protected: &Expr,
+        protected: &Block,
         clauses: &[PatternClause],
         env: &Environment,
     ) -> EvaluationResult<Value> {
-        let caught = match self.evaluate_expression(protected, env) {
+        let protected_env = env.child();
+        let caught = match self.evaluate_block(protected, &protected_env) {
             Ok(value) => return Ok(value),
             Err(EvaluationError::Raised(raised)) => raised,
             Err(error) => return Err(error),

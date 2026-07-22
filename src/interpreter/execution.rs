@@ -150,6 +150,23 @@ impl Interpreter {
                 let value = self.evaluate_expression(value, env)?;
                 Err(EvaluationError::Raised(Raised::new(value, expression.span)))
             }
+            ExprKind::Block(block) => {
+                let block_env = env.child();
+                match self.evaluate_block(block, &block_env) {
+                    Err(EvaluationError::NilPropagate { .. }) => Ok(Value::Nil),
+                    result => result,
+                }
+            }
+            ExprKind::NilPropagate { value } => {
+                let value = self.evaluate_expression(value, env)?;
+                if matches!(value, Value::Nil) {
+                    Err(EvaluationError::NilPropagate {
+                        span: expression.span,
+                    })
+                } else {
+                    Ok(value)
+                }
+            }
             ExprKind::Try { protected, clauses } => self.evaluate_try(protected, clauses, env),
             ExprKind::Loop {
                 state,
@@ -302,9 +319,11 @@ impl Interpreter {
                     next_state = value;
                 }
                 Err(EvaluationError::Break { value, .. }) => return Ok(value),
-                Err(error @ (EvaluationError::Runtime(_) | EvaluationError::Raised(_))) => {
-                    return Err(error);
-                }
+                Err(
+                    error @ (EvaluationError::Runtime(_)
+                    | EvaluationError::Raised(_)
+                    | EvaluationError::NilPropagate { .. }),
+                ) => return Err(error),
             }
         }
     }

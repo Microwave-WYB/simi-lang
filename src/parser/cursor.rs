@@ -53,7 +53,7 @@ impl Parser {
     pub(super) fn at_block_terminator(&self) -> bool {
         matches!(
             &self.current().kind,
-            TokenKind::ElseIf | TokenKind::Else | TokenKind::Catch | TokenKind::End
+            TokenKind::ElseIf | TokenKind::Else | TokenKind::Catch | TokenKind::Of | TokenKind::End
         )
     }
 
@@ -130,6 +130,8 @@ pub(super) enum SimpleToken {
     LessEqual,
     Greater,
     GreaterEqual,
+    Question,
+    QuestionGreater,
     PipeGreater,
     LessPipe,
 }
@@ -179,6 +181,8 @@ impl SimpleToken {
                 | (Self::LessEqual, TokenKind::LessEqual)
                 | (Self::Greater, TokenKind::Greater)
                 | (Self::GreaterEqual, TokenKind::GreaterEqual)
+                | (Self::Question, TokenKind::Question)
+                | (Self::QuestionGreater, TokenKind::QuestionGreater)
                 | (Self::PipeGreater, TokenKind::PipeGreater)
                 | (Self::LessPipe, TokenKind::LessPipe)
         )
@@ -237,6 +241,8 @@ fn token_name(kind: &TokenKind) -> &'static str {
         TokenKind::LessEqual => "<=",
         TokenKind::Greater => ">",
         TokenKind::GreaterEqual => ">=",
+        TokenKind::Question => "?",
+        TokenKind::QuestionGreater => "?>",
         TokenKind::PipeGreater => "|>",
         TokenKind::LessPipe => "<|",
         TokenKind::Eof => "end of file",

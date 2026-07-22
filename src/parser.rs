@@ -31,6 +31,7 @@ pub struct Parser {
     tokens: Vec<Token>,
     cursor: usize,
     loop_depth: usize,
+    standalone_block_depth: usize,
 }
 
 impl Parser {
@@ -47,6 +48,7 @@ impl Parser {
             tokens,
             cursor: 0,
             loop_depth: 0,
+            standalone_block_depth: 0,
         }
     }
 

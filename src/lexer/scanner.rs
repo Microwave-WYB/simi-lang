@@ -58,6 +58,7 @@ impl<'a> Lexer<'a> {
                 }
                 b'<' => self.one_or_two(TokenKind::Less, b'=', TokenKind::LessEqual),
                 b'>' => self.one_or_two(TokenKind::Greater, b'=', TokenKind::GreaterEqual),
+                b'?' => self.one_or_two(TokenKind::Question, b'>', TokenKind::QuestionGreater),
                 b'|' if self.peek_byte(1) == Some(b'>') => {
                     self.position += 2;
                     self.push(TokenKind::PipeGreater, start);

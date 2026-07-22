@@ -82,19 +82,19 @@ fn string_module_is_an_explicit_capability() {
 fn wrong_types_and_indices_remain_uncatchable_hard_diagnostics() {
     for (source, qualified_name) in [
         (
-            "let string = require(\"std/string\") try string.length(1) catch _ do nil end end",
+            "let string = require(\"std/string\") try string.length(1) catch _ do nil end",
             "std/string.length",
         ),
         (
-            "let string = require(\"std/string\") try string.slice(\"abc\", 0 - 1, 2) catch _ do nil end end",
+            "let string = require(\"std/string\") try string.slice(\"abc\", 0 - 1, 2) catch _ do nil end",
             "std/string.slice",
         ),
         (
-            "let string = require(\"std/string\") try string.slice(\"abc\", 0, 2.0) catch _ do nil end end",
+            "let string = require(\"std/string\") try string.slice(\"abc\", 0, 2.0) catch _ do nil end",
             "std/string.slice",
         ),
         (
-            "let string = require(\"std/string\") try string.contains(\"abc\", 1) catch _ do nil end end",
+            "let string = require(\"std/string\") try string.contains(\"abc\", 1) catch _ do nil end",
             "std/string.contains",
         ),
     ] {

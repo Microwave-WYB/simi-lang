@@ -87,7 +87,55 @@ match value with _ do nil end end
   (identifier)
   (identifier)
   (identifier)
-  (identifier)
-  (nil)
-  (identifier)
+  (block_expression
+    (block
+      (nil)))
   (identifier))
+
+==================
+Legacy per-case-clause end is rejected
+==================
+
+case value of 1 do "one" end of _ do "other" end
+
+---
+
+(program
+  (case_expression
+    (identifier)
+    (case_clause
+      (integer)
+      (block
+        (string
+          (string_content)))))
+  (identifier)
+  (identifier)
+  (block_expression
+    (block
+      (string
+        (string_content)))))
+
+==================
+Legacy per-catch-handler end is rejected
+==================
+
+try raise 1 catch 1 do "one" end catch _ do "other" end
+
+---
+
+(program
+  (try_expression
+    (block
+      (raise_expression
+        (integer)))
+    (catch_clause
+      (integer)
+      (block
+        (string
+          (string_content)))))
+  (identifier)
+  (identifier)
+  (block_expression
+    (block
+      (string
+        (string_content)))))

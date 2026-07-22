@@ -71,19 +71,24 @@ type(value + 1) == label and ready
     (identifier)))
 
 ==================
-Pipelines, tap stages, and right-associative trailing arguments
+Pipelines, nil-aware stages, tap, and right-associative trailing arguments
 ==================
 
 ((pair(4))) <| 5
 values
-|> tap list.append(0)
+?> tap list.append(0)
 |> list.map() <| fn(value) do
   value * 2
 end
 
 pair(1) <| 2
 wrap() <| wrap() <| 3
-4 |> pair() <| 5
+4 ?> pair() <| 5
+
+do
+  let value = source?
+  value
+end[0]
 
 ---
 
@@ -138,7 +143,16 @@ wrap() <| wrap() <| 3
       (pipeline_callee
         (identifier))
       (arguments)
-      (integer))))
+      (integer)))
+  (index_expression
+    (block_expression
+      (block
+        (let_statement
+          (identifier)
+          (nil_propagation_expression
+            (identifier)))
+        (identifier)))
+    (integer)))
 
 ==================
 Indexing requires lexical adjacency

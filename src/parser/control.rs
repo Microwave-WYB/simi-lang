@@ -20,15 +20,20 @@ impl Parser {
 
     pub(super) fn parse_try(&mut self) -> Result<Expr, ParseError> {
         let start = self.expect_simple(SimpleToken::Try, "`try`")?;
-        let protected = self.parse_expression()?;
-        self.expect_simple(SimpleToken::Catch, "`catch` after protected expression")?;
-        let clauses = self.parse_pattern_clauses("catch")?;
+        if self.at_simple(SimpleToken::Catch) {
+            return Err(self.error_current(
+                "expected at least one protected block item before `catch`".to_owned(),
+            ));
+        }
+        let protected = self.parse_block(start.end)?;
+        let clauses = self.parse_marked_pattern_clauses(
+            SimpleToken::Catch,
+            "catch",
+            "`catch` after protected block",
+        )?;
         let end = self.expect_simple(SimpleToken::End, "`end` after try expression")?;
         Ok(Expr {
-            kind: ExprKind::Try {
-                protected: Box::new(protected),
-                clauses,
-            },
+            kind: ExprKind::Try { protected, clauses },
             span: start.merge(end),
         })
     }
@@ -36,8 +41,8 @@ impl Parser {
     pub(super) fn parse_case(&mut self) -> Result<Expr, ParseError> {
         let start = self.expect_simple(SimpleToken::Case, "`case`")?;
         let value = self.parse_expression()?;
-        self.expect_simple(SimpleToken::Of, "`of` after case value")?;
-        let clauses = self.parse_pattern_clauses("case")?;
+        let clauses =
+            self.parse_marked_pattern_clauses(SimpleToken::Of, "of", "`of` after case value")?;
         let end = self.expect_simple(SimpleToken::End, "`end` after case expression")?;
         Ok(Expr {
             kind: ExprKind::Case {
@@ -48,15 +53,22 @@ impl Parser {
         })
     }
 
-    fn parse_pattern_clauses(&mut self, construct: &str) -> Result<Vec<PatternClause>, ParseError> {
-        if self.at_simple(SimpleToken::End) {
-            return Err(
-                self.error_current(format!("expected pattern after `{construct}`, found `end`"))
-            );
-        }
+    fn parse_marked_pattern_clauses(
+        &mut self,
+        marker: SimpleToken,
+        marker_name: &str,
+        first_marker_description: &str,
+    ) -> Result<Vec<PatternClause>, ParseError> {
+        self.expect_simple(marker, first_marker_description)?;
 
         let mut clauses = Vec::new();
-        while !self.at_simple(SimpleToken::End) && !self.at_eof() {
+        loop {
+            if self.at_simple(SimpleToken::End) {
+                return Err(self.error_current(format!(
+                    "expected pattern after `{marker_name}`, found `end`"
+                )));
+            }
+
             let mut bindings = HashSet::new();
             let pattern = self.parse_pattern(&mut bindings)?;
             let guard = if self.consume_simple(SimpleToken::When) {
@@ -66,12 +78,15 @@ impl Parser {
             };
             let do_span = self.expect_simple(SimpleToken::Do, "`do` before clause body")?;
             let body = self.parse_block(do_span.end)?;
-            self.expect_simple(SimpleToken::End, "`end` after clause body")?;
             clauses.push(PatternClause {
                 pattern,
                 guard,
                 body,
             });
+
+            if !self.consume_simple(marker) {
+                break;
+            }
         }
         Ok(clauses)
     }
@@ -175,6 +190,7 @@ impl Parser {
                 | TokenKind::LParen
                 | TokenKind::LBracket
                 | TokenKind::LBrace
+                | TokenKind::Do
                 | TokenKind::Raise
                 | TokenKind::Try
                 | TokenKind::Catch

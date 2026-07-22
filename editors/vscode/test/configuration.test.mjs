@@ -46,17 +46,17 @@ test("language configuration covers comments, pairs, indentation, and folding", 
   for (const line of [
     "fn add(a, b) do",
     "if ready then",
-    "case value of",
-    "[head, ..tail] when ready do",
+    "of [head, ..tail] when ready do",
+    "catch _ do",
     "else",
     "let result = try",
   ]) {
     assert.match(line, increase);
   }
-  for (const line of ["end", "elseif ready then", "else", "catch"]) {
+  for (const line of ["end", "elseif ready then", "else", "of _ do", "catch _ do"]) {
     assert.match(line, decrease);
   }
-  assert.doesNotMatch("_ do value end", increase, "one-line clauses must not indent the following line");
+  assert.doesNotMatch("of _ do value end", increase, "one-line clauses must not indent the following line");
   for (const legacyLine of ["match value with", "case value ->"]) {
     assert.doesNotMatch(legacyLine, increase);
     assert.doesNotMatch(legacyLine, decrease);
@@ -83,6 +83,8 @@ test("grammar keyword inventory follows the current Simi lexer", async () => {
     .join("\n")
     .replaceAll("\\b", "");
   assert.ok(!operatorInventory.includes("->"), "legacy clause arrow must not be scoped");
+  assert.match(operatorInventory, /\\\?>/, "nil-aware pipeline must be scoped");
+  assert.match(operatorInventory, /\\\?/, "nil propagation must be scoped");
   assert.doesNotMatch(
     operatorInventory,
     /\bis\b/,

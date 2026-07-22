@@ -71,14 +71,14 @@ fn list_mutation_bounds_raise_structural_values() {
         r#"
             let list = require("std/list")
             let values = [1]
-            let insert_error = try list.insert(values, 2, 9) catch
-                error do error end
+            let insert_error = try list.insert(values, 2, 9)
+                catch error do error
             end
-            let remove_error = try list.remove(values, 1) catch
-                error do error end
+            let remove_error = try list.remove(values, 1)
+                catch error do error
             end
-            let pop_error = try list.pop([]) catch
-                error do error end
+            let pop_error = try list.pop([])
+                catch error do error
             end
             [insert_error, remove_error, pop_error, values]
         "#,
@@ -148,10 +148,10 @@ fn list_contains_rejects_cyclic_container_comparison_without_recursing() {
 #[test]
 fn new_list_indices_retain_hard_type_diagnostics() {
     for source in [
-        "let list = require(\"std/list\") try list.insert([], -1, nil) catch _ do nil end end",
-        "let list = require(\"std/list\") try list.remove([1], 0.0) catch _ do nil end end",
-        "let list = require(\"std/list\") try list.slice([1], \"0\", 1) catch _ do nil end end",
-        "let list = require(\"std/list\") try list.slice([1], 0, true) catch _ do nil end end",
+        "let list = require(\"std/list\") try list.insert([], -1, nil) catch _ do nil end",
+        "let list = require(\"std/list\") try list.remove([1], 0.0) catch _ do nil end",
+        "let list = require(\"std/list\") try list.slice([1], \"0\", 1) catch _ do nil end",
+        "let list = require(\"std/list\") try list.slice([1], 0, true) catch _ do nil end",
     ] {
         assert!(matches!(eval(source), Err(SimiError::Runtime(_))));
     }

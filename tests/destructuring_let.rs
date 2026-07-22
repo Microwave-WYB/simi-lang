@@ -75,8 +75,8 @@ fn mismatch_is_a_hard_runtime_error_at_the_pattern_span() {
             let [x, y] = value
             x + y
         end
-        try unpack([1]) catch
-            _ do 0 end
+        try unpack([1])
+            catch _ do 0
         end
     "#;
     match eval(attempted_catch) {

@@ -82,8 +82,8 @@ fn callback_raises_propagate_through_higher_order_calls() {
         let list = require("std/list")
         try list.map([1], fn(value) do
             raise {error="callback_failed", value=value}
-        end) catch
-            {error="callback_failed", value=value} do value end
+        end)
+            catch {error="callback_failed", value=value} do value
         end
         "#,
         "1",
@@ -161,8 +161,8 @@ fn list_queries_snapshot_mutated_sources_and_propagate_raises() {
         end)
         let caught = try list.find(values, fn(value) do
             raise { error = "query_failed", value = value }
-        end) catch
-        { error = "query_failed", value = value } do value end
+        end)
+        catch { error = "query_failed", value = value } do value
         end
         [count, caught, values]
         "#,
