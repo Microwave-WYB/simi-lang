@@ -1,0 +1,36 @@
+# Component modules are optional so this scaffold works before their branches land.
+# Each component must provide editors/<component>/justfile; see editors/README.md.
+
+# Tree-sitter grammar tooling.
+mod? tree-sitter
+
+# Visual Studio Code extension tooling.
+mod? vscode
+
+# Zed extension tooling.
+mod? zed
+
+# Install dependencies for every available editor component.
+install: (_run-for-components "install")
+
+# Generate artifacts for every available editor component.
+generate: (_run-for-components "generate")
+
+# Test every available editor component. This never invokes publishing recipes.
+test: (_run-for-components "test")
+
+# Package every available editor component without publishing it.
+package: (_run-for-components "package")
+
+# Keep this component list aligned with the optional module declarations above.
+[private]
+_run-for-components operation:
+    @for component in tree-sitter vscode zed; do \
+      component_justfile="$component/justfile"; \
+      if [ -f "$component_justfile" ]; then \
+        printf '==> %s: %s\n' "$component" "{{ operation }}"; \
+        just --justfile "$component_justfile" "{{ operation }}"; \
+      else \
+        printf '==> %s: skipped (missing editors/%s)\n' "$component" "$component_justfile"; \
+      fi; \
+    done
