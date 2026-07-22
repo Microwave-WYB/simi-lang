@@ -29,7 +29,7 @@ Or use the component-owned recipes:
 ```sh
 just test
 just package
-just install
+just install-local
 ```
 
 Reload any open Simi editor after installing or updating the VSIX. To develop interactively, open `editors/vscode` in VS Code and use **Run Extension** (`F5`) to launch an Extension Development Host.

@@ -1,4 +1,3 @@
-; Keyword-delimited expression blocks.
 (function_declaration
   "end" @end) @indent
 
@@ -17,10 +16,24 @@
 (try_expression
   "end" @end) @indent
 
-; Case bodies start after their arrow and end at the next case or parent end.
-(match_case) @indent
+(case_clause) @indent
+(elseif_clause) @indent
+(else_clause) @indent
 
-; Delimiter-based forms, including calls, lists, maps, and computed keys.
-(_ "(" ")" @end) @indent
-(_ "[" "]" @end) @indent
-(_ "{" "}" @end) @indent
+(parameters
+  ")" @end) @indent
+
+(arguments
+  ")" @end) @indent
+
+(list
+  "]" @end) @indent
+
+(map
+  "}" @end) @indent
+
+(list_pattern
+  "]" @end) @indent
+
+(map_pattern
+  "}" @end) @indent

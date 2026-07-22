@@ -1,18 +1,26 @@
 set shell := ["bash", "-cu"]
 
+component := source_directory()
+
 default: test
 
 dependencies:
-    npm ci
+    cd "{{component}}" && npm ci
+
+install: dependencies
+
+# The TextMate grammar is maintained as source and has no generated artifacts.
+generate:
+    @echo "VS Code TextMate sources are already generated"
 
 test: dependencies
-    npm test
+    cd "{{component}}" && npm test
 
 package: dependencies
-    npm run package
+    cd "{{component}}" && npm run package
 
-install: package
-    code --install-extension --force "simi-language-$(node -p 'require(\"./package.json\").version').vsix"
+install-local: package
+    cd "{{component}}" && code --install-extension --force "simi-language-$(node -p 'require(\"./package.json\").version').vsix"
 
 # Marketplace publication is intentionally guarded and is never part of another recipe.
 publish: test
@@ -23,4 +31,5 @@ publish: test
       exit 2
     fi
     : "${VSCE_PAT:?VSCE_PAT must contain a Visual Studio Marketplace token}"
+    cd "{{component}}"
     npm run publish
