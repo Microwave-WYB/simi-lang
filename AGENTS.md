@@ -237,6 +237,15 @@ Generated structural errors use an `error` discriminator and may gain additional
 
 Hard errors—such as invalid operand types, undefined assignment targets, or invalid list index types—remain outside language catches unless a deliberate semantic decision promotes them to raised values.
 
+For new APIs, classify failures consistently:
+
+- expected data-dependent absence or failure, such as a missing search result, parse failure, or EOF, returns `nil`;
+- programmer contract violations, such as wrong arity or argument types, are hard diagnostics;
+- recoverable operational failures that need details, such as stream or module failures, raise structural values with stable `error` discriminators;
+- application-defined failures use explicit `raise` values.
+
+Do not use `nil` to hide contract violations or partially completed mutations. Apply this policy to new APIs without changing established behavior unless a separate compatibility decision approves the change.
+
 The host boundary is:
 
 ```rust
