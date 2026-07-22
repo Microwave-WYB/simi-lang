@@ -73,6 +73,35 @@ def check_source_extension() -> None:
     check("simi" in config["path_suffixes"], "missing .simi association")
     check("-- " in config["line_comments"], "missing Simi line comment")
 
+    increase = re.compile(config["increase_indent_pattern"])
+    decrease = re.compile(config["decrease_indent_pattern"])
+    for line in ("case value of", "[head, ..tail] when ready do", "try"):
+        check(increase.search(line) is not None, f"line should increase indentation: {line}")
+    check(increase.search("_ do value end") is None, "one-line clause must not indent next line")
+    for line in ("end", "catch", "elseif ready then", "else"):
+        check(decrease.search(line) is not None, f"line should decrease indentation: {line}")
+    for legacy in ("match value with", "case value ->"):
+        check(increase.search(legacy) is None, f"legacy syntax affects indentation: {legacy}")
+        check(decrease.search(legacy) is None, f"legacy syntax affects indentation: {legacy}")
+
+    highlights = (language / "highlights.scm").read_text(encoding="utf-8")
+    for keyword in ('"case"', '"of"', '"when"'):
+        check(keyword in highlights, f"missing highlight keyword: {keyword}")
+    for removed in ('"match"', '"with"', '"->"'):
+        check(removed not in highlights, f"legacy highlight token remains: {removed}")
+
+    indents = (language / "indents.scm").read_text(encoding="utf-8")
+    check("(case_expression" in indents, "case_expression is not indented")
+    check("(pattern_clause" in indents, "pattern_clause is not indented")
+    for removed_node in ("match_expression", "case_clause"):
+        check(removed_node not in indents, f"legacy indent node remains: {removed_node}")
+
+    fixture = (COMPONENT / "tests" / "fixtures" / "language.simi").read_text(encoding="utf-8")
+    check("case value of" in fixture, "fixture does not exercise case-of syntax")
+    check("_ do nil end" in fixture, "fixture does not exercise one-line clauses")
+    for removed in ("match ", " with\n", " ->"):
+        check(removed not in fixture, f"fixture contains legacy syntax: {removed.strip()}")
+
     for query_name, allowed in ALLOWED_CAPTURES.items():
         text = (language / query_name).read_text(encoding="utf-8")
         captures = set(CAPTURE.findall(text))
@@ -113,13 +142,27 @@ def run_tree_sitter_checks(extension: Path, grammar: Path) -> None:
         ["tree-sitter", "parse", "--quiet", str(fixture)], cwd=grammar, check=True
     )
     language = extension / "languages" / "simi"
-    for query_name in LANGUAGE_FILES[1:]:
+    highlight_result = subprocess.run(
+        ["tree-sitter", "query", str(language / "highlights.scm"), str(fixture)],
+        cwd=grammar,
+        check=True,
+        text=True,
+        stdout=subprocess.PIPE,
+    )
+    highlight_captures = set(
+        re.findall(r"capture: \d+ - ([A-Za-z0-9_.-]+),", highlight_result.stdout)
+    )
+    required_highlights = {"comment", "function", "keyword", "operator", "property", "string"}
+    missing_highlights = sorted(required_highlights - highlight_captures)
+    check(not missing_highlights, f"fixture is missing semantic highlights: {missing_highlights}")
+
+    for query_name in LANGUAGE_FILES[2:]:
         subprocess.run(
             ["tree-sitter", "query", "--quiet", str(language / query_name), str(fixture)],
             cwd=grammar,
             check=True,
         )
-    print("tree-sitter parse and query checks passed")
+    print("tree-sitter parse, semantic highlight, and query checks passed")
 
 
 def main() -> None:

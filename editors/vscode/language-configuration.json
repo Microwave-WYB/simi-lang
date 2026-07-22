@@ -21,8 +21,8 @@
   ],
   "wordPattern": "[A-Za-z_][A-Za-z0-9_]*",
   "indentationRules": {
-    "increaseIndentPattern": "\\b(?:do|then|with|catch|else|try)\\s*(?:--.*)?$|->\\s*(?:--.*)?$",
-    "decreaseIndentPattern": "^\\s*(?:end|elseif\\b|else\\b|catch\\b|case\\b)"
+    "increaseIndentPattern": "\\b(?:do|then|of|catch|else|try)\\s*(?:--.*)?$",
+    "decreaseIndentPattern": "^\\s*(?:end|elseif\\b|else\\b|catch\\b)"
   },
   "folding": {
     "offSide": false,

@@ -56,9 +56,10 @@ The queries expect the shared grammar to expose these named nodes/fields:
 - functions: `function_declaration` with `name` and `body` fields, `function_expression` with a `body`, `parameter`, `parameters`, and `block`;
 - expressions: `call_expression` with a `function` field, `field_expression` with a `name` field, and `pipeline_callee`;
 - maps/patterns: `map_field` and `map_pattern_field`, each with a `name` field;
-- control flow: `if_expression`, `loop_expression`, `match_expression`, `case_clause`, `elseif_clause`, `else_clause`, and `try_expression`.
+- control flow: `if_expression`, `loop_expression`, `case_expression`, `elseif_clause`, `else_clause`, and `try_expression`;
+- pattern dispatch: both `case_expression` and `try_expression` contain repeated `pattern_clause` nodes; each clause has a `pattern` field, optional `guard` and `body` fields, and anonymous `do`/`end` delimiters.
 
-Anonymous nodes must preserve the source spellings used in the query files, including `fn`/`end`, delimiters, operators, and keywords. This is the integration boundary with `editors/tree-sitter`; run `just test-local` after either component changes. Closures are deliberately excluded from function text-object navigation, following Zed's current guidance. Simi has no class-like construct or language injection, so no class text objects or `injections.scm` are provided.
+Anonymous nodes must preserve the source spellings used in the query files, including `fn`/`do`/`end`, delimiters, operators, and keywords. Canonical dispatch is `case expression of pattern [when guard] do block end ... end`; `try`/`catch` repeats the same `pattern_clause`. The removed `match`, `with`, per-arm `case`, and `->` spellings are outside the query contract. This is the integration boundary with `editors/tree-sitter`; run `just test-local` after either component changes. Closures are deliberately excluded from function text-object navigation, following Zed's current guidance. Simi has no class-like construct or language injection, so no class text objects or `injections.scm` are provided.
 
 ## Preparing a future publishable manifest
 

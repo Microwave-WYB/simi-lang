@@ -6,7 +6,7 @@ Local Visual Studio Code language support for Simi, including:
 - TextMate-based syntax highlighting for the current language syntax;
 - `--` line comments;
 - bracket matching, auto-closing, and surrounding pairs;
-- indentation rules for `do`/`then`/`with`/`catch`, case arms, and their closing branches;
+- indentation rules for `do`/`then`/`of`/`catch`, explicit pattern-clause blocks, and their closing branches;
 - indentation-based folding plus `-- region` / `-- endregion` folding markers.
 
 This extension is declarative and has no activation-time JavaScript.
@@ -50,7 +50,9 @@ The guard prevents an accidental `just publish`; `npm run publish` is the underl
 
 VS Code's stable declarative grammar contribution point consumes TextMate grammars, not Tree-sitter parsers. Consequently, this extension uses `syntaxes/simi.tmLanguage.json` for highlighting and does **not** load a Tree-sitter grammar through an unsupported VS Code API.
 
-The planned shared `editors/tree-sitter` parser will be the structural syntax source for Zed and other consumers after that component is integrated. Keep this TextMate grammar's token and keyword inventory aligned with that source, but expect contextual highlighting to remain an independently maintained TextMate approximation unless VS Code exposes a supported Tree-sitter contribution mechanism. Language configuration remains editor-specific in either case.
+The shared `editors/tree-sitter` parser is the structural syntax source for Zed and other Tree-sitter consumers. Keep this TextMate grammar's token and keyword inventory aligned with that source, but expect contextual highlighting to remain an independently maintained TextMate approximation unless VS Code exposes a supported Tree-sitter contribution mechanism. Language configuration remains editor-specific in either case.
+
+Canonical pattern dispatch is `case expression of pattern [when guard] do block end ... end`. `try`/`catch` uses the same pattern-clause form. The removed `match`, `with`, per-arm `case`, and `->` spellings are not highlighted as control syntax.
 
 The runtime-label operator is highlighted as a comparison operator in expressions such as `value is "integer"` and `callback is "function"`. TextMate highlights tokens only; it does not validate whether the right operand is a string literal or whether the literal is a supported runtime label.
 

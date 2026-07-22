@@ -2,13 +2,14 @@
 let list = require("std/list")
 
 fn classify(value) do
-    match value with
-    case [first, ..rest] when first >= 1 ->
-        { kind = "positive\n", value = first, rest = rest }
-    case { error = message, ..details } ->
-        { kind = "error", message = message, details = details }
-    case _ ->
-        nil
+    case value of
+        [first, ..rest] when first >= 1 do
+            { kind = "positive\n", value = first, rest = rest }
+        end
+        { error = message, ..details } do
+            { kind = "error", message = message, details = details }
+        end
+        _ do nil end
     end
 end
 
@@ -34,6 +35,8 @@ let final = loop state = 0 do
 end
 
 try raise { error = "example" } catch
-case { error = message } ->
-    classify([final])
+    { error = message } when message != nil do
+        classify([final])
+    end
+    _ do nil end
 end

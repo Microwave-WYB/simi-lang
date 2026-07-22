@@ -20,9 +20,8 @@
   "loop"
   "break"
   "continue"
-  "match"
-  "with"
   "case"
+  "of"
   "when"
   "raise"
   "try"
@@ -50,7 +49,6 @@
   ">="
   "|>"
   "<|"
-  "->"
   ".."
 ] @operator
 

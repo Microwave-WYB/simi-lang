@@ -13,5 +13,6 @@ brackets = [
 ]
 
 # These patterns complement indents.scm while a construct is incomplete.
-increase_indent_pattern = "^\\s*(fn\\b.*\\bdo|if\\b.*\\bthen|elseif\\b.*\\bthen|else\\b|loop\\b.*\\bdo|match\\b.*\\bwith|try\\b.*\\bcatch|catch\\b|case\\b.*->)\\s*$"
-decrease_indent_pattern = "^\\s*(elseif|else|catch|case|end)\\b"
+# A clause header ends in `do`; a complete one-line `pattern do body end` does not match.
+increase_indent_pattern = "^.*\\b(do|then|of|catch|else|try)\\s*(--.*)?$"
+decrease_indent_pattern = "^\\s*(elseif|else|catch|end)\\b"

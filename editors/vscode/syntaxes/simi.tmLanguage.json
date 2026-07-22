@@ -164,8 +164,8 @@
           "match": "\\b(?:loop|break|continue)\\b"
         },
         {
-          "name": "keyword.control.match.simi",
-          "match": "\\b(?:match|with|case|when)\\b"
+          "name": "keyword.control.case.simi",
+          "match": "\\b(?:case|of|when)\\b"
         },
         {
           "name": "keyword.control.exception.simi",
@@ -222,10 +222,6 @@
     },
     "operators": {
       "patterns": [
-        {
-          "name": "keyword.control.case.arrow.simi",
-          "match": "->"
-        },
         {
           "name": "keyword.operator.pipeline.simi",
           "match": "\\|>|<\\|"

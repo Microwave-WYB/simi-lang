@@ -46,27 +46,37 @@ test("language configuration covers comments, pairs, indentation, and folding", 
   for (const line of [
     "fn add(a, b) do",
     "if ready then",
-    "match value with",
-    "case value ->",
+    "case value of",
+    "[head, ..tail] when ready do",
     "else",
     "let result = try",
   ]) {
     assert.match(line, increase);
   }
-  for (const line of ["end", "elseif ready then", "else", "catch", "case value ->"]) {
+  for (const line of ["end", "elseif ready then", "else", "catch"]) {
     assert.match(line, decrease);
+  }
+  assert.doesNotMatch("_ do value end", increase, "one-line clauses must not indent the following line");
+  for (const legacyLine of ["match value with", "case value ->"]) {
+    assert.doesNotMatch(legacyLine, increase);
+    assert.doesNotMatch(legacyLine, decrease);
   }
 });
 
 test("grammar keyword inventory follows the current Simi lexer", async () => {
-  const grammarSource = await readFile(new URL("syntaxes/simi.tmLanguage.json", root), "utf8");
+  const grammar = await json("syntaxes/simi.tmLanguage.json");
+  const keywordPatterns = grammar.repository.keywords.patterns.map(({ match }) => match).join("\n");
+  const keywordInventory = keywordPatterns.replaceAll("\\b", "");
   const lexerKeywords = [
-    "fn", "do", "end", "if", "then", "elseif", "else", "let", "tap", "nil", "true",
-    "false", "and", "or", "not", "loop", "break", "continue", "match", "with", "case",
-    "when", "raise", "try", "catch", "is",
+    "fn", "do", "end", "if", "then", "elseif", "else", "let", "tap", "and", "or", "not",
+    "loop", "break", "continue", "case", "of", "when", "raise", "try", "catch",
   ];
 
   for (const keyword of lexerKeywords) {
-    assert.match(grammarSource, new RegExp(`\\b${keyword}\\b`), `grammar should contain lexer keyword ${keyword}`);
+    assert.match(keywordInventory, new RegExp(`\\b${keyword}\\b`), `grammar should contain lexer keyword ${keyword}`);
   }
+  for (const removed of ["match", "with"]) {
+    assert.doesNotMatch(keywordInventory, new RegExp(`\\b${removed}\\b`));
+  }
+  assert.ok(!JSON.stringify(grammar.repository.operators).includes("->"), "legacy clause arrow must not be scoped");
 });
