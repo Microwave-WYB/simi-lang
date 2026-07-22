@@ -78,7 +78,7 @@ value is "number"
 Legacy case-arrow clauses are rejected
 ==================
 
-match value with case _ -> nil end
+case value of case _ -> nil end
 
 ---
 
@@ -88,3 +88,21 @@ match value with case _ -> nil end
     (identifier)
     (identifier)
     (nil)))
+
+==================
+Legacy match-with does not form a case expression
+==================
+
+match value with _ do nil end end
+
+---
+
+(program
+  (identifier)
+  (identifier)
+  (identifier)
+  (identifier)
+  (identifier)
+  (nil)
+  (identifier)
+  (identifier))

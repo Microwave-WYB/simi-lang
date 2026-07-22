@@ -3,7 +3,7 @@
   (function_expression)
   (if_expression)
   (loop_expression)
-  (match_expression)
+  (case_expression)
   (try_expression)
   (list)
   (map)

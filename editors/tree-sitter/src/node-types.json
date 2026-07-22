@@ -24,6 +24,10 @@
         "named": true
       },
       {
+        "type": "case_expression",
+        "named": true
+      },
+      {
         "type": "continue_expression",
         "named": true
       },
@@ -65,10 +69,6 @@
       },
       {
         "type": "map",
-        "named": true
-      },
-      {
-        "type": "match_expression",
         "named": true
       },
       {
@@ -268,6 +268,10 @@
             "named": true
           },
           {
+            "type": "case_expression",
+            "named": true
+          },
+          {
             "type": "continue_expression",
             "named": true
           },
@@ -309,10 +313,6 @@
           },
           {
             "type": "map",
-            "named": true
-          },
-          {
-            "type": "match_expression",
             "named": true
           },
           {
@@ -428,6 +428,10 @@
             "named": true
           },
           {
+            "type": "case_expression",
+            "named": true
+          },
+          {
             "type": "continue_expression",
             "named": true
           },
@@ -469,10 +473,6 @@
           },
           {
             "type": "map",
-            "named": true
-          },
-          {
-            "type": "match_expression",
             "named": true
           },
           {
@@ -570,6 +570,10 @@
             "named": true
           },
           {
+            "type": "case_expression",
+            "named": true
+          },
+          {
             "type": "continue_expression",
             "named": true
           },
@@ -614,10 +618,6 @@
             "named": true
           },
           {
-            "type": "match_expression",
-            "named": true
-          },
-          {
             "type": "nil",
             "named": true
           },
@@ -639,6 +639,32 @@
           }
         ]
       }
+    }
+  },
+  {
+    "type": "case_expression",
+    "named": true,
+    "fields": {
+      "value": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "_expression",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "pattern_clause",
+          "named": true
+        }
+      ]
     }
   },
   {
@@ -730,6 +756,10 @@
             "named": true
           },
           {
+            "type": "case_expression",
+            "named": true
+          },
+          {
             "type": "continue_expression",
             "named": true
           },
@@ -771,10 +801,6 @@
           },
           {
             "type": "map",
-            "named": true
-          },
-          {
-            "type": "match_expression",
             "named": true
           },
           {
@@ -934,6 +960,10 @@
             "named": true
           },
           {
+            "type": "case_expression",
+            "named": true
+          },
+          {
             "type": "continue_expression",
             "named": true
           },
@@ -975,10 +1005,6 @@
           },
           {
             "type": "map",
-            "named": true
-          },
-          {
-            "type": "match_expression",
             "named": true
           },
           {
@@ -1261,32 +1287,6 @@
     }
   },
   {
-    "type": "match_expression",
-    "named": true,
-    "fields": {
-      "value": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "_expression",
-            "named": true
-          }
-        ]
-      }
-    },
-    "children": {
-      "multiple": true,
-      "required": true,
-      "types": [
-        {
-          "type": "pattern_clause",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
     "type": "parameter",
     "named": true,
     "fields": {},
@@ -1441,6 +1441,10 @@
             "named": true
           },
           {
+            "type": "case_expression",
+            "named": true
+          },
+          {
             "type": "continue_expression",
             "named": true
           },
@@ -1482,10 +1486,6 @@
           },
           {
             "type": "map",
-            "named": true
-          },
-          {
-            "type": "match_expression",
             "named": true
           },
           {
@@ -1575,6 +1575,10 @@
             "named": true
           },
           {
+            "type": "case_expression",
+            "named": true
+          },
+          {
             "type": "continue_expression",
             "named": true
           },
@@ -1616,10 +1620,6 @@
           },
           {
             "type": "map",
-            "named": true
-          },
-          {
-            "type": "match_expression",
             "named": true
           },
           {
@@ -1750,6 +1750,10 @@
             "named": true
           },
           {
+            "type": "case_expression",
+            "named": true
+          },
+          {
             "type": "continue_expression",
             "named": true
           },
@@ -1791,10 +1795,6 @@
           },
           {
             "type": "map",
-            "named": true
-          },
-          {
-            "type": "match_expression",
             "named": true
           },
           {
@@ -1890,6 +1890,10 @@
             "named": true
           },
           {
+            "type": "case_expression",
+            "named": true
+          },
+          {
             "type": "continue_expression",
             "named": true
           },
@@ -1931,10 +1935,6 @@
           },
           {
             "type": "map",
-            "named": true
-          },
-          {
-            "type": "match_expression",
             "named": true
           },
           {
@@ -2076,6 +2076,10 @@
     "named": false
   },
   {
+    "type": "case",
+    "named": false
+  },
+  {
     "type": "catch",
     "named": false
   },
@@ -2145,15 +2149,15 @@
     "named": false
   },
   {
-    "type": "match",
-    "named": false
-  },
-  {
     "type": "nil",
     "named": true
   },
   {
     "type": "not",
+    "named": false
+  },
+  {
+    "type": "of",
     "named": false
   },
   {
@@ -2191,10 +2195,6 @@
   {
     "type": "wildcard_pattern",
     "named": true
-  },
-  {
-    "type": "with",
-    "named": false
   },
   {
     "type": "{",

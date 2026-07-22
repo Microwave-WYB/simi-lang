@@ -49,10 +49,10 @@ end
       (continue_expression))))
 
 ==================
-Match-with pattern clauses and nested patterns
+Case-of pattern clauses and nested patterns
 ==================
 
-let selected = match payload with
+let selected = case payload of
   [head, {kind = "ok", value = value}, ..tail] when head >= 0 do
     [value, tail]
   end
@@ -60,7 +60,7 @@ let selected = match payload with
     nil
   end
   _ignored do
-    match true with true do "fallback" end false do nil end end
+    case true of true do "fallback" end false do nil end end
   end
 end
 
@@ -69,7 +69,7 @@ end
 (program
   (let_statement
     (identifier)
-    (match_expression
+    (case_expression
       (identifier)
       (pattern_clause
         (list_pattern
@@ -103,7 +103,7 @@ end
       (pattern_clause
         (wildcard_pattern)
         (block
-          (match_expression
+          (case_expression
             (boolean)
             (pattern_clause
               (boolean)

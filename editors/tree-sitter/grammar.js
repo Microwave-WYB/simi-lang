@@ -228,7 +228,7 @@ module.exports = grammar({
       $.function_expression,
       $.if_expression,
       $.loop_expression,
-      $.match_expression,
+      $.case_expression,
       $.raise_expression,
       $.try_expression,
       $.continue_expression,
@@ -322,10 +322,10 @@ module.exports = grammar({
       field("value", $._expression),
     ),
 
-    match_expression: ($) => seq(
-      "match",
+    case_expression: ($) => seq(
+      "case",
       field("value", $._expression),
-      "with",
+      "of",
       repeat1($.pattern_clause),
       "end",
     ),
