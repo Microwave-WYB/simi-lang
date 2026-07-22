@@ -95,7 +95,9 @@ A nonnegative out-of-range read returns `nil`. Negative and non-integer indices 
 { error = "index_out_of_bounds", index = index, length = length }
 ```
 
-Ordinary aliases observe the same mutations. List-rest pattern captures create independent copy-on-write views in O(1), while nested values retain shallow alias identity.
+Ordinary aliases observe the same mutations. List-rest pattern captures and `list.slice` create independent copy-on-write views in O(1), while nested values retain shallow alias identity.
+
+The standard `list` module provides mutation, slicing, inspection, and the higher-order `map`, `filter`, and `fold` operations. Higher-order operations iterate over a snapshot, invoke Simi or native callables through the active interpreter, and propagate callback raises. `filter` predicates must return booleans.
 
 ### Maps
 
@@ -157,9 +159,9 @@ let list = require("list")
 list.length([ 1, 2, 3 ])
 ```
 
-Modules are registered by the embedding host and cached per `Engine`. Repeated `require` calls return the same mutable export map, and module state persists across evaluations performed by that engine. Separate engines have separate module registries. `Engine::new()` has no registered modules; `Engine::with_stdlib()` includes the standard modules. The root `eval` convenience function uses a fresh standard-library engine.
+Modules are registered by the embedding host and cached per `Engine`. Repeated `require` calls return the same mutable export map, and module state persists across evaluations performed by that engine. Separate engines have separate module registries. `Engine::new()` has no registered modules; `Engine::with_stdlib()` includes `core`, `list`, `map`, and `string`. The root `eval` convenience function uses a fresh standard-library engine.
 
-Rust extension crates construct modules with `Module::builder`. Module and export registration is infallible and last-wins. Native callbacks may capture Rust state but must be `Send + Sync + 'static`; this prevents safe callbacks from capturing Simi's non-`Send` managed values as untraced edges. Do not weaken this boundary or implement `require` as a closure that captures managed module values.
+Rust extension crates construct modules with `Module::builder`. Module and export registration is infallible and last-wins. Native callbacks may capture Rust state but must be `Send + Sync + 'static`; this prevents safe callbacks from capturing Simi's non-`Send` managed values as untraced edges. Do not weaken this boundary or implement `require` as a closure that captures managed module values. Interpreter-aware standard operations such as `list.map`, `list.filter`, and `list.fold` use private, data-free intrinsic variants rather than exposing the interpreter to host callbacks.
 
 A missing module raises `{ error = "module_not_found", module = name }`. A non-string module name is a hard runtime error. Filesystem and script-source module loading are not implemented.
 
@@ -282,15 +284,8 @@ Add tests at the lowest useful layer and at the public language boundary when se
 
 ## Near-Term Direction
 
-The next intended milestone is a practical non-higher-order standard library:
+The standard library currently includes `core`, `list`, `map`, and `string` modules. Anonymous functions and higher-order list operations are implemented.
 
-1. string operations;
-2. list mutation and slicing operations;
-3. map inspection utilities;
-4. general utilities such as `type` and `inspect`.
-
-Likely later milestones include higher-order collection operations, CLI arguments and basic I/O, filesystem/script module loading, formatting, optional static typing, and editor tooling.
-
-These are roadmap items, not implemented features. Do not add them opportunistically outside an approved task.
+Likely later milestones include CLI arguments and basic I/O, filesystem/script module loading, formatting, optional static typing, and editor tooling. These are roadmap items, not implemented features. Do not add them opportunistically outside an approved task.
 
 Broader I/O, filesystem/script module loading, serialization, formatter/LSP work, tuples, and static typing remain out of scope until explicitly requested.

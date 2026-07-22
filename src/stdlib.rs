@@ -5,6 +5,7 @@ use crate::native::{
     map_has, map_keys, map_length, map_values, string_contains, string_ends_with, string_length,
     string_lower, string_slice, string_split, string_starts_with, string_trim, string_upper,
 };
+use crate::runtime::{NativeFunction, Value};
 
 pub fn core() -> Module {
     Module::builder("core")
@@ -26,6 +27,12 @@ pub fn list() -> Module {
         .function("slice", 3, list_slice)
         .function("contains", 2, list_contains)
         .function("reverse", 1, list_reverse)
+        .value("map", Value::NativeFunction(NativeFunction::list_map()))
+        .value(
+            "filter",
+            Value::NativeFunction(NativeFunction::list_filter()),
+        )
+        .value("fold", Value::NativeFunction(NativeFunction::list_fold()))
         .build()
 }
 

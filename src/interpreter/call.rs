@@ -1,6 +1,6 @@
 use super::{EvaluationError, EvaluationResult, Interpreter};
 use crate::ast::{Expr, PipelineStage};
-use crate::runtime::{Environment, NativeResult, Raised, RuntimeError, TraceFrame, Value};
+use crate::runtime::{Environment, List, NativeResult, Raised, RuntimeError, TraceFrame, Value};
 use crate::span::Span;
 use crate::value::NativeImplementation;
 
@@ -54,6 +54,49 @@ impl Interpreter {
         }
     }
 
+    fn list_map(&mut self, arguments: &[Value], span: Span) -> EvaluationResult<Value> {
+        let values = list_snapshot(&arguments[0], "map", span)?;
+        validate_callback(&arguments[1], 1, span)?;
+        let mut mapped = Vec::with_capacity(values.len());
+        for value in values {
+            mapped.push(self.call_value(arguments[1].clone(), vec![value], span)?);
+        }
+        Ok(Value::List(List::shared(mapped)))
+    }
+
+    fn list_filter(&mut self, arguments: &[Value], span: Span) -> EvaluationResult<Value> {
+        let values = list_snapshot(&arguments[0], "filter", span)?;
+        validate_callback(&arguments[1], 1, span)?;
+        let mut filtered = Vec::with_capacity(values.len());
+        for value in values {
+            let predicate = self.call_value(arguments[1].clone(), vec![value.clone()], span)?;
+            match predicate {
+                Value::Bool(true) => filtered.push(value),
+                Value::Bool(false) => {}
+                value => {
+                    return Err(EvaluationError::Runtime(RuntimeError::new(
+                        span,
+                        format!(
+                            "list.filter callback must return a boolean, got {}",
+                            value.type_name()
+                        ),
+                    )));
+                }
+            }
+        }
+        Ok(Value::List(List::shared(filtered)))
+    }
+
+    fn list_fold(&mut self, arguments: &[Value], span: Span) -> EvaluationResult<Value> {
+        let values = list_snapshot(&arguments[0], "fold", span)?;
+        validate_callback(&arguments[2], 2, span)?;
+        let mut accumulator = arguments[1].clone();
+        for value in values {
+            accumulator = self.call_value(arguments[2].clone(), vec![accumulator, value], span)?;
+        }
+        Ok(accumulator)
+    }
+
     pub(super) fn call_value(
         &mut self,
         callee: Value,
@@ -105,14 +148,16 @@ impl Interpreter {
                         ),
                     }));
                 }
-                let result = match function.implementation() {
-                    NativeImplementation::Callback(callback) => callback(&arguments, span),
-                    NativeImplementation::Require => self.require_module(&arguments[0], span),
-                };
-                match result {
-                    Ok(Ok(value)) => Ok(value),
-                    Ok(Err(raised)) => Err(EvaluationError::Raised(raised)),
-                    Err(error) => Err(EvaluationError::Runtime(error)),
+                match function.implementation() {
+                    NativeImplementation::Callback(callback) => {
+                        evaluation_from_native(callback(&arguments, span))
+                    }
+                    NativeImplementation::Require => {
+                        evaluation_from_native(self.require_module(&arguments[0], span))
+                    }
+                    NativeImplementation::ListMap => self.list_map(&arguments, span),
+                    NativeImplementation::ListFilter => self.list_filter(&arguments, span),
+                    NativeImplementation::ListFold => self.list_fold(&arguments, span),
                 }
             }
             value => Err(EvaluationError::Runtime(RuntimeError {
@@ -120,5 +165,61 @@ impl Interpreter {
                 message: format!("cannot call value of type {}", value.type_name()),
             })),
         }
+    }
+}
+
+fn evaluation_from_native(result: NativeResult) -> EvaluationResult<Value> {
+    match result {
+        Ok(Ok(value)) => Ok(value),
+        Ok(Err(raised)) => Err(EvaluationError::Raised(raised)),
+        Err(error) => Err(EvaluationError::Runtime(error)),
+    }
+}
+
+fn list_snapshot(value: &Value, operation: &str, span: Span) -> EvaluationResult<Vec<Value>> {
+    let Value::List(values) = value else {
+        return Err(EvaluationError::Runtime(RuntimeError::new(
+            span,
+            format!(
+                "list.{operation} requires a list, got {}",
+                value.type_name()
+            ),
+        )));
+    };
+    values
+        .try_borrow()
+        .map(|values| values.to_vec())
+        .map_err(|_| {
+            EvaluationError::Runtime(RuntimeError::new(
+                span,
+                format!("list.{operation} could not borrow list"),
+            ))
+        })
+}
+
+fn validate_callback(callback: &Value, arity: usize, span: Span) -> EvaluationResult<()> {
+    match callback {
+        Value::Function(function) if function.params.len() == arity => Ok(()),
+        Value::Function(function) => Err(EvaluationError::Runtime(RuntimeError::new(
+            span,
+            format!(
+                "function `{}` expects {} arguments, got {arity}",
+                function.name,
+                function.params.len()
+            ),
+        ))),
+        Value::NativeFunction(function) if function.arity() == arity => Ok(()),
+        Value::NativeFunction(function) => Err(EvaluationError::Runtime(RuntimeError::new(
+            span,
+            format!(
+                "native function `{}` expects {} arguments, got {arity}",
+                function.name(),
+                function.arity()
+            ),
+        ))),
+        value => Err(EvaluationError::Runtime(RuntimeError::new(
+            span,
+            format!("cannot call value of type {}", value.type_name()),
+        ))),
     }
 }

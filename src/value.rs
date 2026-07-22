@@ -135,6 +135,9 @@ pub struct NativeFunction {
 pub(crate) enum NativeImplementation {
     Callback(Arc<NativeCallback>),
     Require,
+    ListMap,
+    ListFilter,
+    ListFold,
 }
 
 impl NativeFunction {
@@ -162,6 +165,26 @@ impl NativeFunction {
         }
     }
 
+    pub(crate) fn list_map() -> Self {
+        Self::intrinsic("list.map", 2, NativeImplementation::ListMap)
+    }
+
+    pub(crate) fn list_filter() -> Self {
+        Self::intrinsic("list.filter", 2, NativeImplementation::ListFilter)
+    }
+
+    pub(crate) fn list_fold() -> Self {
+        Self::intrinsic("list.fold", 3, NativeImplementation::ListFold)
+    }
+
+    fn intrinsic(name: &str, arity: usize, implementation: NativeImplementation) -> Self {
+        Self {
+            name: name.to_owned(),
+            arity,
+            implementation,
+        }
+    }
+
     pub(crate) fn implementation(&self) -> &NativeImplementation {
         &self.implementation
     }
@@ -170,7 +193,7 @@ impl NativeFunction {
 impl Finalize for NativeFunction {}
 unsafe impl Trace for NativeFunction {
     // Callback closures are Send + Sync, which prevents safe captures of Simi's
-    // non-Send managed values. The privileged require intrinsic stores no data.
+    // non-Send managed values. Every privileged intrinsic variant is data-free.
     gc::unsafe_empty_trace!();
 }
 
