@@ -46,6 +46,13 @@ impl TokenOrigins {
     /// caller-supplied token spans, merging the first and last origins.
     pub fn rebase(&self, span: Span) -> Span {
         if span.start == span.end {
+            let mut empty_origins = self.entries.iter().filter(|entry| {
+                entry.synthetic.start == span.start && entry.synthetic.end == span.end
+            });
+            if let Some(first) = empty_origins.next() {
+                return empty_origins
+                    .fold(first.original, |merged, entry| merged.merge(entry.original));
+            }
             if let Some(entry) = self
                 .entries
                 .iter()
@@ -205,6 +212,10 @@ impl<'a> Parser<'a> {
 
     fn nontrivia_index(&self) -> Option<usize> {
         (self.position..self.lexemes.len()).find(|&index| !self.lexemes[index].kind.is_trivia())
+    }
+
+    fn current_is_lexically_adjacent(&self) -> bool {
+        self.nontrivia_index() == Some(self.position)
     }
 
     fn eat_trivia(&mut self) {

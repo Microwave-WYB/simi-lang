@@ -1051,6 +1051,92 @@ fn synthetic_tokens_use_vector_order_and_rebase_gapped_unsorted_spans() {
 }
 
 #[test]
+fn synthetic_index_tokens_use_vector_order_despite_gapped_unsorted_spans() {
+    let program = super::parse(vec![
+        Token {
+            kind: TokenKind::Ident("items".to_owned()),
+            span: Span::new(100, 105),
+        },
+        Token {
+            kind: TokenKind::LBracket,
+            span: Span::new(2, 3),
+        },
+        Token {
+            kind: TokenKind::Int(7),
+            span: Span::new(80, 90),
+        },
+        Token {
+            kind: TokenKind::RBracket,
+            span: Span::new(1, 2),
+        },
+    ])
+    .expect("manual index tokens parse strictly in vector order");
+
+    let StmtKind::Expr(expression) = &program.items[0].kind else {
+        panic!("expected expression statement");
+    };
+    let ExprKind::Index { object, key } = &expression.kind else {
+        panic!("expected index expression");
+    };
+    assert_eq!(object.span, Span::new(100, 105));
+    assert!(matches!(&object.kind, ExprKind::Variable(name) if name == "items"));
+    assert_eq!(key.span, Span::new(80, 90));
+    assert!(matches!(key.kind, ExprKind::Int(7)));
+    assert_eq!(expression.span, Span::new(1, 105));
+}
+
+#[test]
+fn synthetic_empty_identifier_preserves_its_origin_in_leaf_and_nested_spans() {
+    let program = super::parse(vec![
+        Token {
+            kind: TokenKind::Ident(String::new()),
+            span: Span::new(10, 20),
+        },
+        Token {
+            kind: TokenKind::LBracket,
+            span: Span::new(70, 71),
+        },
+        Token {
+            kind: TokenKind::Int(0),
+            span: Span::new(1, 2),
+        },
+        Token {
+            kind: TokenKind::RBracket,
+            span: Span::new(30, 31),
+        },
+    ])
+    .expect("an empty rendered identifier remains a valid nested expression");
+
+    let StmtKind::Expr(expression) = &program.items[0].kind else {
+        panic!("expected expression statement");
+    };
+    let ExprKind::Index { object, key } = &expression.kind else {
+        panic!("expected index expression");
+    };
+    assert_eq!(object.span, Span::new(10, 20));
+    assert!(matches!(&object.kind, ExprKind::Variable(name) if name.is_empty()));
+    assert_eq!(key.span, Span::new(1, 2));
+    assert_eq!(expression.span, Span::new(10, 31));
+}
+
+#[test]
+fn synthetic_empty_identifier_preserves_its_full_standalone_span() {
+    let program = super::parse(vec![Token {
+        kind: TokenKind::Ident(String::new()),
+        span: Span::new(10, 20),
+    }])
+    .expect("an empty rendered identifier parses");
+
+    let statement = &program.items[0];
+    let StmtKind::Expr(expression) = &statement.kind else {
+        panic!("expected expression statement");
+    };
+    assert_eq!(statement.span, Span::new(10, 20));
+    assert_eq!(expression.span, Span::new(10, 20));
+    assert!(matches!(&expression.kind, ExprKind::Variable(name) if name.is_empty()));
+}
+
+#[test]
 fn synthetic_overlapping_spans_follow_the_old_endpoint_merge_contract() {
     let program = super::parse(vec![
         Token {

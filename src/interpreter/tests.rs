@@ -5,8 +5,8 @@ use gc::{Gc, GcCell};
 
 use super::*;
 use crate::ast::*;
+use crate::parser;
 use crate::runtime::{List, MapKey, NativeFunction, NativeResult, TraceFrame};
-use crate::{lexer, parser};
 
 static PROTECTED_EVALUATIONS: AtomicUsize = AtomicUsize::new(0);
 
@@ -18,8 +18,7 @@ fn count_protected_evaluation(_: &[Value], _: Span) -> NativeResult {
 }
 
 fn evaluate_script(source: &str) -> RuntimeResult<ScriptResult> {
-    let tokens = lexer::lex(source).expect("test source should lex");
-    let program = parser::parse(tokens).expect("test source should parse");
+    let program = parser::parse_source(source).expect("test source should parse");
     Interpreter::new().evaluate(&program)
 }
 
@@ -41,8 +40,7 @@ fn expect_raised(source: &str) -> Raised {
 #[test]
 fn destructuring_let_installs_bindings_atomically() {
     let globals = Environment::new();
-    let tokens = lexer::lex("let existing = 1 let [fresh, existing] = [2, 3]").unwrap();
-    let program = parser::parse(tokens).unwrap();
+    let program = parser::parse_source("let existing = 1 let [fresh, existing] = [2, 3]").unwrap();
     let error = match Interpreter::with_globals(globals.clone()).evaluate(&program) {
         Err(error) => error,
         Ok(_) => panic!("binding conflict should be a hard error"),
@@ -55,8 +53,7 @@ fn destructuring_let_installs_bindings_atomically() {
     assert!(matches!(globals.get("existing"), Some(Value::Int(1))));
 
     let globals = Environment::new();
-    let tokens = lexer::lex("let [partial, 2] = [1, 3]").unwrap();
-    let program = parser::parse(tokens).unwrap();
+    let program = parser::parse_source("let [partial, 2] = [1, 3]").unwrap();
     let error = match Interpreter::with_globals(globals.clone()).evaluate(&program) {
         Err(error) => error,
         Ok(_) => panic!("pattern mismatch should be a hard error"),
@@ -233,8 +230,7 @@ fn try_evaluates_its_protected_expression_exactly_once() {
         )),
     );
     let source = "try raise tick() catch count do count end";
-    let tokens = lexer::lex(source).expect("test source should lex");
-    let program = parser::parse(tokens).expect("test source should parse");
+    let program = parser::parse_source(source).expect("test source should parse");
     let outcome = Interpreter::with_globals(globals)
         .evaluate(&program)
         .expect("catching the value should not produce a hard error");

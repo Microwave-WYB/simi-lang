@@ -296,7 +296,7 @@ fn postfix(p: &mut Parser<'_>) -> Parsed {
                 marker: marker.complete(&mut p.events, K::FIELD_EXPR),
                 flavor: Flavor::Field,
             };
-        } else if p.at(K::L_BRACKET) && p.current_span().start == node_end_hint(p, value.marker) {
+        } else if p.at(K::L_BRACKET) && p.current_is_lexically_adjacent() {
             let marker = value.marker.precede(&mut p.events);
             p.bump();
             expression(p);
@@ -817,7 +817,4 @@ fn node_span_hint(p: &Parser<'_>, marker: CompletedMarker) -> crate::span::Span 
         });
     let first = spans.next().unwrap_or_else(|| p.previous_nontrivia_span());
     spans.fold(first, crate::span::Span::merge)
-}
-fn node_end_hint(p: &Parser<'_>, _marker: CompletedMarker) -> usize {
-    p.previous_nontrivia_span().end
 }
