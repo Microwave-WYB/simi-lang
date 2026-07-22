@@ -1,0 +1,138 @@
+==================
+Operator precedence and right-associative assignment
+==================
+
+((outer)) = 7
+outer = other = not false or 1 + 2 * -3 <= 4 and 5 != 6
+map.answer = values[0] = 42
+
+---
+
+(program
+  (assignment_expression
+    (assignment_target
+      (parenthesized_assignment_target
+        (assignment_target
+          (parenthesized_assignment_target
+            (assignment_target
+              (identifier))))))
+    (integer))
+  (assignment_expression
+    (assignment_target
+      (identifier))
+    (assignment_expression
+      (assignment_target
+        (identifier))
+      (binary_expression
+        (unary_expression
+          (boolean))
+        (binary_expression
+          (binary_expression
+            (binary_expression
+              (integer)
+              (binary_expression
+                (integer)
+                (unary_expression
+                  (integer))))
+            (integer))
+          (binary_expression
+            (integer)
+            (integer))))))
+  (assignment_expression
+    (assignment_target
+      (field_expression
+        (identifier)
+        (identifier)))
+    (assignment_expression
+      (assignment_target
+        (index_expression
+          (identifier)
+          (integer)))
+      (integer))))
+
+==================
+Pipelines, tap stages, and right-associative trailing arguments
+==================
+
+((pair(4))) <| 5
+values
+|> tap list.append(0)
+|> list.map() <| fn(value) do
+  value * 2
+end
+
+pair(1) <| 2
+wrap() <| wrap() <| 3
+4 |> pair() <| 5
+
+---
+
+(program
+  (trailing_argument_expression
+    (parenthesized_call
+      (parenthesized_call
+        (call_expression
+          (identifier)
+          (arguments
+            (integer)))))
+    (integer))
+  (pipeline_expression
+    (identifier)
+    (pipeline_stage
+      (pipeline_callee
+        (identifier)
+        (identifier))
+      (arguments
+        (integer)))
+    (pipeline_stage
+      (pipeline_callee
+        (identifier)
+        (identifier))
+      (arguments)
+      (function_expression
+        (parameters
+          (parameter
+            (identifier)))
+        (block
+          (binary_expression
+            (identifier)
+            (integer))))))
+  (trailing_argument_expression
+    (call_expression
+      (identifier)
+      (arguments
+        (integer)))
+    (integer))
+  (trailing_argument_expression
+    (call_expression
+      (identifier)
+      (arguments))
+    (trailing_argument_expression
+      (call_expression
+        (identifier)
+        (arguments))
+      (integer)))
+  (pipeline_expression
+    (integer)
+    (pipeline_stage
+      (pipeline_callee
+        (identifier))
+      (arguments)
+      (integer))))
+
+==================
+Indexing requires lexical adjacency
+==================
+
+values[0]
+values [0]
+
+---
+
+(program
+  (index_expression
+    (identifier)
+    (integer))
+  (identifier)
+  (list
+    (integer)))

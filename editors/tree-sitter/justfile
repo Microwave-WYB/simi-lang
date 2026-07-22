@@ -1,0 +1,13 @@
+set shell := ["sh", "-eu", "-c"]
+
+# Install the pinned local Tree-sitter CLI.
+install:
+    npm ci
+
+# Regenerate src/parser.c, src/grammar.json, and src/node-types.json.
+generate:
+    npm exec -- tree-sitter generate
+
+# Regenerate and run all corpus tests.
+test:
+    npm test

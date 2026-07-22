@@ -1,0 +1,136 @@
+==================
+Functions, anonymous functions, and destructuring let
+==================
+
+-- declaration and closure
+fn make_adder(base, factor,) do
+  let [first, {name = name}, ..rest] = values
+  let {enabled = true, missing = nil, ..settings} = config
+  fn(value) do
+    (base + value) * factor
+  end
+end
+
+let add_one = fn(value) do value + 1 end
+
+---
+
+(program
+  (comment)
+  (function_declaration
+    (identifier)
+    (parameters
+      (parameter
+        (identifier))
+      (parameter
+        (identifier)))
+    (block
+      (let_statement
+        (list_pattern
+          (identifier)
+          (map_pattern
+            (map_pattern_field
+              (identifier)
+              (identifier)))
+          (rest_pattern
+            (identifier)))
+        (identifier))
+      (let_statement
+        (map_pattern
+          (map_pattern_field
+            (identifier)
+            (boolean))
+          (map_pattern_field
+            (identifier)
+            (nil))
+          (rest_pattern
+            (identifier)))
+        (identifier))
+      (function_expression
+        (parameters
+          (parameter
+            (identifier)))
+        (block
+          (binary_expression
+            (parenthesized_expression
+              (binary_expression
+                (identifier)
+                (identifier)))
+            (identifier))))))
+  (let_statement
+    (identifier)
+    (function_expression
+      (parameters
+        (parameter
+          (identifier)))
+      (block
+        (binary_expression
+          (identifier)
+          (integer))))))
+
+==================
+Collections, postfix expressions, strings, and numeric forms
+==================
+
+let values = [0, 42, 0.5, 12.0, 1e3, 1E+3, 1.5e-2,]
+let data = {
+  name = "Simi\nlanguage",
+  [true] = values[0],
+  [1.5] = "quote: \" slash: \\",
+}
+data.name
+make()[key()].field(1, 2,)
+
+---
+
+(program
+  (let_statement
+    (identifier)
+    (list
+      (integer)
+      (integer)
+      (float)
+      (float)
+      (float)
+      (float)
+      (float)))
+  (let_statement
+    (identifier)
+    (map
+      (map_entry
+        (map_field
+          (identifier)
+          (string
+            (string_content)
+            (escape_sequence)
+            (string_content))))
+      (map_entry
+        (map_computed_entry
+          (boolean)
+          (index_expression
+            (identifier)
+            (integer))))
+      (map_entry
+        (map_computed_entry
+          (float)
+          (string
+            (string_content)
+            (escape_sequence)
+            (string_content)
+            (escape_sequence))))))
+  (field_expression
+    (identifier)
+    (identifier))
+  (call_expression
+    (field_expression
+      (index_expression
+        (call_expression
+          (identifier)
+          (arguments))
+        (call_expression
+          (identifier)
+          (arguments)))
+      (identifier))
+    (arguments
+      (integer)
+      (integer))))

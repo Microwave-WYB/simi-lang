@@ -1,0 +1,29 @@
+{
+  "name": "tree-sitter-simi",
+  "version": "0.1.0",
+  "description": "Tree-sitter grammar for the Simi scripting language",
+  "license": "MIT",
+  "type": "commonjs",
+  "main": "grammar.js",
+  "files": [
+    "grammar.js",
+    "queries",
+    "src"
+  ],
+  "scripts": {
+    "generate": "tree-sitter generate",
+    "test": "npm run generate && tree-sitter test"
+  },
+  "devDependencies": {
+    "tree-sitter-cli": "0.25.10"
+  },
+  "tree-sitter": [
+    {
+      "scope": "source.simi",
+      "file-types": [
+        "simi"
+      ],
+      "injection-regex": "^simi$"
+    }
+  ]
+}

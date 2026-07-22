@@ -1,0 +1,33 @@
+{
+  "grammars": [
+    {
+      "name": "simi",
+      "camelcase": "Simi",
+      "scope": "source.simi",
+      "path": ".",
+      "file-types": [
+        "simi"
+      ],
+      "highlights": "queries/highlights.scm",
+      "injection-regex": "^simi$"
+    }
+  ],
+  "metadata": {
+    "version": "0.1.0",
+    "license": "MIT",
+    "description": "Tree-sitter grammar for the Simi scripting language",
+    "authors": [
+      {
+        "name": "Simi contributors"
+      }
+    ]
+  },
+  "bindings": {
+    "c": false,
+    "go": false,
+    "node": false,
+    "python": false,
+    "rust": false,
+    "swift": false
+  }
+}

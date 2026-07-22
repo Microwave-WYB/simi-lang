@@ -1,0 +1,44 @@
+==================
+Trailing arguments require a call on the left
+==================
+
+1 <| 2
+
+---
+
+(program
+  (integer)
+  (ERROR)
+  (integer))
+
+==================
+Pipeline stages require a named call
+==================
+
+value |> (transform)(1)
+
+---
+
+(program
+  (identifier)
+  (ERROR)
+  (call_expression
+    (parenthesized_expression
+      (identifier))
+    (arguments
+      (integer))))
+
+==================
+Only supported string escapes are accepted
+==================
+
+"bad\q"
+
+---
+
+(program
+  (string
+    (string_content)
+    (ERROR
+      (UNEXPECTED 'q')
+      (identifier))))

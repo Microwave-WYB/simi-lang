@@ -1,0 +1,172 @@
+==================
+If branches and functional loops
+==================
+
+let result = loop state = 0 do
+  if state < 3 then
+    continue state + 1
+  elseif state == 3 then
+    break state
+  else
+    nil
+  end
+end
+
+loop do
+  continue
+end
+
+---
+
+(program
+  (let_statement
+    (identifier)
+    (loop_expression
+      (identifier)
+      (integer)
+      (block
+        (if_expression
+          (binary_expression
+            (identifier)
+            (integer))
+          (block
+            (continue_expression
+              (binary_expression
+                (identifier)
+                (integer))))
+          (elseif_clause
+            (binary_expression
+              (identifier)
+              (integer))
+            (block
+              (break_expression
+                (identifier))))
+          (else_clause
+            (block
+              (nil)))))))
+  (loop_expression
+    (block
+      (continue_expression))))
+
+==================
+Match-with aligned cases and nested patterns
+==================
+
+let selected = match payload with
+case [head, {kind = "ok", value = value}, ..tail] when head >= 0 ->
+  [value, tail]
+case {error = nil, .._rest} ->
+  nil
+case _ignored ->
+  match true with
+  case true -> "fallback"
+  case false -> nil
+  end
+end
+
+---
+
+(program
+  (let_statement
+    (identifier)
+    (match_expression
+      (identifier)
+      (case_clause
+        (list_pattern
+          (identifier)
+          (map_pattern
+            (map_pattern_field
+              (identifier)
+              (string
+                (string_content)))
+            (map_pattern_field
+              (identifier)
+              (identifier)))
+          (rest_pattern
+            (identifier)))
+        (binary_expression
+          (identifier)
+          (integer))
+        (block
+          (list
+            (identifier)
+            (identifier))))
+      (case_clause
+        (map_pattern
+          (map_pattern_field
+            (identifier)
+            (nil))
+          (rest_pattern
+            (wildcard_pattern)))
+        (block
+          (nil)))
+      (case_clause
+        (wildcard_pattern)
+        (block
+          (match_expression
+            (boolean)
+            (case_clause
+              (boolean)
+              (block
+                (string
+                  (string_content))))
+            (case_clause
+              (boolean)
+              (block
+                (nil)))))))))
+
+==================
+Raise, try, and guarded catch cases
+==================
+
+let handled = try
+  raise {error = "invalid", payload = [1, 2]}
+catch
+case {error = "invalid", payload = [head, ..tail]} when head == 1 ->
+  tail
+case _ ->
+  raise "unexpected"
+end
+
+---
+
+(program
+  (let_statement
+    (identifier)
+    (try_expression
+      (raise_expression
+        (map
+          (map_entry
+            (map_field
+              (identifier)
+              (string
+                (string_content))))
+          (map_entry
+            (map_field
+              (identifier)
+              (list
+                (integer)
+                (integer))))))
+      (case_clause
+        (map_pattern
+          (map_pattern_field
+            (identifier)
+            (string
+              (string_content)))
+          (map_pattern_field
+            (identifier)
+            (list_pattern
+              (identifier)
+              (rest_pattern
+                (identifier)))))
+        (binary_expression
+          (identifier)
+          (integer))
+        (block
+          (identifier)))
+      (case_clause
+        (wildcard_pattern)
+        (block
+          (raise_expression
+            (string
+              (string_content))))))))
