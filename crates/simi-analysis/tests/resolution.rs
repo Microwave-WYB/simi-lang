@@ -86,7 +86,7 @@ fn records_closure_captures_but_not_parameters() {
 }
 
 #[test]
-fn closures_resolve_bindings_declared_later_in_captured_frames() {
+fn closures_resolve_and_expose_bindings_declared_later_in_captured_frames() {
     let source = "let closure = fn() do later end let later = 1";
     let db = AnalysisDatabase::default();
     let file = db.add_file(source);
@@ -99,6 +99,24 @@ fn closures_resolve_bindings_declared_later_in_captured_frames() {
             .iter()
             .any(|capture| capture.symbol == later)
     );
+    let visible = resolution.visible_symbols(source.find("later end").unwrap());
+    assert!(visible.contains(&later));
+}
+
+#[test]
+fn later_outer_bindings_hide_prelude_symbols_inside_closures() {
+    let source = "let closure = fn() do type(nil) end let type = fn(value) do value end";
+    let db = AnalysisDatabase::default();
+    let file = db.add_file(source);
+    let resolution = resolve(&db, file);
+    let builtin = symbol_named(&resolution, "type", SymbolKind::Builtin);
+    let local = symbol_named(&resolution, "type", SymbolKind::Let);
+    let offset = source.find("type(nil)").unwrap();
+
+    assert_eq!(resolution.symbol_at(offset), Some(local));
+    let visible = resolution.visible_symbols(offset);
+    assert!(visible.contains(&local));
+    assert!(!visible.contains(&builtin));
 }
 
 #[test]

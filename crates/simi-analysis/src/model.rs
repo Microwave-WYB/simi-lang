@@ -166,13 +166,22 @@ impl Resolution {
 
     pub fn visible_symbols(&self, offset: usize) -> Vec<SymbolId> {
         let mut scope = self.scope_at(offset);
+        let Some(start_scope) = scope else {
+            return Vec::new();
+        };
+        let occurrence_depth = self.hir.scopes[start_scope].function_depth;
         let mut names = BTreeSet::new();
         let mut result = Vec::new();
         while let Some(id) = scope {
             let data = &self.hir.scopes[id];
+            let mut scope_names = BTreeSet::new();
             for symbol in data.symbols.iter().rev().copied() {
-                let data = &self.hir.symbols[symbol];
-                if data.activation <= offset && names.insert(data.name.clone()) {
+                let name = self.hir.symbols[symbol].name.clone();
+                if scope_names.insert(name.clone())
+                    && !names.contains(&name)
+                    && let Some(symbol) = self.symbol_in_scope(id, occurrence_depth, offset, &name)
+                {
+                    names.insert(name);
                     result.push(symbol);
                 }
             }
@@ -237,26 +246,42 @@ impl Resolution {
     ) -> Option<SymbolId> {
         let occurrence_depth = self.hir.scopes[scope].function_depth;
         loop {
-            let scope_data = &self.hir.scopes[scope];
-            let symbols = &scope_data.symbols;
-            let preceding = symbols.iter().copied().rev().find(|id| {
-                let symbol = &self.hir.symbols[*id];
-                symbol.name == name && symbol.activation <= offset
-            });
-            if preceding.is_some() {
-                return preceding;
+            if let Some(symbol) = self.symbol_in_scope(scope, occurrence_depth, offset, name) {
+                return Some(symbol);
             }
-            // Closures capture shared outer frames, so a declaration installed later in an
-            // outer function can still be the lexical target when the closure is invoked.
-            if occurrence_depth > scope_data.function_depth
-                && let Some(following) = symbols.iter().copied().find(|id| {
+            scope = self.hir.scopes[scope].parent?;
+        }
+    }
+
+    fn symbol_in_scope(
+        &self,
+        scope: ScopeId,
+        occurrence_depth: u32,
+        offset: usize,
+        name: &str,
+    ) -> Option<SymbolId> {
+        let scope_data = &self.hir.scopes[scope];
+        let preceding = scope_data.symbols.iter().copied().rev().find(|id| {
+            let symbol = &self.hir.symbols[*id];
+            symbol.name == name && symbol.activation <= offset
+        });
+        // Closures capture shared outer frames, so a declaration installed later in an
+        // outer function can still be the lexical target when the closure is invoked. A
+        // user declaration also replaces the prelude binding in that shared frame.
+        let following = (occurrence_depth > scope_data.function_depth)
+            .then(|| {
+                scope_data.symbols.iter().copied().find(|id| {
                     let symbol = &self.hir.symbols[*id];
-                    symbol.name == name && symbol.declaration.is_some()
+                    symbol.name == name
+                        && symbol.activation > offset
+                        && symbol.declaration.is_some()
                 })
-            {
-                return Some(following);
-            }
-            scope = scope_data.parent?;
+            })
+            .flatten();
+        match preceding {
+            Some(symbol) if self.hir.symbols[symbol].builtin => following.or(Some(symbol)),
+            Some(symbol) => Some(symbol),
+            None => following,
         }
     }
 
