@@ -1,0 +1,13 @@
+[package]
+name = "simiscript"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "simi"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+gc = { version = "0.5", features = ["derive", "unstable-stats"] }
+gc_derive = "0.5"
