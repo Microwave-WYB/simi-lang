@@ -20,7 +20,10 @@ impl Engine {
     }
 
     pub fn with_stdlib() -> Self {
-        Self::builder().module(stdlib::list()).build()
+        Self::builder()
+            .module(stdlib::list())
+            .module(stdlib::string())
+            .build()
     }
 
     pub fn eval(&self, source: &str) -> Result<ScriptResult, SimiError> {
