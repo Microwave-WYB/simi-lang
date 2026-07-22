@@ -21,9 +21,10 @@ impl Engine {
 
     pub fn with_stdlib() -> Self {
         Self::builder()
+            .module(stdlib::core())
             .module(stdlib::list())
-            .module(stdlib::string())
             .module(stdlib::map())
+            .module(stdlib::string())
             .build()
     }
 

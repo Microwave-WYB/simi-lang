@@ -238,6 +238,54 @@ fn standard_modules_are_explicit_capabilities_and_require_is_shadowable() {
 }
 
 #[test]
+fn core_type_reports_every_runtime_value_category() {
+    let value = eval(
+        r#"
+        let core = require("core")
+        fn sample() do nil end
+        [
+            core.type(1),
+            core.type(1.5),
+            core.type("text"),
+            core.type(true),
+            core.type(nil),
+            core.type([]),
+            core.type({}),
+            core.type(sample),
+            core.type(core.type),
+        ]
+        "#,
+    )
+    .expect("core type calls should have no hard diagnostic")
+    .expect("core type calls should not raise");
+
+    assert_eq!(
+        value.render(),
+        "[\"integer\", \"float\", \"string\", \"boolean\", \"nil\", \"list\", \"map\", \"function\", \"native function\"]"
+    );
+}
+
+#[test]
+fn core_inspect_renders_cyclic_containers_without_becoming_a_global() {
+    let value = eval(
+        r#"
+        let core = require("core")
+        let list = require("list")
+        let values = []
+        list.append(values, values)
+        let object = {}
+        object.self = object
+        [core.inspect(values), core.inspect(object)]
+        "#,
+    )
+    .expect("core inspect calls should have no hard diagnostic")
+    .expect("core inspect calls should not raise");
+
+    assert_eq!(value.render(), "[\"[<cycle>]\", \"{self=<cycle>}\"]");
+    assert!(matches!(eval("core"), Err(SimiError::Runtime(_))));
+}
+
+#[test]
 fn root_eval_uses_fresh_standard_module_instances() {
     eval(
         r#"

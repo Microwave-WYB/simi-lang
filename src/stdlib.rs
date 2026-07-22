@@ -1,10 +1,17 @@
 use crate::Module;
 use crate::native::{
-    list_append, list_contains, list_extend, list_get, list_insert, list_length, list_pop,
-    list_remove, list_reverse, list_set, list_slice, map_clear, map_entries, map_has, map_keys,
-    map_length, map_values, string_contains, string_ends_with, string_length, string_lower,
-    string_slice, string_split, string_starts_with, string_trim, string_upper,
+    core_inspect, core_type, list_append, list_contains, list_extend, list_get, list_insert,
+    list_length, list_pop, list_remove, list_reverse, list_set, list_slice, map_clear, map_entries,
+    map_has, map_keys, map_length, map_values, string_contains, string_ends_with, string_length,
+    string_lower, string_slice, string_split, string_starts_with, string_trim, string_upper,
 };
+
+pub fn core() -> Module {
+    Module::builder("core")
+        .function("type", 1, core_type)
+        .function("inspect", 1, core_inspect)
+        .build()
+}
 
 pub fn list() -> Module {
     Module::builder("list")
