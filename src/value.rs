@@ -5,10 +5,13 @@ mod render;
 
 pub use list::List;
 
+use std::sync::Arc;
+
 use gc::{Finalize, Gc, GcCell, Trace, custom_trace};
 
 use crate::ast::Block;
 use crate::environment::Environment;
+use crate::module::NativeCallback;
 use crate::span::Span;
 
 pub type RuntimeResult<T> = Result<T, RuntimeError>;
@@ -121,15 +124,53 @@ unsafe impl Trace for UserFunction {
     });
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct NativeFunction {
-    pub name: &'static str,
-    pub arity: usize,
-    pub call: NativeFn,
+    name: String,
+    arity: usize,
+    implementation: NativeImplementation,
+}
+
+#[derive(Clone)]
+pub(crate) enum NativeImplementation {
+    Callback(Arc<NativeCallback>),
+    Require,
+}
+
+impl NativeFunction {
+    pub fn new(name: impl Into<String>, arity: usize, callback: Arc<NativeCallback>) -> Self {
+        Self {
+            name: name.into(),
+            arity,
+            implementation: NativeImplementation::Callback(callback),
+        }
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn arity(&self) -> usize {
+        self.arity
+    }
+
+    pub(crate) fn require() -> Self {
+        Self {
+            name: "require".to_owned(),
+            arity: 1,
+            implementation: NativeImplementation::Require,
+        }
+    }
+
+    pub(crate) fn implementation(&self) -> &NativeImplementation {
+        &self.implementation
+    }
 }
 
 impl Finalize for NativeFunction {}
 unsafe impl Trace for NativeFunction {
+    // Callback closures are Send + Sync, which prevents safe captures of Simi's
+    // non-Send managed values. The privileged require intrinsic stores no data.
     gc::unsafe_empty_trace!();
 }
 

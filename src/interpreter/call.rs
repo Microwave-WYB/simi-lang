@@ -1,7 +1,8 @@
 use super::{EvaluationError, EvaluationResult, Interpreter};
 use crate::ast::{Expr, PipelineStage};
-use crate::runtime::{Environment, RuntimeError, TraceFrame, Value};
+use crate::runtime::{Environment, NativeResult, Raised, RuntimeError, TraceFrame, Value};
 use crate::span::Span;
+use crate::value::NativeImplementation;
 
 impl Interpreter {
     pub(super) fn evaluate_arguments(
@@ -35,6 +36,22 @@ impl Interpreter {
         }
 
         Ok(value)
+    }
+
+    fn require_module(&self, name: &Value, span: Span) -> NativeResult {
+        let Value::String(name) = name else {
+            return Err(RuntimeError::new(
+                span,
+                format!(
+                    "require expects a string module name, got {}",
+                    name.type_name()
+                ),
+            ));
+        };
+        match self.modules.get(name) {
+            Some(module) => Ok(Ok(module.clone())),
+            None => Ok(Err(Raised::module_not_found(name, span))),
+        }
     }
 
     pub(super) fn call_value(
@@ -77,18 +94,22 @@ impl Interpreter {
                 }
             }
             Value::NativeFunction(function) => {
-                if arguments.len() != function.arity {
+                if arguments.len() != function.arity() {
                     return Err(EvaluationError::Runtime(RuntimeError {
                         span,
                         message: format!(
                             "native function `{}` expects {} arguments, got {}",
-                            function.name,
-                            function.arity,
+                            function.name(),
+                            function.arity(),
                             arguments.len()
                         ),
                     }));
                 }
-                match (function.call)(&arguments, span) {
+                let result = match function.implementation() {
+                    NativeImplementation::Callback(callback) => callback(&arguments, span),
+                    NativeImplementation::Require => self.require_module(&arguments[0], span),
+                };
+                match result {
                     Ok(Ok(value)) => Ok(value),
                     Ok(Err(raised)) => Err(EvaluationError::Raised(raised)),
                     Err(error) => Err(EvaluationError::Runtime(error)),

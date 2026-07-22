@@ -73,7 +73,7 @@ impl Value {
                 format!("{{{rendered}}}")
             }
             Self::Function(function) => format!("<fn {}>", function.name),
-            Self::NativeFunction(function) => format!("<native {}>", function.name),
+            Self::NativeFunction(function) => format!("<native {}>", function.name()),
         }
     }
 }

@@ -1,10 +1,10 @@
+use std::sync::Arc;
+
 use gc::{Gc, GcCell};
 
 use simiscript::interpreter::Interpreter;
 use simiscript::lexer::{LexError, Token, TokenKind, lex};
-use simiscript::native::{
-    install_prelude, list_append, list_extend, list_get, list_length, list_set,
-};
+use simiscript::native::{list_append, list_extend, list_get, list_length, list_set};
 use simiscript::parser::{ParseError, Parser, parse};
 use simiscript::runtime::{
     Environment, FloatKey, List, MapKey, NativeFn, NativeFunction, NativeResult, Raised,
@@ -12,8 +12,8 @@ use simiscript::runtime::{
     UserFunction, Value,
 };
 use simiscript::{
-    Raised as RootRaised, ScriptResult as RootScriptResult, TraceFrame as RootTraceFrame,
-    Value as RootValue,
+    Engine, EngineBuilder, Module, ModuleBuilder, NativeCallback, Raised as RootRaised,
+    ScriptResult as RootScriptResult, TraceFrame as RootTraceFrame, Value as RootValue,
 };
 
 #[test]
@@ -22,7 +22,11 @@ fn existing_public_paths_remain_available() {
     let _ = parse as fn(Vec<Token>) -> Result<simiscript::ast::Program, ParseError>;
     let _ = Parser::new;
     let _ = Interpreter::new;
-    let _ = install_prelude;
+    let _ = Engine::new;
+    let _ = Engine::builder;
+    let _ = EngineBuilder::new;
+    let _: ModuleBuilder = Module::builder("example");
+    let _: Option<&NativeCallback> = None;
     let _ = [list_length, list_get, list_append, list_extend, list_set];
     let _: Option<TokenKind> = None;
     let _: Option<Environment> = None;
@@ -31,7 +35,9 @@ fn existing_public_paths_remain_available() {
     let _: SharedList = List::shared(Vec::new());
     let _: SharedMap = Gc::new(GcCell::new(Vec::new()));
     let _: Option<NativeFn> = None;
-    let _: Option<NativeFunction> = None;
+    let native = NativeFunction::new("example.function", 1, Arc::new(list_length));
+    assert_eq!(native.name(), "example.function");
+    assert_eq!(native.arity(), 1);
     let _: Option<NativeResult> = None;
     let _: Option<Raised> = None;
     let _: Option<RuntimeError> = None;

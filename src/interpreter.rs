@@ -1,6 +1,9 @@
+use std::collections::HashMap;
+
 use crate::ast::Program;
-use crate::native::install_prelude;
-use crate::runtime::{Environment, Raised, RuntimeError, RuntimeResult, ScriptResult, Value};
+use crate::runtime::{
+    Environment, NativeFunction, Raised, RuntimeError, RuntimeResult, ScriptResult, Value,
+};
 use crate::span::Span;
 
 mod call;
@@ -10,6 +13,7 @@ mod pattern;
 
 pub struct Interpreter {
     pub globals: Environment,
+    modules: HashMap<String, Value>,
 }
 
 pub(super) enum EvaluationError {
@@ -52,13 +56,21 @@ impl Default for Interpreter {
 
 impl Interpreter {
     pub fn new() -> Self {
-        let globals = Environment::new();
-        install_prelude(&globals);
-        Self { globals }
+        Self::with_modules(HashMap::new())
     }
 
     pub fn with_globals(globals: Environment) -> Self {
-        Self { globals }
+        Self {
+            globals,
+            modules: HashMap::new(),
+        }
+    }
+
+    pub(crate) fn with_modules(modules: HashMap<String, Value>) -> Self {
+        let prelude = Environment::new();
+        prelude.define("require", Value::NativeFunction(NativeFunction::require()));
+        let globals = prelude.child();
+        Self { globals, modules }
     }
 
     pub fn evaluate(&mut self, program: &Program) -> RuntimeResult<ScriptResult> {

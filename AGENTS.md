@@ -144,6 +144,21 @@ value |> transform(extra)
 
 `tap` performs a call while preserving the piped value, which is useful for mutation-oriented operations.
 
+### Modules and native extensions
+
+Scripts acquire modules explicitly through the shadowable global `require` function:
+
+```simi
+let list = require("list")
+list.length([ 1, 2, 3 ])
+```
+
+Modules are registered by the embedding host and cached per `Engine`. Repeated `require` calls return the same mutable export map, and module state persists across evaluations performed by that engine. Separate engines have separate module registries. `Engine::new()` has no registered modules; `Engine::with_stdlib()` includes the standard modules. The root `eval` convenience function uses a fresh standard-library engine.
+
+Rust extension crates construct modules with `Module::builder`. Module and export registration is infallible and last-wins. Native callbacks may capture Rust state but must be `Send + Sync + 'static`; this prevents safe callbacks from capturing Simi's non-`Send` managed values as untraced edges. Do not weaken this boundary or implement `require` as a closure that captures managed module values.
+
+A missing module raises `{ error = "module_not_found", module = name }`. A non-string module name is a hard runtime error. Filesystem and script-source module loading are not implemented.
+
 ### Functional loops
 
 Loops are expression-valued and may thread state. The final expression of an ordinary iteration supplies the next state. `continue value` performs an early transition, bare `continue` supplies `nil`, and `break value` determines the loop result.
@@ -270,8 +285,8 @@ The next intended milestone is a practical non-higher-order standard library:
 3. map inspection utilities;
 4. general utilities such as `type` and `inspect`.
 
-Likely later milestones include anonymous functions, higher-order collection operations, CLI arguments and basic I/O, modules, formatting, optional static typing, and editor tooling.
+Likely later milestones include anonymous functions, higher-order collection operations, CLI arguments and basic I/O, filesystem/script module loading, formatting, optional static typing, and editor tooling.
 
 These are roadmap items, not implemented features. Do not add them opportunistically outside an approved task.
 
-Broader I/O, modules, serialization, formatter/LSP work, tuples, and static typing remain out of scope until explicitly requested.
+Broader I/O, filesystem/script module loading, serialization, formatter/LSP work, tuples, and static typing remain out of scope until explicitly requested.

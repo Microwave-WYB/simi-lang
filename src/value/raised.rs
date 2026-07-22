@@ -26,6 +26,22 @@ impl Raised {
         )
     }
 
+    pub(crate) fn module_not_found(module: &str, origin: Span) -> Self {
+        Self::new(
+            Value::Map(Gc::new(GcCell::new(vec![
+                (
+                    MapKey::String("error".to_owned()),
+                    Value::String("module_not_found".to_owned()),
+                ),
+                (
+                    MapKey::String("module".to_owned()),
+                    Value::String(module.to_owned()),
+                ),
+            ]))),
+            origin,
+        )
+    }
+
     pub(crate) fn index_out_of_bounds(
         index: i64,
         length: usize,

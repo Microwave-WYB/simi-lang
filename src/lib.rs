@@ -1,23 +1,23 @@
 pub mod ast;
 pub mod cli;
+mod engine;
 mod environment;
 pub mod error;
 pub mod interpreter;
 pub mod lexer;
+mod module;
 pub mod native;
 pub mod parser;
 pub mod runtime;
 pub mod span;
+pub mod stdlib;
 mod value;
 
+pub use engine::{Engine, EngineBuilder};
 pub use error::SimiError;
-pub use runtime::{Raised, ScriptResult, TraceFrame, Value};
-
-use interpreter::Interpreter;
+pub use module::{Module, ModuleBuilder, NativeCallback};
+pub use runtime::{NativeResult, Raised, ScriptResult, TraceFrame, Value};
 
 pub fn eval(source: &str) -> Result<ScriptResult, SimiError> {
-    let tokens = lexer::lex(source)?;
-    let program = parser::parse(tokens)?;
-    let mut interpreter = Interpreter::new();
-    interpreter.evaluate(&program).map_err(SimiError::from)
+    Engine::with_stdlib().eval(source)
 }

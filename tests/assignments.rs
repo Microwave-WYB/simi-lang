@@ -82,6 +82,7 @@ fn list_and_map_updates_mutate_aliases_and_return_the_rhs() {
 fn assignment_prepares_object_and_key_once_before_rhs() {
     let result = value(
         r#"
+        let list = require("list")
         let events = []
         let target = {slot=0}
         fn object() do
@@ -125,6 +126,7 @@ fn failed_variable_target_skips_the_rhs() {
 fn list_bounds_reads_return_nil_while_writes_raise_without_growth() {
     let result = value(
         r#"
+        let list = require("list")
         let values = [1]
         let rhs_ran = []
         let read = values[2]
@@ -146,7 +148,8 @@ fn list_bounds_reads_return_nil_while_writes_raise_without_growth() {
 
 #[test]
 fn native_set_bounds_raises_preserve_the_call_origin_and_user_frame() {
-    let source = "fn write(values) do list.set(values, 2, 9) end write([1])";
+    let source =
+        "let list = require(\"list\")\nfn write(values) do list.set(values, 2, 9) end write([1])";
     let raised = match eval(source).expect("source should have no hard diagnostic") {
         Err(raised) => raised,
         Ok(value) => panic!("expected native bounds raise, got {}", value.render()),
@@ -170,8 +173,8 @@ fn negative_and_wrong_type_list_indices_remain_hard_errors() {
     for source in [
         "try [1][0 - 1] catch case _ -> nil end",
         "try [1][\"0\"] = 2 catch case _ -> nil end",
-        "try list.get([1], 0 - 1) catch case _ -> nil end",
-        "try list.set([1], \"0\", 2) catch case _ -> nil end",
+        "let list = require(\"list\")\ntry list.get([1], 0 - 1) catch case _ -> nil end",
+        "let list = require(\"list\")\ntry list.set([1], \"0\", 2) catch case _ -> nil end",
     ] {
         assert!(matches!(eval(source), Err(SimiError::Runtime(_))));
     }

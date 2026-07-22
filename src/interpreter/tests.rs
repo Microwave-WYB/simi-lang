@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use gc::{Gc, GcCell};
@@ -112,14 +113,16 @@ fn pipeline_inserts_input_as_first_argument() {
 
 #[test]
 fn tap_pipeline_preserves_the_alias_to_the_mutated_list() {
-    let value = evaluate(
+    let value = crate::eval(
         r#"
+                let list = require("list")
                 []
                 |> tap list.append(1)
                 |> tap list.append(2)
             "#,
     )
-    .expect("program should evaluate");
+    .expect("program should have no hard diagnostic")
+    .expect("program should not raise");
 
     assert_eq!(value.render(), "[1, 2]");
 }
@@ -154,11 +157,11 @@ fn try_evaluates_its_protected_expression_exactly_once() {
     let globals = Environment::new();
     globals.define(
         "tick",
-        Value::NativeFunction(NativeFunction {
-            name: "tick",
-            arity: 0,
-            call: count_protected_evaluation,
-        }),
+        Value::NativeFunction(NativeFunction::new(
+            "tick",
+            0,
+            Arc::new(count_protected_evaluation),
+        )),
     );
     let source = "try raise tick() catch case count -> count end";
     let tokens = lexer::lex(source).expect("test source should lex");

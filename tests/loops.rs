@@ -40,6 +40,7 @@ fn ordinary_completion_threads_accumulator_and_break_returns_a_value() {
 fn initializer_runs_once_across_multiple_iterations() {
     assert_eval(
         r#"
+            let list = require("list")
             let calls = []
             fn initialize() do
                 list.append(calls, "called")
@@ -63,6 +64,7 @@ fn initializer_runs_once_across_multiple_iterations() {
 fn valued_continue_supplies_next_state_and_skips_remaining_items() {
     assert_eval(
         r#"
+            let list = require("list")
             let visited = []
             let result = loop state = 0 do
                 if state < 3 then
@@ -81,6 +83,7 @@ fn valued_continue_supplies_next_state_and_skips_remaining_items() {
 fn bare_continue_supplies_nil_and_skips_remaining_items() {
     assert_eval(
         r#"
+            let list = require("list")
             let visited = []
             let result = loop state = 0 do
                 if state == 0 then
@@ -125,6 +128,7 @@ fn stateless_loop_binds_nil_to_underscore() {
 fn stateless_bare_continue_restarts_with_nil_state() {
     assert_eval(
         r#"
+            let list = require("list")
             let visits = []
             let result = loop do
                 list.append(visits, _)
@@ -144,6 +148,7 @@ fn stateless_bare_continue_restarts_with_nil_state() {
 fn closures_capture_a_fresh_state_binding_for_each_iteration() {
     assert_eval(
         r#"
+            let list = require("list")
             let captures = []
             loop state = 0 do
                 fn capture() do state end
