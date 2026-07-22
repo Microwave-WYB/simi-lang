@@ -3,7 +3,7 @@ use crate::native::{
     list_append, list_contains, list_copy, list_extend, list_get, list_insert, list_length,
     list_pop, list_remove, list_reverse, list_set, list_slice, map_clear, map_copy, map_entries,
     map_has, map_keys, map_length, map_values, stderr_flush, stderr_print, stderr_println,
-    stdin_readline, stdout_flush, stdout_print, stdout_println, string_contains, string_ends_with,
+    stdin_read_line, stdout_flush, stdout_print, stdout_println, string_contains, string_ends_with,
     string_length, string_lower, string_slice, string_split, string_starts_with, string_trim,
     string_upper,
 };
@@ -57,7 +57,7 @@ pub fn string() -> Module {
 
 pub fn stdin() -> Module {
     Module::builder("std/io/stdin")
-        .function("readline", 0, stdin_readline)
+        .function("read_line", 0, stdin_read_line)
         .build()
 }
 

@@ -3,7 +3,7 @@ use std::io::{self, Write};
 use crate::runtime::{NativeResult, Raised, Value};
 use crate::span::Span;
 
-pub(crate) fn stdin_readline(_: &[Value], span: Span) -> NativeResult {
+pub(crate) fn stdin_read_line(_: &[Value], span: Span) -> NativeResult {
     let mut line = String::new();
     match io::stdin().read_line(&mut line) {
         Ok(0) => Ok(Ok(Value::Nil)),
@@ -16,7 +16,7 @@ pub(crate) fn stdin_readline(_: &[Value], span: Span) -> NativeResult {
             }
             Ok(Ok(Value::String(line)))
         }
-        Err(error) => Ok(Err(Raised::io_error("readline", error.to_string(), span))),
+        Err(error) => Ok(Err(Raised::io_error("read_line", error.to_string(), span))),
     }
 }
 

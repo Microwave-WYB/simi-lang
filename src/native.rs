@@ -11,7 +11,7 @@ pub use list::{
 };
 pub use map::{map_clear, map_copy, map_entries, map_has, map_keys, map_length, map_values};
 pub(crate) use stdio::{
-    stderr_flush, stderr_print, stderr_println, stdin_readline, stdout_flush, stdout_print,
+    stderr_flush, stderr_print, stderr_println, stdin_read_line, stdout_flush, stdout_print,
     stdout_println,
 };
 pub use string::{

@@ -326,8 +326,8 @@ fn stdio_modules_are_opt_in_capabilities() {
             let stdout = require("std/io/stdout")
             let stderr = require("std/io/stderr")
             [
-                type(stdin.readline),
-                stdin.read_line,
+                type(stdin.read_line),
+                stdin.readline,
                 type(stdout.print),
                 type(stdout.println),
                 type(stdout.flush),

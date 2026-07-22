@@ -40,7 +40,7 @@ fn cli_print_flushes_prompt_before_reading_stdin() {
         let stdin = require("std/io/stdin")
         let stdout = require("std/io/stdout")
         stdout.print("prompt: ")
-        stdin.readline()
+        stdin.read_line()
         "#,
     )
     .unwrap();
@@ -89,7 +89,7 @@ fn cli_stdin_reads_unicode_lines_and_returns_nil_at_eof() {
         &path,
         r#"
         let stdin = require("std/io/stdin")
-        [stdin.readline(), stdin.readline()]
+        [stdin.read_line(), stdin.read_line()]
         "#,
     )
     .unwrap();
