@@ -1,0 +1,26 @@
+set shell := ["bash", "-cu"]
+
+default: test
+
+dependencies:
+    npm ci
+
+test: dependencies
+    npm test
+
+package: dependencies
+    npm run package
+
+install: package
+    code --install-extension --force "simi-language-$(node -p 'require(\"./package.json\").version').vsix"
+
+# Marketplace publication is intentionally guarded and is never part of another recipe.
+publish: test
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [[ "${CONFIRM_PUBLISH:-}" != "1" ]]; then
+      echo "Refusing to publish. Re-run with CONFIRM_PUBLISH=1 and VSCE_PAT set." >&2
+      exit 2
+    fi
+    : "${VSCE_PAT:?VSCE_PAT must contain a Visual Studio Marketplace token}"
+    npm run publish

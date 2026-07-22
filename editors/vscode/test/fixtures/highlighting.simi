@@ -1,0 +1,26 @@
+-- Classify values and exercise Simi's editing grammar.
+fn classify(value, limit) do
+    let threshold = 1.5e+2
+    let message = "line\nvalue"
+    if value >= threshold and not false then
+        "large"
+    elseif value == nil or value < limit then
+        value |> tap inspect()
+    else
+        match [value, message] with
+        case [head, ..tail] when true ->
+            { result = head, rest = tail }
+        end
+    end
+end
+
+let mapper = fn(item) do item * 2 end
+let list = require("list")
+let mapped = list.map([1, 2]) <| mapper
+let handled = try raise { error = "bad" } catch
+    case { error = reason } -> reason
+end
+loop state = 0 do
+    if state > 1 then break state else continue state + 1 end
+end
+let bad_escape = "\q"

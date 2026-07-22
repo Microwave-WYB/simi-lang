@@ -1,0 +1,56 @@
+{
+  "name": "simi-language",
+  "displayName": "Simi Language Support",
+  "description": "Syntax highlighting and editing support for the Simi scripting language.",
+  "version": "0.1.0",
+  "publisher": "simi",
+  "license": "UNLICENSED",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "keywords": [
+    "simi",
+    "language",
+    "syntax-highlighting"
+  ],
+  "extensionKind": [
+    "ui",
+    "workspace"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "simi",
+        "aliases": [
+          "Simi",
+          "simi"
+        ],
+        "extensions": [
+          ".simi"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "simi",
+        "scopeName": "source.simi",
+        "path": "./syntaxes/simi.tmLanguage.json"
+      }
+    ]
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "prepackage": "npm test",
+    "package": "vsce package",
+    "publish": "vsce publish"
+  },
+  "devDependencies": {
+    "@vscode/vsce": "3.9.2",
+    "vscode-oniguruma": "2.0.1",
+    "vscode-textmate": "9.3.2"
+  }
+}
