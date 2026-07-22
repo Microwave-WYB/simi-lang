@@ -1,6 +1,6 @@
 use gc::{Gc, GcCell, force_collect, stats};
 
-use super::{List, TableKey, UserFunction, Value};
+use super::{List, MapKey, UserFunction, Value};
 use crate::ast::Block;
 use crate::environment::Environment;
 use crate::span::Span;
@@ -31,9 +31,9 @@ fn language_allows_direct_and_indirect_cycles_when_result_is_acyclic() {
         list.append(direct, direct)
 
         let list_value = []
-        let table_value = {}
-        list.append(list_value, table_value)
-        table_value.list = list_value
+        let map_value = {}
+        list.append(list_value, map_value)
+        map_value.list = list_value
         nil
         "#,
     )
@@ -73,16 +73,14 @@ fn host_held_value_roots_a_cycle_until_it_is_dropped() {
 }
 
 #[test]
-fn unreachable_list_and_table_cycles_are_collected() {
+fn unreachable_list_and_map_cycles_are_collected() {
     collected_after(|| {
         let list = List::shared(Vec::new());
         list.borrow_mut().push(Value::List(list.clone()));
 
-        let table = Gc::new(GcCell::new(Vec::new()));
-        table.borrow_mut().push((
-            TableKey::String("self".to_owned()),
-            Value::Table(table.clone()),
-        ));
+        let map = Gc::new(GcCell::new(Vec::new()));
+        map.borrow_mut()
+            .push((MapKey::String("self".to_owned()), Value::Map(map.clone())));
     });
 }
 
@@ -90,11 +88,11 @@ fn unreachable_list_and_table_cycles_are_collected() {
 fn unreachable_indirect_container_cycle_is_collected() {
     collected_after(|| {
         let list = List::shared(Vec::new());
-        let table = Gc::new(GcCell::new(vec![(
-            TableKey::String("list".to_owned()),
+        let map = Gc::new(GcCell::new(vec![(
+            MapKey::String("list".to_owned()),
             Value::List(list.clone()),
         )]));
-        list.borrow_mut().push(Value::Table(table));
+        list.borrow_mut().push(Value::Map(map));
     });
 }
 

@@ -115,26 +115,26 @@ fn parses_tap_and_normal_pipeline_stages() {
 }
 
 #[test]
-fn parses_table_entries_and_rejects_duplicate_named_fields() {
+fn parses_map_entries_and_rejects_duplicate_named_fields() {
     let program = parse_source("{word=\"simi\", [10]=3, [true]=4}").unwrap();
     let StmtKind::Expr(Expr {
-        kind: ExprKind::Table(entries),
+        kind: ExprKind::Map(entries),
         ..
     }) = &program.items[0].kind
     else {
-        panic!("expected table");
+        panic!("expected map");
     };
     assert!(matches!(entries[0].0.kind, ExprKind::String(ref key) if key == "word"));
     assert!(matches!(entries[1].0.kind, ExprKind::Int(10)));
     assert!(matches!(entries[2].0.kind, ExprKind::Bool(true)));
 
     let error = parse_source("{word=1, word=2}").unwrap_err();
-    assert!(error.message.contains("duplicate table field `word`"));
+    assert!(error.message.contains("duplicate map field `word`"));
     assert_eq!(error.span.start, 9);
 }
 
 #[test]
-fn parses_list_and_table_indexing() {
+fn parses_list_and_map_indexing() {
     let program = parse_source("[{[1]=42}[1], [7, 8][0]]").unwrap();
     let StmtKind::Expr(Expr {
         kind: ExprKind::List(elements),
@@ -356,8 +356,8 @@ fn parses_match_into_canonical_nested_patterns_and_spans() {
     ));
     assert_eq!(cases[0].body.items.len(), 1);
 
-    let PatternKind::Table { fields, rest } = &cases[0].pattern.kind else {
-        panic!("expected table pattern");
+    let PatternKind::Map { fields, rest } = &cases[0].pattern.kind else {
+        panic!("expected map pattern");
     };
     assert_eq!(fields.len(), 2);
     assert!(matches!(rest, Some(PatternRest::Discard)));
@@ -449,7 +449,7 @@ fn match_is_a_primary_expression_and_preserves_nested_block_ownership() {
 }
 
 #[test]
-fn rejects_duplicate_bindings_and_table_pattern_fields_at_second_name() {
+fn rejects_duplicate_bindings_and_map_pattern_fields_at_second_name() {
     for (source, message, second_name) in [
         (
             "match 0 with case {a=x, b=[x]} -> nil end",
@@ -463,7 +463,7 @@ fn rejects_duplicate_bindings_and_table_pattern_fields_at_second_name() {
         ),
         (
             "match 0 with case {a=x, a=y} -> nil end",
-            "duplicate table pattern field `a`",
+            "duplicate map pattern field `a`",
             "a",
         ),
     ] {
@@ -477,7 +477,7 @@ fn rejects_duplicate_bindings_and_table_pattern_fields_at_second_name() {
 }
 
 #[test]
-fn rejects_malformed_pattern_rests_and_computed_table_keys() {
+fn rejects_malformed_pattern_rests_and_computed_map_keys() {
     for (source, expected_message) in [
         (
             "match [] with case [..] -> nil end",
@@ -489,15 +489,15 @@ fn rejects_malformed_pattern_rests_and_computed_table_keys() {
         ),
         (
             "match {} with case {..rest, field=x} -> nil end",
-            "expected `}` after table pattern, found `identifier`",
+            "expected `}` after map pattern, found `identifier`",
         ),
         (
             "match {} with case {[\"x\"]=value} -> nil end",
-            "expected table pattern field name or `..`, found `[`",
+            "expected map pattern field name or `..`, found `[`",
         ),
         (
             "match {} with case {field value} -> nil end",
-            "expected `=` after table pattern field name, found `identifier`",
+            "expected `=` after map pattern field name, found `identifier`",
         ),
     ] {
         let error = parse_source(source).unwrap_err();
@@ -691,15 +691,16 @@ fn catch_cases_reuse_existing_pattern_validation() {
 
 #[test]
 fn parses_assignment_targets_and_right_associative_values() {
-    let program = parse_source("table[key] = other.field = value").unwrap();
+    let source = "map[key] = other.field = value";
+    let program = parse_source(source).unwrap();
     let StmtKind::Expr(expression) = &program.items[0].kind else {
         panic!("expected expression statement");
     };
-    assert_eq!(expression.span, Span::new(0, 32));
+    assert_eq!(expression.span, Span::new(0, source.len()));
     let ExprKind::Assign { target, value } = &expression.kind else {
         panic!("expected outer assignment");
     };
-    assert_eq!(target.span, Span::new(0, 10));
+    assert_eq!(target.span, Span::new(0, source.find(']').unwrap() + 1));
     assert!(matches!(target.kind, AssignmentTargetKind::Index { .. }));
     let ExprKind::Assign { target, value } = &value.kind else {
         panic!("expected right-associated assignment");

@@ -2,7 +2,7 @@ use gc::{Gc, GcCell};
 
 use super::{EvaluationError, EvaluationResult, Interpreter, operations::numeric_equal};
 use crate::ast::{Expr, MatchCase, Pattern, PatternKind, PatternRest};
-use crate::runtime::{Environment, RuntimeError, RuntimeResult, TableKey, Value};
+use crate::runtime::{Environment, MapKey, RuntimeError, RuntimeResult, Value};
 use crate::span::Span;
 
 impl Interpreter {
@@ -168,18 +168,18 @@ fn match_pattern(
             }
             Ok(true)
         }
-        PatternKind::Table { fields, rest } => {
-            let Value::Table(entries) = value else {
+        PatternKind::Map { fields, rest } => {
+            let Value::Map(entries) = value else {
                 return Ok(false);
             };
 
             let (field_values, rest_value) = {
                 let entries = entries.try_borrow().map_err(|_| {
-                    RuntimeError::new(pattern.span, "could not borrow table for pattern matching")
+                    RuntimeError::new(pattern.span, "could not borrow map for pattern matching")
                 })?;
                 let mut field_values = Vec::with_capacity(fields.len());
                 for (name, field_pattern) in fields {
-                    let key = TableKey::String(name.clone());
+                    let key = MapKey::String(name.clone());
                     if let Some((_, value)) =
                         entries.iter().find(|(entry_key, _)| entry_key == &key)
                     {
@@ -196,13 +196,13 @@ fn match_pattern(
                         let remaining = entries
                             .iter()
                             .filter(|(key, _)| {
-                                !matches!(key, TableKey::String(name) if fields.iter().any(
+                                !matches!(key, MapKey::String(name) if fields.iter().any(
                                     |(field_name, _)| field_name == name
                                 ))
                             })
                             .cloned()
                             .collect();
-                        Some(Value::Table(Gc::new(GcCell::new(remaining))))
+                        Some(Value::Map(Gc::new(GcCell::new(remaining))))
                     }
                     Some(PatternRest::Discard) | None => None,
                 };

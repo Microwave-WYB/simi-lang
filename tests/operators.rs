@@ -57,7 +57,7 @@ fn numeric_equality_comparison_and_patterns_promote_integers() {
 }
 
 #[test]
-fn float_table_keys_normalize_integral_values_and_preserve_fractions() {
+fn float_map_keys_normalize_integral_values_and_preserve_fractions() {
     let result = value(
         r#"
         let values = {[1]="integer", [1.0]="float replacement", [1.5]="fraction", [-0.0]="zero"}

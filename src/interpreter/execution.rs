@@ -3,7 +3,7 @@ use gc::{Gc, GcCell};
 use super::{EvaluationError, EvaluationResult, Interpreter};
 use crate::ast::{BinaryOp, Block, Expr, ExprKind, Stmt, StmtKind};
 use crate::runtime::{
-    Environment, List, Raised, RuntimeError, RuntimeResult, TableKey, UserFunction, Value,
+    Environment, List, MapKey, Raised, RuntimeError, RuntimeResult, UserFunction, Value,
 };
 use crate::span::Span;
 
@@ -89,11 +89,11 @@ impl Interpreter {
                 }
                 Ok(Value::List(List::shared(values)))
             }
-            ExprKind::Table(entries) => {
+            ExprKind::Map(entries) => {
                 let mut values = Vec::with_capacity(entries.len());
                 for (key, value) in entries {
                     let key_value = self.evaluate_expression(key, env)?;
-                    let key = TableKey::from_value(key_value, key.span)?;
+                    let key = MapKey::from_value(key_value, key.span)?;
                     let value = self.evaluate_expression(value, env)?;
                     if matches!(value, Value::Nil) {
                         if let Some(position) =
@@ -109,7 +109,7 @@ impl Interpreter {
                         values.push((key, value));
                     }
                 }
-                Ok(Value::Table(Gc::new(GcCell::new(values))))
+                Ok(Value::Map(Gc::new(GcCell::new(values))))
             }
             ExprKind::Variable(name) => env.get(name).ok_or_else(|| {
                 EvaluationError::Runtime(RuntimeError {

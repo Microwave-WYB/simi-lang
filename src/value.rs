@@ -1,7 +1,7 @@
 mod list;
+mod map;
 mod raised;
 mod render;
-mod table;
 
 pub use list::List;
 
@@ -15,7 +15,7 @@ pub type RuntimeResult<T> = Result<T, RuntimeError>;
 pub type ScriptResult = Result<Value, Raised>;
 pub type NativeResult = RuntimeResult<ScriptResult>;
 pub type SharedList = Gc<GcCell<List>>;
-pub type SharedTable = Gc<GcCell<Vec<(TableKey, Value)>>>;
+pub type SharedMap = Gc<GcCell<Vec<(MapKey, Value)>>>;
 pub type SharedFunction = Gc<UserFunction>;
 pub type NativeFn = fn(&[Value], Span) -> NativeResult;
 
@@ -49,15 +49,15 @@ unsafe impl Trace for FloatKey {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub enum TableKey {
+pub enum MapKey {
     Int(i64),
     Float(FloatKey),
     String(String),
     Bool(bool),
 }
 
-impl Finalize for TableKey {}
-unsafe impl Trace for TableKey {
+impl Finalize for MapKey {}
+unsafe impl Trace for MapKey {
     gc::unsafe_empty_trace!();
 }
 
@@ -69,7 +69,7 @@ pub enum Value {
     Bool(bool),
     Nil,
     List(SharedList),
-    Table(SharedTable),
+    Map(SharedMap),
     Function(SharedFunction),
     NativeFunction(NativeFunction),
 }
@@ -80,7 +80,7 @@ unsafe impl Trace for Value {
     custom_trace!(this, {
         match this {
             Self::List(list) => mark(list),
-            Self::Table(table) => mark(table),
+            Self::Map(map) => mark(map),
             Self::Function(function) => mark(function),
             Self::Int(_)
             | Self::Float(_)

@@ -29,7 +29,7 @@ Simi currently has these runtime value categories:
 - booleans;
 - `nil`;
 - mutable lists;
-- mutable tables;
+- mutable maps;
 - user functions;
 - native functions.
 
@@ -71,8 +71,8 @@ Assigning to an undefined name is a hard runtime error. Assignment is right-asso
 Field and index assignments mutate containers:
 
 ```simi
-table.answer = 42
-table[key] = value
+map.answer = 42
+map[key] = value
 values[index] = value
 ```
 
@@ -93,9 +93,9 @@ A nonnegative out-of-range read returns `nil`. Negative and non-integer indices 
 
 Ordinary aliases observe the same mutations. List-rest pattern captures create independent copy-on-write views in O(1), while nested values retain shallow alias identity.
 
-### Tables
+### Maps
 
-Tables are mutable, insertion-ordered key/value containers. Supported keys currently include strings, integers, finite non-integral floats, and booleans. Integral floats and signed zero normalize to integer keys.
+Maps are mutable, insertion-ordered key/value containers. Supported keys currently include strings, integers, finite non-integral floats, and booleans. Integral floats and signed zero normalize to integer keys.
 
 ```simi
 let settings = {
@@ -105,16 +105,16 @@ let settings = {
 }
 ```
 
-Missing reads return `nil`. Following Lua, tables cannot retain `nil` values:
+Missing reads return `nil`. Following Lua, maps cannot retain `nil` values:
 
 ```simi
 settings.name = nil       # deletes the key
 settings[dynamic] = nil   # deletes the key
 ```
 
-Nil-valued table literal entries are omitted. Thus `table[key] != nil` is a valid key-existence check for script-created tables.
+Nil-valued map literal entries are omitted. Thus `map[key] != nil` is a valid key-existence check for script-created maps.
 
-Lists may contain `nil`; nil-as-deletion applies only to tables.
+Lists may contain `nil`; nil-as-deletion applies only to maps.
 
 ### Numbers and operators
 
@@ -163,9 +163,9 @@ match value with
 end
 ```
 
-Patterns support literals, bindings, wildcards, nested list/table patterns, and list/table rests. Guards must evaluate to booleans. Bindings are scoped to the selected case.
+Patterns support literals, bindings, wildcards, nested list/map patterns, and list/map rests. Guards must evaluate to booleans. Bindings are scoped to the selected case.
 
-Table fields normally require key presence. The literal nil field pattern is the exception: `{ missing = nil }` matches an absent field, consistent with table lookup and deletion semantics.
+Map fields normally require key presence. The literal nil field pattern is the exception: `{ missing = nil }` matches an absent field, consistent with map lookup and deletion semantics.
 
 ### Errors
 
@@ -197,7 +197,7 @@ Do not collapse raised values and hard diagnostics into one result layer.
 
 ### Managed graphs and rendering
 
-Runtime lists, tables, functions, bindings, and environments use tracing garbage collection. Strong cycles are legal and unreachable cycles must be collectible.
+Runtime lists, maps, functions, bindings, and environments use tracing garbage collection. Strong cycles are legal and unreachable cycles must be collectible.
 
 Every new managed edge that can contain or reach a Simi value must participate in tracing. Do not hide managed values in untraced Rust containers.
 
@@ -267,7 +267,7 @@ The next intended milestone is a practical non-higher-order standard library:
 
 1. string operations;
 2. list mutation and slicing operations;
-3. table inspection utilities;
+3. map inspection utilities;
 4. general utilities such as `type` and `inspect`.
 
 Likely later milestones include anonymous functions, higher-order collection operations, CLI arguments and basic I/O, modules, formatting, optional static typing, and editor tooling.

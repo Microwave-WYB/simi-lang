@@ -21,23 +21,23 @@ fn cloned_lists_share_mutations() {
 }
 
 #[test]
-fn tables_render_in_insertion_order_with_explicit_computed_keys() {
-    let value = Value::Table(Gc::new(GcCell::new(vec![
-        (TableKey::String("second".to_owned()), Value::Int(2)),
-        (TableKey::Int(10), Value::String("ten".to_owned())),
-        (TableKey::Bool(true), Value::Int(1)),
+fn maps_render_in_insertion_order_with_explicit_computed_keys() {
+    let value = Value::Map(Gc::new(GcCell::new(vec![
+        (MapKey::String("second".to_owned()), Value::Int(2)),
+        (MapKey::Int(10), Value::String("ten".to_owned())),
+        (MapKey::Bool(true), Value::Int(1)),
     ])));
 
     assert_eq!(value.render(), "{second=2, [10]=\"ten\", [true]=1}");
 }
 
 #[test]
-fn cloned_tables_share_identity() {
+fn cloned_maps_share_identity() {
     let shared = Gc::new(GcCell::new(vec![(
-        TableKey::String("value".to_owned()),
+        MapKey::String("value".to_owned()),
         Value::Int(1),
     )]));
-    let original = Value::Table(shared.clone());
+    let original = Value::Map(shared.clone());
     let alias = original.clone();
     shared.borrow_mut()[0].1 = Value::Int(2);
 
@@ -53,12 +53,12 @@ fn rendering_marks_cycles_without_collapsing_repeated_aliases() {
         .push(Value::List(cyclic_list.clone()));
     assert_eq!(Value::List(cyclic_list).render(), "[<cycle>]");
 
-    let cyclic_table = Gc::new(GcCell::new(Vec::new()));
-    cyclic_table.borrow_mut().push((
-        TableKey::String("self".to_owned()),
-        Value::Table(cyclic_table.clone()),
+    let cyclic_map = Gc::new(GcCell::new(Vec::new()));
+    cyclic_map.borrow_mut().push((
+        MapKey::String("self".to_owned()),
+        Value::Map(cyclic_map.clone()),
     ));
-    assert_eq!(Value::Table(cyclic_table).render(), "{self=<cycle>}");
+    assert_eq!(Value::Map(cyclic_map).render(), "{self=<cycle>}");
 
     let shared = List::shared(vec![Value::Int(1)]);
     let repeated = Value::List(List::shared(vec![
@@ -144,15 +144,15 @@ fn floats_render_distinctly_and_float_keys_are_safe() {
 
     let span = Span::new(0, 1);
     assert_eq!(
-        TableKey::from_value(Value::Float(1.0), span).unwrap(),
-        TableKey::Int(1)
+        MapKey::from_value(Value::Float(1.0), span).unwrap(),
+        MapKey::Int(1)
     );
     assert_eq!(
-        TableKey::from_value(Value::Float(-0.0), span).unwrap(),
-        TableKey::Int(0)
+        MapKey::from_value(Value::Float(-0.0), span).unwrap(),
+        MapKey::Int(0)
     );
-    let key = TableKey::from_value(Value::Float(1.5), span).unwrap();
-    let TableKey::Float(key) = key else {
+    let key = MapKey::from_value(Value::Float(1.5), span).unwrap();
+    let MapKey::Float(key) = key else {
         panic!("non-integral float key should remain float");
     };
     assert_eq!(key.value(), 1.5);
@@ -177,14 +177,14 @@ fn structural_bounds_raise_has_exact_ordered_fields_and_origin() {
     assert_eq!(raised.origin, origin);
     assert!(raised.frames.is_empty());
     assert!(raised.cause.is_none());
-    let Value::Table(entries) = raised.value else {
-        panic!("bounds error should be a table");
+    let Value::Map(entries) = raised.value else {
+        panic!("bounds error should be a map");
     };
     let entries = entries.borrow();
     assert_eq!(entries.len(), 3);
     assert!(
-        matches!(&entries[0], (TableKey::String(key), Value::String(value)) if key == "error" && value == "index_out_of_bounds")
+        matches!(&entries[0], (MapKey::String(key), Value::String(value)) if key == "error" && value == "index_out_of_bounds")
     );
-    assert!(matches!(&entries[1], (TableKey::String(key), Value::Int(7)) if key == "index"));
-    assert!(matches!(&entries[2], (TableKey::String(key), Value::Int(3)) if key == "length"));
+    assert!(matches!(&entries[1], (MapKey::String(key), Value::Int(7)) if key == "index"));
+    assert!(matches!(&entries[2], (MapKey::String(key), Value::Int(3)) if key == "length"));
 }

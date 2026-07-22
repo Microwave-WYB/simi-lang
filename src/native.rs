@@ -4,7 +4,7 @@ pub use list::{list_append, list_extend, list_get, list_length, list_set};
 
 use gc::{Gc, GcCell};
 
-use crate::runtime::{Environment, NativeFunction, TableKey, Value};
+use crate::runtime::{Environment, MapKey, NativeFunction, Value};
 
 pub fn install_prelude(env: &Environment) {
     let functions = vec![
@@ -16,10 +16,10 @@ pub fn install_prelude(env: &Environment) {
     ];
     env.define(
         "list",
-        Value::Table(Gc::new(GcCell::new(
+        Value::Map(Gc::new(GcCell::new(
             functions
                 .into_iter()
-                .map(|(name, value)| (TableKey::String(name), value))
+                .map(|(name, value)| (MapKey::String(name), value))
                 .collect(),
         ))),
     );

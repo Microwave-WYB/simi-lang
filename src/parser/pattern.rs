@@ -51,7 +51,7 @@ impl Parser {
                 PatternKind::Bool(value)
             }
             TokenKind::LBracket => return self.parse_list_pattern(bindings),
-            TokenKind::LBrace => return self.parse_table_pattern(bindings),
+            TokenKind::LBrace => return self.parse_map_pattern(bindings),
             _ => {
                 return Err(self
                     .error_current(format!("expected pattern, found `{}`", self.current_name())));
@@ -97,10 +97,7 @@ impl Parser {
         })
     }
 
-    fn parse_table_pattern(
-        &mut self,
-        bindings: &mut HashSet<String>,
-    ) -> Result<Pattern, ParseError> {
+    fn parse_map_pattern(&mut self, bindings: &mut HashSet<String>) -> Result<Pattern, ParseError> {
         let start = self.expect_simple(SimpleToken::LBrace, "`{`")?;
         let mut fields = Vec::new();
         let mut rest = None;
@@ -113,21 +110,21 @@ impl Parser {
                     self.consume_simple(SimpleToken::Comma);
                     if !self.at_simple(SimpleToken::RBrace) {
                         return Err(self.error_current(format!(
-                            "expected `}}` after table pattern, found `{}`",
+                            "expected `}}` after map pattern, found `{}`",
                             self.current_name()
                         )));
                     }
                     break;
                 }
 
-                let (name, name_span) = self.expect_ident("table pattern field name or `..`")?;
+                let (name, name_span) = self.expect_ident("map pattern field name or `..`")?;
                 if !seen_fields.insert(name.clone()) {
                     return Err(ParseError {
                         span: name_span,
-                        message: format!("duplicate table pattern field `{name}`"),
+                        message: format!("duplicate map pattern field `{name}`"),
                     });
                 }
-                self.expect_simple(SimpleToken::Equal, "`=` after table pattern field name")?;
+                self.expect_simple(SimpleToken::Equal, "`=` after map pattern field name")?;
                 let pattern = self.parse_pattern(bindings)?;
                 fields.push((name, pattern));
 
@@ -137,9 +134,9 @@ impl Parser {
             }
         }
 
-        let end = self.expect_simple(SimpleToken::RBrace, "`}` after table pattern")?;
+        let end = self.expect_simple(SimpleToken::RBrace, "`}` after map pattern")?;
         Ok(Pattern {
-            kind: PatternKind::Table { fields, rest },
+            kind: PatternKind::Map { fields, rest },
             span: start.merge(end),
         })
     }

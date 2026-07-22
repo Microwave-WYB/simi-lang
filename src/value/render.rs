@@ -2,12 +2,12 @@ use std::collections::HashSet;
 
 use gc::Gc;
 
-use super::{TableKey, Value};
+use super::{MapKey, Value};
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 enum ContainerKind {
     List,
-    Table,
+    Map,
 }
 
 type ContainerId = (ContainerKind, usize);
@@ -21,7 +21,7 @@ impl Value {
             Self::Bool(_) => "boolean",
             Self::Nil => "nil",
             Self::List(_) => "list",
-            Self::Table(_) => "table",
+            Self::Map(_) => "map",
             Self::Function(_) => "function",
             Self::NativeFunction(_) => "native function",
         }
@@ -55,8 +55,8 @@ impl Value {
                 active.remove(&id);
                 format!("[{rendered}]")
             }
-            Self::Table(entries) => {
-                let id = (ContainerKind::Table, Gc::as_ptr(entries) as usize);
+            Self::Map(entries) => {
+                let id = (ContainerKind::Map, Gc::as_ptr(entries) as usize);
                 if !active.insert(id) {
                     return "<cycle>".to_owned();
                 }
@@ -65,7 +65,7 @@ impl Value {
                 let rendered = entries
                     .iter()
                     .map(|(key, value)| {
-                        format!("{}={}", render_table_key(key), value.render_with(active))
+                        format!("{}={}", render_map_key(key), value.render_with(active))
                     })
                     .collect::<Vec<_>>()
                     .join(", ");
@@ -78,13 +78,13 @@ impl Value {
     }
 }
 
-fn render_table_key(key: &TableKey) -> String {
+fn render_map_key(key: &MapKey) -> String {
     match key {
-        TableKey::String(value) if is_identifier(value) => value.clone(),
-        TableKey::String(value) => format!("[{}]", render_string(value)),
-        TableKey::Int(value) => format!("[{value}]"),
-        TableKey::Float(value) => format!("[{}]", render_float(value.value())),
-        TableKey::Bool(value) => format!("[{value}]"),
+        MapKey::String(value) if is_identifier(value) => value.clone(),
+        MapKey::String(value) => format!("[{}]", render_string(value)),
+        MapKey::Int(value) => format!("[{value}]"),
+        MapKey::Float(value) => format!("[{}]", render_float(value.value())),
+        MapKey::Bool(value) => format!("[{value}]"),
     }
 }
 

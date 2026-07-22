@@ -4,7 +4,7 @@ use gc::{Gc, GcCell};
 
 use super::*;
 use crate::ast::*;
-use crate::runtime::{List, NativeFunction, NativeResult, TableKey, TraceFrame};
+use crate::runtime::{List, MapKey, NativeFunction, NativeResult, TraceFrame};
 use crate::{lexer, parser};
 
 static PROTECTED_EVALUATIONS: AtomicUsize = AtomicUsize::new(0);
@@ -577,19 +577,19 @@ fn list_rest_has_a_new_container_and_retains_nested_aliases() {
 }
 
 #[test]
-fn table_rest_has_a_new_ordered_container_and_retains_nested_aliases() {
+fn map_rest_has_a_new_ordered_container_and_retains_nested_aliases() {
     let shared = List::shared(Vec::new());
     let source = Gc::new(GcCell::new(vec![
-        (TableKey::String("take".to_owned()), Value::Int(1)),
+        (MapKey::String("take".to_owned()), Value::Int(1)),
         (
-            TableKey::String("first".to_owned()),
+            MapKey::String("first".to_owned()),
             Value::List(shared.clone()),
         ),
-        (TableKey::Bool(true), Value::List(shared.clone())),
-        (TableKey::String("last".to_owned()), Value::Int(3)),
+        (MapKey::Bool(true), Value::List(shared.clone())),
+        (MapKey::String("last".to_owned()), Value::Int(3)),
     ]));
     let globals = Environment::new();
-    globals.define("source", Value::Table(source.clone()));
+    globals.define("source", Value::Map(source.clone()));
 
     let value = evaluate_ast(
         expression(
@@ -600,7 +600,7 @@ fn table_rest_has_a_new_ordered_container_and_retains_nested_aliases() {
                 )),
                 cases: vec![MatchCase {
                     pattern: pattern(
-                        PatternKind::Table {
+                        PatternKind::Map {
                             fields: vec![
                                 (
                                     "take".to_owned(),
@@ -629,16 +629,16 @@ fn table_rest_has_a_new_ordered_container_and_retains_nested_aliases() {
         ),
         globals,
     )
-    .expect("table pattern should match");
+    .expect("map pattern should match");
 
-    let Value::Table(rest) = value else {
-        panic!("table rest binding should produce a table");
+    let Value::Map(rest) = value else {
+        panic!("map rest binding should produce a map");
     };
     assert!(!Gc::ptr_eq(&source, &rest));
     let rest_entries = rest.borrow();
     assert_eq!(rest_entries.len(), 2);
-    assert_eq!(rest_entries[0].0, TableKey::String("first".to_owned()));
-    assert_eq!(rest_entries[1].0, TableKey::Bool(true));
+    assert_eq!(rest_entries[0].0, MapKey::String("first".to_owned()));
+    assert_eq!(rest_entries[1].0, MapKey::Bool(true));
     for (_, value) in rest_entries.iter() {
         let Value::List(alias) = value else {
             panic!("rest values should retain their nested list aliases");

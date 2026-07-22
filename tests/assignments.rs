@@ -57,19 +57,19 @@ fn closures_update_captured_bindings_and_undefined_assignment_is_hard() {
 }
 
 #[test]
-fn list_and_table_updates_mutate_aliases_and_return_the_rhs() {
+fn list_and_map_updates_mutate_aliases_and_return_the_rhs() {
     let result = value(
         r#"
         let list_value = [10, 20]
         let list_alias = list_value
-        let table_value = {existing=1}
-        let table_alias = table_value
+        let map_value = {existing=1}
+        let map_alias = map_value
         let list_result = list_alias[0] = 30
-        let field_result = table_alias.field = 40
-        let index_result = table_alias[true] = 50
-        table_alias[7] = 60
-        table_alias.existing = 2
-        [list_result, field_result, index_result, list_value, table_value]
+        let field_result = map_alias.field = 40
+        let index_result = map_alias[true] = 50
+        map_alias[7] = 60
+        map_alias.existing = 2
+        [list_result, field_result, index_result, list_value, map_value]
         "#,
     );
     assert_eq!(

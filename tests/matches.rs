@@ -141,7 +141,7 @@ fn recursive_head_tail_matching_handles_longer_lists() {
 }
 
 #[test]
-fn table_patterns_are_structural_and_table_rest_preserves_order_and_aliases() {
+fn map_patterns_are_structural_and_map_rest_preserves_order_and_aliases() {
     assert_eval(
         r#"
             let shared = []
@@ -164,7 +164,7 @@ fn table_patterns_are_structural_and_table_rest_preserves_order_and_aliases() {
 }
 
 #[test]
-fn nil_table_fields_match_absence_while_other_patterns_require_presence() {
+fn nil_map_fields_match_absence_while_other_patterns_require_presence() {
     assert_eval(
         r#"
         let absent_nil = match {} with
@@ -291,7 +291,7 @@ fn duplicate_bindings_are_rejected_at_the_second_identifier() {
 }
 
 #[test]
-fn duplicate_table_pattern_fields_are_rejected_at_the_second_key() {
+fn duplicate_map_pattern_fields_are_rejected_at_the_second_key() {
     let source = "match {} with case {value=1, value=2} -> nil end";
     let second_value = source
         .rfind("value")
@@ -299,7 +299,7 @@ fn duplicate_table_pattern_fields_are_rejected_at_the_second_key() {
     assert_parse_error(
         source,
         (second_value, second_value + "value".len()),
-        "duplicate table pattern field `value`",
+        "duplicate map pattern field `value`",
     );
 }
 

@@ -3,7 +3,7 @@ use std::fmt;
 
 use gc::{Gc, GcCell};
 
-use super::{Raised, RuntimeError, TableKey, TraceFrame, Value};
+use super::{MapKey, Raised, RuntimeError, TraceFrame, Value};
 use crate::span::Span;
 
 impl Raised {
@@ -18,8 +18,8 @@ impl Raised {
 
     pub(crate) fn division_by_zero(origin: Span) -> Self {
         Self::new(
-            Value::Table(Gc::new(GcCell::new(vec![(
-                TableKey::String("error".to_owned()),
+            Value::Map(Gc::new(GcCell::new(vec![(
+                MapKey::String("error".to_owned()),
                 Value::String("division_by_zero".to_owned()),
             )]))),
             origin,
@@ -34,13 +34,13 @@ impl Raised {
         let length = i64::try_from(length)
             .map_err(|_| RuntimeError::new(origin, "list length exceeds i64"))?;
         Ok(Self::new(
-            Value::Table(Gc::new(GcCell::new(vec![
+            Value::Map(Gc::new(GcCell::new(vec![
                 (
-                    TableKey::String("error".to_owned()),
+                    MapKey::String("error".to_owned()),
                     Value::String("index_out_of_bounds".to_owned()),
                 ),
-                (TableKey::String("index".to_owned()), Value::Int(index)),
-                (TableKey::String("length".to_owned()), Value::Int(length)),
+                (MapKey::String("index".to_owned()), Value::Int(index)),
+                (MapKey::String("length".to_owned()), Value::Int(length)),
             ]))),
             origin,
         ))

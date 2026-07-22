@@ -63,7 +63,7 @@ pub enum PatternKind {
         elements: Vec<Pattern>,
         rest: Option<PatternRest>,
     },
-    Table {
+    Map {
         fields: Vec<(String, Pattern)>,
         rest: Option<PatternRest>,
     },
@@ -96,7 +96,7 @@ pub enum ExprKind {
     Bool(bool),
     Nil,
     List(Vec<Expr>),
-    Table(Vec<(Expr, Expr)>),
+    Map(Vec<(Expr, Expr)>),
     Variable(String),
     Assign {
         target: AssignmentTarget,

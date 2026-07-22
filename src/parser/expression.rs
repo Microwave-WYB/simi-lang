@@ -325,7 +325,7 @@ impl Parser {
                 Ok(expression)
             }
             TokenKind::LBracket => self.parse_list(),
-            TokenKind::LBrace => self.parse_table(),
+            TokenKind::LBrace => self.parse_map(),
             TokenKind::Raise => self.parse_raise(),
             TokenKind::Try => self.parse_try(),
             TokenKind::Match => self.parse_match(),
@@ -359,7 +359,7 @@ impl Parser {
         })
     }
 
-    fn parse_table(&mut self) -> Result<Expr, ParseError> {
+    fn parse_map(&mut self) -> Result<Expr, ParseError> {
         let start = self.expect_simple(SimpleToken::LBrace, "`{`")?;
         let mut entries = Vec::new();
         let mut seen_names = HashSet::new();
@@ -367,15 +367,14 @@ impl Parser {
             loop {
                 let key = if self.consume_simple(SimpleToken::LBracket) {
                     let key = self.parse_expression()?;
-                    self.expect_simple(SimpleToken::RBracket, "`]` after table key")?;
+                    self.expect_simple(SimpleToken::RBracket, "`]` after map key")?;
                     key
                 } else {
-                    let (name, name_span) =
-                        self.expect_ident("table field name or computed key")?;
+                    let (name, name_span) = self.expect_ident("map field name or computed key")?;
                     if !seen_names.insert(name.clone()) {
                         return Err(ParseError {
                             span: name_span,
-                            message: format!("duplicate table field `{name}`"),
+                            message: format!("duplicate map field `{name}`"),
                         });
                     }
                     Expr {
@@ -383,7 +382,7 @@ impl Parser {
                         span: name_span,
                     }
                 };
-                self.expect_simple(SimpleToken::Equal, "`=` after table key")?;
+                self.expect_simple(SimpleToken::Equal, "`=` after map key")?;
                 let value = self.parse_expression()?;
                 entries.push((key, value));
                 if !self.consume_simple(SimpleToken::Comma) || self.at_simple(SimpleToken::RBrace) {
@@ -391,9 +390,9 @@ impl Parser {
                 }
             }
         }
-        let end = self.expect_simple(SimpleToken::RBrace, "`}` after table entries")?;
+        let end = self.expect_simple(SimpleToken::RBrace, "`}` after map entries")?;
         Ok(Expr {
-            kind: ExprKind::Table(entries),
+            kind: ExprKind::Map(entries),
             span: start.merge(end),
         })
     }

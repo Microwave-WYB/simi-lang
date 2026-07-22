@@ -7,8 +7,8 @@ use simiscript::native::{
 };
 use simiscript::parser::{ParseError, Parser, parse};
 use simiscript::runtime::{
-    Environment, FloatKey, List, NativeFn, NativeFunction, NativeResult, Raised, RuntimeError,
-    RuntimeResult, ScriptResult, SharedFunction, SharedList, SharedTable, TableKey, TraceFrame,
+    Environment, FloatKey, List, MapKey, NativeFn, NativeFunction, NativeResult, Raised,
+    RuntimeError, RuntimeResult, ScriptResult, SharedFunction, SharedList, SharedMap, TraceFrame,
     UserFunction, Value,
 };
 use simiscript::{
@@ -29,7 +29,7 @@ fn existing_public_paths_remain_available() {
     let _: Option<FloatKey> = None;
     let _: List = List::new(Vec::new());
     let _: SharedList = List::shared(Vec::new());
-    let _: SharedTable = Gc::new(GcCell::new(Vec::new()));
+    let _: SharedMap = Gc::new(GcCell::new(Vec::new()));
     let _: Option<NativeFn> = None;
     let _: Option<NativeFunction> = None;
     let _: Option<NativeResult> = None;
@@ -39,8 +39,8 @@ fn existing_public_paths_remain_available() {
     let _: Option<ScriptResult> = None;
     let _: Option<SharedFunction> = None;
     let _: Option<SharedList> = None;
-    let _: Option<SharedTable> = None;
-    let _: Option<TableKey> = None;
+    let _: Option<SharedMap> = None;
+    let _: Option<MapKey> = None;
     let _: Option<TraceFrame> = None;
     let _: Option<UserFunction> = None;
     let _: Option<RootRaised> = None;

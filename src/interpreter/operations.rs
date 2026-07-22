@@ -3,7 +3,7 @@ use std::cmp::Ordering;
 use super::{EvaluationError, EvaluationResult, Interpreter};
 use crate::ast::{AssignmentTarget, AssignmentTargetKind, BinaryOp, UnaryOp};
 use crate::runtime::{
-    Environment, Raised, RuntimeError, RuntimeResult, SharedList, SharedTable, TableKey, Value,
+    Environment, MapKey, Raised, RuntimeError, RuntimeResult, SharedList, SharedMap, Value,
 };
 use crate::span::Span;
 
@@ -18,9 +18,9 @@ pub(super) enum PreparedTarget {
         index: usize,
         span: Span,
     },
-    Table {
-        entries: SharedTable,
-        key: TableKey,
+    Map {
+        entries: SharedMap,
+        key: MapKey,
         span: Span,
     },
 }
@@ -43,11 +43,11 @@ impl Interpreter {
                 })?;
                 Ok(values.get_cloned(index).unwrap_or(Value::Nil))
             }
-            Value::Table(entries) => {
-                let key = TableKey::from_value(key, span)?;
+            Value::Map(entries) => {
+                let key = MapKey::from_value(key, span)?;
                 let entries = entries
                     .try_borrow()
-                    .map_err(|_| RuntimeError::new(span, "could not borrow table for indexing"))?;
+                    .map_err(|_| RuntimeError::new(span, "could not borrow map for indexing"))?;
                 Ok(entries
                     .iter()
                     .find(|(entry_key, _)| entry_key == &key)
@@ -55,10 +55,7 @@ impl Interpreter {
             }
             value => Err(EvaluationError::Runtime(RuntimeError::new(
                 span,
-                format!(
-                    "indexing requires a list or table, got {}",
-                    value.type_name()
-                ),
+                format!("indexing requires a list or map, got {}", value.type_name()),
             ))),
         }
     }
@@ -118,17 +115,17 @@ impl Interpreter {
                     span,
                 })
             }
-            Value::Table(entries) => {
-                let key = TableKey::from_value(key, span)?;
-                entries.try_borrow().map_err(|_| {
-                    RuntimeError::new(span, "could not borrow table for assignment")
-                })?;
-                Ok(PreparedTarget::Table { entries, key, span })
+            Value::Map(entries) => {
+                let key = MapKey::from_value(key, span)?;
+                entries
+                    .try_borrow()
+                    .map_err(|_| RuntimeError::new(span, "could not borrow map for assignment"))?;
+                Ok(PreparedTarget::Map { entries, key, span })
             }
             value => Err(EvaluationError::Runtime(RuntimeError::new(
                 span,
                 format!(
-                    "assignment target must be a list or table, got {}",
+                    "assignment target must be a list or map, got {}",
                     value.type_name()
                 ),
             ))),
@@ -167,10 +164,10 @@ impl Interpreter {
                 }
                 assert!(values.set(index, value.clone()));
             }
-            PreparedTarget::Table { entries, key, span } => {
-                let mut entries = entries.try_borrow_mut().map_err(|_| {
-                    RuntimeError::new(span, "could not borrow table for assignment")
-                })?;
+            PreparedTarget::Map { entries, key, span } => {
+                let mut entries = entries
+                    .try_borrow_mut()
+                    .map_err(|_| RuntimeError::new(span, "could not borrow map for assignment"))?;
                 if matches!(value, Value::Nil) {
                     if let Some(position) = entries
                         .iter()
