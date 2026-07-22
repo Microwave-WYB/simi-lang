@@ -1,7 +1,7 @@
 use gc::{Gc, GcCell};
 
 use super::*;
-use crate::runtime::FloatKey;
+use crate::runtime::{FloatKey, List};
 
 fn map(entries: Vec<(MapKey, Value)>) -> Value {
     Value::Map(Gc::new(GcCell::new(entries)))
@@ -50,6 +50,44 @@ fn inspection_preserves_mixed_key_insertion_order() {
 }
 
 #[test]
+fn copy_preserves_order_and_nested_aliases_with_independent_outer_storage() {
+    let nested = List::shared(vec![Value::Int(1)]);
+    let source = map(vec![
+        (
+            MapKey::String("first".to_owned()),
+            Value::List(nested.clone()),
+        ),
+        (MapKey::Int(1), Value::String("one".to_owned())),
+        (MapKey::Bool(false), Value::Int(3)),
+    ]);
+    let copied = call(map_copy, std::slice::from_ref(&source));
+
+    let (Value::Map(source_map), Value::Map(copied_map)) = (&source, &copied) else {
+        panic!("copy should return a map")
+    };
+    assert!(!Gc::ptr_eq(source_map, copied_map));
+    assert_eq!(
+        call(map_keys, std::slice::from_ref(&copied)).render(),
+        "[\"first\", 1, false]"
+    );
+
+    source_map.borrow_mut()[1].1 = Value::String("changed".to_owned());
+    copied_map
+        .borrow_mut()
+        .push((MapKey::String("last".to_owned()), Value::Int(4)));
+    nested.borrow_mut().push(Value::Int(2));
+
+    assert_eq!(
+        source.render(),
+        "{first=[1, 2], [1]=\"changed\", [false]=3}"
+    );
+    assert_eq!(
+        copied.render(),
+        "{first=[1, 2], [1]=\"one\", [false]=3, last=4}"
+    );
+}
+
+#[test]
 fn has_normalizes_numeric_keys_and_reflects_nil_as_absence() {
     let values = map(vec![
         (MapKey::Int(1), Value::String("one".to_owned())),
@@ -84,6 +122,7 @@ fn invalid_arguments_are_qualified_hard_errors() {
     let values = map(Vec::new());
     let cases = [
         hard_error(map_length(&[], Span::new(0, 1))),
+        hard_error(map_copy(&[Value::Nil], Span::new(0, 1))),
         hard_error(map_has(&[values.clone(), Value::Nil], Span::new(0, 1))),
         hard_error(map_keys(&[Value::Nil], Span::new(0, 1))),
         hard_error(map_values(&[Value::Nil], Span::new(0, 1))),
@@ -93,6 +132,7 @@ fn invalid_arguments_are_qualified_hard_errors() {
 
     for (error, name) in cases.iter().zip([
         "std/map.length",
+        "std/map.copy",
         "std/map.has",
         "std/map.keys",
         "std/map.values",
@@ -117,6 +157,7 @@ fn active_borrows_return_qualified_errors_instead_of_panicking() {
     let mutable = shared.borrow_mut();
     let errors = [
         hard_error(map_length(std::slice::from_ref(&values), Span::new(0, 1))),
+        hard_error(map_copy(std::slice::from_ref(&values), Span::new(0, 1))),
         hard_error(map_has(
             &[values.clone(), Value::String("key".to_owned())],
             Span::new(0, 1),
@@ -127,6 +168,7 @@ fn active_borrows_return_qualified_errors_instead_of_panicking() {
     ];
     for (error, name) in errors.iter().zip([
         "std/map.length",
+        "std/map.copy",
         "std/map.has",
         "std/map.keys",
         "std/map.values",

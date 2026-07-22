@@ -1,16 +1,18 @@
 use crate::Module;
 use crate::native::{
-    list_append, list_contains, list_extend, list_get, list_insert, list_length, list_pop,
-    list_remove, list_reverse, list_set, list_slice, map_clear, map_entries, map_has, map_keys,
-    map_length, map_values, stderr_flush, stderr_print, stderr_println, stdin_read_line,
-    stdout_flush, stdout_print, stdout_println, string_contains, string_ends_with, string_length,
-    string_lower, string_slice, string_split, string_starts_with, string_trim, string_upper,
+    list_append, list_contains, list_copy, list_extend, list_get, list_insert, list_length,
+    list_pop, list_remove, list_reverse, list_set, list_slice, map_clear, map_copy, map_entries,
+    map_has, map_keys, map_length, map_values, stderr_flush, stderr_print, stderr_println,
+    stdin_read_line, stdout_flush, stdout_print, stdout_println, string_contains, string_ends_with,
+    string_length, string_lower, string_slice, string_split, string_starts_with, string_trim,
+    string_upper,
 };
 use crate::runtime::{NativeFunction, Value};
 
 pub fn list() -> Module {
     Module::builder("std/list")
         .function("length", 1, list_length)
+        .function("copy", 1, list_copy)
         .function("get", 2, list_get)
         .function("append", 2, list_append)
         .function("extend", 2, list_extend)
@@ -78,6 +80,7 @@ pub fn stderr() -> Module {
 pub fn map() -> Module {
     Module::builder("std/map")
         .function("length", 1, map_length)
+        .function("copy", 1, map_copy)
         .function("has", 2, map_has)
         .function("keys", 1, map_keys)
         .function("values", 1, map_values)

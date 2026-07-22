@@ -8,6 +8,46 @@ fn assert_eval(source: &str, expected: &str) {
 }
 
 #[test]
+fn list_copy_is_an_independent_shallow_full_list_copy() {
+    assert_eval(
+        r#"
+            let list = require("std/list")
+            let nested = [1]
+            let source = [nested, 2]
+            let copied = list.copy(source)
+            list.set(source, 1, 3)
+            list.append(copied, 4)
+            list.append(nested, 5)
+            [source, copied]
+        "#,
+        "[[[1, 5], 3], [[1, 5], 2, 4]]",
+    );
+}
+
+#[test]
+fn list_copy_argument_errors_are_qualified_hard_diagnostics() {
+    let wrong_type = match eval("let list = require(\"std/list\") list.copy({})") {
+        Err(error) => error,
+        Ok(_) => panic!("wrong copy argument should be a hard diagnostic"),
+    };
+    assert!(
+        wrong_type
+            .to_string()
+            .contains("std/list.copy requires a list, got map")
+    );
+
+    let wrong_arity = match eval("let list = require(\"std/list\") list.copy()") {
+        Err(error) => error,
+        Ok(_) => panic!("wrong copy arity should be a hard diagnostic"),
+    };
+    assert!(
+        wrong_arity
+            .to_string()
+            .contains("native function `std/list.copy` expects 1 arguments, got 0")
+    );
+}
+
+#[test]
 fn list_mutations_update_aliases_and_return_documented_values() {
     assert_eval(
         r#"

@@ -1,3 +1,5 @@
+use gc::{Gc, GcCell};
+
 use crate::runtime::{List, MapKey, NativeResult, RuntimeError, RuntimeResult, SharedMap, Value};
 use crate::span::Span;
 
@@ -8,6 +10,13 @@ pub fn map_length(args: &[Value], span: Span) -> NativeResult {
     let length = i64::try_from(entries.len())
         .map_err(|_| RuntimeError::new(span, "map length exceeds i64"))?;
     Ok(Ok(Value::Int(length)))
+}
+
+pub fn map_copy(args: &[Value], span: Span) -> NativeResult {
+    expect_arity(args, 1, "copy", span)?;
+    let map = expect_map(&args[0], "copy", span)?;
+    let entries = map.try_borrow().map_err(|_| borrow_error("copy", span))?;
+    Ok(Ok(Value::Map(Gc::new(GcCell::new(entries.clone())))))
 }
 
 pub fn map_has(args: &[Value], span: Span) -> NativeResult {

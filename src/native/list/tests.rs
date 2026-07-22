@@ -40,6 +40,33 @@ fn list_operations_mutate_aliases() {
 }
 
 #[test]
+fn copy_creates_an_independent_shallow_cow_list() {
+    let nested = list(vec![Value::Int(1)]);
+    let source = list(vec![nested.clone(), Value::Int(2)]);
+    let copied = list_copy(std::slice::from_ref(&source), Span::new(0, 1))
+        .unwrap()
+        .unwrap();
+
+    let (Value::List(source_list), Value::List(copied_list)) = (&source, &copied) else {
+        panic!("copy should return a list")
+    };
+    assert!(!Gc::ptr_eq(source_list, copied_list));
+
+    list_set(
+        &[source.clone(), Value::Int(1), Value::Int(3)],
+        Span::new(0, 1),
+    )
+    .unwrap()
+    .unwrap();
+    list_append(&[nested, Value::Int(4)], Span::new(0, 1))
+        .unwrap()
+        .unwrap();
+
+    assert_eq!(source.render(), "[[1, 4], 3]");
+    assert_eq!(copied.render(), "[[1, 4], 2]");
+}
+
+#[test]
 fn extending_a_list_with_itself_uses_a_snapshot() {
     let values = list(vec![Value::Int(1), Value::Int(2)]);
     list_extend(&[values.clone(), values.clone()], Span::new(0, 1))
@@ -69,6 +96,8 @@ fn extending_a_suffix_with_itself_snapshots_only_its_visible_range() {
 fn invalid_arity_type_and_indices_are_errors() {
     let values = list(vec![Value::Int(1)]);
     assert!(list_length(&[], Span::new(0, 1)).is_err());
+    assert!(list_copy(&[], Span::new(0, 1)).is_err());
+    assert!(list_copy(&[Value::Nil], Span::new(0, 1)).is_err());
     assert!(list_append(&[Value::Nil, Value::Nil], Span::new(0, 1)).is_err());
     assert!(
         list_get(
@@ -240,6 +269,10 @@ fn active_borrows_return_errors_instead_of_panicking() {
     let Value::List(shared) = &values else {
         unreachable!()
     };
+    let mutable = shared.borrow_mut();
+    assert!(list_copy(std::slice::from_ref(&values), Span::new(0, 1)).is_err());
+    drop(mutable);
+
     let _borrow = shared.borrow();
     assert!(list_append(&[values.clone(), Value::Nil], Span::new(0, 1)).is_err());
     assert!(list_reverse(std::slice::from_ref(&values), Span::new(0, 1)).is_err());

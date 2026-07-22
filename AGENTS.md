@@ -97,9 +97,9 @@ A nonnegative out-of-range read returns `nil`. Negative and non-integer indices 
 { error = "index_out_of_bounds", index = index, length = length }
 ```
 
-Ordinary aliases observe the same mutations. List-rest pattern captures and `list.slice` create independent copy-on-write views in O(1), while nested values retain shallow alias identity.
+Ordinary aliases observe the same mutations. List-rest pattern captures, `list.slice`, and `list.copy` create independent copy-on-write views in O(1), while nested values retain shallow alias identity. `list.copy` covers the source's full visible range; mutating either outer list detaches its backing as needed.
 
-The standard `std/list` module provides mutation, slicing, inspection, and higher-order operations. In addition to `map`, `filter`, and `fold`, its Gleam-inspired query surface includes `find`, `find_index`, `any`, `all`, `each`, and predicate-based `count`. Higher-order operations iterate over a snapshot, invoke Simi or native callables through the active interpreter, and propagate callback raises. Predicates must return booleans. Searches and boolean queries short-circuit; `all([])` is true and `any([])` is false. `each` returns the original list alias after visiting the snapshot from left to right.
+The standard `std/list` module provides mutation, shallow copying, slicing, inspection, and higher-order operations. In addition to `map`, `filter`, and `fold`, its Gleam-inspired query surface includes `find`, `find_index`, `any`, `all`, `each`, and predicate-based `count`. Higher-order operations iterate over a snapshot, invoke Simi or native callables through the active interpreter, and propagate callback raises. Predicates must return booleans. Searches and boolean queries short-circuit; `all([])` is true and `any([])` is false. `each` returns the original list alias after visiting the snapshot from left to right.
 
 ### Maps
 
@@ -120,7 +120,7 @@ settings.name = nil       # deletes the key
 settings[dynamic] = nil   # deletes the key
 ```
 
-Nil-valued map literal entries are omitted. Thus `map[key] != nil` is a valid key-existence check for script-created maps.
+Nil-valued map literal entries are omitted. Thus `map[key] != nil` is a valid key-existence check for script-created maps. `map.copy` creates an independent shallow copy in O(n), preserving normalized keys, insertion order, and aliases to nested values.
 
 Lists may contain `nil`; nil-as-deletion applies only to maps.
 

@@ -110,6 +110,10 @@ impl List {
         self.slice(offset, self.length)
     }
 
+    pub(crate) fn shallow_copy(&self) -> Self {
+        self.slice(0, self.length)
+    }
+
     pub(crate) fn slice(&self, start: usize, end: usize) -> Self {
         assert!(start <= end, "list slice ends before it starts");
         assert!(end <= self.length, "list slice ends past its source");
@@ -204,14 +208,20 @@ mod tests {
     }
 
     #[test]
-    fn full_range_clones_detach_on_mutation() {
-        let source = List::new(vec![Value::Int(1), Value::Int(2)]);
-        let mut independent = source.clone();
+    fn shallow_copies_share_full_range_backing_until_mutation() {
+        let mut source = List::new(vec![Value::Int(1), Value::Int(2)]);
+        let mut independent = source.shallow_copy();
         assert!(Gc::ptr_eq(&source.backing, &independent.backing));
+        assert_eq!(independent.start, 0);
+        assert_eq!(independent.length, source.length);
 
         independent.set(0, Value::Int(7));
         assert!(!Gc::ptr_eq(&source.backing, &independent.backing));
         assert_eq!(ints(&source), vec![1, 2]);
+        assert_eq!(ints(&independent), vec![7, 2]);
+
+        source.push(Value::Int(3));
+        assert_eq!(ints(&source), vec![1, 2, 3]);
         assert_eq!(ints(&independent), vec![7, 2]);
     }
 
