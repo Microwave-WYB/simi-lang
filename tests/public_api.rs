@@ -4,7 +4,10 @@ use gc::{Gc, GcCell};
 
 use simiscript::interpreter::Interpreter;
 use simiscript::lexer::{LexError, Token, TokenKind, lex};
-use simiscript::native::{list_append, list_extend, list_get, list_length, list_set};
+use simiscript::native::{
+    list_append, list_contains, list_extend, list_get, list_insert, list_length, list_pop,
+    list_remove, list_reverse, list_set, list_slice,
+};
 use simiscript::parser::{ParseError, Parser, parse};
 use simiscript::runtime::{
     Environment, FloatKey, List, MapKey, NativeFn, NativeFunction, NativeResult, Raised,
@@ -27,7 +30,19 @@ fn existing_public_paths_remain_available() {
     let _ = EngineBuilder::new;
     let _: ModuleBuilder = Module::builder("example");
     let _: Option<&NativeCallback> = None;
-    let _ = [list_length, list_get, list_append, list_extend, list_set];
+    let _ = [
+        list_length,
+        list_get,
+        list_append,
+        list_extend,
+        list_set,
+        list_insert,
+        list_remove,
+        list_pop,
+        list_slice,
+        list_contains,
+        list_reverse,
+    ];
     let _: Option<TokenKind> = None;
     let _: Option<Environment> = None;
     let _: Option<FloatKey> = None;

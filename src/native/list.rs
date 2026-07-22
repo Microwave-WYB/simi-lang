@@ -1,3 +1,4 @@
+use crate::interpreter::operations::values_equal;
 use crate::runtime::{NativeResult, Raised, RuntimeError, RuntimeResult, SharedList, Value};
 use crate::span::Span;
 
@@ -57,6 +58,88 @@ pub fn list_set(args: &[Value], span: Span) -> NativeResult {
         return Ok(Err(Raised::index_out_of_bounds(raw_index, length, span)?));
     }
     assert!(values.set(index, args[2].clone()));
+    Ok(Ok(Value::Nil))
+}
+
+pub fn list_insert(args: &[Value], span: Span) -> NativeResult {
+    expect_arity(args, 3, "insert", span)?;
+    let list = expect_list(&args[0], "insert", span)?;
+    let (raw_index, index) = expect_index(&args[1], "insert", span)?;
+    let mut values = list
+        .try_borrow_mut()
+        .map_err(|_| borrow_error("insert", span))?;
+    let length = values.len();
+    if index > length {
+        return Ok(Err(Raised::index_out_of_bounds(raw_index, length, span)?));
+    }
+    values.insert(index, args[2].clone());
+    Ok(Ok(Value::Nil))
+}
+
+pub fn list_remove(args: &[Value], span: Span) -> NativeResult {
+    expect_arity(args, 2, "remove", span)?;
+    let list = expect_list(&args[0], "remove", span)?;
+    let (raw_index, index) = expect_index(&args[1], "remove", span)?;
+    let mut values = list
+        .try_borrow_mut()
+        .map_err(|_| borrow_error("remove", span))?;
+    let length = values.len();
+    if index >= length {
+        return Ok(Err(Raised::index_out_of_bounds(raw_index, length, span)?));
+    }
+    Ok(Ok(values.remove(index)))
+}
+
+pub fn list_pop(args: &[Value], span: Span) -> NativeResult {
+    expect_arity(args, 1, "pop", span)?;
+    let list = expect_list(&args[0], "pop", span)?;
+    let mut values = list
+        .try_borrow_mut()
+        .map_err(|_| borrow_error("pop", span))?;
+    let length = values.len();
+    if length == 0 {
+        return Ok(Err(Raised::index_out_of_bounds(0, 0, span)?));
+    }
+    Ok(Ok(values.remove(length - 1)))
+}
+
+pub fn list_slice(args: &[Value], span: Span) -> NativeResult {
+    expect_arity(args, 3, "slice", span)?;
+    let list = expect_list(&args[0], "slice", span)?;
+    let (_, start) = expect_index(&args[1], "slice", span)?;
+    let (_, end) = expect_index(&args[2], "slice", span)?;
+    let values = list.try_borrow().map_err(|_| borrow_error("slice", span))?;
+    let length = values.len();
+    let start = start.min(length);
+    let end = end.min(length).max(start);
+    Ok(Ok(Value::List(values.slice(start, end).into_shared())))
+}
+
+pub fn list_contains(args: &[Value], span: Span) -> NativeResult {
+    expect_arity(args, 2, "contains", span)?;
+    let list = expect_list(&args[0], "contains", span)?;
+    let values = list
+        .try_borrow()
+        .map_err(|_| borrow_error("contains", span))?;
+    let needle = &args[1];
+    let contains = values.with_visible(|values| {
+        for value in values {
+            if values_equal(value, needle, span)? {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    })?;
+    Ok(Ok(Value::Bool(contains)))
+}
+
+pub fn list_reverse(args: &[Value], span: Span) -> NativeResult {
+    expect_arity(args, 1, "reverse", span)?;
+    let list = expect_list(&args[0], "reverse", span)?;
+    let mut values = list
+        .try_borrow_mut()
+        .map_err(|_| borrow_error("reverse", span))?;
+    values.reverse();
     Ok(Ok(Value::Nil))
 }
 

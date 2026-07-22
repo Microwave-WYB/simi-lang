@@ -8,7 +8,7 @@ use crate::span::Span;
 
 mod call;
 mod execution;
-mod operations;
+pub(crate) mod operations;
 mod pattern;
 
 pub struct Interpreter {

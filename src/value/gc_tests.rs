@@ -86,6 +86,17 @@ fn unreachable_list_and_map_cycles_are_collected() {
 }
 
 #[test]
+fn unreachable_slice_view_and_cyclic_source_are_collected() {
+    collected_after(|| {
+        let source = List::shared(Vec::new());
+        source.borrow_mut().push(Value::List(source.clone()));
+        let view = source.borrow().slice(0, 1).into_shared();
+        drop(source);
+        drop(view);
+    });
+}
+
+#[test]
 fn unreachable_indirect_container_cycle_is_collected() {
     collected_after(|| {
         let list = List::shared(Vec::new());

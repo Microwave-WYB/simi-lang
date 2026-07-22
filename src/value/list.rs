@@ -34,7 +34,11 @@ impl List {
     }
 
     pub fn shared(values: Vec<Value>) -> SharedList {
-        Gc::new(GcCell::new(Self::new(values)))
+        Self::new(values).into_shared()
+    }
+
+    pub(crate) fn into_shared(self) -> SharedList {
+        Gc::new(GcCell::new(self))
     }
 
     pub fn len(&self) -> usize {
@@ -71,6 +75,28 @@ impl List {
         self.backing.borrow_mut().extend(values);
     }
 
+    pub(crate) fn insert(&mut self, index: usize, value: Value) {
+        assert!(
+            index <= self.length,
+            "list insertion index is out of bounds"
+        );
+        self.detach_if_needed();
+        self.backing.borrow_mut().insert(index, value);
+        self.length += 1;
+    }
+
+    pub(crate) fn remove(&mut self, index: usize) -> Value {
+        assert!(index < self.length, "list removal index is out of bounds");
+        self.detach_if_needed();
+        self.length -= 1;
+        self.backing.borrow_mut().remove(index)
+    }
+
+    pub(crate) fn reverse(&mut self) {
+        self.detach_if_needed();
+        self.backing.borrow_mut().reverse();
+    }
+
     pub fn set(&mut self, index: usize, value: Value) -> bool {
         if index >= self.length {
             return false;
@@ -81,12 +107,17 @@ impl List {
     }
 
     pub(crate) fn suffix(&self, offset: usize) -> Self {
-        assert!(offset <= self.length, "list suffix starts past its end");
+        self.slice(offset, self.length)
+    }
+
+    pub(crate) fn slice(&self, start: usize, end: usize) -> Self {
+        assert!(start <= end, "list slice ends before it starts");
+        assert!(end <= self.length, "list slice ends past its source");
         Self {
             backing: self.backing.clone(),
             views: Rc::clone(&self.views),
-            start: self.start + offset,
-            length: self.length - offset,
+            start: self.start + start,
+            length: end - start,
         }
     }
 
@@ -182,5 +213,27 @@ mod tests {
         assert!(!Gc::ptr_eq(&source.backing, &independent.backing));
         assert_eq!(ints(&source), vec![1, 2]);
         assert_eq!(ints(&independent), vec![7, 2]);
+    }
+
+    #[test]
+    fn slices_share_backing_and_detach_for_structural_mutations() {
+        let source = List::new(vec![
+            Value::Int(0),
+            Value::Int(1),
+            Value::Int(2),
+            Value::Int(3),
+        ]);
+        let original = source.backing.clone();
+        let mut slice = source.slice(1, 3);
+        assert!(Gc::ptr_eq(&original, &slice.backing));
+        assert_eq!(ints(&slice), vec![1, 2]);
+
+        slice.insert(1, Value::Int(9));
+        assert!(!Gc::ptr_eq(&original, &slice.backing));
+        assert_eq!(ints(&source), vec![0, 1, 2, 3]);
+        assert_eq!(ints(&slice), vec![1, 9, 2]);
+        assert_eq!(slice.remove(0).render(), "1");
+        slice.reverse();
+        assert_eq!(ints(&slice), vec![2, 9]);
     }
 }

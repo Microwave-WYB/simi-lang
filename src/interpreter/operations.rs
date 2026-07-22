@@ -484,6 +484,16 @@ fn compare_int_float(integer: i64, float: f64) -> Option<Ordering> {
     })
 }
 
+pub(crate) fn values_equal(left: &Value, right: &Value, span: Span) -> RuntimeResult<bool> {
+    match primitive_equal(left, right, span) {
+        Ok(equal) => Ok(equal),
+        Err(NumericError::Runtime(error)) => Err(error),
+        Err(NumericError::DivisionByZero) => {
+            unreachable!("equality cannot produce a division-by-zero error")
+        }
+    }
+}
+
 fn primitive_equal(left: &Value, right: &Value, span: Span) -> NumericResult<bool> {
     if let Some(equal) = numeric_equal(left, right) {
         return Ok(equal);
