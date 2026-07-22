@@ -13,7 +13,7 @@ fn kinds(source: &str) -> Vec<TokenKind> {
 fn lexes_every_keyword_operator_and_delimiter() {
     assert_eq!(
         kinds(
-            "fn do end if then elseif else let tap nil true false and or not loop break continue \
+            "fn do end if then elseif else let tap nil true false and or not is loop break continue \
              match with case when raise try catch ( ) [ ] { } , . .. = == != + - * / // % -> < <= > >= |> <|"
         ),
         vec![
@@ -32,6 +32,7 @@ fn lexes_every_keyword_operator_and_delimiter() {
             TokenKind::And,
             TokenKind::Or,
             TokenKind::Not,
+            TokenKind::Is,
             TokenKind::Loop,
             TokenKind::Break,
             TokenKind::Continue,
@@ -429,9 +430,9 @@ fn rejects_malformed_or_non_finite_float_literals() {
 }
 
 #[test]
-fn boolean_operator_keywords_are_exact_and_case_sensitive() {
+fn boolean_and_is_operator_keywords_are_exact_and_case_sensitive() {
     assert_eq!(
-        kinds("and And android or Or orbit not Not nothing"),
+        kinds("and And android or Or orbit not Not nothing is Is island"),
         vec![
             TokenKind::And,
             TokenKind::Ident("And".to_owned()),
@@ -442,7 +443,17 @@ fn boolean_operator_keywords_are_exact_and_case_sensitive() {
             TokenKind::Not,
             TokenKind::Ident("Not".to_owned()),
             TokenKind::Ident("nothing".to_owned()),
+            TokenKind::Is,
+            TokenKind::Ident("Is".to_owned()),
+            TokenKind::Ident("island".to_owned()),
             TokenKind::Eof,
         ]
     );
+}
+
+#[test]
+fn is_keyword_uses_its_exact_utf8_byte_span() {
+    let tokens = lex("\"é\" is \"string\"").expect("source should lex");
+    assert_eq!(tokens[1].kind, TokenKind::Is);
+    assert_eq!(tokens[1].span, Span::new(5, 7));
 }

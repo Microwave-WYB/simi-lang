@@ -114,10 +114,7 @@ mod tests {
         .unwrap();
         let result = run(Cli { file: path.clone() }).unwrap().unwrap();
         fs::remove_file(path).unwrap();
-        assert_eq!(
-            result.render(),
-            "[\"native function\", \"native function\"]"
-        );
+        assert_eq!(result.render(), "[\"function\", \"function\"]");
     }
 
     #[test]

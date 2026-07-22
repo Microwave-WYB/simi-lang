@@ -2,7 +2,8 @@ use std::collections::HashSet;
 
 use super::{ParseError, Parser, SimpleToken};
 use crate::ast::{
-    AssignmentTarget, AssignmentTargetKind, BinaryOp, Expr, ExprKind, PipelineStage, UnaryOp,
+    AssignmentTarget, AssignmentTargetKind, BinaryOp, Expr, ExprKind, PipelineStage, RuntimeType,
+    UnaryOp,
 };
 use crate::lexer::TokenKind;
 use crate::span::Span;
@@ -160,6 +161,30 @@ impl Parser {
     fn parse_comparison(&mut self) -> Result<Expr, ParseError> {
         let mut expression = self.parse_additive()?;
         loop {
+            if self.consume_simple(SimpleToken::Is) {
+                let label_span = self.current().span;
+                let TokenKind::String(label) = &self.current().kind else {
+                    return Err(self.error_current(format!(
+                        "expected runtime type string literal after `is`, found `{}`",
+                        self.current_name()
+                    )));
+                };
+                let expected = runtime_type(label).ok_or_else(|| ParseError {
+                    span: label_span,
+                    message: format!("unknown runtime type label `{label}`"),
+                })?;
+                self.advance_span();
+                let span = expression.span.merge(label_span);
+                expression = Expr {
+                    kind: ExprKind::Is {
+                        value: Box::new(expression),
+                        expected,
+                    },
+                    span,
+                };
+                continue;
+            }
+
             let operation = if self.consume_simple(SimpleToken::Less) {
                 Some(BinaryOp::Less)
             } else if self.consume_simple(SimpleToken::LessEqual) {
@@ -431,6 +456,20 @@ impl Parser {
             kind: ExprKind::Map(entries),
             span: start.merge(end),
         })
+    }
+}
+
+fn runtime_type(label: &str) -> Option<RuntimeType> {
+    match label {
+        "nil" => Some(RuntimeType::Nil),
+        "boolean" => Some(RuntimeType::Boolean),
+        "integer" => Some(RuntimeType::Integer),
+        "float" => Some(RuntimeType::Float),
+        "string" => Some(RuntimeType::String),
+        "list" => Some(RuntimeType::List),
+        "map" => Some(RuntimeType::Map),
+        "function" => Some(RuntimeType::Function),
+        _ => None,
     }
 }
 

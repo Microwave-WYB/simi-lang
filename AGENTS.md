@@ -143,6 +143,15 @@ and  or  not
 
 Boolean operators are strict and short-circuiting. Simi does not use Lua-style truthiness.
 
+The comparison-precedence `is` operator performs runtime type inspection with a validated string-literal label:
+
+```simi
+value is "integer"
+callback is "function"
+```
+
+Accepted labels are `"nil"`, `"boolean"`, `"integer"`, `"float"`, `"string"`, `"list"`, `"map"`, and `"function"`. The operand is evaluated exactly once. The label must be a literal and is validated by the parser; dynamic or unknown labels are rejected. Both user and native functions match `"function"`. This syntax is intrinsic and does not call the shadowable `type` global.
+
 ### Pipelines
 
 A pipeline stage must be a call. The incoming value is inserted as the first argument.
@@ -171,7 +180,7 @@ let list = require("std/list")
 list.length([ 1, 2, 3 ])
 ```
 
-Normal/default interpreters and all `Engine` evaluations provide the shadowable globals `type(value)` and `inspect(value)` alongside `require`. The low-level `Interpreter::with_globals` constructor intentionally treats its environment as complete and does not add a prelude. `type` returns stable strings for Simi's runtime value categories. `inspect` is cycle-safe human-readable rendering, not serialization.
+Normal/default interpreters and all `Engine` evaluations provide the shadowable globals `type(value)` and `inspect(value)` alongside `require`. The low-level `Interpreter::with_globals` constructor intentionally treats its environment as complete and does not add a prelude. `type` returns the same stable reflective labels accepted by `is`, including `"function"` for both user and native functions. Detailed runtime diagnostics may still distinguish native functions. `inspect` is cycle-safe human-readable rendering, not serialization.
 
 Modules are registered by the embedding host and cached per `Engine`. Repeated `require` calls return the same mutable export map, and module state persists across evaluations performed by that engine. Separate engines have separate module registries. `Engine::new()` has no registered modules; `Engine::with_stdlib()` includes `std/list`, `std/map`, and `std/string`. The root `eval` convenience function uses a fresh standard-library engine.
 

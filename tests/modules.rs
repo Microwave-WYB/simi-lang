@@ -270,7 +270,7 @@ fn global_type_reports_every_runtime_value_category() {
 
     assert_eq!(
         value.render(),
-        "[\"integer\", \"float\", \"string\", \"boolean\", \"nil\", \"list\", \"map\", \"function\", \"native function\"]"
+        "[\"integer\", \"float\", \"string\", \"boolean\", \"nil\", \"list\", \"map\", \"function\", \"function\"]"
     );
 }
 
@@ -340,7 +340,7 @@ fn stdio_modules_are_opt_in_capabilities() {
         .unwrap();
     assert_eq!(
         value.render(),
-        "[\"native function\", \"native function\", \"native function\", \"native function\", \"native function\", \"native function\", \"native function\"]"
+        "[\"function\", \"function\", \"function\", \"function\", \"function\", \"function\", \"function\"]"
     );
 }
 

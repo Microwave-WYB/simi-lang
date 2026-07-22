@@ -27,6 +27,13 @@ impl Value {
         }
     }
 
+    pub(crate) fn reflective_type_name(&self) -> &'static str {
+        match self {
+            Self::NativeFunction(_) => "function",
+            value => value.type_name(),
+        }
+    }
+
     pub fn render(&self) -> String {
         self.render_with(&mut HashSet::new())
     }

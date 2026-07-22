@@ -46,6 +46,99 @@ fn respects_expression_precedence_and_associativity() {
 }
 
 #[test]
+fn parses_is_at_comparison_precedence_with_a_validated_runtime_type() {
+    let program = parse_source("1 + 2 is \"integer\" == true and false").unwrap();
+    let StmtKind::Expr(Expr {
+        kind:
+            ExprKind::Binary {
+                left: equality,
+                op: BinaryOp::And,
+                ..
+            },
+        ..
+    }) = &program.items[0].kind
+    else {
+        panic!("expected `and` at the root");
+    };
+    let ExprKind::Binary {
+        left: type_check,
+        op: BinaryOp::Equal,
+        ..
+    } = &equality.kind
+    else {
+        panic!("expected equality above comparison precedence");
+    };
+    let ExprKind::Is { value, expected } = &type_check.kind else {
+        panic!("expected dedicated is expression");
+    };
+    assert_eq!(*expected, RuntimeType::Integer);
+    assert!(matches!(
+        value.kind,
+        ExprKind::Binary {
+            op: BinaryOp::Add,
+            ..
+        }
+    ));
+
+    let chained = parse_source("1 < 2 is \"boolean\"").unwrap();
+    let StmtKind::Expr(Expr {
+        kind: ExprKind::Is { value, expected },
+        ..
+    }) = &chained.items[0].kind
+    else {
+        panic!("expected left-associated comparison-level is expression");
+    };
+    assert_eq!(*expected, RuntimeType::Boolean);
+    assert!(matches!(
+        value.kind,
+        ExprKind::Binary {
+            op: BinaryOp::Less,
+            ..
+        }
+    ));
+}
+
+#[test]
+fn rejects_dynamic_and_unknown_is_labels_at_the_rhs_span() {
+    for source in ["value is label", "value is type(value)", "value is nil"] {
+        let error = parse_source(source).unwrap_err();
+        let rhs_start = source.find(' ').unwrap() + " is ".len();
+        assert_eq!(
+            error.message,
+            format!(
+                "expected runtime type string literal after `is`, found `{}`",
+                if source.ends_with("nil") {
+                    "nil"
+                } else {
+                    "identifier"
+                }
+            )
+        );
+        let rhs_end = source[rhs_start..]
+            .find(|character: char| !character.is_ascii_alphanumeric() && character != '_')
+            .map_or(source.len(), |offset| rhs_start + offset);
+        assert_eq!(error.span, Span::new(rhs_start, rhs_end));
+    }
+
+    let unknown_source = "\"é\" is \"number\"";
+    let error = parse_source(unknown_source).unwrap_err();
+    let label_start = unknown_source.rfind('"').unwrap() - "number".len() - 1;
+    assert_eq!(error.message, "unknown runtime type label `number`");
+    assert_eq!(error.span, Span::new(label_start, unknown_source.len()));
+
+    let missing_source = "value is";
+    let error = parse_source(missing_source).unwrap_err();
+    assert_eq!(
+        error.message,
+        "expected runtime type string literal after `is`, found `end of file`"
+    );
+    assert_eq!(
+        error.span,
+        Span::new(missing_source.len(), missing_source.len())
+    );
+}
+
+#[test]
 fn accepts_trailing_commas_in_all_comma_separated_constructs() {
     let program = parse_source(
         "fn collect(first, second,) do [first, second,] end collect({a=1, [2]=3,}, 4,) |> collect(5,)",

@@ -1,7 +1,7 @@
 use gc::{Gc, GcCell};
 
 use super::{EvaluationError, EvaluationResult, Interpreter, pattern::match_pattern};
-use crate::ast::{BinaryOp, Block, Expr, ExprKind, Stmt, StmtKind};
+use crate::ast::{BinaryOp, Block, Expr, ExprKind, RuntimeType, Stmt, StmtKind};
 use crate::runtime::{
     Environment, List, MapKey, Raised, RuntimeError, RuntimeResult, UserFunction, Value,
 };
@@ -189,6 +189,10 @@ impl Interpreter {
                 self.evaluate_unary(op, value, expression.span)
                     .map_err(EvaluationError::from)
             }
+            ExprKind::Is { value, expected } => {
+                let value = self.evaluate_expression(value, env)?;
+                Ok(Value::Bool(value_is_type(&value, *expected)))
+            }
             ExprKind::Binary {
                 left,
                 op: op @ (BinaryOp::And | BinaryOp::Or),
@@ -308,4 +312,21 @@ impl Interpreter {
             }
         }
     }
+}
+
+fn value_is_type(value: &Value, expected: RuntimeType) -> bool {
+    matches!(
+        (value, expected),
+        (Value::Nil, RuntimeType::Nil)
+            | (Value::Bool(_), RuntimeType::Boolean)
+            | (Value::Int(_), RuntimeType::Integer)
+            | (Value::Float(_), RuntimeType::Float)
+            | (Value::String(_), RuntimeType::String)
+            | (Value::List(_), RuntimeType::List)
+            | (Value::Map(_), RuntimeType::Map)
+            | (
+                Value::Function(_) | Value::NativeFunction(_),
+                RuntimeType::Function
+            )
+    )
 }

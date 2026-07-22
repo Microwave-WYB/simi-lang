@@ -132,6 +132,7 @@ pub(super) enum SimpleToken {
     And,
     Or,
     Not,
+    Is,
     Less,
     LessEqual,
     Greater,
@@ -183,6 +184,7 @@ impl SimpleToken {
                 | (Self::And, TokenKind::And)
                 | (Self::Or, TokenKind::Or)
                 | (Self::Not, TokenKind::Not)
+                | (Self::Is, TokenKind::Is)
                 | (Self::Less, TokenKind::Less)
                 | (Self::LessEqual, TokenKind::LessEqual)
                 | (Self::Greater, TokenKind::Greater)
@@ -224,6 +226,7 @@ fn token_name(kind: &TokenKind) -> &'static str {
         TokenKind::And => "and",
         TokenKind::Or => "or",
         TokenKind::Not => "not",
+        TokenKind::Is => "is",
         TokenKind::LParen => "(",
         TokenKind::RParen => ")",
         TokenKind::LBracket => "[",

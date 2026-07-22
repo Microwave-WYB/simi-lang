@@ -180,6 +180,7 @@ impl<'a> Lexer<'a> {
             "and" => TokenKind::And,
             "or" => TokenKind::Or,
             "not" => TokenKind::Not,
+            "is" => TokenKind::Is,
             "loop" => TokenKind::Loop,
             "break" => TokenKind::Break,
             "continue" => TokenKind::Continue,
