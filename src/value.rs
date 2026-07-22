@@ -172,39 +172,43 @@ impl NativeFunction {
     }
 
     pub(crate) fn list_map() -> Self {
-        Self::intrinsic("list.map", 2, NativeImplementation::ListMap)
+        Self::intrinsic("std/list.map", 2, NativeImplementation::ListMap)
     }
 
     pub(crate) fn list_filter() -> Self {
-        Self::intrinsic("list.filter", 2, NativeImplementation::ListFilter)
+        Self::intrinsic("std/list.filter", 2, NativeImplementation::ListFilter)
     }
 
     pub(crate) fn list_fold() -> Self {
-        Self::intrinsic("list.fold", 3, NativeImplementation::ListFold)
+        Self::intrinsic("std/list.fold", 3, NativeImplementation::ListFold)
     }
 
     pub(crate) fn list_find() -> Self {
-        Self::intrinsic("list.find", 2, NativeImplementation::ListFind)
+        Self::intrinsic("std/list.find", 2, NativeImplementation::ListFind)
     }
 
     pub(crate) fn list_find_index() -> Self {
-        Self::intrinsic("list.find_index", 2, NativeImplementation::ListFindIndex)
+        Self::intrinsic(
+            "std/list.find_index",
+            2,
+            NativeImplementation::ListFindIndex,
+        )
     }
 
     pub(crate) fn list_any() -> Self {
-        Self::intrinsic("list.any", 2, NativeImplementation::ListAny)
+        Self::intrinsic("std/list.any", 2, NativeImplementation::ListAny)
     }
 
     pub(crate) fn list_all() -> Self {
-        Self::intrinsic("list.all", 2, NativeImplementation::ListAll)
+        Self::intrinsic("std/list.all", 2, NativeImplementation::ListAll)
     }
 
     pub(crate) fn list_each() -> Self {
-        Self::intrinsic("list.each", 2, NativeImplementation::ListEach)
+        Self::intrinsic("std/list.each", 2, NativeImplementation::ListEach)
     }
 
     pub(crate) fn list_count() -> Self {
-        Self::intrinsic("list.count", 2, NativeImplementation::ListCount)
+        Self::intrinsic("std/list.count", 2, NativeImplementation::ListCount)
     }
 
     fn intrinsic(name: &str, arity: usize, implementation: NativeImplementation) -> Self {

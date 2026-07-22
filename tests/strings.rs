@@ -10,7 +10,7 @@ fn value(source: &str) -> simiscript::Value {
 fn standard_string_module_is_available_through_the_public_eval_api() {
     let result = value(
         r#"
-        let string = require("string")
+        let string = require("std/string")
         [
             string.length("aé🦀"),
             string.slice("aé🦀z", 1, 3),
@@ -34,7 +34,7 @@ fn standard_string_module_is_available_through_the_public_eval_api() {
 fn slice_bounds_and_split_semantics_are_publicly_observable() {
     let result = value(
         r#"
-        let string = require("string")
+        let string = require("std/string")
         [
             string.slice("abc", 1, 99),
             string.slice("abc", 99, 100),
@@ -55,7 +55,7 @@ fn slice_bounds_and_split_semantics_are_publicly_observable() {
 #[test]
 fn string_module_is_an_explicit_capability() {
     let missing = match Engine::new()
-        .eval("require(\"string\")")
+        .eval("require(\"std/string\")")
         .expect("missing module should be a language raise")
     {
         Err(raised) => raised,
@@ -66,13 +66,13 @@ fn string_module_is_an_explicit_capability() {
     };
     assert_eq!(
         missing.value.render(),
-        "{error=\"module_not_found\", module=\"string\"}"
+        "{error=\"module_not_found\", module=\"std/string\"}"
     );
 
     let direct = Engine::builder()
         .module(simiscript::stdlib::string())
         .build()
-        .eval("let string = require(\"string\") string.upper(\"ok\")")
+        .eval("let string = require(\"std/string\") string.upper(\"ok\")")
         .unwrap()
         .unwrap();
     assert_eq!(direct.render(), "\"OK\"");
@@ -82,20 +82,20 @@ fn string_module_is_an_explicit_capability() {
 fn wrong_types_and_indices_remain_uncatchable_hard_diagnostics() {
     for (source, qualified_name) in [
         (
-            "let string = require(\"string\") try string.length(1) catch case _ -> nil end",
-            "string.length",
+            "let string = require(\"std/string\") try string.length(1) catch case _ -> nil end",
+            "std/string.length",
         ),
         (
-            "let string = require(\"string\") try string.slice(\"abc\", 0 - 1, 2) catch case _ -> nil end",
-            "string.slice",
+            "let string = require(\"std/string\") try string.slice(\"abc\", 0 - 1, 2) catch case _ -> nil end",
+            "std/string.slice",
         ),
         (
-            "let string = require(\"string\") try string.slice(\"abc\", 0, 2.0) catch case _ -> nil end",
-            "string.slice",
+            "let string = require(\"std/string\") try string.slice(\"abc\", 0, 2.0) catch case _ -> nil end",
+            "std/string.slice",
         ),
         (
-            "let string = require(\"string\") try string.contains(\"abc\", 1) catch case _ -> nil end",
-            "string.contains",
+            "let string = require(\"std/string\") try string.contains(\"abc\", 1) catch case _ -> nil end",
+            "std/string.contains",
         ),
     ] {
         let error = match eval(source) {

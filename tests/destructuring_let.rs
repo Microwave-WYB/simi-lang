@@ -28,7 +28,7 @@ fn destructuring_let_reuses_nested_list_and_map_patterns() {
 fn destructuring_let_rest_is_cow_and_nested_values_remain_aliased() {
     let value = evaluate(
         r#"
-        let list = require("list")
+        let list = require("std/list")
         let nested = [1]
         let source = [0, nested, 2, 3]
         let [zero, captured, ..tail] = source
@@ -45,7 +45,7 @@ fn destructuring_let_rest_is_cow_and_nested_values_remain_aliased() {
 fn destructuring_rhs_is_evaluated_once() {
     let value = evaluate(
         r#"
-        let list = require("list")
+        let list = require("std/list")
         let calls = []
         fn produce() do
             list.append(calls, 1)

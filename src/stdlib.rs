@@ -9,7 +9,7 @@ use crate::native::{
 use crate::runtime::{NativeFunction, Value};
 
 pub fn list() -> Module {
-    Module::builder("list")
+    Module::builder("std/list")
         .function("length", 1, list_length)
         .function("get", 2, list_get)
         .function("append", 2, list_append)
@@ -40,7 +40,7 @@ pub fn list() -> Module {
 }
 
 pub fn string() -> Module {
-    Module::builder("string")
+    Module::builder("std/string")
         .function("length", 1, string_length)
         .function("slice", 3, string_slice)
         .function("contains", 2, string_contains)
@@ -76,7 +76,7 @@ pub fn stderr() -> Module {
 }
 
 pub fn map() -> Module {
-    Module::builder("map")
+    Module::builder("std/map")
         .function("length", 1, map_length)
         .function("has", 2, map_has)
         .function("keys", 1, map_keys)

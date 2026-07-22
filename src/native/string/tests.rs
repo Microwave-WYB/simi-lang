@@ -107,7 +107,11 @@ fn invalid_arity_types_and_indices_are_qualified_hard_errors() {
     ];
 
     for error in errors {
-        assert!(error.message.starts_with("string."), "{}", error.message);
+        assert!(
+            error.message.starts_with("std/string."),
+            "{}",
+            error.message
+        );
         assert_eq!(error.span, SPAN);
     }
 }

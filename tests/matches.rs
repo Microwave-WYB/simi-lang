@@ -89,7 +89,7 @@ fn nested_exact_and_rest_list_patterns_match_structurally() {
 fn list_rest_is_a_new_container_with_existing_element_aliases() {
     assert_eval(
         r#"
-            let list = require("list")
+            let list = require("std/list")
             let shared = []
             let original = [0, shared, 2, 3]
             let tail = match original with
@@ -145,7 +145,7 @@ fn recursive_head_tail_matching_handles_longer_lists() {
 fn map_patterns_are_structural_and_map_rest_preserves_order_and_aliases() {
     assert_eval(
         r#"
-            let list = require("list")
+            let list = require("std/list")
             let shared = []
             let source = {take=1, first=shared, [true]=shared, last=3}
             let captured = match source with
@@ -190,7 +190,7 @@ fn nil_map_fields_match_absence_while_other_patterns_require_presence() {
 fn guards_run_in_order_only_after_a_match_and_share_the_selected_case_scope() {
     assert_eval(
         r#"
-            let list = require("list")
+            let list = require("std/list")
             fn record(events, label, outcome) do
                 list.append(events, label)
                 outcome
@@ -310,7 +310,7 @@ fn duplicate_map_pattern_fields_are_rejected_at_the_second_key() {
 fn match_inside_a_functional_loop_propagates_continue_and_break() {
     assert_eval(
         r#"
-            let list = require("list")
+            let list = require("std/list")
             let visited = []
             let result = loop state = 0 do
                 match state with

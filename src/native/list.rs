@@ -150,7 +150,7 @@ fn expect_arity(args: &[Value], expected: usize, name: &str, span: Span) -> Runt
         Err(RuntimeError::new(
             span,
             format!(
-                "list.{name} expects {expected} arguments, got {}",
+                "std/list.{name} expects {expected} arguments, got {}",
                 args.len()
             ),
         ))
@@ -162,7 +162,7 @@ fn expect_list(value: &Value, name: &str, span: Span) -> RuntimeResult<SharedLis
         Value::List(list) => Ok(list.clone()),
         value => Err(RuntimeError::new(
             span,
-            format!("list.{name} requires a list, got {}", value.type_name()),
+            format!("std/list.{name} requires a list, got {}", value.type_name()),
         )),
     }
 }
@@ -171,15 +171,15 @@ fn expect_index(value: &Value, name: &str, span: Span) -> RuntimeResult<(i64, us
     match value {
         Value::Int(index) if *index >= 0 => usize::try_from(*index)
             .map(|converted| (*index, converted))
-            .map_err(|_| RuntimeError::new(span, format!("list.{name} index is too large"))),
+            .map_err(|_| RuntimeError::new(span, format!("std/list.{name} index is too large"))),
         Value::Int(index) => Err(RuntimeError::new(
             span,
-            format!("list.{name} index must be nonnegative, got {index}"),
+            format!("std/list.{name} index must be nonnegative, got {index}"),
         )),
         value => Err(RuntimeError::new(
             span,
             format!(
-                "list.{name} index must be an integer, got {}",
+                "std/list.{name} index must be an integer, got {}",
                 value.type_name()
             ),
         )),
@@ -187,7 +187,7 @@ fn expect_index(value: &Value, name: &str, span: Span) -> RuntimeResult<(i64, us
 }
 
 fn borrow_error(name: &str, span: Span) -> RuntimeError {
-    RuntimeError::new(span, format!("list.{name} could not borrow list"))
+    RuntimeError::new(span, format!("std/list.{name} could not borrow list"))
 }
 
 #[cfg(test)]

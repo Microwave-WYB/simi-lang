@@ -27,7 +27,7 @@ fn collected_after(build_cycle: impl FnOnce()) {
 fn language_allows_direct_and_indirect_cycles_when_result_is_acyclic() {
     let result = crate::eval(
         r#"
-        let list = require("list")
+        let list = require("std/list")
         let direct = []
         list.append(direct, direct)
 

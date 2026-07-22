@@ -11,7 +11,7 @@ fn assert_eval(source: &str, expected: &str) {
 fn list_mutations_update_aliases_and_return_documented_values() {
     assert_eval(
         r#"
-            let list = require("list")
+            let list = require("std/list")
             let values = [1, 3]
             let alias = values
             let first_insert = list.insert(values, 1, 2)
@@ -29,7 +29,7 @@ fn list_mutations_update_aliases_and_return_documented_values() {
 fn list_mutation_bounds_raise_structural_values() {
     assert_eval(
         r#"
-            let list = require("list")
+            let list = require("std/list")
             let values = [1]
             let insert_error = try list.insert(values, 2, 9) catch
                 case error -> error
@@ -50,7 +50,7 @@ fn list_mutation_bounds_raise_structural_values() {
 fn list_slice_clamps_and_creates_independent_shallow_cow_views() {
     assert_eval(
         r#"
-            let list = require("list")
+            let list = require("std/list")
             let nested = [7]
             let source = [0, nested, 2, 3]
             let view = list.slice(source, 1, 3)
@@ -73,7 +73,7 @@ fn list_slice_clamps_and_creates_independent_shallow_cow_views() {
 fn list_contains_uses_simi_primitive_equality() {
     assert_eval(
         r#"
-            let list = require("list")
+            let list = require("std/list")
             [
                 list.contains([1, "one", true, nil], 1.0),
                 list.contains([1, "one", true, nil], "one"),
@@ -89,7 +89,7 @@ fn list_contains_uses_simi_primitive_equality() {
 fn list_contains_rejects_cyclic_container_comparison_without_recursing() {
     let error = match eval(
         r#"
-            let list = require("list")
+            let list = require("std/list")
             let cyclic = []
             list.append(cyclic, cyclic)
             list.contains(cyclic, cyclic)
@@ -108,10 +108,10 @@ fn list_contains_rejects_cyclic_container_comparison_without_recursing() {
 #[test]
 fn new_list_indices_retain_hard_type_diagnostics() {
     for source in [
-        "let list = require(\"list\") try list.insert([], -1, nil) catch case _ -> nil end",
-        "let list = require(\"list\") try list.remove([1], 0.0) catch case _ -> nil end",
-        "let list = require(\"list\") try list.slice([1], \"0\", 1) catch case _ -> nil end",
-        "let list = require(\"list\") try list.slice([1], 0, true) catch case _ -> nil end",
+        "let list = require(\"std/list\") try list.insert([], -1, nil) catch case _ -> nil end",
+        "let list = require(\"std/list\") try list.remove([1], 0.0) catch case _ -> nil end",
+        "let list = require(\"std/list\") try list.slice([1], \"0\", 1) catch case _ -> nil end",
+        "let list = require(\"std/list\") try list.slice([1], 0, true) catch case _ -> nil end",
     ] {
         assert!(matches!(eval(source), Err(SimiError::Runtime(_))));
     }

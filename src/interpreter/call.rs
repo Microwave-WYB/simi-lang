@@ -77,7 +77,7 @@ impl Interpreter {
                     return Err(EvaluationError::Runtime(RuntimeError::new(
                         span,
                         format!(
-                            "list.filter callback must return a boolean, got {}",
+                            "std/list.filter callback must return a boolean, got {}",
                             value.type_name()
                         ),
                     )));
@@ -179,7 +179,7 @@ impl Interpreter {
             value => Err(EvaluationError::Runtime(RuntimeError::new(
                 span,
                 format!(
-                    "list.{operation} callback must return a boolean, got {}",
+                    "std/list.{operation} callback must return a boolean, got {}",
                     value.type_name()
                 ),
             ))),
@@ -276,7 +276,7 @@ fn list_snapshot(value: &Value, operation: &str, span: Span) -> EvaluationResult
         return Err(EvaluationError::Runtime(RuntimeError::new(
             span,
             format!(
-                "list.{operation} requires a list, got {}",
+                "std/list.{operation} requires a list, got {}",
                 value.type_name()
             ),
         )));
@@ -287,7 +287,7 @@ fn list_snapshot(value: &Value, operation: &str, span: Span) -> EvaluationResult
         .map_err(|_| {
             EvaluationError::Runtime(RuntimeError::new(
                 span,
-                format!("list.{operation} could not borrow list"),
+                format!("std/list.{operation} could not borrow list"),
             ))
         })
 }

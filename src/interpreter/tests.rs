@@ -184,7 +184,7 @@ fn pipeline_inserts_input_as_first_argument() {
 fn tap_pipeline_preserves_the_alias_to_the_mutated_list() {
     let value = crate::eval(
         r#"
-                let list = require("list")
+                let list = require("std/list")
                 []
                 |> tap list.append(1)
                 |> tap list.append(2)

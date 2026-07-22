@@ -1,5 +1,5 @@
 -- Exercises the syntax used by the Zed queries.
-let list = require("list")
+let list = require("std/list")
 
 fn classify(value) do
     match value with

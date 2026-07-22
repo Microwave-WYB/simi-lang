@@ -66,7 +66,7 @@ fn expect_arity(args: &[Value], expected: usize, name: &str, span: Span) -> Runt
         Err(RuntimeError::new(
             span,
             format!(
-                "map.{name} expects {expected} arguments, got {}",
+                "std/map.{name} expects {expected} arguments, got {}",
                 args.len()
             ),
         ))
@@ -78,7 +78,7 @@ fn expect_map(value: &Value, name: &str, span: Span) -> RuntimeResult<SharedMap>
         Value::Map(map) => Ok(map.clone()),
         value => Err(RuntimeError::new(
             span,
-            format!("map.{name} requires a map, got {}", value.type_name()),
+            format!("std/map.{name} requires a map, got {}", value.type_name()),
         )),
     }
 }
@@ -89,7 +89,7 @@ fn expect_key(value: &Value, name: &str, span: Span) -> RuntimeResult<MapKey> {
             .message
             .strip_prefix("map key ")
             .unwrap_or(&error.message);
-        RuntimeError::new(span, format!("map.{name} key {detail}"))
+        RuntimeError::new(span, format!("std/map.{name} key {detail}"))
     })
 }
 
@@ -103,7 +103,7 @@ fn key_to_value(key: &MapKey) -> Value {
 }
 
 fn borrow_error(name: &str, span: Span) -> RuntimeError {
-    RuntimeError::new(span, format!("map.{name} could not borrow map"))
+    RuntimeError::new(span, format!("std/map.{name} could not borrow map"))
 }
 
 #[cfg(test)]

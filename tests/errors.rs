@@ -22,7 +22,7 @@ fn assert_raised(source: &str) -> Raised {
 fn every_value_category_can_be_raised_and_caught() {
     assert_eval(
         r#"
-            let list = require("list")
+            let list = require("std/list")
             fn identity(value) do value end
             [
                 try raise nil catch case nil -> "nil" end,
@@ -47,7 +47,7 @@ fn every_value_category_can_be_raised_and_caught() {
 fn successful_try_is_a_transparent_passthrough() {
     assert_eval(
         r#"
-            let list = require("list")
+            let list = require("std/list")
             let shared = []
             let result = try shared catch
                 case _ -> missing_handler_must_not_run
@@ -80,7 +80,7 @@ fn catch_bindings_and_handler_locals_are_case_scoped() {
 fn catch_cases_use_structural_patterns_and_ordered_guards() {
     assert_eval(
         r#"
-            let list = require("list")
+            let list = require("std/list")
             let events = []
             try raise {kind="missing", payload=[1, 2]} catch
                 case {kind="other"} when missing_guard_must_not_run -> nil
@@ -184,7 +184,7 @@ fn raises_cross_function_boundaries_with_innermost_first_frames_and_exact_spans(
 #[test]
 fn handler_mutation_is_observable_and_reraise_preserves_the_caught_context() {
     let source = concat!(
-        "let list = require(\"list\")\n",
+        "let list = require(\"std/list\")\n",
         "try raise [\"old\"] catch\n",
         "    case error ->\n",
         "        list.append(error, \"mutated\")\n",

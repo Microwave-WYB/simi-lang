@@ -171,7 +171,7 @@ fn trailing_argument_is_right_associative_and_requires_call_left_operands() {
 fn trailing_argument_preserves_callee_then_argument_evaluation_order() {
     let result = value(
         r#"
-        let list = require("list")
+        let list = require("std/list")
         let events = []
         fn mark(value) do
             list.append(events, value)

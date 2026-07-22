@@ -5,7 +5,7 @@ pub fn string_length(args: &[Value], span: Span) -> NativeResult {
     expect_arity(args, 1, "length", span)?;
     let value = expect_string(&args[0], "length", "value", span)?;
     let length = i64::try_from(value.chars().count())
-        .map_err(|_| RuntimeError::new(span, "string.length result exceeds i64"))?;
+        .map_err(|_| RuntimeError::new(span, "std/string.length result exceeds i64"))?;
     Ok(Ok(Value::Int(length)))
 }
 
@@ -87,7 +87,7 @@ fn expect_arity(args: &[Value], expected: usize, name: &str, span: Span) -> Runt
         Err(RuntimeError::new(
             span,
             format!(
-                "string.{name} expects {expected} arguments, got {}",
+                "std/string.{name} expects {expected} arguments, got {}",
                 args.len()
             ),
         ))
@@ -105,7 +105,7 @@ fn expect_string<'a>(
         value => Err(RuntimeError::new(
             span,
             format!(
-                "string.{name} {argument} must be a string, got {}",
+                "std/string.{name} {argument} must be a string, got {}",
                 value.type_name()
             ),
         )),
@@ -115,16 +115,19 @@ fn expect_string<'a>(
 fn expect_index(value: &Value, name: &str, argument: &str, span: Span) -> RuntimeResult<usize> {
     match value {
         Value::Int(index) if *index >= 0 => usize::try_from(*index).map_err(|_| {
-            RuntimeError::new(span, format!("string.{name} {argument} index is too large"))
+            RuntimeError::new(
+                span,
+                format!("std/string.{name} {argument} index is too large"),
+            )
         }),
         Value::Int(index) => Err(RuntimeError::new(
             span,
-            format!("string.{name} {argument} index must be nonnegative, got {index}"),
+            format!("std/string.{name} {argument} index must be nonnegative, got {index}"),
         )),
         value => Err(RuntimeError::new(
             span,
             format!(
-                "string.{name} {argument} index must be an integer, got {}",
+                "std/string.{name} {argument} index must be an integer, got {}",
                 value.type_name()
             ),
         )),

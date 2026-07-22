@@ -92,12 +92,12 @@ fn invalid_arguments_are_qualified_hard_errors() {
     ];
 
     for (error, name) in cases.iter().zip([
-        "map.length",
-        "map.has",
-        "map.keys",
-        "map.values",
-        "map.entries",
-        "map.clear",
+        "std/map.length",
+        "std/map.has",
+        "std/map.keys",
+        "std/map.values",
+        "std/map.entries",
+        "std/map.clear",
     ]) {
         assert!(
             error.message.contains(name),
@@ -126,11 +126,11 @@ fn active_borrows_return_qualified_errors_instead_of_panicking() {
         hard_error(map_entries(std::slice::from_ref(&values), Span::new(0, 1))),
     ];
     for (error, name) in errors.iter().zip([
-        "map.length",
-        "map.has",
-        "map.keys",
-        "map.values",
-        "map.entries",
+        "std/map.length",
+        "std/map.has",
+        "std/map.keys",
+        "std/map.values",
+        "std/map.entries",
     ]) {
         assert!(
             error
@@ -144,6 +144,6 @@ fn active_borrows_return_qualified_errors_instead_of_panicking() {
 
     let immutable = shared.borrow();
     let error = hard_error(map_clear(std::slice::from_ref(&values), Span::new(0, 1)));
-    assert!(error.message.contains("map.clear could not borrow map"));
+    assert!(error.message.contains("std/map.clear could not borrow map"));
     drop(immutable);
 }

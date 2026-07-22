@@ -203,7 +203,7 @@ fn require_type_errors_and_qualified_native_arity_errors_are_hard() {
 #[test]
 fn standard_modules_are_explicit_capabilities_and_require_is_shadowable() {
     let missing = match Engine::new()
-        .eval("require(\"list\")")
+        .eval("require(\"std/list\")")
         .expect("empty engine missing module should be a raise")
     {
         Err(raised) => raised,
@@ -214,13 +214,23 @@ fn standard_modules_are_explicit_capabilities_and_require_is_shadowable() {
     };
     assert_eq!(
         missing.value.render(),
-        "{error=\"module_not_found\", module=\"list\"}"
+        "{error=\"module_not_found\", module=\"std/list\"}"
     );
 
-    let value = eval("let list = require(\"list\") list.length([1, 2, 3])")
+    let value = eval("let list = require(\"std/list\") list.length([1, 2, 3])")
         .expect("root eval should provide standard modules")
         .expect("standard list call should not raise");
     assert_eq!(value.render(), "3");
+
+    for legacy_name in ["list", "map", "string"] {
+        let result = Engine::with_stdlib()
+            .eval(&format!("require(\"{legacy_name}\")"))
+            .expect("legacy module names should raise rather than hard fail");
+        assert!(
+            result.is_err(),
+            "legacy module `{legacy_name}` must be absent"
+        );
+    }
 
     assert!(matches!(eval("list"), Err(SimiError::Runtime(_))));
 
@@ -268,7 +278,7 @@ fn global_type_reports_every_runtime_value_category() {
 fn global_inspect_renders_cyclic_containers_and_builtins_are_shadowable() {
     let value = eval(
         r#"
-        let list = require("list")
+        let list = require("std/list")
         let values = []
         list.append(values, values)
         let object = {}
@@ -338,7 +348,7 @@ fn stdio_modules_are_opt_in_capabilities() {
 fn root_eval_uses_fresh_standard_module_instances() {
     eval(
         r#"
-        let list = require("list")
+        let list = require("std/list")
         list.marker = 1
         nil
         "#,
@@ -346,7 +356,7 @@ fn root_eval_uses_fresh_standard_module_instances() {
     .expect("first root evaluation should have no hard diagnostic")
     .expect("first root evaluation should not raise");
 
-    let value = eval("let list = require(\"list\") list.marker")
+    let value = eval("let list = require(\"std/list\") list.marker")
         .expect("second root evaluation should have no hard diagnostic")
         .expect("second root evaluation should not raise");
     assert_eq!(value.render(), "nil");
