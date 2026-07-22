@@ -4,7 +4,7 @@ use crate::error::SimiError;
 use crate::interpreter::Interpreter;
 use crate::module::Module;
 use crate::runtime::{ScriptResult, Value};
-use crate::{lexer, parser, stdlib};
+use crate::{parser, stdlib};
 
 pub struct Engine {
     modules: HashMap<String, Value>,
@@ -24,8 +24,16 @@ impl Engine {
     }
 
     pub fn eval(&self, source: &str) -> Result<ScriptResult, SimiError> {
-        let tokens = lexer::lex(source)?;
-        let program = parser::parse(tokens)?;
+        let program = parser::parse_source(source).map_err(|diagnostic| match diagnostic.kind {
+            simi_syntax::DiagnosticKind::Lex => SimiError::Lex(crate::lexer::LexError {
+                span: diagnostic.span,
+                message: diagnostic.message,
+            }),
+            simi_syntax::DiagnosticKind::Parse => SimiError::Parse(crate::parser::ParseError {
+                span: diagnostic.span,
+                message: diagnostic.message,
+            }),
+        })?;
         let mut interpreter = Interpreter::with_modules(self.modules.clone());
         interpreter.evaluate(&program).map_err(SimiError::from)
     }

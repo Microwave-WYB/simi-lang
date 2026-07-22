@@ -1,0 +1,8 @@
+[package]
+name = "simi-syntax"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+rowan = "0.16"

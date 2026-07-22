@@ -1,0 +1,47 @@
+Root = Stmt*
+Stmt = FunctionDecl | LetStmt | ExprStmt
+FunctionDecl = 'fn' 'ident' ParamList 'do' Block 'end'
+LetStmt = 'let' Pattern '=' Expr
+ExprStmt = Expr
+ParamList = '(' ('ident' (',' 'ident')* ','?)? ')'
+Block = Stmt*
+Expr = LiteralExpr | NameExpr | FunctionExpr | BlockExpr | ParenExpr | ListExpr | MapExpr | CallExpr | FieldExpr | IndexExpr | NilPropagateExpr | UnaryExpr | BinaryExpr | AssignExpr | PipelineExpr | TrailingArgumentExpr | RaiseExpr | TryExpr | CaseExpr | IfExpr | LoopExpr | ContinueExpr | BreakExpr
+LiteralExpr = ('int' | 'float' | 'string' | 'nil' | 'true' | 'false')
+NameExpr = 'ident'
+FunctionExpr = 'fn' ParamList 'do' Block 'end'
+BlockExpr = 'do' Block 'end'
+ParenExpr = '(' Expr ')'
+ListExpr = '[' (Expr (',' Expr)* ','?)? ']'
+MapExpr = '{' (MapEntry (',' MapEntry)* ','?)? '}'
+MapEntry = ('ident' | '[' Expr ']') '=' Expr
+CallExpr = Expr ArgList
+ArgList = '(' (Expr (',' Expr)* ','?)? ')'
+FieldExpr = Expr '.' 'ident'
+IndexExpr = Expr '[' Expr ']'
+NilPropagateExpr = Expr '?'
+UnaryExpr = ('-' | 'not') Expr
+BinaryExpr = Expr ('+' | '-' | '*' | '/' | '//' | '%' | '==' | '!=' | '<' | '<=' | '>' | '>=' | 'and' | 'or') Expr
+AssignExpr = Expr '=' Expr
+PipelineExpr = Expr PipelineStage PipelineStage*
+PipelineStage = ('|>' | '?>') 'tap'? Expr ArgList ('<|' Expr)?
+TrailingArgumentExpr = Expr '<|' Expr
+RaiseExpr = 'raise' Expr
+TryExpr = 'try' Block CatchClause CatchClause* 'end'
+CatchClause = 'catch' Pattern ('when' Expr)? 'do' Block
+CaseExpr = 'case' Expr CaseClause CaseClause* 'end'
+CaseClause = 'of' Pattern ('when' Expr)? 'do' Block
+IfExpr = 'if' IfBranch ('elseif' IfBranch)* ElseBranch? 'end'
+IfBranch = Expr 'then' Block
+ElseBranch = 'else' Block
+LoopExpr = 'loop' ('ident' '=' Expr)? 'do' Block 'end'
+ContinueExpr = 'continue' Expr?
+BreakExpr = 'break' Expr
+Pattern = BindingPattern | WildcardPattern | LiteralPattern | ListPattern | MapPattern
+BindingPattern = 'ident'
+WildcardPattern = 'ident'
+LiteralPattern = 'int' | 'float' | 'string' | 'nil' | 'true' | 'false'
+ListPattern = '[' (Pattern (',' Pattern)* (',' RestPattern)? ','? | RestPattern ','?)? ']'
+MapPattern = '{' (MapPatternField (',' MapPatternField)* (',' RestPattern)? ','? | RestPattern ','?)? '}'
+MapPatternField = 'ident' '=' Pattern
+RestPattern = '..' 'ident'
+Error = 'error'

@@ -5,6 +5,7 @@ mod environment;
 pub mod error;
 pub mod interpreter;
 pub mod lexer;
+mod lower;
 mod module;
 pub mod native;
 pub mod parser;

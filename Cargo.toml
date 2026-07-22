@@ -11,3 +11,8 @@ path = "src/main.rs"
 clap = { version = "4", features = ["derive"] }
 gc = { version = "0.5", features = ["derive", "unstable-stats"] }
 gc_derive = "0.5"
+simi-syntax = { path = "crates/simi-syntax" }
+
+[workspace]
+members = [".", "crates/simi-syntax", "crates/simi-xtask"]
+resolver = "3"

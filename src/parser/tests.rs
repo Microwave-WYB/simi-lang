@@ -965,9 +965,28 @@ fn assignment_rhs_preserves_pipeline_and_equality_precedence() {
 }
 
 #[test]
+fn token_vector_compatibility_preserves_noncanonical_literal_spellings() {
+    for source in ["00042", "1e3", "\"line\\nbreak\"", "\"line\nbreak\""] {
+        let tokens = lex(source).expect("source lexes");
+        let program = super::parse(tokens).expect("token vector parses through Rowan grammar");
+        assert_eq!(
+            program.items[0].span,
+            Span::new(0, source.len()),
+            "{source:?}"
+        );
+    }
+}
+
+#[test]
 fn rejects_non_lvalue_assignment_targets() {
-    for source in ["1 = 2", "call() = 2", "(a + b) = 2", "a |> f() = 2"] {
+    for (source, target_end) in [
+        ("1 = 2", 1),
+        ("call() = 2", 6),
+        ("(a + b) = 2", 7),
+        ("a |> f() = 2", 8),
+    ] {
         let error = parse_source(source).unwrap_err();
         assert_eq!(error.message, "invalid assignment target");
+        assert_eq!(error.span, Span::new(0, target_end));
     }
 }

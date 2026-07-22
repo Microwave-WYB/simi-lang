@@ -1,11 +1,5 @@
-mod scanner;
-mod token;
-
-pub use token::{LexError, Token, TokenKind};
-
-pub fn lex(source: &str) -> Result<Vec<Token>, LexError> {
-    scanner::lex(source)
-}
+pub use simi_syntax::lexer::{LexError, Token, TokenKind, lex};
 
 #[cfg(test)]
+#[path = "lexer/tests.rs"]
 mod tests;
