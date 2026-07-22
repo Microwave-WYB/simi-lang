@@ -108,7 +108,7 @@ impl Interpreter {
     }
 }
 
-fn match_pattern(
+pub(super) fn match_pattern(
     pattern: &Pattern,
     value: &Value,
     bindings: &mut Vec<(String, Value)>,

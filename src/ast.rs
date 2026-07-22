@@ -25,7 +25,7 @@ pub enum StmtKind {
         body: Block,
     },
     Let {
-        name: String,
+        pattern: Pattern,
         value: Expr,
     },
     Expr(Expr),

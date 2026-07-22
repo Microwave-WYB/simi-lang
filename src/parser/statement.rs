@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use super::{ParseError, Parser, SimpleToken};
-use crate::ast::{Block, Stmt, StmtKind};
+use crate::ast::{Block, Pattern, PatternKind, Stmt, StmtKind};
 use crate::lexer::TokenKind;
 use crate::span::Span;
 
@@ -71,12 +71,21 @@ impl Parser {
 
     fn parse_let(&mut self) -> Result<Stmt, ParseError> {
         let start = self.expect_simple(SimpleToken::Let, "`let`")?;
-        let (name, _) = self.expect_ident("name after `let`")?;
-        self.expect_simple(SimpleToken::Equal, "`=` after let binding name")?;
+        let pattern = if let TokenKind::Ident(name) = &self.current().kind {
+            let name = name.clone();
+            let span = self.advance_span();
+            Pattern {
+                kind: PatternKind::Binding(name),
+                span,
+            }
+        } else {
+            self.parse_pattern(&mut HashSet::new())?
+        };
+        self.expect_simple(SimpleToken::Equal, "`=` after let pattern")?;
         let value = self.parse_expression()?;
         let span = start.merge(value.span);
         Ok(Stmt {
-            kind: StmtKind::Let { name, value },
+            kind: StmtKind::Let { pattern, value },
             span,
         })
     }

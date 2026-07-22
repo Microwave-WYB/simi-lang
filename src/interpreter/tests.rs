@@ -38,6 +38,33 @@ fn expect_raised(source: &str) -> Raised {
     }
 }
 
+#[test]
+fn destructuring_let_installs_bindings_atomically() {
+    let globals = Environment::new();
+    let tokens = lexer::lex("let existing = 1 let [fresh, existing] = [2, 3]").unwrap();
+    let program = parser::parse(tokens).unwrap();
+    let error = match Interpreter::with_globals(globals.clone()).evaluate(&program) {
+        Err(error) => error,
+        Ok(_) => panic!("binding conflict should be a hard error"),
+    };
+    assert_eq!(
+        error.message,
+        "name `existing` is already defined in this scope"
+    );
+    assert!(globals.get("fresh").is_none());
+    assert!(matches!(globals.get("existing"), Some(Value::Int(1))));
+
+    let globals = Environment::new();
+    let tokens = lexer::lex("let [partial, 2] = [1, 3]").unwrap();
+    let program = parser::parse(tokens).unwrap();
+    let error = match Interpreter::with_globals(globals.clone()).evaluate(&program) {
+        Err(error) => error,
+        Ok(_) => panic!("pattern mismatch should be a hard error"),
+    };
+    assert_eq!(error.message, "let pattern did not match");
+    assert!(globals.get("partial").is_none());
+}
+
 fn expect_runtime_error(source: &str) -> RuntimeError {
     match evaluate_script(source) {
         Err(error) => error,

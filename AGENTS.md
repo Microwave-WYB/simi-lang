@@ -63,14 +63,16 @@ end
 
 ### Bindings and assignment
 
-`let` introduces a binding. Assignment updates the nearest existing lexical binding and evaluates to its right-hand value.
+`let` introduces bindings. Its left side may be any existing structural pattern; a refutable pattern is an assertion and a mismatch is a hard runtime error. The right side is evaluated once, matching is atomic, and bindings are installed only after the complete pattern succeeds.
 
 ```simi
 let count = 1
+let [first, second, ..rest] = values
+let { name = name, ..settings } = user
 count = count + 1
 ```
 
-Assigning to an undefined name is a hard runtime error. Assignment is right-associative.
+Use `match` when pattern failure is expected and requires recovery. Assignment updates the nearest existing lexical binding and evaluates to its right-hand value. Assigning to an undefined name is a hard runtime error. Assignment is right-associative.
 
 Field and index assignments mutate containers:
 
