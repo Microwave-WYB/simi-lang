@@ -143,6 +143,8 @@ and  or  not
 
 Boolean operators are strict and short-circuiting. Simi does not use Lua-style truthiness.
 
+The portable `std/number` module provides explicit numeric conversions. `number.from_string(text)` accepts complete signed decimal integer and decimal/exponent float forms with no surrounding whitespace. Integer syntax returns an integer and never falls back to float on overflow; float syntax returns only finite floats. Overflow and malformed text return `nil`. `number.to_string(value)` accepts only integers and floats and uses canonical Simi numeric rendering, including a visible float marker for whole-valued floats.
+
 The comparison-precedence `is` operator performs runtime type inspection with a validated string-literal label:
 
 ```simi
@@ -182,7 +184,7 @@ list.length([ 1, 2, 3 ])
 
 Normal/default interpreters and all `Engine` evaluations provide the shadowable globals `type(value)` and `inspect(value)` alongside `require`. The low-level `Interpreter::with_globals` constructor intentionally treats its environment as complete and does not add a prelude. `type` returns the same stable reflective labels accepted by `is`, including `"function"` for both user and native functions. Detailed runtime diagnostics may still distinguish native functions. `inspect` is cycle-safe human-readable rendering, not serialization.
 
-Modules are registered by the embedding host and cached per `Engine`. Repeated `require` calls return the same mutable export map, and module state persists across evaluations performed by that engine. Separate engines have separate module registries. `Engine::new()` has no registered modules; `Engine::with_stdlib()` includes `std/list`, `std/map`, and `std/string`. The root `eval` convenience function uses a fresh standard-library engine.
+Modules are registered by the embedding host and cached per `Engine`. Repeated `require` calls return the same mutable export map, and module state persists across evaluations performed by that engine. Separate engines have separate module registries. `Engine::new()` has no registered modules; `Engine::with_stdlib()` includes `std/list`, `std/map`, `std/number`, and `std/string`. The root `eval` convenience function uses a fresh standard-library engine.
 
 Standard streams are separate opt-in capabilities named `std/io/stdin`, `std/io/stdout`, and `std/io/stderr`. The CLI registers them; `Engine::with_stdlib()` and root `eval` do not. Embedders can opt in with `Engine::builder().stdlib().stdio()`. Input supplies `read_line`; output streams supply `print`, `println`, and `flush`. Strings print raw while other values use inspector rendering. EOF returns `nil`, and successful writes return `nil`. `print` and `println` flush automatically; failures from either the write or its automatic flush raise `{ error = "io_error", operation = operation, message = message }` using the originating operation name. Explicit `flush` failures use `operation = "flush"`.
 
@@ -312,7 +314,7 @@ Add tests at the lowest useful layer and at the public language boundary when se
 
 ## Near-Term Direction
 
-The portable standard library currently includes `std/list`, `std/map`, and `std/string`; `type` and `inspect` are globals. Anonymous functions, trailing callback application, and Gleam-inspired higher-order list queries are implemented. The CLI additionally registers the opt-in `std/io/*` standard-stream modules.
+The portable standard library currently includes `std/list`, `std/map`, `std/number`, and `std/string`; `type` and `inspect` are globals. Anonymous functions, trailing callback application, and Gleam-inspired higher-order list queries are implemented. The CLI additionally registers the opt-in `std/io/*` standard-stream modules.
 
 Likely later milestones include CLI arguments, filesystem/script module loading, formatting, optional static typing, and editor tooling. These are roadmap items, not implemented features. Do not add them opportunistically outside an approved task.
 

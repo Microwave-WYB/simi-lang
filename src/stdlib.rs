@@ -2,10 +2,10 @@ use crate::Module;
 use crate::native::{
     list_append, list_contains, list_copy, list_extend, list_get, list_insert, list_length,
     list_pop, list_remove, list_reverse, list_set, list_slice, map_clear, map_copy, map_entries,
-    map_has, map_keys, map_length, map_values, stderr_flush, stderr_print, stderr_println,
-    stdin_read_line, stdout_flush, stdout_print, stdout_println, string_contains, string_ends_with,
-    string_length, string_lower, string_slice, string_split, string_starts_with, string_trim,
-    string_upper,
+    map_has, map_keys, map_length, map_values, number_from_string, number_to_string, stderr_flush,
+    stderr_print, stderr_println, stdin_read_line, stdout_flush, stdout_print, stdout_println,
+    string_contains, string_ends_with, string_length, string_lower, string_slice, string_split,
+    string_starts_with, string_trim, string_upper,
 };
 use crate::runtime::{NativeFunction, Value};
 
@@ -38,6 +38,13 @@ pub fn list() -> Module {
         .value("all", Value::NativeFunction(NativeFunction::list_all()))
         .value("each", Value::NativeFunction(NativeFunction::list_each()))
         .value("count", Value::NativeFunction(NativeFunction::list_count()))
+        .build()
+}
+
+pub fn number() -> Module {
+    Module::builder("std/number")
+        .function("from_string", 1, number_from_string)
+        .function("to_string", 1, number_to_string)
         .build()
 }
 

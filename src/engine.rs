@@ -56,6 +56,7 @@ impl EngineBuilder {
     pub fn stdlib(self) -> Self {
         self.module(stdlib::list())
             .module(stdlib::map())
+            .module(stdlib::number())
             .module(stdlib::string())
     }
 
