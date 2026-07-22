@@ -1,6 +1,6 @@
 use super::*;
 use crate::ast::*;
-use crate::lexer::lex;
+use crate::lexer::{Token, TokenKind, lex};
 
 fn parse_source(source: &str) -> Result<Program, ParseError> {
     parse(lex(source).expect("source should lex"))
@@ -975,6 +975,107 @@ fn token_vector_compatibility_preserves_noncanonical_literal_spellings() {
             "{source:?}"
         );
     }
+}
+
+#[test]
+fn synthetic_tokens_ignore_rendered_width_and_preserve_values_and_spans() {
+    for (kind, expected_kind) in [
+        (TokenKind::Nil, ExprKind::Nil),
+        (TokenKind::Int(42), ExprKind::Int(42)),
+        (TokenKind::Float(1000.0), ExprKind::Float(1000.0)),
+        (
+            TokenKind::String("line\nbreak".to_owned()),
+            ExprKind::String("line\nbreak".to_owned()),
+        ),
+    ] {
+        let program = super::parse(vec![
+            Token {
+                kind,
+                span: Span::new(0, 1),
+            },
+            Token {
+                kind: TokenKind::Eof,
+                span: Span::new(91, 91),
+            },
+        ])
+        .expect("token kind, not rendered width, drives parsing");
+        let StmtKind::Expr(expression) = &program.items[0].kind else {
+            panic!("expected expression statement");
+        };
+        assert_eq!(expression.span, Span::new(0, 1));
+        assert_eq!(
+            format!("{:?}", expression.kind),
+            format!("{expected_kind:?}")
+        );
+    }
+}
+
+#[test]
+fn synthetic_tokens_use_vector_order_and_rebase_gapped_unsorted_spans() {
+    let program = super::parse(vec![
+        Token {
+            kind: TokenKind::Let,
+            span: Span::new(100, 101),
+        },
+        Token {
+            kind: TokenKind::Ident("odd name".to_owned()),
+            span: Span::new(2, 2),
+        },
+        Token {
+            kind: TokenKind::Equal,
+            span: Span::new(50, 51),
+        },
+        Token {
+            kind: TokenKind::String("value".to_owned()),
+            span: Span::new(7, 8),
+        },
+        Token {
+            kind: TokenKind::Eof,
+            span: Span::new(999, 999),
+        },
+    ])
+    .expect("vector order forms a let despite unrelated source positions");
+
+    let statement = &program.items[0];
+    let StmtKind::Let { pattern, value } = &statement.kind else {
+        panic!("expected let statement");
+    };
+    assert_eq!(statement.span, Span::new(7, 101));
+    assert_eq!(pattern.span, Span::new(2, 2));
+    assert!(matches!(
+        &pattern.kind,
+        PatternKind::Binding(name) if name == "odd name"
+    ));
+    assert_eq!(value.span, Span::new(7, 8));
+    assert!(matches!(&value.kind, ExprKind::String(text) if text == "value"));
+}
+
+#[test]
+fn synthetic_overlapping_spans_follow_the_old_endpoint_merge_contract() {
+    let program = super::parse(vec![
+        Token {
+            kind: TokenKind::Int(1),
+            span: Span::new(10, 20),
+        },
+        Token {
+            kind: TokenKind::Plus,
+            span: Span::new(5, 12),
+        },
+        Token {
+            kind: TokenKind::Int(2),
+            span: Span::new(8, 9),
+        },
+    ])
+    .expect("overlapping source spans do not affect token order");
+    let StmtKind::Expr(expression) = &program.items[0].kind else {
+        panic!("expected expression statement");
+    };
+    let ExprKind::Binary { left, right, .. } = &expression.kind else {
+        panic!("expected binary expression");
+    };
+    assert_eq!(left.span, Span::new(10, 20));
+    assert_eq!(right.span, Span::new(8, 9));
+    assert_eq!(expression.span, Span::new(8, 20));
 }
 
 #[test]

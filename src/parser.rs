@@ -32,8 +32,11 @@ impl Parser {
 
 pub fn parse(tokens: Vec<Token>) -> Result<Program, ParseError> {
     let parsed = simi_syntax::parse_tokens(tokens);
-    let syntax = parsed.ok().map_err(diagnostic_to_error)?;
-    Ok(crate::lower::program(syntax))
+    let (syntax, origins) = parsed.ok_with_origins().map_err(diagnostic_to_error)?;
+    Ok(match origins {
+        Some(origins) => crate::lower::program_with_origins(syntax, &origins),
+        None => crate::lower::program(syntax),
+    })
 }
 
 pub(crate) fn parse_source(source: &str) -> Result<Program, simi_syntax::SyntaxDiagnostic> {

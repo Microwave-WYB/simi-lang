@@ -64,39 +64,6 @@ const TOKENS: &[&str] = &[
     "PIPE_GREATER",
     "LESS_PIPE",
 ];
-const EXPRESSIONS: &[&str] = &[
-    "LiteralExpr",
-    "NameExpr",
-    "FunctionExpr",
-    "BlockExpr",
-    "ParenExpr",
-    "ListExpr",
-    "MapExpr",
-    "CallExpr",
-    "FieldExpr",
-    "IndexExpr",
-    "NilPropagateExpr",
-    "UnaryExpr",
-    "BinaryExpr",
-    "AssignExpr",
-    "PipelineExpr",
-    "TrailingArgumentExpr",
-    "RaiseExpr",
-    "TryExpr",
-    "CaseExpr",
-    "IfExpr",
-    "LoopExpr",
-    "ContinueExpr",
-    "BreakExpr",
-];
-const PATTERNS: &[&str] = &[
-    "BindingPattern",
-    "WildcardPattern",
-    "LiteralPattern",
-    "ListPattern",
-    "MapPattern",
-];
-
 fn main() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     let grammar_path = root.join("crates/simi-syntax/simi.ungram");
@@ -168,13 +135,34 @@ fn generate(grammar: &ungrammar::Grammar) -> String {
         out.push_str(&format!("ast_node!({node}, {});\n", shout(node)));
     }
     out.push_str("\n#[derive(Clone, Debug, PartialEq, Eq)]\npub enum Stmt { FunctionDecl(FunctionDecl), LetStmt(LetStmt), ExprStmt(ExprStmt) }\nimpl AstNode for Stmt {\n    fn can_cast(kind: SyntaxKind) -> bool { matches!(kind, SyntaxKind::FUNCTION_DECL | SyntaxKind::LET_STMT | SyntaxKind::EXPR_STMT) }\n    fn cast(syntax: SyntaxNode) -> Option<Self> { Some(match syntax.kind() { SyntaxKind::FUNCTION_DECL => Self::FunctionDecl(FunctionDecl::cast(syntax)?), SyntaxKind::LET_STMT => Self::LetStmt(LetStmt::cast(syntax)?), SyntaxKind::EXPR_STMT => Self::ExprStmt(ExprStmt::cast(syntax)?), _ => return None }) }\n    fn syntax(&self) -> &SyntaxNode { match self { Self::FunctionDecl(node) => node.syntax(), Self::LetStmt(node) => node.syntax(), Self::ExprStmt(node) => node.syntax() } }\n}\n\n");
-    enum_code(&mut out, "Expr", EXPRESSIONS, "kind.is_expression()");
-    enum_code(&mut out, "Pattern", PATTERNS, "kind.is_pattern()");
+    let expressions = union_nodes(grammar, "Expr");
+    let patterns = union_nodes(grammar, "Pattern");
+    enum_code(&mut out, "Expr", &expressions, "kind.is_expression()");
+    enum_code(&mut out, "Pattern", &patterns, "kind.is_pattern()");
     out.push_str("impl Root { pub fn statements(&self) -> impl Iterator<Item = Stmt> + '_ { crate::ast::children(self.syntax()) } }\nimpl Block { pub fn statements(&self) -> impl Iterator<Item = Stmt> + '_ { crate::ast::children(self.syntax()) } }\n");
     out
 }
 
-fn enum_code(out: &mut String, name: &str, nodes: &[&str], can_cast: &str) {
+fn union_nodes(grammar: &ungrammar::Grammar, name: &str) -> Vec<String> {
+    let node = grammar
+        .iter()
+        .find(|node| grammar[*node].name == name)
+        .unwrap_or_else(|| panic!("missing `{name}` union in ungrammar"));
+    let ungrammar::Rule::Alt(alternatives) = &grammar[node].rule else {
+        panic!("`{name}` must be an alternative union");
+    };
+    alternatives
+        .iter()
+        .map(|rule| {
+            let ungrammar::Rule::Node(node) = rule else {
+                panic!("`{name}` union members must be nodes");
+            };
+            grammar[*node].name.clone()
+        })
+        .collect()
+}
+
+fn enum_code(out: &mut String, name: &str, nodes: &[String], can_cast: &str) {
     out.push_str(&format!(
         "#[derive(Clone, Debug, PartialEq, Eq)]\npub enum {name} {{\n"
     ));

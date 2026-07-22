@@ -26,6 +26,59 @@ pub struct SyntaxDiagnostic {
 pub struct Parse {
     syntax: SyntaxNode,
     diagnostics: Vec<SyntaxDiagnostic>,
+    token_origins: Option<TokenOrigins>,
+}
+
+#[derive(Clone, Debug)]
+pub struct TokenOrigins {
+    entries: Vec<TokenOrigin>,
+    eof_span: Span,
+}
+
+#[derive(Clone, Debug)]
+struct TokenOrigin {
+    synthetic: Span,
+    original: Span,
+}
+
+impl TokenOrigins {
+    /// Translate a range in the normalized token-vector CST back to the
+    /// caller-supplied token spans, merging the first and last origins.
+    pub fn rebase(&self, span: Span) -> Span {
+        if span.start == span.end {
+            if let Some(entry) = self
+                .entries
+                .iter()
+                .rev()
+                .find(|entry| entry.synthetic.end == span.end)
+            {
+                return Span::new(entry.original.end, entry.original.end);
+            }
+            if let Some(entry) = self
+                .entries
+                .iter()
+                .find(|entry| entry.synthetic.start == span.start)
+            {
+                return Span::new(entry.original.start, entry.original.start);
+            }
+            return self.eof_span;
+        }
+
+        let first = self
+            .entries
+            .iter()
+            .find(|entry| entry.synthetic.start >= span.start && entry.synthetic.start < span.end);
+        let last = self
+            .entries
+            .iter()
+            .rev()
+            .find(|entry| entry.synthetic.end > span.start && entry.synthetic.end <= span.end);
+        match (first, last) {
+            (Some(first), Some(last)) => first.original.merge(last.original),
+            (Some(entry), None) | (None, Some(entry)) => entry.original,
+            (None, None) => self.eof_span,
+        }
+    }
 }
 
 impl Parse {
@@ -39,28 +92,47 @@ impl Parse {
         self.syntax
     }
     pub fn ok(self) -> Result<SyntaxNode, SyntaxDiagnostic> {
+        self.ok_with_origins().map(|(syntax, _)| syntax)
+    }
+    pub fn ok_with_origins(self) -> Result<(SyntaxNode, Option<TokenOrigins>), SyntaxDiagnostic> {
         match self.diagnostics.first().cloned() {
             Some(error) => Err(error),
-            None => Ok(self.syntax),
+            None => Ok((self.syntax, self.token_origins)),
         }
     }
 }
 
 pub fn parse_source(source: &str) -> Parse {
     let (lexemes, lex_errors) = lex_lossless(source);
-    parse_lexemes(lexemes, lex_errors, source.len())
+    parse_lexemes(
+        lexemes,
+        lex_errors,
+        Span::new(source.len(), source.len()),
+        false,
+    )
 }
 
+/// Parse a public token vector in vector order, independent of its source spans.
+///
+/// The Rowan tree uses normalized token spellings and therefore has contiguous
+/// ranges. [`Parse::ok_with_origins`] returns the origin map used by semantic
+/// lowering to restore gapped, overlapping, or unsorted caller-supplied spans.
 pub fn parse_tokens(tokens: Vec<Token>) -> Parse {
-    let source = reconstruct_source(&tokens);
-    parse_source(&source)
+    let (lexemes, eof_span) = adapt_tokens(tokens);
+    parse_lexemes(lexemes, Vec::new(), eof_span, true)
 }
 
-fn parse_lexemes(lexemes: Vec<Lexeme>, lex_errors: Vec<LexError>, source_len: usize) -> Parse {
-    let mut parser = Parser::new(&lexemes, source_len);
+fn parse_lexemes(
+    lexemes: Vec<Lexeme>,
+    lex_errors: Vec<LexError>,
+    eof_span: Span,
+    retain_origins: bool,
+) -> Parse {
+    let mut parser = Parser::new(&lexemes, eof_span);
     grammar::root(&mut parser);
     let parse_errors = parser.diagnostics;
     let syntax = event::build(parser.events, &lexemes);
+    let token_origins = retain_origins.then(|| token_origins(&lexemes, eof_span));
     let mut diagnostics = lex_errors
         .into_iter()
         .map(|error| SyntaxDiagnostic {
@@ -73,12 +145,13 @@ fn parse_lexemes(lexemes: Vec<Lexeme>, lex_errors: Vec<LexError>, source_len: us
     Parse {
         syntax,
         diagnostics,
+        token_origins,
     }
 }
 
 struct Parser<'a> {
     lexemes: &'a [Lexeme],
-    source_len: usize,
+    eof_span: Span,
     position: usize,
     events: Vec<Event>,
     diagnostics: Vec<SyntaxDiagnostic>,
@@ -87,10 +160,10 @@ struct Parser<'a> {
 }
 
 impl<'a> Parser<'a> {
-    fn new(lexemes: &'a [Lexeme], source_len: usize) -> Self {
+    fn new(lexemes: &'a [Lexeme], eof_span: Span) -> Self {
         Self {
             lexemes,
-            source_len,
+            eof_span,
             position: 0,
             events: Vec::new(),
             diagnostics: Vec::new(),
@@ -188,9 +261,7 @@ impl<'a> Parser<'a> {
 
     fn current_span(&self) -> Span {
         self.nontrivia_index()
-            .map_or(Span::new(self.source_len, self.source_len), |index| {
-                self.lexemes[index].span
-            })
+            .map_or(self.eof_span, |index| self.lexemes[index].span)
     }
 
     fn current_text(&self) -> Option<&str> {
@@ -270,132 +341,111 @@ fn token_name(kind: SyntaxKind, eof: bool) -> &'static str {
     }
 }
 
-fn reconstruct_source(tokens: &[Token]) -> String {
-    let length = tokens.iter().map(|token| token.span.end).max().unwrap_or(0);
-    let mut bytes = vec![b' '; length];
+fn adapt_tokens(tokens: Vec<Token>) -> (Vec<Lexeme>, Span) {
+    let fallback_eof = tokens.last().map_or(Span::new(0, 0), |token| {
+        Span::new(token.span.end, token.span.end)
+    });
+    let mut lexemes = Vec::new();
+    let mut eof_span = fallback_eof;
     for token in tokens {
         if matches!(token.kind, TokenKind::Eof) {
-            continue;
+            eof_span = token.span;
+            break;
         }
-        let width = token.span.end.saturating_sub(token.span.start);
-        let text = render_token(&token.kind, width);
-        if text.len() == width && token.span.end <= bytes.len() {
-            bytes[token.span.start..token.span.end].copy_from_slice(text.as_bytes());
-        }
+        let (kind, text) = token_lexeme(token.kind);
+        lexemes.push(Lexeme {
+            kind,
+            text,
+            span: token.span,
+        });
     }
-    String::from_utf8(bytes).expect("reconstructed token source is ASCII except escaped strings")
+    (lexemes, eof_span)
 }
 
-fn render_token(kind: &TokenKind, width: usize) -> String {
-    let fixed = match kind {
-        TokenKind::Ident(value) => return value.clone(),
-        TokenKind::Int(value) => {
-            let text = value.to_string();
-            return format!("{}{}", "0".repeat(width.saturating_sub(text.len())), text);
-        }
-        TokenKind::Float(value) => return fit_float(*value, width),
-        TokenKind::String(value) => return fit_string(value, width),
-        TokenKind::Fn => "fn",
-        TokenKind::Do => "do",
-        TokenKind::End => "end",
-        TokenKind::If => "if",
-        TokenKind::Then => "then",
-        TokenKind::ElseIf => "elseif",
-        TokenKind::Else => "else",
-        TokenKind::Let => "let",
-        TokenKind::Tap => "tap",
-        TokenKind::Nil => "nil",
-        TokenKind::True => "true",
-        TokenKind::False => "false",
-        TokenKind::And => "and",
-        TokenKind::Or => "or",
-        TokenKind::Not => "not",
-        TokenKind::Loop => "loop",
-        TokenKind::Break => "break",
-        TokenKind::Continue => "continue",
-        TokenKind::Case => "case",
-        TokenKind::Of => "of",
-        TokenKind::When => "when",
-        TokenKind::Raise => "raise",
-        TokenKind::Try => "try",
-        TokenKind::Catch => "catch",
-        TokenKind::LParen => "(",
-        TokenKind::RParen => ")",
-        TokenKind::LBracket => "[",
-        TokenKind::RBracket => "]",
-        TokenKind::LBrace => "{",
-        TokenKind::RBrace => "}",
-        TokenKind::Comma => ",",
-        TokenKind::Dot => ".",
-        TokenKind::DotDot => "..",
-        TokenKind::Equal => "=",
-        TokenKind::EqualEqual => "==",
-        TokenKind::BangEqual => "!=",
-        TokenKind::Plus => "+",
-        TokenKind::Minus => "-",
-        TokenKind::Star => "*",
-        TokenKind::Slash => "/",
-        TokenKind::SlashSlash => "//",
-        TokenKind::Percent => "%",
-        TokenKind::Less => "<",
-        TokenKind::LessEqual => "<=",
-        TokenKind::Greater => ">",
-        TokenKind::GreaterEqual => ">=",
-        TokenKind::Question => "?",
-        TokenKind::QuestionGreater => "?>",
-        TokenKind::PipeGreater => "|>",
-        TokenKind::LessPipe => "<|",
-        TokenKind::Eof => "",
+fn token_origins(lexemes: &[Lexeme], eof_span: Span) -> TokenOrigins {
+    let mut offset = 0;
+    let entries = lexemes
+        .iter()
+        .map(|lexeme| {
+            let start = offset;
+            offset += lexeme.text.len();
+            TokenOrigin {
+                synthetic: Span::new(start, offset),
+                original: lexeme.span,
+            }
+        })
+        .collect();
+    TokenOrigins { entries, eof_span }
+}
+
+fn token_lexeme(kind: TokenKind) -> (SyntaxKind, String) {
+    let (syntax, text) = match kind {
+        TokenKind::Ident(value) => return (SyntaxKind::IDENT, value),
+        TokenKind::Int(value) => return (SyntaxKind::INT, value.to_string()),
+        TokenKind::Float(value) => return (SyntaxKind::FLOAT, value.to_string()),
+        TokenKind::String(value) => return (SyntaxKind::STRING, quote_string(&value)),
+        TokenKind::Fn => (SyntaxKind::FN_KW, "fn"),
+        TokenKind::Do => (SyntaxKind::DO_KW, "do"),
+        TokenKind::End => (SyntaxKind::END_KW, "end"),
+        TokenKind::If => (SyntaxKind::IF_KW, "if"),
+        TokenKind::Then => (SyntaxKind::THEN_KW, "then"),
+        TokenKind::ElseIf => (SyntaxKind::ELSEIF_KW, "elseif"),
+        TokenKind::Else => (SyntaxKind::ELSE_KW, "else"),
+        TokenKind::Let => (SyntaxKind::LET_KW, "let"),
+        TokenKind::Tap => (SyntaxKind::TAP_KW, "tap"),
+        TokenKind::Nil => (SyntaxKind::NIL_KW, "nil"),
+        TokenKind::True => (SyntaxKind::TRUE_KW, "true"),
+        TokenKind::False => (SyntaxKind::FALSE_KW, "false"),
+        TokenKind::And => (SyntaxKind::AND_KW, "and"),
+        TokenKind::Or => (SyntaxKind::OR_KW, "or"),
+        TokenKind::Not => (SyntaxKind::NOT_KW, "not"),
+        TokenKind::Loop => (SyntaxKind::LOOP_KW, "loop"),
+        TokenKind::Break => (SyntaxKind::BREAK_KW, "break"),
+        TokenKind::Continue => (SyntaxKind::CONTINUE_KW, "continue"),
+        TokenKind::Case => (SyntaxKind::CASE_KW, "case"),
+        TokenKind::Of => (SyntaxKind::OF_KW, "of"),
+        TokenKind::When => (SyntaxKind::WHEN_KW, "when"),
+        TokenKind::Raise => (SyntaxKind::RAISE_KW, "raise"),
+        TokenKind::Try => (SyntaxKind::TRY_KW, "try"),
+        TokenKind::Catch => (SyntaxKind::CATCH_KW, "catch"),
+        TokenKind::LParen => (SyntaxKind::L_PAREN, "("),
+        TokenKind::RParen => (SyntaxKind::R_PAREN, ")"),
+        TokenKind::LBracket => (SyntaxKind::L_BRACKET, "["),
+        TokenKind::RBracket => (SyntaxKind::R_BRACKET, "]"),
+        TokenKind::LBrace => (SyntaxKind::L_BRACE, "{"),
+        TokenKind::RBrace => (SyntaxKind::R_BRACE, "}"),
+        TokenKind::Comma => (SyntaxKind::COMMA, ","),
+        TokenKind::Dot => (SyntaxKind::DOT, "."),
+        TokenKind::DotDot => (SyntaxKind::DOT_DOT, ".."),
+        TokenKind::Equal => (SyntaxKind::EQ, "="),
+        TokenKind::EqualEqual => (SyntaxKind::EQ_EQ, "=="),
+        TokenKind::BangEqual => (SyntaxKind::BANG_EQ, "!="),
+        TokenKind::Plus => (SyntaxKind::PLUS, "+"),
+        TokenKind::Minus => (SyntaxKind::MINUS, "-"),
+        TokenKind::Star => (SyntaxKind::STAR, "*"),
+        TokenKind::Slash => (SyntaxKind::SLASH, "/"),
+        TokenKind::SlashSlash => (SyntaxKind::SLASH_SLASH, "//"),
+        TokenKind::Percent => (SyntaxKind::PERCENT, "%"),
+        TokenKind::Less => (SyntaxKind::LESS, "<"),
+        TokenKind::LessEqual => (SyntaxKind::LESS_EQ, "<="),
+        TokenKind::Greater => (SyntaxKind::GREATER, ">"),
+        TokenKind::GreaterEqual => (SyntaxKind::GREATER_EQ, ">="),
+        TokenKind::Question => (SyntaxKind::QUESTION, "?"),
+        TokenKind::QuestionGreater => (SyntaxKind::QUESTION_GREATER, "?>"),
+        TokenKind::PipeGreater => (SyntaxKind::PIPE_GREATER, "|>"),
+        TokenKind::LessPipe => (SyntaxKind::LESS_PIPE, "<|"),
+        TokenKind::Eof => unreachable!("EOF tokens are handled before adaptation"),
     };
-    fixed.to_owned()
+    (syntax, text.to_owned())
 }
 
-fn fit_float(value: f64, width: usize) -> String {
-    let mut plain = value.to_string();
-    if !plain.contains(['.', 'e', 'E']) {
-        plain.push_str(".0");
-    }
-    let scientific = format!("{value:e}");
-    let mut text = [plain, scientific]
-        .into_iter()
-        .filter(|candidate| candidate.len() <= width)
-        .min_by_key(String::len)
-        .unwrap_or_else(|| value.to_string());
-    if text.len() < width {
-        text.insert_str(0, &"0".repeat(width - text.len()));
-    }
-    text
-}
-fn fit_string(value: &str, width: usize) -> String {
-    let target = width.saturating_sub(2);
-    let mut parts = vec![String::new()];
-    for ch in value.chars() {
-        let choices: &[&str] = match ch {
-            '"' => &["\\\""],
-            '\\' => &["\\\\"],
-            '\n' => &["\n", "\\n"],
-            '\r' => &["\r", "\\r"],
-            '\t' => &["\t", "\\t"],
-            _ => {
-                parts.iter_mut().for_each(|part| part.push(ch));
-                continue;
-            }
-        };
-        let previous = std::mem::take(&mut parts);
-        for prefix in previous {
-            for choice in choices {
-                let mut next = prefix.clone();
-                next.push_str(choice);
-                if next.len() <= target {
-                    parts.push(next);
-                }
-            }
-        }
-    }
-    let body = parts
-        .into_iter()
-        .find(|part| part.len() == target)
-        .unwrap_or_else(|| value.replace('\\', "\\\\").replace('"', "\\\""));
+fn quote_string(value: &str) -> String {
+    let body = value
+        .replace('\\', "\\\\")
+        .replace('"', "\\\"")
+        .replace('\n', "\\n")
+        .replace('\r', "\\r")
+        .replace('\t', "\\t");
     format!("\"{body}\"")
 }
 
