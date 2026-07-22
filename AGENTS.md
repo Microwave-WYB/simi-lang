@@ -61,6 +61,10 @@ else
 end
 ```
 
+A standalone `do ... end` is a primary block expression with zero or more items. It evaluates in a fresh child scope to its last item's value, or to `nil` when empty, and composes with postfix calls, field access, indexing, and `?`.
+
+Postfix `?` passes a non-`nil` value through unchanged. A `nil` value aborts the nearest lexically enclosing standalone block, making that block evaluate to `nil`; nested standalone blocks therefore stop propagation at the nearest boundary. This boundary cannot cross a named or anonymous function body. Raises and hard diagnostics are unaffected. The canonical Rust parser rejects `?` at the operator when there is no same-function standalone block, while the Tree-sitter editor grammar may parse that form permissively for editor recovery.
+
 ### Bindings and assignment
 
 `let` introduces bindings. Its left side may be any existing structural pattern; a refutable pattern is an assertion and a mismatch is a hard runtime error. The right side is evaluated once, matching is atomic, and bindings are installed only after the complete pattern succeeds.
@@ -132,7 +136,7 @@ Simi supports finite decimal and exponent floats, integer/float arithmetic, exac
 +  -  *  /  //  %
 ==  !=  <  <=  >  >=
 and  or  not
-<|  |>
+<|  |>  ?>  ?
 ```
 
 `/` always produces a float. `//` and `%` follow Lua floor-division semantics. Division by zero raises:
@@ -156,13 +160,16 @@ Stable labels are `"nil"`, `"boolean"`, `"integer"`, `"float"`, `"string"`, `"li
 
 ### Pipelines
 
-A pipeline stage must be a call. The incoming value is inserted as the first argument.
+A `|>` or `?>` pipeline stage must be a call. The incoming value is inserted as the first argument, and `tap` performs the call while preserving that incoming value.
 
 ```simi
 value |> transform(extra)
+value ?> tap observe()
 ```
 
-The right-associative trailing-argument operator `<|` requires a call on its left and appends its right operand as exactly one final argument. It binds more tightly than `|>`, allowing callback-heavy pipelines without nested closing parentheses:
+`?>` follows the same stage-call, first-argument, and `tap` rules as `|>`, but a `nil` input skips that stage's callee and all arguments lazily. A non-`nil` input behaves exactly like `|>`. The two operators may mix, and nil-awareness is stage-local: `nil ?> skipped() |> classify()` still calls `classify(nil)`. Only ordinary `nil` triggers skipping; raises and hard diagnostics from the input or an active stage propagate normally.
+
+The right-associative trailing-argument operator `<|` requires a call on its left and appends its right operand as exactly one final argument. It binds more tightly than pipelines, allowing callback-heavy stages without nested closing parentheses:
 
 ```simi
 values
@@ -171,7 +178,7 @@ values
 end
 ```
 
-`operation(first) <| second <| third` is rejected because right associativity makes `second <| third` invalid. `tap` performs a call while preserving the piped value, which is useful for mutation-oriented operations.
+`operation(first) <| second <| third` is rejected because right associativity makes `second <| third` invalid.
 
 ### Modules and native extensions
 
@@ -211,7 +218,7 @@ of _ do
 end
 ```
 
-Patterns support literals, bindings, wildcards, nested list/map patterns, and list/map rests. Guards must evaluate to booleans. Bindings are scoped to the selected clause. Clause bodies are explicitly delimited by `do ... end`, so clauses remain whitespace-independent and may appear on one line.
+The canonical case grammar requires one or more `of` clauses, repeats `of` before each sibling clause, and uses one final `end` for the whole expression rather than a per-clause `end`. Patterns support literals, bindings, wildcards, nested list/map patterns, and list/map rests. Guards must evaluate to booleans. Bindings are scoped to the selected clause; its `do` body extends until the next `of` or the final `end`, so clauses remain whitespace-independent and may appear on one line.
 
 Map fields normally require key presence. The literal nil field pattern is the exception: `{ missing = nil }` matches an absent field, consistent with map lookup and deletion semantics.
 
@@ -225,11 +232,16 @@ Any value may be raised and structurally caught:
 raise { error = "invalid_input", value = input }
 
 try
+    prepare()
     operation()
 catch { error = "invalid_input", value = value } do
     recover(value)
+catch error do
+    raise error
 end
 ```
+
+The canonical try grammar requires one or more protected items followed by one or more `catch` clauses, repeats `catch` before each sibling clause, and uses one final `end` for the whole expression. The protected items evaluate as a block in a fresh child scope. Only a raise from that protected block is matched by the catches: nil propagation and hard diagnostics bypass them, while raises from catch guards or handler bodies escape rather than being considered by later catches.
 
 Generated structural errors use an `error` discriminator and may gain additional fields over time. Preserve stable discriminator strings.
 

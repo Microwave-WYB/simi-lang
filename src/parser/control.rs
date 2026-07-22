@@ -20,12 +20,10 @@ impl Parser {
 
     pub(super) fn parse_try(&mut self) -> Result<Expr, ParseError> {
         let start = self.expect_simple(SimpleToken::Try, "`try`")?;
-        if self.at_simple(SimpleToken::Catch) {
-            return Err(self.error_current(
-                "expected at least one protected block item before `catch`".to_owned(),
-            ));
-        }
         let protected = self.parse_block(start.end)?;
+        if protected.items.is_empty() {
+            return Err(self.error_current("expected at least one protected block item".to_owned()));
+        }
         let clauses = self.parse_marked_pattern_clauses(
             SimpleToken::Catch,
             "catch",

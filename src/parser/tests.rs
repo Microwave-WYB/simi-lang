@@ -835,6 +835,19 @@ fn reports_required_try_delimiters_and_stray_catch() {
 }
 
 #[test]
+fn reports_empty_try_protected_block_at_the_current_terminator() {
+    for (source, expected_span) in [
+        ("try catch", Span::new(4, 9)),
+        ("try end", Span::new(4, 7)),
+        ("try", Span::new(3, 3)),
+    ] {
+        let error = parse_source(source).unwrap_err();
+        assert_eq!(error.message, "expected at least one protected block item");
+        assert_eq!(error.span, expected_span, "{source}");
+    }
+}
+
+#[test]
 fn catch_clauses_reuse_existing_pattern_validation() {
     let source = "try 0 catch [value, ..value] do nil end";
     let error = parse_source(source).unwrap_err();
