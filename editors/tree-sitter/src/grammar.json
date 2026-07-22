@@ -1809,7 +1809,7 @@
           "type": "REPEAT1",
           "content": {
             "type": "SYMBOL",
-            "name": "case_clause"
+            "name": "pattern_clause"
           }
         },
         {
@@ -1841,7 +1841,7 @@
           "type": "REPEAT1",
           "content": {
             "type": "SYMBOL",
-            "name": "case_clause"
+            "name": "pattern_clause"
           }
         },
         {
@@ -1867,13 +1867,9 @@
         }
       ]
     },
-    "case_clause": {
+    "pattern_clause": {
       "type": "SEQ",
       "members": [
-        {
-          "type": "STRING",
-          "value": "case"
-        },
         {
           "type": "FIELD",
           "name": "pattern",
@@ -1909,7 +1905,7 @@
         },
         {
           "type": "STRING",
-          "value": "->"
+          "value": "do"
         },
         {
           "type": "CHOICE",
@@ -1926,6 +1922,10 @@
               "type": "BLANK"
             }
           ]
+        },
+        {
+          "type": "STRING",
+          "value": "end"
         }
       ]
     },

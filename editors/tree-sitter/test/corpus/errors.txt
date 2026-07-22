@@ -73,3 +73,18 @@ value is "number"
   (ERROR)
   (string
     (string_content)))
+
+==================
+Legacy case-arrow clauses are rejected
+==================
+
+match value with case _ -> nil end
+
+---
+
+(program
+  (ERROR
+    (identifier)
+    (identifier)
+    (identifier)
+    (nil)))

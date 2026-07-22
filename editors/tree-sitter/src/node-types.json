@@ -642,42 +642,6 @@
     }
   },
   {
-    "type": "case_clause",
-    "named": true,
-    "fields": {
-      "body": {
-        "multiple": false,
-        "required": false,
-        "types": [
-          {
-            "type": "block",
-            "named": true
-          }
-        ]
-      },
-      "guard": {
-        "multiple": false,
-        "required": false,
-        "types": [
-          {
-            "type": "_expression",
-            "named": true
-          }
-        ]
-      },
-      "pattern": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "_pattern",
-            "named": true
-          }
-        ]
-      }
-    }
-  },
-  {
     "type": "continue_expression",
     "named": true,
     "fields": {
@@ -1316,7 +1280,7 @@
       "required": true,
       "types": [
         {
-          "type": "case_clause",
+          "type": "pattern_clause",
           "named": true
         }
       ]
@@ -1399,6 +1363,42 @@
           "named": true
         }
       ]
+    }
+  },
+  {
+    "type": "pattern_clause",
+    "named": true,
+    "fields": {
+      "body": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "block",
+            "named": true
+          }
+        ]
+      },
+      "guard": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "_expression",
+            "named": true
+          }
+        ]
+      },
+      "pattern": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "_pattern",
+            "named": true
+          }
+        ]
+      }
     }
   },
   {
@@ -1863,7 +1863,7 @@
       "required": true,
       "types": [
         {
-          "type": "case_clause",
+          "type": "pattern_clause",
           "named": true
         }
       ]
@@ -2016,10 +2016,6 @@
     "named": false
   },
   {
-    "type": "->",
-    "named": false
-  },
-  {
     "type": ".",
     "named": false
   },
@@ -2077,10 +2073,6 @@
   },
   {
     "type": "break",
-    "named": false
-  },
-  {
-    "type": "case",
     "named": false
   },
   {

@@ -49,18 +49,18 @@ end
       (continue_expression))))
 
 ==================
-Match-with aligned cases and nested patterns
+Match-with pattern clauses and nested patterns
 ==================
 
 let selected = match payload with
-case [head, {kind = "ok", value = value}, ..tail] when head >= 0 ->
-  [value, tail]
-case {error = nil, .._rest} ->
-  nil
-case _ignored ->
-  match true with
-  case true -> "fallback"
-  case false -> nil
+  [head, {kind = "ok", value = value}, ..tail] when head >= 0 do
+    [value, tail]
+  end
+  {error = nil, .._rest} do
+    nil
+  end
+  _ignored do
+    match true with true do "fallback" end false do nil end end
   end
 end
 
@@ -71,7 +71,7 @@ end
     (identifier)
     (match_expression
       (identifier)
-      (case_clause
+      (pattern_clause
         (list_pattern
           (identifier)
           (map_pattern
@@ -91,7 +91,7 @@ end
           (list
             (identifier)
             (identifier))))
-      (case_clause
+      (pattern_clause
         (map_pattern
           (map_pattern_field
             (identifier)
@@ -100,32 +100,34 @@ end
             (wildcard_pattern)))
         (block
           (nil)))
-      (case_clause
+      (pattern_clause
         (wildcard_pattern)
         (block
           (match_expression
             (boolean)
-            (case_clause
+            (pattern_clause
               (boolean)
               (block
                 (string
                   (string_content))))
-            (case_clause
+            (pattern_clause
               (boolean)
               (block
                 (nil)))))))))
 
 ==================
-Raise, try, and guarded catch cases
+Raise, try, and guarded catch clauses
 ==================
 
 let handled = try
   raise {error = "invalid", payload = [1, 2]}
 catch
-case {error = "invalid", payload = [head, ..tail]} when head == 1 ->
-  tail
-case _ ->
-  raise "unexpected"
+  {error = "invalid", payload = [head, ..tail]} when head == 1 do
+    tail
+  end
+  _ do
+    raise "unexpected"
+  end
 end
 
 ---
@@ -147,7 +149,7 @@ end
               (list
                 (integer)
                 (integer))))))
-      (case_clause
+      (pattern_clause
         (map_pattern
           (map_pattern_field
             (identifier)
@@ -164,7 +166,7 @@ end
           (integer))
         (block
           (identifier)))
-      (case_clause
+      (pattern_clause
         (wildcard_pattern)
         (block
           (raise_expression

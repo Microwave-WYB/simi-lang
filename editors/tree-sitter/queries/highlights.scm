@@ -22,7 +22,6 @@
   "continue"
   "match"
   "with"
-  "case"
   "when"
   "raise"
   "try"
@@ -53,7 +52,6 @@
   ">="
   "|>"
   "<|"
-  "->"
   ".."
 ] @operator
 

@@ -326,7 +326,7 @@ module.exports = grammar({
       "match",
       field("value", $._expression),
       "with",
-      repeat1($.case_clause),
+      repeat1($.pattern_clause),
       "end",
     ),
 
@@ -334,7 +334,7 @@ module.exports = grammar({
       "try",
       field("protected", $._expression),
       "catch",
-      repeat1($.case_clause),
+      repeat1($.pattern_clause),
       "end",
     ),
 
@@ -343,12 +343,12 @@ module.exports = grammar({
       field("value", $._expression),
     ),
 
-    case_clause: ($) => seq(
-      "case",
+    pattern_clause: ($) => seq(
       field("pattern", $._pattern),
       optional(seq("when", field("guard", $._expression))),
-      "->",
+      "do",
       optional(field("body", $.block)),
+      "end",
     ),
 
     _pattern: ($) => choice(

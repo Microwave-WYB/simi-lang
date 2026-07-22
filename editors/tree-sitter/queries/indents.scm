@@ -5,6 +5,7 @@
   (loop_expression)
   (match_expression)
   (try_expression)
+  (pattern_clause)
   (list)
   (map)
   (list_pattern)
@@ -23,6 +24,5 @@
 [
   "elseif"
   "else"
-  "case"
   "catch"
 ] @indent.branch
