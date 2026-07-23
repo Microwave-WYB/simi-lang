@@ -1,0 +1,12 @@
+---- Standard error operations supplied by the CLI host.
+
+--- Write a value and flush standard error.
+fn print(value) do host.call("org.simi-lang/std/io/stderr/print", value) end
+
+--- Write a value and newline, then flush standard error.
+fn println(value) do host.call("org.simi-lang/std/io/stderr/println", value) end
+
+--- Flush standard error.
+fn flush() do host.call("org.simi-lang/std/io/stderr/flush") end
+
+{ print = print, println = println, flush = flush }

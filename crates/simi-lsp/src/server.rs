@@ -14,18 +14,19 @@ use lsp_types::{
     CompletionItem, CompletionItemKind, CompletionOptions, CompletionParams, CompletionResponse,
     Diagnostic, DiagnosticRelatedInformation, DiagnosticSeverity, DidChangeTextDocumentParams,
     DidCloseTextDocumentParams, DidOpenTextDocumentParams, DocumentSymbolParams,
-    DocumentSymbolResponse, GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverContents,
-    HoverParams, InitializeParams, InitializeResult, Location, MarkupContent, MarkupKind,
-    MessageType, NumberOrString, OneOf, Position, PrepareRenameResponse, PublishDiagnosticsParams,
-    ReferenceParams, RenameOptions, RenameParams, ServerCapabilities, ServerInfo,
-    ShowMessageParams, SymbolKind as LspSymbolKind, TextDocumentSyncCapability,
+    DocumentSymbolResponse, Documentation, GotoDefinitionParams, GotoDefinitionResponse, Hover,
+    HoverContents, HoverParams, InitializeParams, InitializeResult, Location, MarkupContent,
+    MarkupKind, MessageType, NumberOrString, OneOf, Position, PrepareRenameResponse,
+    PublishDiagnosticsParams, ReferenceParams, RenameOptions, RenameParams, ServerCapabilities,
+    ServerInfo, ShowMessageParams, SymbolKind as LspSymbolKind, TextDocumentSyncCapability,
     TextDocumentSyncKind, TextDocumentSyncOptions, TextEdit, Url, WorkspaceEdit,
 };
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 use simi_analysis::{
-    AnalysisDatabase, AnalysisDiagnosticSeverity, FileId, RenameError, Resolution, Span,
-    SymbolKind, diagnostics, document_symbols, references, resolve, source_text,
+    AnalysisDatabase, AnalysisDiagnosticSeverity, FileId, ModuleShape, RenameError, Resolution,
+    Span, SymbolKind, diagnostics, display_signature, document_symbols, imported_members,
+    member_at, member_completions, module_at, module_shape, references, resolve, source_text,
 };
 
 use crate::position;
@@ -47,6 +48,7 @@ type AnalysisAt<'a> = (
 pub struct Backend {
     db: AnalysisDatabase,
     documents: HashMap<Url, Document>,
+    module_shapes: HashMap<String, ModuleShape>,
     shutdown_requested: bool,
 }
 
@@ -83,6 +85,22 @@ impl ProtocolError {
 impl Backend {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub fn with_module_sources<I, N, S>(sources: I) -> Self
+    where
+        I: IntoIterator<Item = (N, S)>,
+        N: Into<String>,
+        S: Into<String>,
+    {
+        let mut backend = Self::default();
+        for (name, source) in sources {
+            let file = backend.db.add_file(source.into());
+            backend
+                .module_shapes
+                .insert(name.into(), module_shape(&backend.db, file));
+        }
+        backend
     }
 
     pub fn capabilities() -> ServerCapabilities {
@@ -384,21 +402,57 @@ impl Backend {
 
     fn hover(&self, params: HoverParams) -> Result<Option<Hover>, ProtocolError> {
         let uri = params.text_document_position_params.text_document.uri;
-        let (_, text, resolution, offset) =
+        let (document, text, resolution, offset) =
             self.analysis_at(&uri, params.text_document_position_params.position)?;
+        if let Some(module) = module_at(&self.db, document.file, &self.module_shapes, offset) {
+            let mut value = module.module;
+            if let Some(documentation) = module.documentation {
+                value.push_str("\n\n");
+                value.push_str(&documentation);
+            }
+            return Ok(Some(Hover {
+                contents: HoverContents::Markup(MarkupContent {
+                    kind: MarkupKind::PlainText,
+                    value,
+                }),
+                range: None,
+            }));
+        }
+        if let Some(member) = member_at(&self.db, document.file, &self.module_shapes, &text, offset)
+        {
+            let mut value = member.field.parameters.as_ref().map_or_else(
+                || member.field.name.clone(),
+                |parameters| display_signature(&member.field.name, parameters),
+            );
+            if let Some(documentation) = member.field.documentation {
+                value.push_str("\n\n");
+                value.push_str(&documentation);
+            }
+            return Ok(Some(Hover {
+                contents: HoverContents::Markup(MarkupContent {
+                    kind: MarkupKind::PlainText,
+                    value,
+                }),
+                range: None,
+            }));
+        }
         let Some(facts) = resolution.hover(offset) else {
             return Ok(None);
         };
-        let detail = match facts.kind {
-            SymbolKind::Function | SymbolKind::Builtin => facts.arity.map_or_else(
+        let mut detail = match facts.kind {
+            SymbolKind::Function | SymbolKind::Builtin => facts.parameters.as_ref().map_or_else(
                 || format!("fn {}", facts.name),
-                |arity| format!("fn {}/{arity}", facts.name),
+                |parameters| display_signature(&facts.name, parameters),
             ),
             SymbolKind::Parameter
             | SymbolKind::Let
             | SymbolKind::Pattern
             | SymbolKind::LoopState => facts.name,
         };
+        if let Some(documentation) = facts.documentation {
+            detail.push_str("\n\n");
+            detail.push_str(&documentation);
+        }
         Ok(Some(Hover {
             contents: HoverContents::Markup(MarkupContent {
                 kind: MarkupKind::PlainText,
@@ -416,9 +470,34 @@ impl Backend {
         params: CompletionParams,
     ) -> Result<Option<CompletionResponse>, ProtocolError> {
         let uri = params.text_document_position.text_document.uri;
-        let (_, text, resolution, offset) =
+        let (document, text, resolution, offset) =
             self.analysis_at(&uri, params.text_document_position.position)?;
         let prefix = identifier_prefix(&text, offset);
+        let prefix_start = offset.saturating_sub(prefix.len());
+        if prefix_start > 0 && text.as_bytes().get(prefix_start - 1) == Some(&b'.') {
+            let items =
+                member_completions(&self.db, document.file, &self.module_shapes, &text, offset)
+                    .into_iter()
+                    .map(|field| {
+                        let is_function = field.parameters.is_some();
+                        CompletionItem {
+                            label: field.name.clone(),
+                            kind: Some(if is_function {
+                                CompletionItemKind::FUNCTION
+                            } else {
+                                CompletionItemKind::FIELD
+                            }),
+                            detail: Some(field.parameters.as_ref().map_or_else(
+                                || "field".to_owned(),
+                                |parameters| display_signature(&field.name, parameters),
+                            )),
+                            documentation: field.documentation.map(Documentation::String),
+                            ..CompletionItem::default()
+                        }
+                    })
+                    .collect();
+            return Ok(Some(CompletionResponse::Array(items)));
+        }
         let visible = resolution.visible_symbols(offset);
         if !prefix.is_empty()
             && visible
@@ -428,6 +507,7 @@ impl Backend {
             return Ok(Some(CompletionResponse::Array(Vec::new())));
         }
 
+        let imported = imported_members(&self.db, document.file, &self.module_shapes);
         let mut names = BTreeSet::new();
         let mut items = Vec::new();
         for symbol in visible {
@@ -441,10 +521,30 @@ impl Backend {
                 } else {
                     2
                 };
+                let imported = imported.get(&symbol);
+                let imported_parameters =
+                    imported.and_then(|member| member.field.parameters.as_deref());
+                let kind = if imported_parameters.is_some() {
+                    CompletionItemKind::FUNCTION
+                } else {
+                    completion_kind(data.kind)
+                };
+                let detail = imported.map_or_else(
+                    || completion_detail(data.kind, &data.name, data.parameters.as_deref()),
+                    |member| {
+                        member.field.parameters.as_ref().map_or_else(
+                            || "binding".to_owned(),
+                            |parameters| display_signature(&data.name, parameters),
+                        )
+                    },
+                );
                 items.push(CompletionItem {
                     label: data.name.clone(),
-                    kind: Some(completion_kind(data.kind)),
-                    detail: Some(completion_detail(data.kind, data.arity)),
+                    kind: Some(kind),
+                    detail: Some(detail),
+                    documentation: imported
+                        .and_then(|member| member.field.documentation.clone())
+                        .map(Documentation::String),
                     sort_text: Some(format!("{builtin_rank}{prefix_rank}:{}", data.name)),
                     ..CompletionItem::default()
                 });
@@ -487,6 +587,13 @@ impl Backend {
 }
 
 pub fn run_connection(connection: Connection) -> Result<(), Box<dyn Error + Sync + Send>> {
+    run_connection_with_backend(connection, Backend::new())
+}
+
+pub fn run_connection_with_backend(
+    connection: Connection,
+    mut backend: Backend,
+) -> Result<(), Box<dyn Error + Sync + Send>> {
     let (initialize_id, initialize_params) = connection.initialize_start()?;
     let _: InitializeParams = serde_json::from_value(initialize_params)?;
     connection.initialize_finish(
@@ -494,7 +601,6 @@ pub fn run_connection(connection: Connection) -> Result<(), Box<dyn Error + Sync
         serde_json::to_value(Backend::initialize_result())?,
     )?;
 
-    let mut backend = Backend::new();
     for message in &connection.receiver {
         match message {
             Message::Request(request) => {
@@ -599,11 +705,11 @@ fn completion_kind(kind: SymbolKind) -> CompletionItemKind {
     }
 }
 
-fn completion_detail(kind: SymbolKind, arity: Option<usize>) -> String {
+fn completion_detail(kind: SymbolKind, name: &str, parameters: Option<&[String]>) -> String {
     match kind {
-        SymbolKind::Function | SymbolKind::Builtin => arity
-            .map(|arity| format!("function /{arity}"))
-            .unwrap_or_else(|| "function".to_owned()),
+        SymbolKind::Function | SymbolKind::Builtin => parameters
+            .map(|parameters| display_signature(name, parameters))
+            .unwrap_or_else(|| format!("fn {name}")),
         SymbolKind::Parameter | SymbolKind::Let | SymbolKind::Pattern | SymbolKind::LoopState => {
             "binding".to_owned()
         }

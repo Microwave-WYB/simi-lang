@@ -33,6 +33,8 @@ pub struct SymbolData {
     pub declaration: Option<Span>,
     pub scope: ScopeId,
     pub arity: Option<usize>,
+    pub parameters: Option<Vec<String>>,
+    pub documentation: Option<String>,
     pub builtin: bool,
     pub activation: usize,
 }
@@ -140,12 +142,45 @@ pub struct DocumentSymbol {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ExportField {
+    pub name: String,
+    pub span: Span,
+    pub parameters: Option<Vec<String>>,
+    pub documentation: Option<String>,
+    pub fields: Vec<ExportField>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ModuleShape {
+    pub documentation: Option<String>,
+    pub fields: Vec<ExportField>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ModuleValue {
+    pub module: String,
+    pub documentation: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ModuleMember {
+    pub module: String,
+    pub field: ExportField,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct HoverFacts {
     pub symbol: SymbolId,
     pub name: String,
     pub kind: SymbolKind,
     pub arity: Option<usize>,
+    pub parameters: Option<Vec<String>>,
+    pub documentation: Option<String>,
     pub declaration: Option<Span>,
+}
+
+pub fn display_signature(name: &str, parameters: &[String]) -> String {
+    format!("fn {name}({})", parameters.join(", "))
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -185,7 +220,7 @@ impl Resolution {
     }
 
     pub fn definition_span(&self, symbol: SymbolId) -> Option<Span> {
-        self.symbol(symbol)?.declaration
+        self.symbol_data(symbol)?.declaration
     }
 
     pub fn references(&self, symbol: SymbolId) -> &[Span] {
@@ -195,7 +230,7 @@ impl Resolution {
     }
 
     pub fn rename_spans(&self, symbol: SymbolId) -> Vec<Span> {
-        let Some(data) = self.symbol(symbol) else {
+        let Some(data) = self.symbol_data(symbol) else {
             return Vec::new();
         };
         let mut spans = self.references(symbol).to_vec();
@@ -209,12 +244,14 @@ impl Resolution {
 
     pub fn hover(&self, offset: usize) -> Option<HoverFacts> {
         let id = self.symbol_at(offset)?;
-        let symbol = self.symbol(id)?;
+        let symbol = self.symbol_data(id)?;
         Some(HoverFacts {
             symbol: id,
             name: symbol.name.clone(),
             kind: symbol.kind,
             arity: symbol.arity,
+            parameters: symbol.parameters.clone(),
+            documentation: symbol.documentation.clone(),
             declaration: symbol.declaration,
         })
     }
@@ -249,7 +286,7 @@ impl Resolution {
         if !is_identifier(new_name) {
             return Err(RenameError::InvalidName);
         }
-        let target = self.symbol(symbol).ok_or(RenameError::Unresolved)?;
+        let target = self.symbol_data(symbol).ok_or(RenameError::Unresolved)?;
         if target.builtin {
             return Err(RenameError::Builtin);
         }
@@ -327,7 +364,7 @@ impl Resolution {
         }
     }
 
-    fn symbol(&self, id: SymbolId) -> Option<&SymbolData> {
+    pub fn symbol_data(&self, id: SymbolId) -> Option<&SymbolData> {
         self.hir
             .symbols
             .iter()

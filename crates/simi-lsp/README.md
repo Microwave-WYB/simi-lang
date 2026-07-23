@@ -11,6 +11,6 @@ cargo run --bin simi -- lsp
 After `cargo build --bin simi`, the equivalent project-local command is
 `./target/debug/simi lsp`.
 
-Editors should start `simi` with the `lsp` argument and connect stdin/stdout to LSP transport. The server negotiates UTF-16 positions and incremental document synchronization. Each open document is analyzed independently; filesystem and script-module loading are not implemented.
+Editors should start `simi` with the `lsp` argument and connect stdin/stdout to LSP transport. The server negotiates UTF-16 positions and incremental document synchronization. Each open document is analyzed independently, while the CLI supplies its bundled source-module catalog for standard-library member completion, source-style signatures, and hover documentation. Filesystem and package discovery are not implemented.
 
 The protocol layer owns document versions and UTF-16 conversion only. All syntax, HIR, resolution, and symbol decisions come from `simi-analysis`, and analysis IDs are reacquired after every source revision.

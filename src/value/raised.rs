@@ -42,6 +42,38 @@ impl Raised {
         )
     }
 
+    pub(crate) fn circular_module_dependency(module: &str, origin: Span) -> Self {
+        Self::new(
+            Value::Map(Gc::new(GcCell::new(vec![
+                (
+                    MapKey::String("error".to_owned()),
+                    Value::String("circular_module_dependency".to_owned()),
+                ),
+                (
+                    MapKey::String("module".to_owned()),
+                    Value::String(module.to_owned()),
+                ),
+            ]))),
+            origin,
+        )
+    }
+
+    pub(crate) fn host_function_not_found(function: &str, origin: Span) -> Self {
+        Self::new(
+            Value::Map(Gc::new(GcCell::new(vec![
+                (
+                    MapKey::String("error".to_owned()),
+                    Value::String("host_function_not_found".to_owned()),
+                ),
+                (
+                    MapKey::String("function".to_owned()),
+                    Value::String(function.to_owned()),
+                ),
+            ]))),
+            origin,
+        )
+    }
+
     pub(crate) fn io_error(operation: &str, message: String, origin: Span) -> Self {
         Self::new(
             Value::Map(Gc::new(GcCell::new(vec![

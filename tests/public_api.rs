@@ -17,7 +17,8 @@ use simiscript::runtime::{
 };
 use simiscript::{
     Engine, EngineBuilder, Module, ModuleBuilder, NativeCallback, Raised as RootRaised,
-    ScriptResult as RootScriptResult, TraceFrame as RootTraceFrame, Value as RootValue,
+    ScriptResult as RootScriptResult, SourceModuleBuilder, TraceFrame as RootTraceFrame,
+    Value as RootValue,
 };
 
 #[test]
@@ -30,6 +31,7 @@ fn existing_public_paths_remain_available() {
     let _ = Engine::builder;
     let _ = EngineBuilder::new;
     let _: ModuleBuilder = Module::builder("example");
+    let _: SourceModuleBuilder = Module::source("source", "{}");
     let _: Module = simiscript::stdlib::map();
     let _: Option<&NativeCallback> = None;
     let _ = [

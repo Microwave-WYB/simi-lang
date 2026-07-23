@@ -5,13 +5,14 @@ mod render;
 
 pub use list::List;
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use gc::{Finalize, Gc, GcCell, Trace, custom_trace};
 
 use crate::ast::Block;
 use crate::environment::Environment;
-use crate::module::NativeCallback;
+use crate::module::{HostOperation, NativeCallback};
 use crate::span::Span;
 
 pub type RuntimeResult<T> = Result<T, RuntimeError>;
@@ -114,6 +115,8 @@ pub struct UserFunction {
     pub params: Vec<String>,
     pub body: Block,
     pub closure: Environment,
+    pub(crate) trace_calls: bool,
+    pub(crate) module: Option<String>,
 }
 
 impl Finalize for UserFunction {}
@@ -135,15 +138,7 @@ pub struct NativeFunction {
 pub(crate) enum NativeImplementation {
     Callback(Arc<NativeCallback>),
     Require,
-    ListMap,
-    ListFilter,
-    ListFold,
-    ListFind,
-    ListFindIndex,
-    ListAny,
-    ListAll,
-    ListEach,
-    ListCount,
+    HostCall(Arc<HashMap<String, HostOperation>>),
 }
 
 impl NativeFunction {
@@ -163,59 +158,19 @@ impl NativeFunction {
         self.arity
     }
 
+    pub(crate) fn host_call(operations: Arc<HashMap<String, HostOperation>>) -> Self {
+        Self {
+            name: "host.call".to_owned(),
+            arity: 1,
+            implementation: NativeImplementation::HostCall(operations),
+        }
+    }
+
     pub(crate) fn require() -> Self {
         Self {
             name: "require".to_owned(),
             arity: 1,
             implementation: NativeImplementation::Require,
-        }
-    }
-
-    pub(crate) fn list_map() -> Self {
-        Self::intrinsic("std/list.map", 2, NativeImplementation::ListMap)
-    }
-
-    pub(crate) fn list_filter() -> Self {
-        Self::intrinsic("std/list.filter", 2, NativeImplementation::ListFilter)
-    }
-
-    pub(crate) fn list_fold() -> Self {
-        Self::intrinsic("std/list.fold", 3, NativeImplementation::ListFold)
-    }
-
-    pub(crate) fn list_find() -> Self {
-        Self::intrinsic("std/list.find", 2, NativeImplementation::ListFind)
-    }
-
-    pub(crate) fn list_find_index() -> Self {
-        Self::intrinsic(
-            "std/list.find_index",
-            2,
-            NativeImplementation::ListFindIndex,
-        )
-    }
-
-    pub(crate) fn list_any() -> Self {
-        Self::intrinsic("std/list.any", 2, NativeImplementation::ListAny)
-    }
-
-    pub(crate) fn list_all() -> Self {
-        Self::intrinsic("std/list.all", 2, NativeImplementation::ListAll)
-    }
-
-    pub(crate) fn list_each() -> Self {
-        Self::intrinsic("std/list.each", 2, NativeImplementation::ListEach)
-    }
-
-    pub(crate) fn list_count() -> Self {
-        Self::intrinsic("std/list.count", 2, NativeImplementation::ListCount)
-    }
-
-    fn intrinsic(name: &str, arity: usize, implementation: NativeImplementation) -> Self {
-        Self {
-            name: name.to_owned(),
-            arity,
-            implementation,
         }
     }
 

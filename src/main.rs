@@ -9,13 +9,16 @@ use simiscript::span::line_column;
 fn main() -> ExitCode {
     match Cli::parse().command {
         CliCommand::Run { file } => run_file(file),
-        CliCommand::Lsp => match simi_lsp::run_stdio() {
-            Ok(()) => ExitCode::SUCCESS,
-            Err(error) => {
-                eprintln!("simi lsp: {error}");
-                ExitCode::FAILURE
+        CliCommand::Lsp => {
+            let engine = simiscript::Engine::builder().stdlib().stdio().build();
+            match simi_lsp::run_stdio_with_module_sources(engine.module_sources()) {
+                Ok(()) => ExitCode::SUCCESS,
+                Err(error) => {
+                    eprintln!("simi lsp: {error}");
+                    ExitCode::FAILURE
+                }
             }
-        },
+        }
     }
 }
 

@@ -238,3 +238,43 @@ fn invalid_callbacks_and_filter_results_are_hard_diagnostics() {
             .contains("std/list.filter callback must return a boolean, got integer")
     );
 }
+
+#[test]
+fn nested_stdlib_calls_inside_callbacks_use_the_nested_call_span() {
+    let raised_source = r#"
+let list = require("std/list")
+list.each([1], fn(value) do
+    list.set([], value, 9)
+end)
+"#;
+    let raised = match eval(raised_source).unwrap() {
+        Err(raised) => raised,
+        Ok(value) => panic!("expected nested bounds raise, got {}", value.render()),
+    };
+    assert_eq!(raised.origin.start, raised_source.find("list.set").unwrap());
+
+    let hard_source = r#"
+let list = require("std/list")
+list.each([1], fn(value) do
+    list.get([], "bad")
+end)
+"#;
+    let error = match eval(hard_source) {
+        Err(error) => error,
+        Ok(_) => panic!("expected nested hard diagnostic"),
+    };
+    assert_eq!(error.span().start, hard_source.find("list.get").unwrap());
+}
+
+#[test]
+fn facade_callbacks_keep_native_qualified_arity_diagnostics() {
+    let error = match eval("let list = require(\"std/list\") list.map([], list.append)") {
+        Err(error) => error,
+        Ok(_) => panic!("expected callback arity diagnostic"),
+    };
+    assert!(
+        error
+            .to_string()
+            .contains("native function `std/list.append` expects 2 arguments, got 1")
+    );
+}

@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::ast::Program;
+use crate::engine::ModuleRegistry;
 use crate::native::{global_inspect, global_type};
 use crate::runtime::{
     Environment, NativeFunction, Raised, RuntimeError, RuntimeResult, ScriptResult, Value,
@@ -15,7 +16,11 @@ mod pattern;
 
 pub struct Interpreter {
     pub globals: Environment,
-    modules: HashMap<String, Value>,
+    prelude: Environment,
+    modules: ModuleRegistry,
+    trace_function_calls: bool,
+    host_call_span: Option<Span>,
+    module_name: Option<String>,
 }
 
 pub(super) enum EvaluationError {
@@ -63,17 +68,21 @@ impl Default for Interpreter {
 
 impl Interpreter {
     pub fn new() -> Self {
-        Self::with_modules(HashMap::new())
+        Self::with_modules(ModuleRegistry::new_for_interpreter(HashMap::new()))
     }
 
     pub fn with_globals(globals: Environment) -> Self {
         Self {
+            prelude: globals.clone(),
             globals,
-            modules: HashMap::new(),
+            modules: ModuleRegistry::new_for_interpreter(HashMap::new()),
+            trace_function_calls: true,
+            host_call_span: None,
+            module_name: None,
         }
     }
 
-    pub(crate) fn with_modules(modules: HashMap<String, Value>) -> Self {
+    pub(crate) fn with_modules(modules: ModuleRegistry) -> Self {
         let prelude = Environment::new();
         prelude.define("require", Value::NativeFunction(NativeFunction::require()));
         prelude.define(
@@ -85,7 +94,14 @@ impl Interpreter {
             Value::NativeFunction(NativeFunction::new("inspect", 1, Arc::new(global_inspect))),
         );
         let globals = prelude.child();
-        Self { globals, modules }
+        Self {
+            globals,
+            prelude,
+            modules,
+            trace_function_calls: true,
+            host_call_span: None,
+            module_name: None,
+        }
     }
 
     pub fn evaluate(&mut self, program: &Program) -> RuntimeResult<ScriptResult> {

@@ -1,0 +1,525 @@
+use std::collections::HashMap;
+
+use simi_syntax::ast as support;
+use simi_syntax::generated::{self as syntax, AstNode};
+use simi_syntax::{SyntaxKind as K, SyntaxNode, span::Span};
+
+use crate::db::{FileId, parse, resolve, source_text};
+use crate::model::{
+    ExportField, ModuleMember, ModuleShape, ModuleValue, Resolution, SymbolId, SymbolKind,
+};
+
+#[derive(Clone, Debug)]
+struct KnownValue {
+    module: String,
+    path: Vec<String>,
+}
+
+#[salsa::tracked(returns(clone))]
+pub fn module_shape(db: &dyn salsa::Database, file: FileId) -> ModuleShape {
+    let parsed = parse(db, file);
+    let resolution = resolve(db, file);
+    let root = syntax::Root::cast(parsed.syntax()).expect("parser produces a root");
+    let mut maps = HashMap::<String, Vec<ExportField>>::new();
+    let mut final_fields = Vec::new();
+
+    for statement in root.statements() {
+        // A module exports the value of its final top-level item. Clear the
+        // previous candidate before every item so an earlier map cannot leak
+        // through a later declaration, assignment, or unsupported expression.
+        final_fields.clear();
+        match statement {
+            syntax::Stmt::LetStmt(node) => {
+                let Some(pattern) = support::child::<syntax::Pattern>(node.syntax()) else {
+                    continue;
+                };
+                let syntax::Pattern::Binding(binding) = pattern else {
+                    continue;
+                };
+                let Some(name) = support::token(binding.syntax(), K::IDENT) else {
+                    continue;
+                };
+                if let Some(syntax::Expr::Map(map)) = support::child::<syntax::Expr>(node.syntax())
+                {
+                    maps.insert(
+                        name.text().to_owned(),
+                        fields_from_map(map.syntax(), &resolution, &maps),
+                    );
+                }
+            }
+            syntax::Stmt::ExprStmt(node) => {
+                let Some(expression) = support::child::<syntax::Expr>(node.syntax()) else {
+                    continue;
+                };
+                match expression {
+                    syntax::Expr::Assign(assign) => {
+                        let mut expressions =
+                            assign.syntax().children().filter_map(syntax::Expr::cast);
+                        let (Some(syntax::Expr::Field(target)), Some(value)) =
+                            (expressions.next(), expressions.next())
+                        else {
+                            continue;
+                        };
+                        let Some(syntax::Expr::Name(receiver)) =
+                            target.syntax().children().find_map(syntax::Expr::cast)
+                        else {
+                            continue;
+                        };
+                        let Some(receiver) = support::token(receiver.syntax(), K::IDENT) else {
+                            continue;
+                        };
+                        let Some(field) = support::token(target.syntax(), K::IDENT) else {
+                            continue;
+                        };
+                        let inferred = (!is_nil(&value)).then(|| {
+                            field_from_value(
+                                field.text().to_owned(),
+                                token_span(&field),
+                                value,
+                                &resolution,
+                                &maps,
+                            )
+                        });
+                        let fields = maps.entry(receiver.text().to_owned()).or_default();
+                        fields.retain(|existing| existing.name != field.text());
+                        if let Some(inferred) = inferred {
+                            fields.push(inferred);
+                        }
+                    }
+                    syntax::Expr::Map(map) => {
+                        final_fields = fields_from_map(map.syntax(), &resolution, &maps);
+                    }
+                    syntax::Expr::Name(name) => {
+                        if let Some(name) = support::token(name.syntax(), K::IDENT)
+                            && let Some(fields) = maps.get(name.text())
+                        {
+                            final_fields = fields.clone();
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            syntax::Stmt::FunctionDecl(_) => {}
+        }
+    }
+
+    ModuleShape {
+        documentation: module_documentation(&source_text(db, file)),
+        fields: final_fields,
+    }
+}
+
+fn module_documentation(source: &str) -> Option<String> {
+    let mut lines = source.lines().skip_while(|line| line.trim().is_empty());
+    let mut documentation = Vec::new();
+    for line in &mut lines {
+        let line = line.trim_start();
+        let Some(text) = line.strip_prefix("----") else {
+            break;
+        };
+        documentation.push(text.strip_prefix(' ').unwrap_or(text).to_owned());
+    }
+    (!documentation.is_empty()).then(|| documentation.join("\n"))
+}
+
+fn fields_from_map(
+    node: &SyntaxNode,
+    resolution: &Resolution,
+    maps: &HashMap<String, Vec<ExportField>>,
+) -> Vec<ExportField> {
+    support::children::<syntax::MapEntry>(node)
+        .filter_map(|entry| {
+            let key = support::token(entry.syntax(), K::IDENT)?;
+            let value = support::child::<syntax::Expr>(entry.syntax())?;
+            if is_nil(&value) {
+                return None;
+            }
+            Some(field_from_value(
+                key.text().to_owned(),
+                token_span(&key),
+                value,
+                resolution,
+                maps,
+            ))
+        })
+        .collect()
+}
+
+fn field_from_value(
+    name: String,
+    span: Span,
+    value: syntax::Expr,
+    resolution: &Resolution,
+    maps: &HashMap<String, Vec<ExportField>>,
+) -> ExportField {
+    let mut field = ExportField {
+        name,
+        span,
+        parameters: None,
+        documentation: None,
+        fields: Vec::new(),
+    };
+    match value {
+        syntax::Expr::Name(node) => {
+            if let Some(token) = support::token(node.syntax(), K::IDENT) {
+                if let Some(symbol) = resolution.symbol_at(token_span(&token).start)
+                    && let Some(data) = resolution.symbol_data(symbol)
+                    && matches!(data.kind, SymbolKind::Function | SymbolKind::Builtin)
+                {
+                    field.parameters = data.parameters.clone();
+                    field.documentation = data.documentation.clone();
+                    field.span = data.declaration.unwrap_or(field.span);
+                } else if let Some(fields) = maps.get(token.text()) {
+                    field.fields = fields.clone();
+                }
+            }
+        }
+        syntax::Expr::Function(node) => {
+            let parameters = support::child::<syntax::ParamList>(node.syntax())
+                .map(|params| {
+                    support::tokens(params.syntax(), K::IDENT)
+                        .map(|token| token.text().to_owned())
+                        .collect()
+                })
+                .unwrap_or_default();
+            field.parameters = Some(parameters);
+        }
+        syntax::Expr::Map(map) => {
+            field.fields = fields_from_map(map.syntax(), resolution, maps);
+        }
+        _ => {}
+    }
+    field
+}
+
+pub fn imported_modules(db: &dyn salsa::Database, file: FileId) -> HashMap<SymbolId, String> {
+    known_bindings(db, file)
+        .into_iter()
+        .filter_map(|(symbol, value)| value.path.is_empty().then_some((symbol, value.module)))
+        .collect()
+}
+
+pub fn module_at(
+    db: &dyn salsa::Database,
+    file: FileId,
+    modules: &HashMap<String, ModuleShape>,
+    offset: usize,
+) -> Option<ModuleValue> {
+    let parsed = parse(db, file);
+    let resolution = resolve(db, file);
+    let bindings = known_bindings(db, file);
+
+    if let Some(symbol) = resolution.symbol_at(offset)
+        && let Some(value) = bindings.get(&symbol)
+        && value.path.is_empty()
+    {
+        return Some(ModuleValue {
+            module: value.module.clone(),
+            documentation: modules.get(&value.module)?.documentation.clone(),
+        });
+    }
+
+    let module = parsed
+        .syntax()
+        .descendants()
+        .filter_map(syntax::CallExpr::cast)
+        .find_map(|call| {
+            let arguments = support::child::<syntax::ArgList>(call.syntax())?;
+            let literal = support::children::<syntax::Expr>(arguments.syntax()).next()?;
+            let syntax::Expr::Literal(literal) = literal else {
+                return None;
+            };
+            let token = support::token(literal.syntax(), K::STRING)?;
+            contains(token_span(&token), offset)
+                .then(|| required_module(&call, &resolution))
+                .flatten()
+        })?;
+    Some(ModuleValue {
+        documentation: modules.get(&module)?.documentation.clone(),
+        module,
+    })
+}
+
+pub fn imported_members(
+    db: &dyn salsa::Database,
+    file: FileId,
+    modules: &HashMap<String, ModuleShape>,
+) -> HashMap<SymbolId, ModuleMember> {
+    let resolution = resolve(db, file);
+    known_bindings(db, file)
+        .into_iter()
+        .filter_map(|(symbol, value)| {
+            let mut member = member_from_value(modules, &value)?;
+            member.field.name = resolution.symbol_data(symbol)?.name.clone();
+            Some((symbol, member))
+        })
+        .collect()
+}
+
+pub fn member_at(
+    db: &dyn salsa::Database,
+    file: FileId,
+    modules: &HashMap<String, ModuleShape>,
+    _source: &str,
+    offset: usize,
+) -> Option<ModuleMember> {
+    let parsed = parse(db, file);
+    let resolution = resolve(db, file);
+    let bindings = known_bindings(db, file);
+
+    let field = parsed
+        .syntax()
+        .descendants()
+        .filter_map(syntax::FieldExpr::cast)
+        .filter_map(|field| {
+            let token = support::token(field.syntax(), K::IDENT)?;
+            contains(token_span(&token), offset).then_some(field)
+        })
+        .min_by_key(|field| field.syntax().text_range().len());
+    if let Some(field) = field
+        && let Some(value) = known_value(syntax::Expr::Field(field), &resolution, &bindings)
+    {
+        return member_from_value(modules, &value);
+    }
+
+    let symbol = resolution.symbol_at(offset)?;
+    let mut member = member_from_value(modules, bindings.get(&symbol)?)?;
+    member.field.name = resolution.symbol_data(symbol)?.name.clone();
+    Some(member)
+}
+
+pub fn member_completions(
+    db: &dyn salsa::Database,
+    file: FileId,
+    modules: &HashMap<String, ModuleShape>,
+    source: &str,
+    offset: usize,
+) -> Vec<ExportField> {
+    let parsed = parse(db, file);
+    let resolution = resolve(db, file);
+    let bindings = known_bindings(db, file);
+
+    if let Some((value, prefix)) =
+        completion_value(&parsed.syntax(), offset, &resolution, &bindings)
+    {
+        return completions_from_value(modules, &value, &prefix);
+    }
+
+    let Some((receiver, path, prefix)) = member_path(source, offset, true) else {
+        return Vec::new();
+    };
+    let Some(symbol) = resolution.symbol_at(receiver.1) else {
+        return Vec::new();
+    };
+    let Some(mut value) = bindings.get(&symbol).cloned() else {
+        return Vec::new();
+    };
+    value.path.extend(path);
+    completions_from_value(modules, &value, &prefix)
+}
+
+fn known_bindings(db: &dyn salsa::Database, file: FileId) -> HashMap<SymbolId, KnownValue> {
+    let parsed = parse(db, file);
+    let resolution = resolve(db, file);
+    let root = syntax::Root::cast(parsed.syntax()).expect("parser produces a root");
+    let mut bindings = HashMap::new();
+    for node in root
+        .syntax()
+        .descendants()
+        .filter_map(syntax::LetStmt::cast)
+    {
+        let Some(syntax::Pattern::Binding(binding)) =
+            support::child::<syntax::Pattern>(node.syntax())
+        else {
+            continue;
+        };
+        let Some(binding) = support::token(binding.syntax(), K::IDENT) else {
+            continue;
+        };
+        let Some(value) = support::child::<syntax::Expr>(node.syntax()) else {
+            continue;
+        };
+        let Some(value) = known_value(value, &resolution, &bindings) else {
+            continue;
+        };
+        if let Some(symbol) = resolution.symbol_at(token_span(&binding).start) {
+            bindings.insert(symbol, value);
+        }
+    }
+    bindings
+}
+
+fn known_value(
+    expression: syntax::Expr,
+    resolution: &Resolution,
+    bindings: &HashMap<SymbolId, KnownValue>,
+) -> Option<KnownValue> {
+    match expression {
+        syntax::Expr::Call(call) => required_module(&call, resolution).map(|module| KnownValue {
+            module,
+            path: Vec::new(),
+        }),
+        syntax::Expr::Name(name) => {
+            let token = support::token(name.syntax(), K::IDENT)?;
+            bindings
+                .get(&resolution.symbol_at(token_span(&token).start)?)
+                .cloned()
+        }
+        syntax::Expr::Field(field) => {
+            let base = field.syntax().children().find_map(syntax::Expr::cast)?;
+            let mut value = known_value(base, resolution, bindings)?;
+            let name = support::token(field.syntax(), K::IDENT)?;
+            value.path.push(name.text().to_owned());
+            Some(value)
+        }
+        syntax::Expr::Paren(paren) => {
+            let inner = paren.syntax().children().find_map(syntax::Expr::cast)?;
+            known_value(inner, resolution, bindings)
+        }
+        _ => None,
+    }
+}
+
+fn required_module(call: &syntax::CallExpr, resolution: &Resolution) -> Option<String> {
+    let syntax::Expr::Name(callee) = call.syntax().children().find_map(syntax::Expr::cast)? else {
+        return None;
+    };
+    let callee = support::token(callee.syntax(), K::IDENT)?;
+    let data = resolution.symbol_data(resolution.symbol_at(token_span(&callee).start)?)?;
+    if !data.builtin || data.name != "require" {
+        return None;
+    }
+    let arguments = support::child::<syntax::ArgList>(call.syntax())?;
+    let mut expressions = support::children::<syntax::Expr>(arguments.syntax());
+    let syntax::Expr::Literal(module) = expressions.next()? else {
+        return None;
+    };
+    if expressions.next().is_some() {
+        return None;
+    }
+    string_literal(support::token(module.syntax(), K::STRING)?.text())
+}
+
+fn member_from_value(
+    modules: &HashMap<String, ModuleShape>,
+    value: &KnownValue,
+) -> Option<ModuleMember> {
+    let (field, parents) = value.path.split_last()?;
+    let fields = descend_fields(&modules.get(&value.module)?.fields, parents)?;
+    Some(ModuleMember {
+        module: value.module.clone(),
+        field: fields
+            .iter()
+            .find(|candidate| &candidate.name == field)?
+            .clone(),
+    })
+}
+
+fn completions_from_value(
+    modules: &HashMap<String, ModuleShape>,
+    value: &KnownValue,
+    prefix: &str,
+) -> Vec<ExportField> {
+    let Some(shape) = modules.get(&value.module) else {
+        return Vec::new();
+    };
+    descend_fields(&shape.fields, &value.path).map_or_else(Vec::new, |fields| {
+        fields
+            .iter()
+            .filter(|field| field.name.starts_with(prefix))
+            .cloned()
+            .collect()
+    })
+}
+
+fn completion_value(
+    root: &SyntaxNode,
+    offset: usize,
+    resolution: &Resolution,
+    bindings: &HashMap<SymbolId, KnownValue>,
+) -> Option<(KnownValue, String)> {
+    root.descendants()
+        .filter_map(syntax::FieldExpr::cast)
+        .filter(|field| {
+            let range = field.syntax().text_range();
+            let start = u32::from(range.start()) as usize;
+            let end = u32::from(range.end()) as usize;
+            start <= offset && offset <= end
+        })
+        .min_by_key(|field| field.syntax().text_range().len())
+        .and_then(|field| {
+            let base = field.syntax().children().find_map(syntax::Expr::cast)?;
+            let value = known_value(base, resolution, bindings)?;
+            let prefix = support::token(field.syntax(), K::IDENT)
+                .map(|token| token.text().to_owned())
+                .unwrap_or_default();
+            Some((value, prefix))
+        })
+}
+
+fn descend_fields<'a>(mut fields: &'a [ExportField], path: &[String]) -> Option<&'a [ExportField]> {
+    for segment in path {
+        fields = &fields.iter().find(|field| &field.name == segment)?.fields;
+    }
+    Some(fields)
+}
+
+fn member_path(
+    source: &str,
+    offset: usize,
+    completion: bool,
+) -> Option<((String, usize), Vec<String>, String)> {
+    source.get(..offset)?;
+    let mut end = offset;
+    if !completion {
+        end += source[offset..]
+            .chars()
+            .take_while(|character| character.is_ascii_alphanumeric() || *character == '_')
+            .map(char::len_utf8)
+            .sum::<usize>();
+    }
+    let start = source[..offset]
+        .char_indices()
+        .rev()
+        .take_while(|(_, character)| {
+            character.is_ascii_alphanumeric() || *character == '_' || *character == '.'
+        })
+        .last()
+        .map(|(index, _)| index)?;
+    let access = source.get(start..end)?;
+    let mut segments = access.split('.').map(str::to_owned).collect::<Vec<_>>();
+    if segments.len() < 2 {
+        return None;
+    }
+    let field = segments.pop()?;
+    if !completion && field.is_empty() {
+        return None;
+    }
+    let receiver = segments.remove(0);
+    if receiver.is_empty() || segments.iter().any(String::is_empty) {
+        return None;
+    }
+    Some(((receiver, start), segments, field))
+}
+
+fn is_nil(expression: &syntax::Expr) -> bool {
+    matches!(expression, syntax::Expr::Literal(node) if support::token(node.syntax(), K::NIL_KW).is_some())
+}
+
+fn contains(span: Span, offset: usize) -> bool {
+    span.start <= offset && offset < span.end
+}
+
+fn string_literal(text: &str) -> Option<String> {
+    text.strip_prefix('"')
+        .and_then(|text| text.strip_suffix('"'))
+        .map(str::to_owned)
+}
+
+fn token_span(token: &simi_syntax::SyntaxToken) -> Span {
+    let range = token.text_range();
+    Span::new(
+        u32::from(range.start()) as usize,
+        u32::from(range.end()) as usize,
+    )
+}

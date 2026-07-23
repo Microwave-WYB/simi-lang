@@ -1,0 +1,24 @@
+---- Operations for mutable insertion-ordered maps.
+
+--- Return the number of entries in a map.
+fn length(entries) do host.call("org.simi-lang/std/map/length", entries) end
+
+--- Create an independent shallow copy of a map.
+fn copy(entries) do host.call("org.simi-lang/std/map/copy", entries) end
+
+--- Return whether a map contains a key.
+fn has(entries, key) do host.call("org.simi-lang/std/map/has", entries, key) end
+
+--- Return the keys in insertion order.
+fn keys(entries) do host.call("org.simi-lang/std/map/keys", entries) end
+
+--- Return the values in insertion order.
+fn values(entries) do host.call("org.simi-lang/std/map/values", entries) end
+
+--- Return key and value pairs in insertion order.
+fn entries(entries) do host.call("org.simi-lang/std/map/entries", entries) end
+
+--- Remove every entry from a map.
+fn clear(entries) do host.call("org.simi-lang/std/map/clear", entries) end
+
+{ length = length, copy = copy, has = has, keys = keys, values = values, entries = entries, clear = clear }

@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+use simiscript::runtime::RuntimeError;
 use simiscript::span::Span;
 use simiscript::{Engine, Module, NativeResult, SimiError, Value, eval};
 
@@ -361,4 +362,245 @@ fn root_eval_uses_fresh_standard_module_instances() {
         .expect("second root evaluation should have no hard diagnostic")
         .expect("second root evaluation should not raise");
     assert_eq!(value.render(), "nil");
+}
+
+#[test]
+fn source_modules_cache_exports_and_capture_private_host_dispatch() {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let module = Module::source(
+        "source",
+        r#"
+        fn next() do host.call("com.example/next") end
+        { next = next }
+        "#,
+    )
+    .host_function("com.example/next", 0, {
+        let calls = calls.clone();
+        move |_, _| {
+            let value = calls.fetch_add(1, Ordering::SeqCst) + 1;
+            Ok(Ok(Value::Int(i64::try_from(value).unwrap())))
+        }
+    })
+    .build();
+    assert!(module.is_source_backed());
+    let engine = Engine::builder().module(module).build();
+    assert_eq!(
+        engine
+            .eval("let source = require(\"source\") [source.next(), source.next()]")
+            .unwrap()
+            .unwrap()
+            .render(),
+        "[1, 2]"
+    );
+    assert!(
+        Engine::new()
+            .eval("host.call(\"com.example/next\")")
+            .is_err()
+    );
+}
+
+#[test]
+fn source_modules_raise_for_missing_hosts_and_cycles() {
+    let missing = Module::source(
+        "missing-host",
+        r#"
+        fn call() do host.call("com.example/missing") end
+        { call = call }
+        "#,
+    )
+    .build();
+    let engine = Engine::builder()
+        .module(missing)
+        .module(Module::source("left", "require(\"right\")").build())
+        .module(Module::source("right", "require(\"left\")").build())
+        .build();
+    let caught = engine
+        .eval(
+            r#"
+            let module = require("missing-host")
+            try module.call()
+            catch error do error
+            end
+            "#,
+        )
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        caught.render(),
+        "{error=\"host_function_not_found\", function=\"com.example/missing\"}"
+    );
+    let cycle = match engine.eval("require(\"left\")").unwrap() {
+        Err(raised) => raised,
+        Ok(value) => panic!("expected cycle raise, got {}", value.render()),
+    };
+    assert_eq!(
+        cycle.value.render(),
+        "{error=\"circular_module_dependency\", module=\"left\"}"
+    );
+    assert_eq!(cycle.origin, Span::new(0, "require(\"left\")".len()));
+}
+
+#[test]
+fn source_modules_cache_nil_and_validate_host_contracts() {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let nil_module = Module::source("nil-module", "host.call(\"com.example/load\") nil")
+        .host_function("com.example/load", 0, {
+            let calls = calls.clone();
+            move |_, _| {
+                calls.fetch_add(1, Ordering::SeqCst);
+                Ok(Ok(Value::Nil))
+            }
+        })
+        .build();
+    let bad_type = Module::source("bad-type", "host.call(1)").build();
+    let wrong_arity = Module::source("wrong-arity", "host.call(\"com.example/one\")")
+        .host_function("com.example/one", 1, |_, _| Ok(Ok(Value::Nil)))
+        .build();
+    let engine = Engine::builder()
+        .module(nil_module)
+        .module(bad_type)
+        .module(wrong_arity)
+        .build();
+    engine
+        .eval("[require(\"nil-module\"), require(\"nil-module\")]")
+        .unwrap()
+        .unwrap();
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+    let bad_type = match engine.eval("require(\"bad-type\")") {
+        Err(error) => error,
+        Ok(_) => panic!("expected host ID type diagnostic"),
+    };
+    assert!(bad_type.to_string().contains("string function ID"));
+    let wrong_arity = match engine.eval("require(\"wrong-arity\")") {
+        Err(error) => error,
+        Ok(_) => panic!("expected host arity diagnostic"),
+    };
+    assert!(
+        wrong_arity
+            .to_string()
+            .contains("expects 1 arguments, got 0")
+    );
+}
+
+#[test]
+fn source_module_nested_loads_retry_failures_and_isolate_cached_mutation() {
+    let attempts = Arc::new(AtomicUsize::new(0));
+    let flaky = Module::source("flaky", "host.call(\"com.example/flaky\") { value = 1 }")
+        .host_function("com.example/flaky", 0, {
+            let attempts = attempts.clone();
+            move |_, span| {
+                if attempts.fetch_add(1, Ordering::SeqCst) == 0 {
+                    Err(RuntimeError::new(span, "temporary load failure"))
+                } else {
+                    Ok(Ok(Value::Nil))
+                }
+            }
+        })
+        .build();
+    let engine = Engine::builder()
+        .module(flaky)
+        .module(Module::source("outer", "require(\"flaky\")").build())
+        .build();
+    assert!(engine.eval("require(\"outer\")").is_err());
+    let loaded = engine
+        .eval("let value = require(\"outer\") value.value = 9 value")
+        .unwrap()
+        .unwrap();
+    assert_eq!(loaded.render(), "{value=9}");
+    assert_eq!(
+        engine
+            .eval("require(\"outer\").value")
+            .unwrap()
+            .unwrap()
+            .render(),
+        "9"
+    );
+    assert_eq!(attempts.load(Ordering::SeqCst), 2);
+
+    let separate = Engine::builder()
+        .module(Module::source("flaky", "{ value = 1 }").build())
+        .module(Module::source("outer", "require(\"flaky\")").build())
+        .build();
+    assert_eq!(
+        separate
+            .eval("require(\"outer\").value")
+            .unwrap()
+            .unwrap()
+            .render(),
+        "1"
+    );
+}
+
+#[test]
+fn every_bundled_module_is_source_backed() {
+    for module in [
+        simiscript::stdlib::list(),
+        simiscript::stdlib::map(),
+        simiscript::stdlib::number(),
+        simiscript::stdlib::string(),
+        simiscript::stdlib::stdin(),
+        simiscript::stdlib::stdout(),
+        simiscript::stdlib::stderr(),
+    ] {
+        assert!(
+            module.is_source_backed(),
+            "{} should use a Simi facade",
+            module.name()
+        );
+    }
+    let engine = Engine::builder().stdlib().stdio().build();
+    let mut names = engine
+        .module_sources()
+        .into_iter()
+        .map(|(name, _)| name)
+        .collect::<Vec<_>>();
+    names.sort();
+    assert_eq!(
+        names,
+        [
+            "std/io/stderr",
+            "std/io/stdin",
+            "std/io/stdout",
+            "std/list",
+            "std/map",
+            "std/number",
+            "std/string",
+        ]
+    );
+}
+
+#[test]
+fn source_module_failures_are_attributed_to_the_public_boundary() {
+    let engine = Engine::builder()
+        .module(
+            Module::source(
+                "failing",
+                r#"
+                fn raised() do raise "module raise" end
+                fn hard() do nil + 1 end
+                { raised = raised, hard = hard }
+                "#,
+            )
+            .build(),
+        )
+        .build();
+
+    let raised_source = "let failing = require(\"failing\")\nfailing.raised()";
+    let raised = match engine.eval(raised_source).unwrap() {
+        Err(raised) => raised,
+        Ok(value) => panic!("expected module raise, got {}", value.render()),
+    };
+    assert_eq!(
+        raised.origin.start,
+        raised_source.find("failing.raised").unwrap()
+    );
+    assert_eq!(raised.frames[0].function, "failing.raised");
+
+    let hard_source = "let failing = require(\"failing\")\nfailing.hard()";
+    let hard = match engine.eval(hard_source) {
+        Err(error) => error,
+        Ok(_) => panic!("expected module hard diagnostic"),
+    };
+    assert_eq!(hard.span().start, hard_source.find("failing.hard").unwrap());
+    assert!(hard.to_string().contains("module `failing`"));
 }

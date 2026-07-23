@@ -7,6 +7,27 @@ use crate::runtime::{
 };
 use crate::span::Span;
 
+fn is_host_wrapper(body: &Block) -> bool {
+    let [
+        Stmt {
+            kind: StmtKind::Expr(expression),
+            ..
+        },
+    ] = body.items.as_slice()
+    else {
+        return false;
+    };
+    let ExprKind::Call { callee, .. } = &expression.kind else {
+        return false;
+    };
+    matches!(
+        &callee.kind,
+        ExprKind::Field { object, name }
+            if name == "call"
+                && matches!(&object.kind, ExprKind::Variable(name) if name == "host")
+    )
+}
+
 impl Interpreter {
     pub(super) fn evaluate_items(
         &mut self,
@@ -37,10 +58,15 @@ impl Interpreter {
             StmtKind::Function { name, params, body } => {
                 self.ensure_new_definition(env, name, statement.span)?;
                 let function = UserFunction {
-                    name: name.clone(),
+                    name: self
+                        .module_name
+                        .as_ref()
+                        .map_or_else(|| name.clone(), |module| format!("{module}.{name}")),
                     params: params.clone(),
                     body: body.clone(),
                     closure: env.clone(),
+                    trace_calls: self.trace_function_calls || !is_host_wrapper(body),
+                    module: self.module_name.clone(),
                 };
                 env.define(name.clone(), Value::Function(Gc::new(function)));
                 Ok(Value::Nil)
@@ -133,6 +159,8 @@ impl Interpreter {
                 params: params.clone(),
                 body: body.clone(),
                 closure: env.clone(),
+                trace_calls: self.trace_function_calls || !is_host_wrapper(body),
+                module: self.module_name.clone(),
             }))),
             ExprKind::Assign { target, value } => {
                 let target = self.prepare_assignment_target(target, env)?;

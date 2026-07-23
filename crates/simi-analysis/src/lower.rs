@@ -43,13 +43,17 @@ impl Builder {
             occurrences: Vec::new(),
             root_scope,
         };
-        for name in ["require", "type", "inspect"] {
+        for (name, parameter) in [
+            ("require", "module"),
+            ("type", "value"),
+            ("inspect", "value"),
+        ] {
             this.declare(
                 root_scope,
                 name.to_owned(),
                 SymbolKind::Builtin,
                 None,
-                Some(1),
+                Some((vec![parameter.to_owned()], None)),
                 0,
             );
         }
@@ -82,15 +86,21 @@ impl Builder {
         name: String,
         kind: SymbolKind,
         declaration: Option<Span>,
-        arity: Option<usize>,
+        function: Option<(Vec<String>, Option<String>)>,
         activation: usize,
     ) {
+        let (parameters, documentation) = function
+            .map(|(parameters, documentation)| (Some(parameters), documentation))
+            .unwrap_or((None, None));
+        let arity = parameters.as_ref().map(Vec::len);
         let symbol = self.symbols.alloc(SymbolData {
             name,
             kind,
             declaration,
             scope,
             arity,
+            parameters,
+            documentation,
             builtin: kind == SymbolKind::Builtin,
             activation,
         });
@@ -104,15 +114,17 @@ impl Builder {
                     return;
                 };
                 let params = support::child::<syntax::ParamList>(node.syntax());
-                let arity = params.as_ref().map_or(0, |params| {
-                    support::tokens(params.syntax(), K::IDENT).count()
+                let parameters = params.as_ref().map_or_else(Vec::new, |params| {
+                    support::tokens(params.syntax(), K::IDENT)
+                        .map(|token| token.text().to_string())
+                        .collect()
                 });
                 self.declare(
                     scope,
                     name.text().to_string(),
                     SymbolKind::Function,
                     Some(token_span(&name)),
-                    Some(arity),
+                    Some((parameters, documentation(node.syntax()))),
                     token_span(&name).start,
                 );
                 let function_scope = self.child_scope(scope, node.syntax(), true);
@@ -362,6 +374,39 @@ impl Builder {
             scope,
             kind,
         });
+    }
+}
+
+fn documentation(node: &SyntaxNode) -> Option<String> {
+    let mut token = node.first_token()?.prev_token();
+    let mut lines = Vec::new();
+    while let Some(current) = token {
+        match current.kind() {
+            K::WHITESPACE => {
+                let normalized = current.text().replace("\r\n", "\n");
+                if normalized.split('\n').count() > 2 {
+                    break;
+                }
+            }
+            K::COMMENT => {
+                let text = current.text();
+                if text.starts_with("----") {
+                    break;
+                }
+                let Some(text) = text.strip_prefix("---") else {
+                    break;
+                };
+                lines.push(text.strip_prefix(' ').unwrap_or(text).to_owned());
+            }
+            _ => break,
+        }
+        token = current.prev_token();
+    }
+    if lines.is_empty() {
+        None
+    } else {
+        lines.reverse();
+        Some(lines.join("\n"))
     }
 }
 

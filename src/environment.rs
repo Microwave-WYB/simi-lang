@@ -140,6 +140,8 @@ mod tests {
                 span: Span::new(0, 0),
             },
             closure: environment.clone(),
+            trace_calls: true,
+            module: None,
         });
 
         environment.define("recur", Value::Function(function.clone()));

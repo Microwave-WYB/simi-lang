@@ -274,7 +274,7 @@ fn symbols_navigation_references_hover_and_completion_use_fresh_analysis() {
     let HoverContents::Markup(markup) = hover.unwrap().contents else {
         panic!("expected markup")
     };
-    assert_eq!(markup.value, "fn add/2");
+    assert_eq!(markup.value, "fn add(left, right)");
     assert!(!markup.value.contains("declared at"));
     assert!(!markup.value.contains("file://"));
 
@@ -309,7 +309,16 @@ fn symbols_navigation_references_hover_and_completion_use_fresh_analysis() {
             .unwrap()
             .detail
             .as_deref(),
-        Some("function /2")
+        Some("fn add(left, right)")
+    );
+    assert_eq!(
+        items
+            .iter()
+            .find(|item| item.label == "require")
+            .unwrap()
+            .detail
+            .as_deref(),
+        Some("fn require(module)")
     );
     assert_eq!(
         items
@@ -730,4 +739,216 @@ fn memory_transport_performs_initialize_shutdown_and_exit_lifecycle() {
         .unwrap();
     drop(client);
     task.join().unwrap().unwrap();
+}
+
+#[test]
+fn module_members_show_source_signatures_and_plain_text_docs() {
+    let module = r#"
+--- Append one value.
+fn append(xs, x) do nil end
+{ append = append }
+"#;
+    let mut backend = Backend::with_module_sources([("std/list", module)]);
+    let incomplete = "let emoji = \"😀\"\nlet list = require(\"std/list\") list.";
+    open(&mut backend, incomplete);
+    let completion: Option<CompletionResponse> = serde_json::from_value(
+        request(
+            &mut backend,
+            Completion::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": position::position(incomplete, incomplete.len()).unwrap(),
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let CompletionResponse::Array(items) = completion.unwrap() else {
+        panic!("expected completion array")
+    };
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0].label, "append");
+    assert_eq!(items[0].detail.as_deref(), Some("fn append(xs, x)"));
+    assert_eq!(
+        items[0].documentation,
+        Some(Documentation::String("Append one value.".to_owned()))
+    );
+
+    let complete = "let list = require(\"std/list\") list.append";
+    let mut backend = Backend::with_module_sources([("std/list", module)]);
+    open(&mut backend, complete);
+    let hover: Option<Hover> = serde_json::from_value(
+        request(
+            &mut backend,
+            HoverRequest::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": text_position(complete, "append", 0),
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let HoverContents::Markup(markup) = hover.unwrap().contents else {
+        panic!("expected markup")
+    };
+    assert_eq!(markup.value, "fn append(xs, x)\n\nAppend one value.");
+}
+
+#[test]
+fn module_documentation_appears_on_require_literals_and_module_bindings() {
+    let module = r#"
+---- Standard output operations.
+---- Values are flushed automatically.
+
+fn println(value) do nil end
+{ println = println }
+"#;
+    let source = "let stdout = require(\"std/io/stdout\") stdout";
+    let expected =
+        "std/io/stdout\n\nStandard output operations.\nValues are flushed automatically.";
+
+    for (needle, occurrence) in [("std/io/stdout", 0), ("stdout", 2)] {
+        let mut backend = Backend::with_module_sources([("std/io/stdout", module)]);
+        open(&mut backend, source);
+        let hover: Option<Hover> = serde_json::from_value(
+            request(
+                &mut backend,
+                HoverRequest::METHOD,
+                json!({
+                    "textDocument": { "uri": uri() },
+                    "position": text_position(source, needle, occurrence),
+                }),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let HoverContents::Markup(markup) = hover.unwrap().contents else {
+            panic!("expected markup")
+        };
+        assert_eq!(markup.value, expected);
+    }
+}
+
+#[test]
+fn direct_module_fields_and_aliases_keep_signatures_and_docs() {
+    let module = r#"
+--- Print one value.
+fn println(value) do nil end
+{ println = println }
+"#;
+
+    for (source, needle, occurrence, expected) in [
+        (
+            "require(\"std/io/stdout\").println",
+            "println",
+            0,
+            "fn println(value)\n\nPrint one value.",
+        ),
+        (
+            "let print = require(\"std/io/stdout\").println print",
+            "print",
+            2,
+            "fn print(value)\n\nPrint one value.",
+        ),
+    ] {
+        let mut backend = Backend::with_module_sources([("std/io/stdout", module)]);
+        open(&mut backend, source);
+        let hover: Option<Hover> = serde_json::from_value(
+            request(
+                &mut backend,
+                HoverRequest::METHOD,
+                json!({
+                    "textDocument": { "uri": uri() },
+                    "position": text_position(source, needle, occurrence),
+                }),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let HoverContents::Markup(markup) = hover.unwrap().contents else {
+            panic!("expected markup")
+        };
+        assert_eq!(markup.value, expected);
+    }
+
+    let completion_source = "let print = require(\"std/io/stdout\").println pri";
+    let mut backend = Backend::with_module_sources([("std/io/stdout", module)]);
+    open(&mut backend, completion_source);
+    let completion: Option<CompletionResponse> = serde_json::from_value(
+        request(
+            &mut backend,
+            Completion::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": position::position(completion_source, completion_source.len()).unwrap(),
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let CompletionResponse::Array(items) = completion.unwrap() else {
+        panic!("expected completion array")
+    };
+    let print = items
+        .iter()
+        .find(|item| item.label == "print")
+        .expect("print completion");
+    assert_eq!(print.kind, Some(CompletionItemKind::FUNCTION));
+    assert_eq!(print.detail.as_deref(), Some("fn print(value)"));
+    assert_eq!(
+        print.documentation,
+        Some(Documentation::String("Print one value.".to_owned()))
+    );
+}
+
+#[test]
+fn nested_module_hover_and_utf16_member_completion_use_catalog_without_diagnostics() {
+    let module = r#"
+--- Run a nested operation.
+fn run(value) do value end
+{ nested = { run = run } }
+"#;
+    let complete = "let emoji = \"😀\"\nlet module = require(\"nested\")\nmodule.nested.run";
+    let mut backend = Backend::with_module_sources([("nested", module)]);
+    let published = open(&mut backend, complete);
+    let diagnostics = diagnostics_from(published.into_iter().next().unwrap());
+    assert!(diagnostics.diagnostics.is_empty());
+    let hover: Option<Hover> = serde_json::from_value(
+        request(
+            &mut backend,
+            HoverRequest::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": text_position(complete, "run", 0),
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let HoverContents::Markup(markup) = hover.unwrap().contents else {
+        panic!("expected markup")
+    };
+    assert_eq!(markup.value, "fn run(value)\n\nRun a nested operation.");
+
+    let incomplete = "let emoji = \"😀\"\nlet module = require(\"nested\")\nmodule.nested.";
+    let mut backend = Backend::with_module_sources([("nested", module)]);
+    open(&mut backend, incomplete);
+    let completion: Option<CompletionResponse> = serde_json::from_value(
+        request(
+            &mut backend,
+            Completion::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": position::position(incomplete, incomplete.len()).unwrap(),
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let CompletionResponse::Array(items) = completion.unwrap() else {
+        panic!("expected completion array")
+    };
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0].detail.as_deref(), Some("fn run(value)"));
 }

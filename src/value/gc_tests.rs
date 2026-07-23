@@ -120,7 +120,22 @@ fn unreachable_recursive_closure_environment_cycle_is_collected() {
                 span: Span::new(0, 0),
             },
             closure: environment.clone(),
+            trace_calls: true,
+            module: None,
         });
         environment.define("recursive", Value::Function(function));
+    });
+}
+
+#[test]
+fn dropped_source_module_cache_releases_cyclic_exports() {
+    collected_after(|| {
+        let engine = crate::Engine::builder()
+            .module(
+                crate::Module::source("cycle", "let value = {} value.self = value value").build(),
+            )
+            .build();
+        let value = engine.eval("require(\"cycle\")").unwrap().unwrap();
+        assert!(matches!(value, Value::Map(_)));
     });
 }

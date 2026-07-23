@@ -195,9 +195,11 @@ Modules are registered by the embedding host and cached per `Engine`. Repeated `
 
 Standard streams are separate opt-in capabilities named `std/io/stdin`, `std/io/stdout`, and `std/io/stderr`. The CLI registers them; `Engine::with_stdlib()` and root `eval` do not. Embedders can opt in with `Engine::builder().stdlib().stdio()`. Input supplies `read_line`; output streams supply `print`, `println`, and `flush`. Strings print raw while other values use inspector rendering. EOF returns `nil`, and successful writes return `nil`. `print` and `println` flush automatically; failures from either the write or its automatic flush raise `{ error = "io_error", operation = operation, message = message }` using the originating operation name. Explicit `flush` failures use `operation = "flush"`.
 
-Rust extension crates construct modules with `Module::builder`. Module and export registration is infallible and last-wins. Native callbacks may capture Rust state but must be `Send + Sync + 'static`; this prevents safe callbacks from capturing Simi's non-`Send` managed values as untraced edges. Do not weaken this boundary or implement `require` as a closure that captures managed module values. Interpreter-aware standard list operations use private, data-free intrinsic variants rather than exposing the interpreter to host callbacks.
+Rust extension crates can construct direct value modules with `Module::builder` or source-backed modules with `Module::source`. Module, export, and host-operation registration is infallible and last-wins. Source modules are registered as source strings, evaluated lazily in a private environment, and cached per `Engine`; their final value is the module export. A source module may expose ordinary Simi wrappers over its private variadic `host.call(id, ...arguments)` capability. Native callbacks may capture Rust state but must be `Send + Sync + 'static`; this prevents safe callbacks from capturing Simi's non-`Send` managed values as untraced edges. Do not weaken this boundary or implement `require` as a closure that captures managed module values. Interpreter-aware standard list operations use private, data-free host intrinsic variants rather than exposing the interpreter to host callbacks.
 
-A missing module raises `{ error = "module_not_found", module = name }`. A non-string module name is a hard runtime error. Filesystem and script-source module loading are not implemented.
+Source-level documentation uses consecutive `---` comments for the following declaration and leading consecutive `----` comments for the module itself. Module documentation belongs at the start of the source (leading blank lines are allowed), remains distinct from the first declaration's documentation, and is surfaced when hovering a literal `require` target or a binding that still denotes the module value.
+
+A missing module raises `{ error = "module_not_found", module = name }`. Circular lazy loading raises `{ error = "circular_module_dependency", module = name }`, and an unknown private host operation raises `{ error = "host_function_not_found", function = id }`. A non-string module name and invalid host call contracts are hard runtime errors. Filesystem and package discovery are not implemented; embedders register source strings explicitly.
 
 ### Functional loops
 
@@ -335,12 +337,12 @@ Add tests at the lowest useful layer and at the public language boundary when se
 
 The portable standard library currently includes `std/list`, `std/map`, `std/number`, and `std/string`; `type` and `inspect` are globals. Anonymous functions, trailing callback application, and Gleam-inspired higher-order list queries are implemented. The CLI additionally registers the opt-in `std/io/*` standard-stream modules.
 
-Rowan syntax, Salsa-backed lexical analysis, `simi-lsp`, and the VS Code/Zed adapters are implemented. They currently provide syntax and symbol analysis only; they do not parse annotations or infer types.
+Rowan syntax, Salsa-backed lexical analysis, `simi-lsp`, and the VS Code/Zed adapters are implemented. They provide syntax and symbol analysis plus best-effort source-module export shapes for completion and hover; they do not parse annotations or infer types.
 
-Likely later milestones include script-visible command-line arguments, filesystem/script module loading, formatting, and optional static typing. These are roadmap items, not implemented features. Do not add them opportunistically outside an approved task.
+Likely later milestones include script-visible command-line arguments, filesystem/package module discovery, formatting, and optional static typing. These are roadmap items, not implemented features. Do not add them opportunistically outside an approved task.
 
 The authoritative initial erased-type design is documented in [`docs/type-system.md`](docs/type-system.md). It uses inline optional annotations and a LuaLS-level scope; its annotation, alias, and type-grammar forms remain invalid until parsing, inference, erasure, diagnostics, and editor support land together.
 
 Builtin `type(value) == "label"` comparisons remain the primitive runtime category check and may later be recognized by the analyzer for narrowing. Static `int` will correspond to the existing runtime label `"integer"`; changing that label is a separate compatibility decision. `TypeIs` is not part of the initial type-system scope.
 
-Filesystem/script module loading, serialization, formatter work, runtime tuples, and static type implementation remain out of scope until explicitly requested.
+Filesystem/package module discovery, serialization, formatter work, runtime tuples, and static type implementation remain out of scope until explicitly requested.

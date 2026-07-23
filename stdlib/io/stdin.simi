@@ -1,0 +1,6 @@
+---- Standard input operations supplied by the CLI host.
+
+--- Read one line without its line ending, or return nil at EOF.
+fn read_line() do host.call("org.simi-lang/std/io/stdin/read_line") end
+
+{ read_line = read_line }

@@ -1,4 +1,5 @@
 use crate::Module;
+use crate::module::HostOperation;
 use crate::native::{
     list_append, list_contains, list_copy, list_extend, list_get, list_insert, list_length,
     list_pop, list_remove, list_reverse, list_set, list_slice, map_clear, map_copy, map_entries,
@@ -7,91 +8,95 @@ use crate::native::{
     string_contains, string_ends_with, string_length, string_lower, string_slice, string_split,
     string_starts_with, string_trim, string_upper,
 };
-use crate::runtime::{NativeFunction, Value};
 
 pub fn list() -> Module {
-    Module::builder("std/list")
-        .function("length", 1, list_length)
-        .function("copy", 1, list_copy)
-        .function("get", 2, list_get)
-        .function("append", 2, list_append)
-        .function("extend", 2, list_extend)
-        .function("set", 3, list_set)
-        .function("insert", 3, list_insert)
-        .function("remove", 2, list_remove)
-        .function("pop", 1, list_pop)
-        .function("slice", 3, list_slice)
-        .function("contains", 2, list_contains)
-        .function("reverse", 1, list_reverse)
-        .value("map", Value::NativeFunction(NativeFunction::list_map()))
-        .value(
-            "filter",
-            Value::NativeFunction(NativeFunction::list_filter()),
+    Module::source("std/list", include_str!("../stdlib/list.simi"))
+        .host_function("org.simi-lang/std/list/length", 1, list_length)
+        .host_function("org.simi-lang/std/list/copy", 1, list_copy)
+        .host_function("org.simi-lang/std/list/get", 2, list_get)
+        .host_function("org.simi-lang/std/list/append", 2, list_append)
+        .host_function("org.simi-lang/std/list/extend", 2, list_extend)
+        .host_function("org.simi-lang/std/list/set", 3, list_set)
+        .host_function("org.simi-lang/std/list/insert", 3, list_insert)
+        .host_function("org.simi-lang/std/list/remove", 2, list_remove)
+        .host_function("org.simi-lang/std/list/pop", 1, list_pop)
+        .host_function("org.simi-lang/std/list/slice", 3, list_slice)
+        .host_function("org.simi-lang/std/list/contains", 2, list_contains)
+        .host_function("org.simi-lang/std/list/reverse", 1, list_reverse)
+        .host_intrinsic("org.simi-lang/std/list/map", HostOperation::ListMap)
+        .host_intrinsic("org.simi-lang/std/list/filter", HostOperation::ListFilter)
+        .host_intrinsic("org.simi-lang/std/list/fold", HostOperation::ListFold)
+        .host_intrinsic("org.simi-lang/std/list/find", HostOperation::ListFind)
+        .host_intrinsic(
+            "org.simi-lang/std/list/find_index",
+            HostOperation::ListFindIndex,
         )
-        .value("fold", Value::NativeFunction(NativeFunction::list_fold()))
-        .value("find", Value::NativeFunction(NativeFunction::list_find()))
-        .value(
-            "find_index",
-            Value::NativeFunction(NativeFunction::list_find_index()),
-        )
-        .value("any", Value::NativeFunction(NativeFunction::list_any()))
-        .value("all", Value::NativeFunction(NativeFunction::list_all()))
-        .value("each", Value::NativeFunction(NativeFunction::list_each()))
-        .value("count", Value::NativeFunction(NativeFunction::list_count()))
+        .host_intrinsic("org.simi-lang/std/list/any", HostOperation::ListAny)
+        .host_intrinsic("org.simi-lang/std/list/all", HostOperation::ListAll)
+        .host_intrinsic("org.simi-lang/std/list/each", HostOperation::ListEach)
+        .host_intrinsic("org.simi-lang/std/list/count", HostOperation::ListCount)
         .build()
 }
 
 pub fn number() -> Module {
-    Module::builder("std/number")
-        .function("from_string", 1, number_from_string)
-        .function("to_string", 1, number_to_string)
+    Module::source("std/number", include_str!("../stdlib/number.simi"))
+        .host_function(
+            "org.simi-lang/std/number/from_string",
+            1,
+            number_from_string,
+        )
+        .host_function("org.simi-lang/std/number/to_string", 1, number_to_string)
         .build()
 }
 
 pub fn string() -> Module {
-    Module::builder("std/string")
-        .function("length", 1, string_length)
-        .function("slice", 3, string_slice)
-        .function("contains", 2, string_contains)
-        .function("starts_with", 2, string_starts_with)
-        .function("ends_with", 2, string_ends_with)
-        .function("split", 2, string_split)
-        .function("trim", 1, string_trim)
-        .function("lower", 1, string_lower)
-        .function("upper", 1, string_upper)
+    Module::source("std/string", include_str!("../stdlib/string.simi"))
+        .host_function("org.simi-lang/std/string/length", 1, string_length)
+        .host_function("org.simi-lang/std/string/slice", 3, string_slice)
+        .host_function("org.simi-lang/std/string/contains", 2, string_contains)
+        .host_function(
+            "org.simi-lang/std/string/starts_with",
+            2,
+            string_starts_with,
+        )
+        .host_function("org.simi-lang/std/string/ends_with", 2, string_ends_with)
+        .host_function("org.simi-lang/std/string/split", 2, string_split)
+        .host_function("org.simi-lang/std/string/trim", 1, string_trim)
+        .host_function("org.simi-lang/std/string/lower", 1, string_lower)
+        .host_function("org.simi-lang/std/string/upper", 1, string_upper)
         .build()
 }
 
 pub fn stdin() -> Module {
-    Module::builder("std/io/stdin")
-        .function("read_line", 0, stdin_read_line)
+    Module::source("std/io/stdin", include_str!("../stdlib/io/stdin.simi"))
+        .host_function("org.simi-lang/std/io/stdin/read_line", 0, stdin_read_line)
         .build()
 }
 
 pub fn stdout() -> Module {
-    Module::builder("std/io/stdout")
-        .function("print", 1, stdout_print)
-        .function("println", 1, stdout_println)
-        .function("flush", 0, stdout_flush)
+    Module::source("std/io/stdout", include_str!("../stdlib/io/stdout.simi"))
+        .host_function("org.simi-lang/std/io/stdout/print", 1, stdout_print)
+        .host_function("org.simi-lang/std/io/stdout/println", 1, stdout_println)
+        .host_function("org.simi-lang/std/io/stdout/flush", 0, stdout_flush)
         .build()
 }
 
 pub fn stderr() -> Module {
-    Module::builder("std/io/stderr")
-        .function("print", 1, stderr_print)
-        .function("println", 1, stderr_println)
-        .function("flush", 0, stderr_flush)
+    Module::source("std/io/stderr", include_str!("../stdlib/io/stderr.simi"))
+        .host_function("org.simi-lang/std/io/stderr/print", 1, stderr_print)
+        .host_function("org.simi-lang/std/io/stderr/println", 1, stderr_println)
+        .host_function("org.simi-lang/std/io/stderr/flush", 0, stderr_flush)
         .build()
 }
 
 pub fn map() -> Module {
-    Module::builder("std/map")
-        .function("length", 1, map_length)
-        .function("copy", 1, map_copy)
-        .function("has", 2, map_has)
-        .function("keys", 1, map_keys)
-        .function("values", 1, map_values)
-        .function("entries", 1, map_entries)
-        .function("clear", 1, map_clear)
+    Module::source("std/map", include_str!("../stdlib/map.simi"))
+        .host_function("org.simi-lang/std/map/length", 1, map_length)
+        .host_function("org.simi-lang/std/map/copy", 1, map_copy)
+        .host_function("org.simi-lang/std/map/has", 2, map_has)
+        .host_function("org.simi-lang/std/map/keys", 1, map_keys)
+        .host_function("org.simi-lang/std/map/values", 1, map_values)
+        .host_function("org.simi-lang/std/map/entries", 1, map_entries)
+        .host_function("org.simi-lang/std/map/clear", 1, map_clear)
         .build()
 }

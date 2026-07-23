@@ -16,7 +16,7 @@ mod value;
 
 pub use engine::{Engine, EngineBuilder};
 pub use error::SimiError;
-pub use module::{Module, ModuleBuilder, NativeCallback};
+pub use module::{Module, ModuleBuilder, NativeCallback, SourceModuleBuilder};
 pub use runtime::{NativeResult, Raised, ScriptResult, TraceFrame, Value};
 
 pub fn eval(source: &str) -> Result<ScriptResult, SimiError> {
