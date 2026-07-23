@@ -114,8 +114,8 @@ fn utf8_tokens_keep_byte_ranges() {
 fn erased_type_surface_is_lossless_and_alias_is_contextual() {
     let source = concat!(
         "let alias = 1\n",
-        "alias option('a) = 'a | nil\n",
-        "let value: option(string) = nil\n",
+        "alias option<'a> = 'a | nil\n",
+        "let value: option<string> = nil\n",
         "fn apply(values: [integer, string], output: [..string]) -> nil ",
         "after values becomes [..integer | string] ",
         "after output becomes [..string] do nil end\n",

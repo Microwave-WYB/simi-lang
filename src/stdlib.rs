@@ -1,11 +1,11 @@
 use crate::Module;
 use crate::native::{
-    list_append, list_contains, list_copy, list_extend, list_get, list_insert, list_iter,
-    list_length, list_pop, list_remove, list_reverse, list_set, list_slice, map_clear, map_copy,
-    map_has, map_iter, map_length, number_from_string, number_to_string, stderr_flush,
-    stderr_print, stderr_println, stdin_read_line, stdout_flush, stdout_print, stdout_println,
-    string_contains, string_ends_with, string_length, string_lower, string_slice, string_split,
-    string_starts_with, string_trim, string_upper,
+    io_eprint, io_eprintln, io_print, io_println, list_append, list_contains, list_copy,
+    list_extend, list_get, list_insert, list_iter, list_length, list_pop, list_remove,
+    list_reverse, list_set, list_slice, map_clear, map_copy, map_has, map_iter, map_length,
+    number_to_string, stdin_read_line, string_concat, string_contains, string_ends_with,
+    string_length, string_lower, string_slice, string_split, string_starts_with, string_to_number,
+    string_trim, string_upper,
 };
 
 pub fn list() -> Module {
@@ -35,17 +35,14 @@ pub fn iter() -> Module {
 
 pub fn number() -> Module {
     Module::source("std/number", include_str!("../stdlib/number.simi"))
-        .host_function(
-            "org.simi-lang/std/number/from_string",
-            1,
-            number_from_string,
-        )
         .host_function("org.simi-lang/std/number/to_string", 1, number_to_string)
         .build()
 }
 
 pub fn string() -> Module {
     Module::source("std/string", include_str!("../stdlib/string.simi"))
+        .host_function("org.simi-lang/std/string/to_number", 1, string_to_number)
+        .host_function("org.simi-lang/std/string/concat", 2, string_concat)
         .host_function("org.simi-lang/std/string/length", 1, string_length)
         .host_function("org.simi-lang/std/string/slice", 3, string_slice)
         .host_function("org.simi-lang/std/string/contains", 2, string_contains)
@@ -62,25 +59,13 @@ pub fn string() -> Module {
         .build()
 }
 
-pub fn stdin() -> Module {
-    Module::source("std/io/stdin", include_str!("../stdlib/io/stdin.simi"))
-        .host_function("org.simi-lang/std/io/stdin/read_line", 0, stdin_read_line)
-        .build()
-}
-
-pub fn stdout() -> Module {
-    Module::source("std/io/stdout", include_str!("../stdlib/io/stdout.simi"))
-        .host_function("org.simi-lang/std/io/stdout/print", 1, stdout_print)
-        .host_function("org.simi-lang/std/io/stdout/println", 1, stdout_println)
-        .host_function("org.simi-lang/std/io/stdout/flush", 0, stdout_flush)
-        .build()
-}
-
-pub fn stderr() -> Module {
-    Module::source("std/io/stderr", include_str!("../stdlib/io/stderr.simi"))
-        .host_function("org.simi-lang/std/io/stderr/print", 1, stderr_print)
-        .host_function("org.simi-lang/std/io/stderr/println", 1, stderr_println)
-        .host_function("org.simi-lang/std/io/stderr/flush", 0, stderr_flush)
+pub fn io() -> Module {
+    Module::source("std/io", include_str!("../stdlib/io.simi"))
+        .host_function("org.simi-lang/std/io/read_line", 0, stdin_read_line)
+        .host_function("org.simi-lang/std/io/print", 1, io_print)
+        .host_function("org.simi-lang/std/io/println", 1, io_println)
+        .host_function("org.simi-lang/std/io/eprint", 1, io_eprint)
+        .host_function("org.simi-lang/std/io/eprintln", 1, io_eprintln)
         .build()
 }
 

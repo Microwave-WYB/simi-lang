@@ -21,8 +21,8 @@ fn declared_effect(xs: [..integer], pair: [integer, string]) -> nil
 do nil end
 
 let mapper = fn(item) do item * 2 end
-let list = require("std/list")
-let mapped = list.map([1, 2]) <| mapper
+let iter = require("std/iter")
+let mapped = iter.map(require("std/list").iter([1, 2])) <| mapper
 let handled = try
     let attempted = { error = "bad" }
     raise attempted

@@ -1,12 +1,6 @@
 use crate::runtime::{NativeResult, RuntimeError, RuntimeResult, Value};
 use crate::span::Span;
 
-pub fn number_from_string(args: &[Value], span: Span) -> NativeResult {
-    expect_arity(args, 1, "from_string", span)?;
-    let text = expect_string(&args[0], "from_string", span)?;
-    Ok(Ok(parse_number(text)))
-}
-
 pub fn number_to_string(args: &[Value], span: Span) -> NativeResult {
     expect_arity(args, 1, "to_string", span)?;
     match &args[0] {
@@ -21,7 +15,7 @@ pub fn number_to_string(args: &[Value], span: Span) -> NativeResult {
     }
 }
 
-fn parse_number(text: &str) -> Value {
+pub(crate) fn parse_number(text: &str) -> Value {
     let bytes = text.as_bytes();
     let mut position = 0;
 
@@ -90,19 +84,6 @@ fn expect_arity(args: &[Value], expected: usize, name: &str, span: Span) -> Runt
                 args.len()
             ),
         ))
-    }
-}
-
-fn expect_string<'a>(value: &'a Value, name: &str, span: Span) -> RuntimeResult<&'a str> {
-    match value {
-        Value::String(value) => Ok(value),
-        value => Err(RuntimeError::new(
-            span,
-            format!(
-                "std/number.{name} text must be a string, got {}",
-                value.type_name()
-            ),
-        )),
     }
 }
 

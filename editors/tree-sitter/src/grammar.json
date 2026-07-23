@@ -1441,7 +1441,7 @@
       "members": [
         {
           "type": "STRING",
-          "value": "("
+          "value": "<"
         },
         {
           "type": "CHOICE",
@@ -1490,7 +1490,7 @@
         },
         {
           "type": "STRING",
-          "value": ")"
+          "value": ">"
         }
       ]
     },
@@ -1620,7 +1620,7 @@
       "members": [
         {
           "type": "STRING",
-          "value": "("
+          "value": "<"
         },
         {
           "type": "CHOICE",
@@ -1669,7 +1669,7 @@
         },
         {
           "type": "STRING",
-          "value": ")"
+          "value": ">"
         }
       ]
     },

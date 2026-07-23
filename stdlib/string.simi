@@ -1,4 +1,10 @@
----- Unicode-aware string inspection and transformation.
+---- Unicode-aware string inspection, transformation, and conversion.
+
+--- Parse a complete decimal number, or return nil.
+fn to_number(text: string) -> integer | float | nil do host.call("org.simi-lang/std/string/to_number", text) end
+
+--- Concatenate two strings.
+fn concat(left: string, right: string) -> string do host.call("org.simi-lang/std/string/concat", left, right) end
 
 --- Return the number of Unicode scalar values in a string.
 fn length(text: string) -> integer do host.call("org.simi-lang/std/string/length", text) end
@@ -28,6 +34,8 @@ fn lower(text: string) -> string do host.call("org.simi-lang/std/string/lower", 
 fn upper(text: string) -> string do host.call("org.simi-lang/std/string/upper", text) end
 
 {
+    to_number = to_number,
+    concat = concat,
     length = length,
     slice = slice,
     contains = contains,

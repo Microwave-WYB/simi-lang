@@ -1,14 +1,14 @@
 use simi::{Engine, SimiError, eval};
 
 #[test]
-fn from_string_accepts_signed_simi_numeric_forms_with_syntax_directed_types() {
+fn to_number_accepts_signed_simi_numeric_forms_with_syntax_directed_types() {
     let value = eval(
         r#"
-        let number = require("std/number")
-        let positive = number.from_string("+42")
-        let negative = number.from_string("-9223372036854775808")
-        let decimal = number.from_string("-12.50")
-        let exponent = number.from_string("2E+3")
+        let string = require("std/string")
+        let positive = string.to_number("+42")
+        let negative = string.to_number("-9223372036854775808")
+        let decimal = string.to_number("-12.50")
+        let exponent = string.to_number("2E+3")
         [
             positive, type(positive) == "integer",
             negative, type(negative) == "integer",
@@ -27,26 +27,26 @@ fn from_string_accepts_signed_simi_numeric_forms_with_syntax_directed_types() {
 }
 
 #[test]
-fn from_string_returns_nil_for_overflow_non_finite_and_malformed_text() {
+fn to_number_returns_nil_for_overflow_non_finite_and_malformed_text() {
     let value = eval(
         r#"
-        let number = require("std/number")
+        let string = require("std/string")
         [
-            number.from_string("9223372036854775808"),
-            number.from_string("-9223372036854775809"),
-            number.from_string("1.7976931348623159e308"),
-            number.from_string("NaN"),
-            number.from_string("infinity"),
-            number.from_string(""),
-            number.from_string(" 1"),
-            number.from_string("1 "),
-            number.from_string("1_000"),
-            number.from_string(".5"),
-            number.from_string("1."),
-            number.from_string("1e"),
-            number.from_string("1e+"),
-            number.from_string("1x"),
-            number.from_string("0x10"),
+            string.to_number("9223372036854775808"),
+            string.to_number("-9223372036854775809"),
+            string.to_number("1.7976931348623159e308"),
+            string.to_number("NaN"),
+            string.to_number("infinity"),
+            string.to_number(""),
+            string.to_number(" 1"),
+            string.to_number("1 "),
+            string.to_number("1_000"),
+            string.to_number(".5"),
+            string.to_number("1."),
+            string.to_number("1e"),
+            string.to_number("1e+"),
+            string.to_number("1x"),
+            string.to_number("0x10"),
         ]
         "#,
     )
@@ -64,10 +64,11 @@ fn float_finiteness_boundary_and_integer_overflow_category_are_exact() {
     let value = eval(
         r#"
         let number = require("std/number")
-        let maximum = number.from_string("1.7976931348623157e308")
+        let string = require("std/string")
+        let maximum = string.to_number("1.7976931348623157e308")
         let maximum_text = number.to_string(maximum)
-        let round_trip = number.from_string(maximum_text)
-        let overflow_integer = number.from_string("9223372036854775808")
+        let round_trip = string.to_number(maximum_text)
+        let overflow_integer = string.to_number("9223372036854775808")
         [type(maximum) == "float", type(round_trip) == "float", overflow_integer]
         "#,
     )
@@ -82,13 +83,14 @@ fn to_string_is_canonical_and_round_trips_numeric_categories() {
     let value = eval(
         r#"
         let number = require("std/number")
-        let minimum_integer = number.from_string("-9223372036854775808")
+        let string = require("std/string")
+        let minimum_integer = string.to_number("-9223372036854775808")
         let integer_text = number.to_string(minimum_integer)
         let whole_float_text = number.to_string(1.0)
         let negative_zero_text = number.to_string(-0.0)
         let decimal_text = number.to_string(12.5)
-        let integer = number.from_string(integer_text)
-        let whole_float = number.from_string(whole_float_text)
+        let integer = string.to_number(integer_text)
+        let whole_float = string.to_number(whole_float_text)
         [
             integer_text,
             whole_float_text,
@@ -114,16 +116,16 @@ fn to_string_is_canonical_and_round_trips_numeric_categories() {
 fn conversion_argument_errors_are_qualified_hard_diagnostics() {
     for (source, expected) in [
         (
-            "let number = require(\"std/number\") number.from_string(1)",
-            "std/number.from_string text must be a string, got integer",
+            "let string = require(\"std/string\") string.to_number(1)",
+            "std/string.to_number value must be a string, got integer",
         ),
         (
             "let number = require(\"std/number\") number.to_string(true)",
             "std/number.to_string value must be an integer or float, got boolean",
         ),
         (
-            "let number = require(\"std/number\") number.from_string()",
-            "native function `std/number.from_string` expects 1 arguments, got 0",
+            "let string = require(\"std/string\") string.to_number()",
+            "native function `std/string.to_number` expects 1 arguments, got 0",
         ),
         (
             "let number = require(\"std/number\") number.to_string(1, 2)",
@@ -140,7 +142,7 @@ fn conversion_argument_errors_are_qualified_hard_diagnostics() {
 }
 
 #[test]
-fn number_module_is_portable_available_and_isolated_per_engine() {
+fn conversion_modules_are_portable_available_and_isolated_per_engine() {
     let missing = match Engine::new()
         .eval("require(\"std/number\")")
         .expect("missing number module should raise rather than hard fail")
@@ -169,11 +171,11 @@ fn number_module_is_portable_available_and_isolated_per_engine() {
         .expect("std/number lookup should not raise");
     assert_eq!(
         exports.render(),
-        "[nil, {from_string=<native std/number.from_string>, to_string=<native std/number.to_string>}]"
+        "[nil, {to_string=<native std/number.to_string>}]"
     );
 
-    let root = eval("let number = require(\"std/number\") number.from_string(\"7\")")
-        .expect("root eval should provide std/number")
-        .expect("root std/number conversion should not raise");
+    let root = eval("let string = require(\"std/string\") string.to_number(\"7\")")
+        .expect("root eval should provide std/string")
+        .expect("root std/string conversion should not raise");
     assert_eq!(root.render(), "7");
 }

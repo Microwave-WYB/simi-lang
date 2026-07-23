@@ -4,6 +4,19 @@ Simi is a small, embeddable scripting language with mutable containers, expressi
 
 The complete companion program is [`examples/language-tour.simi`](../examples/language-tour.simi).
 
+## Table of contents
+
+- [1. Runtime values and literals](#1-runtime-values-and-literals)
+- [2. The expression model](#2-the-expression-model)
+- [3. Bindings, declarations, and patterns](#3-bindings-declarations-and-patterns)
+- [4. Mutation, aliases, and copies](#4-mutation-aliases-and-copies)
+- [5. Iterators](#5-iterators)
+- [6. Modules and the standard library](#6-modules-and-the-standard-library)
+- [7. Explicit text IO](#7-explicit-text-io)
+- [8. Optional erased types](#8-optional-erased-types)
+- [9. Errors and embedding boundaries](#9-errors-and-embedding-boundaries)
+- [10. Current alpha boundaries](#10-current-alpha-boundaries)
+
 Run a file with:
 
 ```sh
@@ -92,7 +105,7 @@ Lists are mutable, ordered, zero-based, and may contain any value—including `n
 []
 [1, 2, 3]
 ["name", true, nil]
-[1, [2, 3], { answer = 42 }]
+[1, [2, 3], {answer = 42}]
 ```
 
 Trailing commas are accepted:
@@ -469,15 +482,23 @@ The right side is evaluated once. Matching is atomic: no bindings are installed 
 
 ### Patterns
 
-Patterns include:
+Patterns include literals, bindings, wildcards, lists, and maps:
 
 ```simi
-42                         -- literal
-name                       -- binding
-_                          -- wildcard
-[first, ..rest]            -- list
-{ kind = "ok", value = x } -- map
-{ name = name, ..other }   -- map rest
+case input
+of 42 do
+    "literal"
+of name do
+    name
+of _ do
+    "wildcard"
+of [first, ..rest] do
+    first
+of { kind = "ok", value = value } do
+    value
+of { name = name, ..other } do
+    other
+end
 ```
 
 Patterns may nest. List-rest captures an independent O(1) copy-on-write view. Map-rest creates an independent shallow map. Nested values keep their alias identities.
@@ -548,10 +569,11 @@ let iter = require("std/iter")
 `iter.map` and `iter.filter` return new iterators. They do not invoke callbacks until the result is consumed:
 
 ```simi
-let transformed = values
-|> list.iter()
-|> iter.filter(fn(value) do value >= 0 end)
-|> iter.map(fn(value) do value * 2 end)
+let transformed =
+    values
+    |> list.iter()
+    |> iter.filter(fn(value) do value >= 0 end)
+    |> iter.map(fn(value) do value * 2 end)
 ```
 
 ### Consumers
@@ -573,11 +595,12 @@ count
 Iterators are single-pass. Searches and boolean queries short-circuit and leave later elements available. `each` returns nil. Predicate callbacks must return booleans. Callback raises propagate unchanged.
 
 ```simi
-let total = values
-|> list.iter()
-|> iter.fold(0) <| fn(sum, value) do
-    sum + value
-end
+let total =
+    values
+    |> list.iter()
+    |> iter.fold(0) <| fn(sum, value) do
+        sum + value
+    end
 ```
 
 ### Steps and custom iterators
@@ -710,30 +733,30 @@ There is deliberately no static `number`; use `integer | float`. `never` is the 
 Transparent aliases may be generic:
 
 ```simi
-alias maybe('a) = 'a | nil
-alias pair('a, 'b) = ['a, 'b]
+alias maybe<'a> = 'a | nil
+alias pair<'a, 'b> = ['a, 'b]
 ```
 
 Functions use arrows in type expressions:
 
 ```simi
-integer -> integer
-(integer, string) -> boolean
+alias transform = integer -> integer
+alias predicate = (integer, string) -> boolean
 ```
 
 Lists may have exact positional shapes or homogeneous rest shapes:
 
 ```simi
-[integer, string]
-[..integer]
+alias row = [integer, string]
+alias integers = [..integer]
 ```
 
 Maps use structural fields, open rests, and index signatures:
 
 ```simi
-{ name: string, age: integer }
-{ name: string, .. }
-{ [string]: integer }
+alias person = { name: string, age: integer }
+alias named = { name: string, .. }
+alias counts = { [string]: integer }
 ```
 
 Named functions may describe normal-return mutation effects:

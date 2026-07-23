@@ -1,0 +1,24 @@
+---- Standard text input and output operations supplied by the host.
+
+--- Read one line without its line ending, or return nil at EOF.
+fn read_line() -> string | nil do host.call("org.simi-lang/std/io/read_line") end
+
+--- Write a string and flush standard output.
+fn print(value: string) -> nil do host.call("org.simi-lang/std/io/print", value) end
+
+--- Write a string and a newline, then flush standard output.
+fn println(value: string) -> nil do host.call("org.simi-lang/std/io/println", value) end
+
+--- Write a string and flush standard error.
+fn eprint(value: string) -> nil do host.call("org.simi-lang/std/io/eprint", value) end
+
+--- Write a string and a newline, then flush standard error.
+fn eprintln(value: string) -> nil do host.call("org.simi-lang/std/io/eprintln", value) end
+
+{
+    read_line = read_line,
+    print = print,
+    println = println,
+    eprint = eprint,
+    eprintln = eprintln,
+}

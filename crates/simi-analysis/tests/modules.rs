@@ -71,9 +71,9 @@ fn println(value) do nil end
 "#;
     let db = AnalysisDatabase::default();
     let module_file = db.add_file(module_source);
-    let modules = HashMap::from([("std/io/stdout".to_owned(), module_shape(&db, module_file))]);
+    let modules = HashMap::from([("std/io".to_owned(), module_shape(&db, module_file))]);
 
-    let direct = "require(\"std/io/stdout\").println";
+    let direct = "require(\"std/io\").println";
     let direct_file = db.add_file(direct);
     let direct_member = member_at(
         &db,
@@ -92,7 +92,7 @@ fn println(value) do nil end
         Some("Print one value.")
     );
 
-    let aliased = "let print = require(\"std/io/stdout\").println print";
+    let aliased = "let print = require(\"std/io\").println print";
     let aliased_file = db.add_file(aliased);
     let alias_offset = aliased.rfind("print").unwrap();
     let alias = member_at(&db, aliased_file, &modules, aliased, alias_offset)
@@ -108,7 +108,7 @@ fn println(value) do nil end
     );
     assert_eq!(imported_members(&db, aliased_file, &modules).len(), 1);
 
-    let incomplete = "require(\"std/io/stdout\").";
+    let incomplete = "require(\"std/io\").";
     let incomplete_file = db.add_file(incomplete);
     let completions =
         member_completions(&db, incomplete_file, &modules, incomplete, incomplete.len());
@@ -171,15 +171,15 @@ fn println(value) do nil end
         Some("Print one value.")
     );
 
-    let source = "let stdout = require(\"std/io/stdout\") stdout";
+    let source = "let stdout = require(\"std/io\") stdout";
     let file = db.add_file(source);
-    let modules = HashMap::from([("std/io/stdout".to_owned(), shape)]);
+    let modules = HashMap::from([("std/io".to_owned(), shape)]);
     for offset in [
-        source.find("\"std/io/stdout\"").unwrap() + 1,
+        source.find("\"std/io\"").unwrap() + 1,
         source.rfind("stdout").unwrap(),
     ] {
         let module = module_at(&db, file, &modules, offset).expect("known module value");
-        assert_eq!(module.module, "std/io/stdout");
+        assert_eq!(module.module, "std/io");
         assert_eq!(
             module.documentation.as_deref(),
             Some("Standard output operations.\nValues are flushed automatically.")
@@ -192,7 +192,7 @@ fn annotated_exported_functions_carry_types_and_trailing_aliases_are_erased() {
     let source = r#"
 fn map(xs: [..'a], transform: 'a -> 'b) -> [..'b] do [] end
 { map = map, identity = fn(value) do value end }
-alias option('a) = 'a | nil
+alias option<'a> = 'a | nil
 "#;
     let db = AnalysisDatabase::default();
     let file = db.add_file(source);

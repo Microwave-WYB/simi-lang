@@ -1,6 +1,21 @@
 use crate::runtime::{List, NativeResult, RuntimeError, RuntimeResult, Value};
 use crate::span::Span;
 
+use super::number::parse_number;
+
+pub fn string_to_number(args: &[Value], span: Span) -> NativeResult {
+    expect_arity(args, 1, "to_number", span)?;
+    let value = expect_string(&args[0], "to_number", "value", span)?;
+    Ok(Ok(parse_number(value)))
+}
+
+pub fn string_concat(args: &[Value], span: Span) -> NativeResult {
+    expect_arity(args, 2, "concat", span)?;
+    let left = expect_string(&args[0], "concat", "left", span)?;
+    let right = expect_string(&args[1], "concat", "right", span)?;
+    Ok(Ok(Value::String(format!("{left}{right}"))))
+}
+
 pub fn string_length(args: &[Value], span: Span) -> NativeResult {
     expect_arity(args, 1, "length", span)?;
     let value = expect_string(&args[0], "length", "value", span)?;

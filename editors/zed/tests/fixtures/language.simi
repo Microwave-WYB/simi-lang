@@ -1,8 +1,8 @@
 -- Exercises the syntax used by the Zed queries.
-alias option('a) = 'a | nil
-alias pair('a, 'b) = ['a, 'b]
+alias option<'a> = 'a | nil
+alias pair<'a, 'b> = ['a, 'b]
 
-let typed_value: option(string) = nil
+let typed_value: option<string> = nil
 let typed_record: { name: string, .. } = { name = "Simi" }
 
 fn typed_identity(value: 'a) -> 'a do
@@ -15,6 +15,7 @@ fn declared_effect(xs: [..integer], pair: [integer, string]) -> nil
 do nil end
 
 let list = require("std/list")
+let iter = require("std/iter")
 
 fn classify(value) do
     case value
@@ -37,7 +38,7 @@ let transform = fn(value) do
 end
 
 let values = [1, 2.5e1, 3]
-let result = values ?> list.map() <| transform
+let result = values ?> list.iter() |> iter.map() <| transform
 let optional = do result? end
 let concatenated = "Simi" <> " language"
 let has_runtime_label = type(result) == "list"

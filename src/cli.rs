@@ -20,7 +20,12 @@ pub struct Cli {
 #[derive(Debug, Subcommand)]
 pub enum CliCommand {
     /// Evaluate a Simi source file.
-    Run { file: PathBuf },
+    Run {
+        /// Print the final value using canonical inspector rendering.
+        #[arg(long)]
+        inspect: bool,
+        file: PathBuf,
+    },
     /// Run the Simi language server over standard input and output.
     Lsp,
 }
@@ -104,7 +109,13 @@ mod tests {
         let run = Cli::try_parse_from(["simi", "run", "demo.simi"]).unwrap();
         assert!(matches!(
             run.command,
-            CliCommand::Run { file } if file == Path::new("demo.simi")
+            CliCommand::Run { inspect: false, file } if file == Path::new("demo.simi")
+        ));
+
+        let inspected = Cli::try_parse_from(["simi", "run", "--inspect", "demo.simi"]).unwrap();
+        assert!(matches!(
+            inspected.command,
+            CliCommand::Run { inspect: true, file } if file == Path::new("demo.simi")
         ));
 
         let lsp = Cli::try_parse_from(["simi", "lsp"]).unwrap();
@@ -128,9 +139,8 @@ mod tests {
         fs::write(
             &path,
             r#"
-            let stdout = require("std/io/stdout")
-            let stderr = require("std/io/stderr")
-            [type(stdout.println), type(stderr.println)]
+            let io = require("std/io")
+            [type(io.println), type(io.eprintln)]
             "#,
         )
         .unwrap();

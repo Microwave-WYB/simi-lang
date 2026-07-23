@@ -12,6 +12,7 @@ fn standard_string_module_is_available_through_the_public_eval_api() {
         r#"
         let string = require("std/string")
         [
+            string.concat("Simi", " language"),
             string.length("aé🦀"),
             string.slice("aé🦀z", 1, 3),
             string.contains("café", "fé"),
@@ -26,7 +27,7 @@ fn standard_string_module_is_available_through_the_public_eval_api() {
 
     assert_eq!(
         result.render(),
-        "[3, \"é🦀\", true, true, true, \"hello\", \"äbc\", \"STRASSE\"]"
+        "[\"Simi language\", 3, \"é🦀\", true, true, true, \"hello\", \"äbc\", \"STRASSE\"]"
     );
 }
 
@@ -96,6 +97,10 @@ fn wrong_types_and_indices_remain_uncatchable_hard_diagnostics() {
         (
             "let string = require(\"std/string\") try string.contains(\"abc\", 1) catch _ do nil end",
             "std/string.contains",
+        ),
+        (
+            "let string = require(\"std/string\") try string.concat(\"abc\", 1) catch _ do nil end",
+            "std/string.concat",
         ),
     ] {
         let error = match eval(source) {

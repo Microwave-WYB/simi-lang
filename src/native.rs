@@ -13,12 +13,9 @@ pub use list::{
 pub use map::{
     map_clear, map_copy, map_entries, map_has, map_iter, map_keys, map_length, map_values,
 };
-pub use number::{number_from_string, number_to_string};
-pub(crate) use stdio::{
-    stderr_flush, stderr_print, stderr_println, stdin_read_line, stdout_flush, stdout_print,
-    stdout_println,
-};
+pub use number::number_to_string;
+pub(crate) use stdio::{io_eprint, io_eprintln, io_print, io_println, stdin_read_line};
 pub use string::{
-    string_contains, string_ends_with, string_length, string_lower, string_slice, string_split,
-    string_starts_with, string_trim, string_upper,
+    string_concat, string_contains, string_ends_with, string_length, string_lower, string_slice,
+    string_split, string_starts_with, string_to_number, string_trim, string_upper,
 };

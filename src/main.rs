@@ -8,7 +8,7 @@ use simi::span::line_column;
 
 fn main() -> ExitCode {
     match Cli::parse().command {
-        CliCommand::Run { file } => run_file(file),
+        CliCommand::Run { inspect, file } => run_file(file, inspect),
         CliCommand::Lsp => {
             let engine = simi::Engine::builder().stdlib().stdio().build();
             match simi_lsp::run_stdio_with_module_sources(engine.module_sources()) {
@@ -22,10 +22,12 @@ fn main() -> ExitCode {
     }
 }
 
-fn run_file(file: PathBuf) -> ExitCode {
+fn run_file(file: PathBuf, inspect: bool) -> ExitCode {
     match simi::cli::run(&file) {
         Ok(Ok(value)) => {
-            println!("{}", value.render());
+            if inspect {
+                println!("{}", value.render());
+            }
             ExitCode::SUCCESS
         }
         Ok(Err(raised)) => {

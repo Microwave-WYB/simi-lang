@@ -103,7 +103,7 @@ A nonnegative out-of-range read returns `nil`. Negative and non-integer indices 
 
 Ordinary aliases observe the same mutations. List-rest pattern captures, `list.slice`, and `list.copy` create independent copy-on-write views in O(1), while nested values retain shallow alias identity. `list.copy` covers the source's full visible range; mutating either outer list detaches its backing as needed.
 
-The standard `std/list` module provides mutation, shallow copying, slicing, inspection, and higher-order operations. In addition to `map`, `filter`, and `fold`, its Gleam-inspired query surface includes `find`, `find_index`, `any`, `all`, `each`, and predicate-based `count`. Higher-order operations iterate over a snapshot, invoke Simi or native callables through the active interpreter, and propagate callback raises. Predicates must return booleans. Searches and boolean queries short-circuit; `all([])` is true and `any([])` is false. `each` returns the original list alias after visiting the snapshot from left to right.
+The standard `std/list` module provides list-specific mutation, shallow copying, slicing, inspection, and an O(1) snapshot iterator. Generic lazy traversal belongs to `std/iter`; its adapters include `map` and `filter`, while consumers include `to_list`, `fold`, `find`, `find_index`, `contains`, `any`, `all`, `each`, and predicate-based `count`. Iterators are single-pass and sticky after exhaustion. Predicates must return booleans, searches short-circuit and leave later elements unconsumed, callback raises propagate, and `each` returns `nil`. `map.iter` snapshots insertion-ordered `{ key = key, value = value }` entries.
 
 ### Maps
 
@@ -147,7 +147,7 @@ and  or  not
 
 Boolean operators are strict and short-circuiting. Simi does not use Lua-style truthiness.
 
-The portable `std/number` module provides explicit numeric conversions. `number.from_string(text)` accepts complete signed decimal integer and decimal/exponent float forms with no surrounding whitespace. Integer syntax returns an integer and never falls back to float on overflow; float syntax returns only finite floats. Overflow and malformed text return `nil`. `number.to_string(value)` accepts only integers and floats and uses canonical Simi numeric rendering, including a visible float marker for whole-valued floats.
+Portable conversion APIs follow source-type naming. `string.to_number(text)` accepts complete signed decimal integer and decimal/exponent float forms with no surrounding whitespace. Integer syntax returns an integer and never falls back to float on overflow; float syntax returns only finite floats. Overflow and malformed text return `nil`. `number.to_string(value)` accepts only integers and floats and uses canonical Simi numeric rendering, including a visible float marker for whole-valued floats. Strict string concatenation uses `<>`; `string.concat(left, right)` provides the pipeline-friendly call form.
 
 Runtime categories are inspected with the shadowable builtin `type(value)` and ordinary equality:
 
@@ -177,7 +177,9 @@ Binding the result of a tap pipeline does not create a copy: `let alias = values
 Pass callbacks directly in the ordinary call form first:
 
 ```simi
-values |> list.map(fn(value) do
+values
+|> list.iter()
+|> iter.map(fn(value) do
     value * 2
 end)
 ```
@@ -186,7 +188,8 @@ The right-associative trailing-argument operator `<|` is an optional alternative
 
 ```simi
 values
-|> list.map() <| fn(value) do
+|> list.iter()
+|> iter.map() <| fn(value) do
     value * 2
 end
 ```
@@ -204,9 +207,9 @@ list.length([ 1, 2, 3 ])
 
 Normal/default interpreters and all `Engine` evaluations provide the shadowable globals `type(value)` and `inspect(value)` alongside `require`. The low-level `Interpreter::with_globals` constructor intentionally treats its environment as complete and does not add a prelude. `type` returns the stable reflective labels listed above, including `"function"` for both user and native functions. Detailed runtime diagnostics may still distinguish native functions. `inspect` is cycle-safe human-readable rendering, not serialization.
 
-Modules are registered by the embedding host and cached per `Engine`. Repeated `require` calls return the same mutable export map, and module state persists across evaluations performed by that engine. Separate engines have separate module registries. `Engine::new()` has no registered modules; `Engine::with_stdlib()` includes `std/list`, `std/map`, `std/number`, and `std/string`. The root `eval` convenience function uses a fresh standard-library engine.
+Modules are registered by the embedding host and cached per `Engine`. Repeated `require` calls return the same mutable export map, and module state persists across evaluations performed by that engine. Separate engines have separate module registries. `Engine::new()` has no registered modules; `Engine::with_stdlib()` includes `std/list`, `std/map`, `std/iter`, `std/number`, and `std/string`. The root `eval` convenience function uses a fresh standard-library engine.
 
-Standard streams are separate opt-in capabilities named `std/io/stdin`, `std/io/stdout`, and `std/io/stderr`. The CLI registers them; `Engine::with_stdlib()` and root `eval` do not. Embedders can opt in with `Engine::builder().stdlib().stdio()`. Input supplies `read_line`; output streams supply `print`, `println`, and `flush`. Strings print raw while other values use inspector rendering. EOF returns `nil`, and successful writes return `nil`. `print` and `println` flush automatically; failures from either the write or its automatic flush raise `{ error = "io_error", operation = operation, message = message }` using the originating operation name. Explicit `flush` failures use `operation = "flush"`.
+Text standard IO is one opt-in capability named `std/io`. The CLI registers it; `Engine::with_stdlib()` and root `eval` do not. Embedders can opt in with `Engine::builder().stdlib().stdio()`. It supplies `read_line`, `print`, `println`, `eprint`, and `eprintln`. Output functions accept strings only and flush automatically; other values require explicit `inspect`. EOF returns `nil`, and successful writes return `nil`. Failures from either the write or its automatic flush raise `{ error = "io_error", operation = operation, message = message }` using the originating operation name. Raw `read` and `write` remain deferred until Simi has bytes.
 
 Rust extension crates can construct direct value modules with `Module::builder` or source-backed modules with `Module::source`. Module, export, and host-operation registration is infallible and last-wins. Source modules are registered as source strings, evaluated lazily in a private environment, and cached per `Engine`; their final value is the module export. A source module may expose ordinary Simi wrappers over its private variadic `host.call(id, ...arguments)` capability. Native callbacks may capture Rust state but must be `Send + Sync + 'static`; this prevents safe callbacks from capturing Simi's non-`Send` managed values as untraced edges. Do not weaken this boundary or implement `require` as a closure that captures managed module values. Interpreter-aware standard list operations use private, data-free host intrinsic variants rather than exposing the interpreter to host callbacks.
 
@@ -292,14 +295,26 @@ Future serializers must define cycle behavior explicitly; JSON-like serializatio
 
 ## Source and Formatting Conventions
 
-Canonical source examples use:
+Canonical source examples use compact delimiters with spaces after commas and around `=`:
 
 ```simi
-{ a = x, b = y }
-[ a, b, c ]
+{a = x, b = y}
+[a, b, c]
 ```
 
 Empty forms remain `{}` and `[]`. Trailing commas are accepted in comma-separated constructs.
+
+When a multiline pipeline is the right-hand side of a binding, break after `=` and indent the continuation:
+
+```simi
+let doubled =
+    values
+    |> list.iter()
+    |> iter.map(fn(value) do
+        value * 2
+    end)
+    |> iter.to_list()
+```
 
 Rust module layout must use a facade file plus a same-named directory:
 
@@ -348,7 +363,7 @@ Add tests at the lowest useful layer and at the public language boundary when se
 
 ## Near-Term Direction
 
-The portable standard library currently includes `std/list`, `std/map`, `std/number`, and `std/string`; `type` and `inspect` are globals. Anonymous functions, trailing callback application, and Gleam-inspired higher-order list queries are implemented. The CLI additionally registers the opt-in `std/io/*` standard-stream modules.
+The portable standard library currently includes `std/list`, `std/map`, `std/iter`, `std/number`, and `std/string`; `type` and `inspect` are globals. Anonymous functions, trailing callback application, and lazy single-pass iterators are implemented. The CLI additionally registers the opt-in `std/io` text module.
 
 Rowan syntax, Salsa-backed lexical and type analysis, `simi-lsp`, and the VS Code/Zed adapters are implemented. The erased optional type system parses inline annotations and transparent aliases, infers stable body-based function and binding types, reports definite contradictions, and supplies typed hover/completion for source modules.
 

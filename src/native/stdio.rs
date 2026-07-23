@@ -1,6 +1,6 @@
 use std::io::{self, Write};
 
-use crate::runtime::{NativeResult, Raised, Value};
+use crate::runtime::{NativeResult, Raised, RuntimeError, Value};
 use crate::span::Span;
 
 pub(crate) fn stdin_read_line(_: &[Value], span: Span) -> NativeResult {
@@ -20,28 +20,20 @@ pub(crate) fn stdin_read_line(_: &[Value], span: Span) -> NativeResult {
     }
 }
 
-pub(crate) fn stdout_print(args: &[Value], span: Span) -> NativeResult {
+pub(crate) fn io_print(args: &[Value], span: Span) -> NativeResult {
     write_stream(io::stdout(), &args[0], false, "print", span)
 }
 
-pub(crate) fn stdout_println(args: &[Value], span: Span) -> NativeResult {
+pub(crate) fn io_println(args: &[Value], span: Span) -> NativeResult {
     write_stream(io::stdout(), &args[0], true, "println", span)
 }
 
-pub(crate) fn stdout_flush(_: &[Value], span: Span) -> NativeResult {
-    flush_stream(io::stdout(), "flush", span)
+pub(crate) fn io_eprint(args: &[Value], span: Span) -> NativeResult {
+    write_stream(io::stderr(), &args[0], false, "eprint", span)
 }
 
-pub(crate) fn stderr_print(args: &[Value], span: Span) -> NativeResult {
-    write_stream(io::stderr(), &args[0], false, "print", span)
-}
-
-pub(crate) fn stderr_println(args: &[Value], span: Span) -> NativeResult {
-    write_stream(io::stderr(), &args[0], true, "println", span)
-}
-
-pub(crate) fn stderr_flush(_: &[Value], span: Span) -> NativeResult {
-    flush_stream(io::stderr(), "flush", span)
+pub(crate) fn io_eprintln(args: &[Value], span: Span) -> NativeResult {
+    write_stream(io::stderr(), &args[0], true, "eprintln", span)
 }
 
 fn write_stream(
@@ -51,7 +43,15 @@ fn write_stream(
     operation: &str,
     span: Span,
 ) -> NativeResult {
-    let rendered = printable(value);
+    let Value::String(rendered) = value else {
+        return Err(RuntimeError::new(
+            span,
+            format!(
+                "std/io.{operation} value must be a string, got {}",
+                value.type_name()
+            ),
+        ));
+    };
     let result = if newline {
         writeln!(stream, "{rendered}")
     } else {
@@ -61,20 +61,6 @@ fn write_stream(
     match result {
         Ok(()) => Ok(Ok(Value::Nil)),
         Err(error) => Ok(Err(Raised::io_error(operation, error.to_string(), span))),
-    }
-}
-
-fn flush_stream(mut stream: impl Write, operation: &str, span: Span) -> NativeResult {
-    match stream.flush() {
-        Ok(()) => Ok(Ok(Value::Nil)),
-        Err(error) => Ok(Err(Raised::io_error(operation, error.to_string(), span))),
-    }
-}
-
-fn printable(value: &Value) -> String {
-    match value {
-        Value::String(value) => value.clone(),
-        value => value.render(),
     }
 }
 
@@ -107,33 +93,38 @@ mod tests {
     }
 
     #[test]
-    fn strings_print_raw_while_other_values_use_inspection_rendering() {
-        assert_eq!(printable(&Value::String("hello".to_owned())), "hello");
-        assert_eq!(printable(&Value::Int(7)), "7");
+    fn output_requires_strings() {
+        let error = match write_stream(Vec::new(), &Value::Int(7), false, "print", Span::new(0, 0))
+        {
+            Err(error) => error,
+            Ok(_) => panic!("non-string output should be a hard diagnostic"),
+        };
+        assert_eq!(
+            error.message,
+            "std/io.print value must be a string, got integer"
+        );
     }
 
     #[test]
     fn stream_failures_raise_structured_io_errors() {
         let span = Span::new(2, 4);
-        let raised =
-            match write_stream(FailingWriter, &Value::Int(1), false, "print", span).unwrap() {
-                Err(raised) => raised,
-                Ok(_) => panic!("failing stream should raise"),
-            };
+        let raised = match write_stream(
+            FailingWriter,
+            &Value::String("x".to_owned()),
+            false,
+            "print",
+            span,
+        )
+        .unwrap()
+        {
+            Err(raised) => raised,
+            Ok(_) => panic!("failing stream should raise"),
+        };
         assert_eq!(
             raised.value.render(),
             "{error=\"io_error\", operation=\"print\", message=\"closed\"}"
         );
         assert_eq!(raised.origin, span);
-
-        let raised = match flush_stream(FailingWriter, "flush", span).unwrap() {
-            Err(raised) => raised,
-            Ok(_) => panic!("failing flush should raise"),
-        };
-        assert_eq!(
-            raised.value.render(),
-            "{error=\"io_error\", operation=\"flush\", message=\"closed\"}"
-        );
     }
 
     #[test]

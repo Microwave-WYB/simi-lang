@@ -169,9 +169,7 @@ impl EngineBuilder {
     }
 
     pub fn stdio(self) -> Self {
-        self.module(stdlib::stdin())
-            .module(stdlib::stdout())
-            .module(stdlib::stderr())
+        self.module(stdlib::io())
     }
 
     pub fn build(self) -> Engine {

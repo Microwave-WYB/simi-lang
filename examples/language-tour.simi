@@ -36,26 +36,28 @@ fn classify(value) do
 end
 
 -- The direct callback form exposes the ordinary function signature.
-let doubled = values
-|> list.iter()
-|> iter.filter(fn(value) do
-    value != nil
-end)
-|> iter.map(fn(value) do
-    value * 2
-end)
-|> iter.to_list()
+let doubled =
+    values
+    |> list.iter()
+    |> iter.filter(fn(value) do
+        value != nil
+    end)
+    |> iter.map(fn(value) do
+        value * 2
+    end)
+    |> iter.to_list()
 
 -- <| appends one multiline callback as the final argument.
-let squares = values
-|> list.iter()
-|> iter.filter() <| fn(value) do
-    value != nil
-end
-|> iter.map() <| fn(value) do
-    value * value
-end
-|> iter.to_list()
+let squares =
+    values
+    |> list.iter()
+    |> iter.filter() <| fn(value) do
+        value != nil
+    end
+    |> iter.map() <| fn(value) do
+        value * value
+    end
+    |> iter.to_list()
 
 -- A custom iterator is a zero-argument function returning tagged steps.
 fn countdown(start: integer) do

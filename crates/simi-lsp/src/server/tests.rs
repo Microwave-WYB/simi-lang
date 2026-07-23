@@ -794,20 +794,20 @@ fn module_documentation_appears_on_require_literals_and_module_bindings() {
 fn println(value) do nil end
 { println = println }
 "#;
-    let source = "let stdout = require(\"std/io/stdout\") stdout";
+    let source = "let stdout = require(\"std/io\") stdout";
     for (needle, occurrence, expected) in [
         (
-            "std/io/stdout",
+            "std/io",
             0,
-            "std/io/stdout\n\nStandard output operations.\nValues are flushed automatically.",
+            "std/io\n\nStandard output operations.\nValues are flushed automatically.",
         ),
         (
             "stdout",
-            2,
+            1,
             "stdout : any\n\nStandard output operations.\nValues are flushed automatically.",
         ),
     ] {
-        let mut backend = Backend::with_module_sources([("std/io/stdout", module)]);
+        let mut backend = Backend::with_module_sources([("std/io", module)]);
         open(&mut backend, source);
         let hover: Option<Hover> = serde_json::from_value(
             request(
@@ -838,25 +838,25 @@ fn println(value) do nil end
 
     for (source, needle, occurrence, expected) in [
         (
-            "require(\"std/io/stdout\").println",
+            "require(\"std/io\").println",
             "println",
             0,
             "println : 'a -> nil\n\nPrint one value.",
         ),
         (
-            "let print = require(\"std/io/stdout\").println print",
+            "let print = require(\"std/io\").println print",
             "print",
             2,
             "print : 'a -> nil\n\nPrint one value.",
         ),
         (
-            "require(\"std/io/stdout\").identity",
+            "require(\"std/io\").identity",
             "identity",
             0,
             "identity : 'a -> 'a",
         ),
     ] {
-        let mut backend = Backend::with_module_sources([("std/io/stdout", module)]);
+        let mut backend = Backend::with_module_sources([("std/io", module)]);
         open(&mut backend, source);
         let hover: Option<Hover> = serde_json::from_value(
             request(
@@ -876,8 +876,8 @@ fn println(value) do nil end
         assert_eq!(markup.value, expected);
     }
 
-    let completion_source = "let print = require(\"std/io/stdout\").println pri";
-    let mut backend = Backend::with_module_sources([("std/io/stdout", module)]);
+    let completion_source = "let print = require(\"std/io\").println pri";
+    let mut backend = Backend::with_module_sources([("std/io", module)]);
     open(&mut backend, completion_source);
     let completion: Option<CompletionResponse> = serde_json::from_value(
         request(

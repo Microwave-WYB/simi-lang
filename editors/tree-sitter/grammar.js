@@ -248,10 +248,10 @@ module.exports = grammar({
     ),
 
     type_parameters: ($) => seq(
-      "(",
+      "<",
       optional(commaSep1($.type_variable)),
       optional(","),
-      ")",
+      ">",
     ),
 
     _type: ($) => $.function_type,
@@ -281,10 +281,10 @@ module.exports = grammar({
     )),
 
     type_arguments: ($) => seq(
-      "(",
+      "<",
       optional(commaSep1($._type)),
       optional(","),
-      ")",
+      ">",
     ),
 
     type_variable: ($) => token(seq("'", /[A-Za-z_][A-Za-z0-9_]*/)),

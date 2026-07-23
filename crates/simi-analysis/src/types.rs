@@ -3609,8 +3609,7 @@ fn known_module_argument_is_pure(module: &str, field: &str, index: usize) -> boo
             ) || (field != "fold" && index != 0)
         }
         "std/map" => index != 0 || field != "clear",
-        "std/iter" | "std/number" | "std/string" | "std/io/stdin" | "std/io/stdout"
-        | "std/io/stderr" => true,
+        "std/iter" | "std/number" | "std/string" | "std/io" => true,
         _ => false,
     }
 }

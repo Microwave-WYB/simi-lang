@@ -66,13 +66,13 @@ Arrows associate to the right. Parentheses distinguish fixed parameter lists
 from a single parameter.
 
 Generic variables begin with an apostrophe. Alias parameters are explicit, and
-type application uses parentheses rather than angle brackets:
+type application uses angle brackets:
 
 ```simi
-alias option('a) = 'a | nil
-alias pair('a, 'b) = ['a, 'b]
+alias option<'a> = 'a | nil
+alias pair<'a, 'b> = ['a, 'b]
 
-let name: option(string) = nil
+let name: option<string> = nil
 ```
 
 Free generic variables in a function annotation are implicitly quantified:
@@ -88,7 +88,7 @@ end
 ```
 
 Callers never supply explicit generic arguments. Forms such as
-`identity(string)(value)` are not part of the initial design.
+`identity<string>(value)` are not part of the initial design.
 
 Aliases are transparent: expanding an alias does not create a new runtime or
 nominal identity.
@@ -107,7 +107,7 @@ alias maybe_name = string | nil
 Literal fields support discriminated structural records:
 
 ```simi
-alias result('value, 'error) =
+alias result<'value, 'error> =
     { kind: "ok", value: 'value }
     | { kind: "error", error: 'error }
 ```
@@ -146,7 +146,7 @@ positions, but the initial system does not track symbolic dimensions or prove
 rectangular matrix shapes.
 
 These structural forms are sufficient as the primitive surface. Libraries may
-provide transparent aliases for common list shapes, but `list('a)` need not be
+provide transparent aliases for common list shapes, but `list<'a>` need not be
 a primitive type constructor.
 
 ## Structural maps
@@ -180,7 +180,7 @@ entry returns `nil`; known required record fields may be read at their declared
 type while their presence remains proven.
 
 As with lists, these are structural refinements of runtime `Map` values. A
-primitive `map('key, 'value)` constructor is unnecessary, though a library may
+primitive `map<'key, 'value>` constructor is unnecessary, though a library may
 define an equivalent transparent alias later.
 
 ## Mutation and analysis precision

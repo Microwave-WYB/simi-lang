@@ -309,13 +309,11 @@ fn global_inspect_renders_cyclic_containers_and_builtins_are_shadowable() {
 }
 
 #[test]
-fn stdio_modules_are_opt_in_capabilities() {
-    for name in ["std/io/stdin", "std/io/stdout", "std/io/stderr"] {
-        let result = Engine::with_stdlib()
-            .eval(&format!("require(\"{name}\")"))
-            .expect("missing stdio module should raise, not hard fail");
-        assert!(result.is_err());
-    }
+fn stdio_module_is_an_opt_in_capability() {
+    let result = Engine::with_stdlib()
+        .eval("require(\"std/io\")")
+        .expect("missing stdio module should raise, not hard fail");
+    assert!(result.is_err());
 
     let value = Engine::builder()
         .stdlib()
@@ -323,18 +321,16 @@ fn stdio_modules_are_opt_in_capabilities() {
         .build()
         .eval(
             r#"
-            let stdin = require("std/io/stdin")
-            let stdout = require("std/io/stdout")
-            let stderr = require("std/io/stderr")
+            let io = require("std/io")
             [
-                type(stdin.read_line),
-                stdin.readline,
-                type(stdout.print),
-                type(stdout.println),
-                type(stdout.flush),
-                type(stderr.print),
-                type(stderr.println),
-                type(stderr.flush),
+                type(io.read_line),
+                type(io.print),
+                type(io.println),
+                type(io.eprint),
+                type(io.eprintln),
+                io.read,
+                io.write,
+                io.flush,
             ]
             "#,
         )
@@ -342,7 +338,7 @@ fn stdio_modules_are_opt_in_capabilities() {
         .unwrap();
     assert_eq!(
         value.render(),
-        "[\"function\", nil, \"function\", \"function\", \"function\", \"function\", \"function\", \"function\"]"
+        "[\"function\", \"function\", \"function\", \"function\", \"function\", nil, nil, nil]"
     );
 }
 
@@ -539,9 +535,7 @@ fn every_bundled_module_is_source_backed() {
         simi::stdlib::iter(),
         simi::stdlib::number(),
         simi::stdlib::string(),
-        simi::stdlib::stdin(),
-        simi::stdlib::stdout(),
-        simi::stdlib::stderr(),
+        simi::stdlib::io(),
     ] {
         assert!(
             module.is_source_backed(),
@@ -559,9 +553,7 @@ fn every_bundled_module_is_source_backed() {
     assert_eq!(
         names,
         [
-            "std/io/stderr",
-            "std/io/stdin",
-            "std/io/stdout",
+            "std/io",
             "std/iter",
             "std/list",
             "std/map",

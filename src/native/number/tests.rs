@@ -1,4 +1,5 @@
 use super::*;
+use crate::native::string::string_to_number;
 
 const SPAN: Span = Span::new(3, 9);
 
@@ -19,11 +20,11 @@ fn hard_error(result: NativeResult) -> RuntimeError {
 }
 
 #[test]
-fn from_string_uses_syntax_to_preserve_numeric_categories() {
+fn to_number_uses_syntax_to_preserve_numeric_categories() {
     for text in ["0", "+17", "-42", "001"] {
         assert!(
             matches!(
-                result(number_from_string(&[string(text)], SPAN)),
+                result(string_to_number(&[string(text)], SPAN)),
                 Value::Int(_)
             ),
             "{text} should produce an integer"
@@ -33,7 +34,7 @@ fn from_string_uses_syntax_to_preserve_numeric_categories() {
     for text in ["0.0", "+1.25", "-2.5", "1e3", "2E-2", "3.0e+4"] {
         assert!(
             matches!(
-                result(number_from_string(&[string(text)], SPAN)),
+                result(string_to_number(&[string(text)], SPAN)),
                 Value::Float(_)
             ),
             "{text} should produce a float"
@@ -42,27 +43,27 @@ fn from_string_uses_syntax_to_preserve_numeric_categories() {
 }
 
 #[test]
-fn from_string_handles_integer_boundaries_without_float_fallback() {
+fn to_number_handles_integer_boundaries_without_float_fallback() {
     assert!(matches!(
-        result(number_from_string(&[string("9223372036854775807")], SPAN)),
+        result(string_to_number(&[string("9223372036854775807")], SPAN)),
         Value::Int(i64::MAX)
     ));
     assert!(matches!(
-        result(number_from_string(&[string("-9223372036854775808")], SPAN)),
+        result(string_to_number(&[string("-9223372036854775808")], SPAN)),
         Value::Int(i64::MIN)
     ));
     assert!(matches!(
-        result(number_from_string(&[string("9223372036854775808")], SPAN)),
+        result(string_to_number(&[string("9223372036854775808")], SPAN)),
         Value::Nil
     ));
     assert!(matches!(
-        result(number_from_string(&[string("-9223372036854775809")], SPAN)),
+        result(string_to_number(&[string("-9223372036854775809")], SPAN)),
         Value::Nil
     ));
 }
 
 #[test]
-fn from_string_rejects_non_finite_and_malformed_forms() {
+fn to_number_rejects_non_finite_and_malformed_forms() {
     for text in [
         "",
         "+",
@@ -85,16 +86,13 @@ fn from_string_rejects_non_finite_and_malformed_forms() {
         "1.7976931348623159e308",
     ] {
         assert!(
-            matches!(
-                result(number_from_string(&[string(text)], SPAN)),
-                Value::Nil
-            ),
+            matches!(result(string_to_number(&[string(text)], SPAN)), Value::Nil),
             "{text:?} should be rejected"
         );
     }
 
     assert!(matches!(
-        result(number_from_string(
+        result(string_to_number(
             &[string("1.7976931348623157e308")],
             SPAN
         )),
@@ -123,15 +121,15 @@ fn to_string_uses_canonical_visible_float_rendering() {
 #[test]
 fn invalid_arity_and_types_are_qualified_hard_errors() {
     let errors = [
-        hard_error(number_from_string(&[], SPAN)),
-        hard_error(number_from_string(&[Value::Int(1)], SPAN)),
+        hard_error(string_to_number(&[], SPAN)),
+        hard_error(string_to_number(&[Value::Int(1)], SPAN)),
         hard_error(number_to_string(&[], SPAN)),
         hard_error(number_to_string(&[string("1")], SPAN)),
     ];
 
     for error in errors {
         assert!(
-            error.message.starts_with("std/number."),
+            error.message.starts_with("std/number.") || error.message.starts_with("std/string."),
             "{}",
             error.message
         );

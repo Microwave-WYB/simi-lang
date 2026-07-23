@@ -142,11 +142,11 @@ fn alias_decl(p: &mut Parser<'_>) {
     let marker = p.start();
     p.bump();
     p.expect(K::IDENT, "type alias name");
-    if p.at(K::L_PAREN) {
+    if p.at(K::LESS) {
         let parameters = p.start();
         p.bump();
         let mut seen = HashSet::new();
-        if !p.at(K::R_PAREN) {
+        if !p.at(K::GREATER) {
             loop {
                 let variable = p.start();
                 p.expect(K::APOSTROPHE, "`'` before type variable");
@@ -156,12 +156,12 @@ fn alias_decl(p: &mut Parser<'_>) {
                     p.error_at(span, format!("duplicate type parameter `'{}'", name));
                 }
                 variable.complete(&mut p.events, K::TYPE_VARIABLE);
-                if !p.bump_if(K::COMMA) || p.at(K::R_PAREN) {
+                if !p.bump_if(K::COMMA) || p.at(K::GREATER) {
                     break;
                 }
             }
         }
-        p.expect(K::R_PAREN, "`)` after type parameters");
+        p.expect(K::GREATER, "`>` after type parameters");
         parameters.complete(&mut p.events, K::TYPE_PARAM_LIST);
     }
     p.expect(K::EQ, "`=` after type alias");
@@ -229,7 +229,7 @@ fn type_primary(p: &mut Parser<'_>) {
     } else if p.at(K::IDENT) {
         let marker = p.start();
         p.bump();
-        if p.at(K::L_PAREN) {
+        if p.at(K::LESS) {
             type_argument_list(p);
         }
         marker.complete(&mut p.events, K::TYPE_NAME);
@@ -273,15 +273,15 @@ fn type_variable(p: &mut Parser<'_>) {
 fn type_argument_list(p: &mut Parser<'_>) {
     let marker = p.start();
     p.bump();
-    if !p.at(K::R_PAREN) {
+    if !p.at(K::GREATER) {
         loop {
             type_expr(p);
-            if !p.bump_if(K::COMMA) || p.at(K::R_PAREN) {
+            if !p.bump_if(K::COMMA) || p.at(K::GREATER) {
                 break;
             }
         }
     }
-    p.expect(K::R_PAREN, "`)` after type arguments");
+    p.expect(K::GREATER, "`>` after type arguments");
     marker.complete(&mut p.events, K::TYPE_ARGUMENT_LIST);
 }
 

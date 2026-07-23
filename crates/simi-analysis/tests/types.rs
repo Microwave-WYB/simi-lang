@@ -28,10 +28,7 @@ fn language_tour_example_is_syntax_and_type_clean() {
         ("std/iter", include_str!("../../../stdlib/iter.simi")),
         ("std/number", include_str!("../../../stdlib/number.simi")),
         ("std/string", include_str!("../../../stdlib/string.simi")),
-        (
-            "std/io",
-            "fn println(value: string) -> nil do nil end\n{ println = println }",
-        ),
+        ("std/io", include_str!("../../../stdlib/io.simi")),
     ]
     .into_iter()
     .map(|(name, source)| {
@@ -52,6 +49,64 @@ fn language_tour_example_is_syntax_and_type_clean() {
         "type diagnostics: {:?}",
         inference.diagnostics
     );
+}
+
+#[test]
+fn language_tour_simi_fences_are_syntax_and_type_clean() {
+    let db = AnalysisDatabase::default();
+    let modules = [
+        ("std/list", include_str!("../../../stdlib/list.simi")),
+        ("std/map", include_str!("../../../stdlib/map.simi")),
+        ("std/iter", include_str!("../../../stdlib/iter.simi")),
+        ("std/number", include_str!("../../../stdlib/number.simi")),
+        ("std/string", include_str!("../../../stdlib/string.simi")),
+        ("std/io", include_str!("../../../stdlib/io.simi")),
+    ]
+    .into_iter()
+    .map(|(name, source)| {
+        let file = db.add_file(source);
+        (name.to_owned(), simi_analysis::module_shape(&db, file))
+    })
+    .collect::<HashMap<_, _>>();
+
+    let markdown = include_str!("../../../docs/language-tour.md");
+    let mut snippets = Vec::new();
+    let mut current = None::<String>;
+    for line in markdown.lines() {
+        if line == "```simi" {
+            assert!(current.is_none(), "nested Simi fence");
+            current = Some(String::new());
+        } else if line == "```" {
+            if let Some(source) = current.take() {
+                snippets.push(source);
+            }
+        } else if let Some(source) = &mut current {
+            source.push_str(line);
+            source.push('\n');
+        }
+    }
+    assert!(current.is_none(), "unterminated Simi fence");
+    assert!(!snippets.is_empty(), "language tour has no Simi fences");
+
+    for (index, source) in snippets.iter().enumerate() {
+        let file = db.add_file(source);
+        let syntax = parse(&db, file);
+        assert!(
+            syntax.diagnostics.is_empty(),
+            "Simi fence {} has syntax diagnostics: {:?}\n{}",
+            index + 1,
+            syntax.diagnostics,
+            source
+        );
+        let inference = infer_types(&db, file, &modules);
+        assert!(
+            inference.diagnostics.is_empty(),
+            "Simi fence {} has type diagnostics: {:?}\n{}",
+            index + 1,
+            inference.diagnostics,
+            source
+        );
+    }
 }
 
 fn type_of(
@@ -214,11 +269,11 @@ let trailing = combine(1) <| "x"
 #[test]
 fn aliases_and_function_types_are_transparent_and_right_associative() {
     let source = r#"
-alias option('a) = 'a | nil
+alias option<'a> = 'a | nil
 let callback: integer -> string | nil = fn(value: integer) -> string | nil do
     if value == 0 then nil else "value" end
 end
-let result: option(string) = callback(1)
+let result: option<string> = callback(1)
 "#;
     let (inference, resolution) = inferred(source);
     assert!(
@@ -647,10 +702,10 @@ fn annotated_generic_stdlib_calls_infer_through_nested_type_variables() {
 #[test]
 fn malformed_alias_uses_produce_bounded_diagnostics() {
     let source = r#"
-alias option('a) = 'a | nil
+alias option<'a> = 'a | nil
 alias recursive = recursive
 let unknown: missing = 1
-let wrong: option(integer, string) = 1
+let wrong: option<integer, string> = 1
 let cycle: recursive = 1
 "#;
     let (inference, _) = inferred(source);
@@ -1007,13 +1062,21 @@ precise
 #[test]
 fn unmodeled_calls_follow_any_alias_regions_and_analyzed_callbacks() {
     let db = AnalysisDatabase::default();
-    let module_file = db.add_file(include_str!("../../../stdlib/list.simi"));
-    let modules = HashMap::from([(
-        "std/list".to_owned(),
-        simi_analysis::module_shape(&db, module_file),
-    )]);
+    let list_file = db.add_file(include_str!("../../../stdlib/list.simi"));
+    let iter_file = db.add_file(include_str!("../../../stdlib/iter.simi"));
+    let modules = HashMap::from([
+        (
+            "std/list".to_owned(),
+            simi_analysis::module_shape(&db, list_file),
+        ),
+        (
+            "std/iter".to_owned(),
+            simi_analysis::module_shape(&db, iter_file),
+        ),
+    ]);
     let source = r#"
 let list = require("std/list")
+let iter = require("std/iter")
 fn mutate(value: any) do value end
 let values = [1, 2]
 let hidden: any = values
@@ -1021,7 +1084,7 @@ mutate(hidden)
 values
 fn visit(value: integer) -> any do value end
 let callback_values = [1, 2]
-list.each(callback_values, visit)
+iter.each(list.iter(callback_values), visit)
 callback_values
 "#;
     let file = db.add_file(source);
@@ -1197,13 +1260,21 @@ end
 #[test]
 fn closure_calls_and_callbacks_invalidate_captured_mutable_regions() {
     let db = AnalysisDatabase::default();
-    let module_file = db.add_file(include_str!("../../../stdlib/list.simi"));
-    let modules = HashMap::from([(
-        "std/list".to_owned(),
-        simi_analysis::module_shape(&db, module_file),
-    )]);
+    let list_file = db.add_file(include_str!("../../../stdlib/list.simi"));
+    let iter_file = db.add_file(include_str!("../../../stdlib/iter.simi"));
+    let modules = HashMap::from([
+        (
+            "std/list".to_owned(),
+            simi_analysis::module_shape(&db, list_file),
+        ),
+        (
+            "std/iter".to_owned(),
+            simi_analysis::module_shape(&db, iter_file),
+        ),
+    ]);
     let source = r#"
 let list = require("std/list")
+let iter = require("std/iter")
 let named_values = [1]
 fn mutate_named() do list.append(named_values, 2) end
 named_values
@@ -1217,11 +1288,11 @@ anonymous_values
 let visited = [1]
 let separate = [2]
 fn visit(value: integer) -> nil do list.append(separate, 3) end
-list.each(visited, visit)
+iter.each(list.iter(visited), visit)
 separate
 let accumulator = [0]
 fn keep(acc: [integer], value: integer) -> [integer] do acc end
-list.fold([1], accumulator, keep)
+iter.fold(list.iter([1]), accumulator, keep)
 accumulator
 fn mutate_forward() do list.append(forward_values, 2) end
 let forward_values = [1]
@@ -1262,7 +1333,7 @@ nested_list_outer
     );
     assert_eq!(
         type_at(source, &inference, &resolution, "accumulator", 2),
-        "[..any]"
+        "[integer]"
     );
     assert_eq!(
         type_at(source, &inference, &resolution, "forward_values", 2),
