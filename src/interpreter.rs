@@ -46,7 +46,7 @@ impl EvaluationError {
             Self::Raised(_) => unreachable!("raised values have a separate public result boundary"),
             Self::NilPropagate { span } => RuntimeError {
                 span,
-                message: "nil propagation escaped its standalone block".to_owned(),
+                message: "nil propagation escaped its block".to_owned(),
             },
             Self::Break { span, .. } => RuntimeError {
                 span,

@@ -1184,6 +1184,47 @@ value"#;
 }
 
 #[test]
+fn nil_propagation_loop_hover_uses_the_evolved_optional_state() {
+    let source = r#"
+fn evolve(maybe: integer | nil) do
+    loop state = 0 do
+        if state == nil then
+            break state
+        end
+        maybe?
+        state + 1
+    end
+end
+"#;
+    let mut backend = Backend::default();
+    let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
+    assert!(diagnostics.diagnostics.is_empty());
+
+    for (occurrence, expected) in [
+        (1, "state : integer | nil"),
+        (2, "state : nil"),
+        (3, "state : integer"),
+    ] {
+        let hover: Option<Hover> = serde_json::from_value(
+            request(
+                &mut backend,
+                HoverRequest::METHOD,
+                json!({
+                    "textDocument": { "uri": uri() },
+                    "position": text_position(source, "state", occurrence),
+                }),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let HoverContents::Markup(markup) = hover.expect("state hover").contents else {
+            panic!("expected markup")
+        };
+        assert_eq!(markup.value, expected);
+    }
+}
+
+#[test]
 fn append_driven_loop_hover_uses_the_evolved_list_shape() {
     let source = r#"
 let list = require("std/list")

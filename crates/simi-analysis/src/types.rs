@@ -628,7 +628,7 @@ impl Context<'_> {
         let trusted_host_wrapper = body.as_ref().is_some_and(is_host_wrapper);
         let actual = body
             .as_ref()
-            .map(|body| self.statements(body.statements()))
+            .map(|body| self.infer_block(body))
             .unwrap_or(Type::Nil);
         let assignment_effects = self
             .assignment_effect_frames
@@ -769,6 +769,22 @@ impl Context<'_> {
             .insert(symbol, assignment_effects);
     }
 
+    fn infer_block(&mut self, block: &syntax::Block) -> Type {
+        self.nil_abort_states.push(Vec::new());
+        let result = self.statements(block.statements());
+        let aborts = self.nil_abort_states.pop().unwrap_or_default();
+        if aborts.is_empty() {
+            return result;
+        }
+
+        let mut exits = aborts;
+        if result != Type::Never {
+            exits.push(self.flow_state());
+        }
+        self.join_and_restore(exits);
+        union(vec![result, Type::Nil])
+    }
+
     fn expression(&mut self, expression: syntax::Expr) -> Type {
         let expression_span = span(expression.syntax());
         let ty = match expression {
@@ -780,23 +796,9 @@ impl Context<'_> {
                 .map(|ty| self.instantiate(ty))
                 .unwrap_or(Type::Unknown),
             syntax::Expr::Function(node) => self.infer_anonymous(node),
-            syntax::Expr::Block(node) => {
-                self.nil_abort_states.push(Vec::new());
-                let result = support::child::<syntax::Block>(node.syntax())
-                    .map(|block| self.statements(block.statements()))
-                    .unwrap_or(Type::Nil);
-                let aborts = self.nil_abort_states.pop().unwrap_or_default();
-                if aborts.is_empty() {
-                    result
-                } else {
-                    let mut exits = aborts;
-                    if result != Type::Never {
-                        exits.push(self.flow_state());
-                    }
-                    self.join_and_restore(exits);
-                    union(vec![result, Type::Nil])
-                }
-            }
+            syntax::Expr::Block(node) => support::child::<syntax::Block>(node.syntax())
+                .map(|block| self.infer_block(&block))
+                .unwrap_or(Type::Nil),
             syntax::Expr::Paren(node) => child_expr(node.syntax(), 0)
                 .map(|child| self.expression(child))
                 .unwrap_or(Type::Unknown),
@@ -848,7 +850,7 @@ impl Context<'_> {
             syntax::Expr::Try(node) => {
                 let mut results = Vec::new();
                 if let Some(block) = support::child::<syntax::Block>(node.syntax()) {
-                    results.push(self.statements(block.statements()));
+                    results.push(self.infer_block(&block));
                 }
                 for clause in support::children::<syntax::CatchClause>(node.syntax()) {
                     if let Some(pattern) = support::child::<syntax::Pattern>(clause.syntax()) {
@@ -859,7 +861,7 @@ impl Context<'_> {
                         self.constrain(&Type::Boolean, &guard, span(clause.syntax()));
                     }
                     if let Some(block) = support::child::<syntax::Block>(clause.syntax()) {
-                        results.push(self.statements(block.statements()));
+                        results.push(self.infer_block(&block));
                     }
                 }
                 union(results)
@@ -939,7 +941,7 @@ impl Context<'_> {
                         breaks: Vec::new(),
                     });
                     let ordinary = support::child::<syntax::Block>(node.syntax())
-                        .map(|block| self.statements(block.statements()))
+                        .map(|block| self.infer_block(&block))
                         .unwrap_or(Type::Nil);
                     let mut context = self.loops.pop().expect("loop inference context");
                     if ordinary != Type::Never {
@@ -1039,7 +1041,7 @@ impl Context<'_> {
             .and_then(|annotation| support::child::<syntax::TypeExpr>(annotation.syntax()))
             .map(|annotation| self.parse_type(annotation.syntax(), &mut generics));
         let actual = support::child::<syntax::Block>(node.syntax())
-            .map(|body| self.statements(body.statements()))
+            .map(|body| self.infer_block(&body))
             .unwrap_or(Type::Nil);
         let assignment_effects = self
             .assignment_effect_frames
@@ -1082,7 +1084,7 @@ impl Context<'_> {
             self.restore_flow(&after_condition);
             if self.refine_condition(&condition, true) {
                 let result = support::child::<syntax::Block>(branch.syntax())
-                    .map(|block| self.statements(block.statements()))
+                    .map(|block| self.infer_block(&block))
                     .unwrap_or(Type::Nil);
                 if result != Type::Never {
                     results.push(result);
@@ -1101,7 +1103,7 @@ impl Context<'_> {
             if let Some(branch) = support::child::<syntax::ElseBranch>(node.syntax())
                 && let Some(block) = support::child::<syntax::Block>(branch.syntax())
             {
-                let result = self.statements(block.statements());
+                let result = self.infer_block(&block);
                 if result != Type::Never {
                     results.push(result);
                     exits.push(self.flow_state());
@@ -1173,7 +1175,7 @@ impl Context<'_> {
                     self.restore_flow(&after_guard);
                     if self.refine_condition(&guard, true) {
                         let result = support::child::<syntax::Block>(clause.syntax())
-                            .map(|block| self.statements(block.statements()))
+                            .map(|block| self.infer_block(&block))
                             .unwrap_or(Type::Nil);
                         if result != Type::Never {
                             results.push(result);
@@ -1203,7 +1205,7 @@ impl Context<'_> {
                     pending = self.joined_flow(next);
                 } else {
                     let result = support::child::<syntax::Block>(clause.syntax())
-                        .map(|block| self.statements(block.statements()))
+                        .map(|block| self.infer_block(&block))
                         .unwrap_or(Type::Nil);
                     if result != Type::Never {
                         results.push(result);

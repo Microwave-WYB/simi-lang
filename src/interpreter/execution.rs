@@ -55,7 +55,10 @@ impl Interpreter {
         block: &Block,
         env: &Environment,
     ) -> EvaluationResult<Value> {
-        self.evaluate_items(&block.items, env)
+        match self.evaluate_items(&block.items, env) {
+            Err(EvaluationError::NilPropagate { .. }) => Ok(Value::Nil),
+            result => result,
+        }
     }
 
     fn evaluate_statement(
@@ -195,10 +198,7 @@ impl Interpreter {
             }
             ExprKind::Block(block) => {
                 let block_env = env.child();
-                match self.evaluate_block(block, &block_env) {
-                    Err(EvaluationError::NilPropagate { .. }) => Ok(Value::Nil),
-                    result => result,
-                }
+                self.evaluate_block(block, &block_env)
             }
             ExprKind::NilPropagate { value } => {
                 let value = self.evaluate_expression(value, env)?;
@@ -362,11 +362,12 @@ impl Interpreter {
                     next_state = value;
                 }
                 Err(EvaluationError::Break { value, .. }) => return Ok(value),
-                Err(
-                    error @ (EvaluationError::Runtime(_)
-                    | EvaluationError::Raised(_)
-                    | EvaluationError::NilPropagate { .. }),
-                ) => return Err(error),
+                Err(error @ (EvaluationError::Runtime(_) | EvaluationError::Raised(_))) => {
+                    return Err(error);
+                }
+                Err(EvaluationError::NilPropagate { .. }) => {
+                    unreachable!("loop body must contain nil propagation")
+                }
             }
         }
     }

@@ -114,53 +114,83 @@ fn nil_propagation_passes_values_and_aborts_only_the_nearest_block() {
 }
 
 #[test]
-fn nil_propagation_crosses_nested_control_constructs_and_loops() {
+fn nil_propagation_evaluates_each_kind_of_current_block_as_nil() {
     let result = value(
         r#"
-        let from_if = do
-            if true then nil? else 1 end
+        fn from_function() do
+            nil?
             "unreachable"
+        end
+        let from_if = do
+            let selected = if true then nil? else 1 end
+            [selected, "outer continued"]
+        end
+        let from_else = do
+            let selected = if false then 1 else nil? end
+            [selected, "outer continued"]
         end
         let from_case = do
-            case 1
+            let selected = case 1
             of 1 do nil?
             end
-            "unreachable"
+            [selected, "outer continued"]
         end
-        let from_loop = do
-            loop state = 0 do
-                if state == 0 then nil? end
-                continue state + 1
-            end
-            "unreachable"
-        end
-        let from_try = do
-            try
+        let from_protected = do
+            let selected = try
                 nil?
             catch _ do "must not catch"
             end
-            "unreachable"
+            [selected, "outer continued"]
         end
-        [from_if, from_case, from_loop, from_try]
+        let from_catch = do
+            let selected = try
+                raise "failure"
+            catch "failure" do nil?
+            catch _ do "must not run"
+            end
+            [selected, "outer continued"]
+        end
+        [from_function(), from_if, from_else, from_case, from_protected, from_catch]
         "#,
     );
-    assert_eq!(result.render(), "[nil, nil, nil, nil]");
+    assert_eq!(
+        result.render(),
+        "[nil, [nil, \"outer continued\"], [nil, \"outer continued\"], [nil, \"outer continued\"], [nil, \"outer continued\"], [nil, \"outer continued\"]]"
+    );
 }
 
 #[test]
-fn nil_propagation_requires_a_same_function_standalone_block_boundary() {
-    for source in [
-        "nil?",
-        "do fn named() do nil? end end",
-        "do fn() do nil? end end",
-    ] {
-        let error = outer_error(source);
-        assert!(matches!(error, SimiError::Parse(_)));
-        assert!(error.to_string().contains("outside of a standalone"));
-    }
-
+fn nil_propagation_from_a_loop_body_is_a_nil_state_transition() {
+    let result = value(
+        r#"
+        let direct = loop state = 0 do
+            if state == nil then break "continued with nil" end
+            nil?
+            "unreachable"
+        end
+        let before_break = loop state = 0 do
+            if state == nil then break "break was skipped" end
+            break nil?
+        end
+        let plain_break = loop do break nil end
+        [direct, before_break, plain_break]
+        "#,
+    );
     assert_eq!(
-        value("fn allowed() do do nil? end end allowed()").render(),
+        result.render(),
+        "[\"continued with nil\", \"break was skipped\", nil]"
+    );
+}
+
+#[test]
+fn nil_propagation_requires_an_enclosing_block() {
+    let error = outer_error("nil?");
+    assert!(matches!(error, SimiError::Parse(_)));
+    assert!(error.to_string().contains("outside of a block"));
+
+    assert_eq!(value("fn named() do nil? end named()").render(), "nil");
+    assert_eq!(
+        value("let anonymous = fn() do nil? end anonymous()").render(),
         "nil"
     );
 }
@@ -197,15 +227,15 @@ fn try_does_not_catch_hard_diagnostics_or_nil_propagation() {
     let propagated = value(
         r#"
         do
-            try
+            let selected = try
                 nil?
             catch _ do "caught"
             end
-            "unreachable"
+            [selected, "enclosing block continued"]
         end
         "#,
     );
-    assert_eq!(propagated.render(), "nil");
+    assert_eq!(propagated.render(), "[nil, \"enclosing block continued\"]");
 
     assert!(matches!(
         eval("try let local = 1 missing catch _ do nil end"),

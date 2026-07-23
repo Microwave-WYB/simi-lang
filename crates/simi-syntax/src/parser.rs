@@ -163,7 +163,7 @@ struct Parser<'a> {
     events: Vec<Event>,
     diagnostics: Vec<SyntaxDiagnostic>,
     loop_depth: usize,
-    standalone_block_depth: usize,
+    block_depth: usize,
 }
 
 impl<'a> Parser<'a> {
@@ -175,7 +175,7 @@ impl<'a> Parser<'a> {
             events: Vec::new(),
             diagnostics: Vec::new(),
             loop_depth: 0,
-            standalone_block_depth: 0,
+            block_depth: 0,
         }
     }
 

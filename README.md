@@ -24,26 +24,45 @@ io.println(inspect(doubled))
 
 Simi is expression-oriented: blocks, conditionals, loops, cases, and error handlers all produce values. Lists and maps are mutable and preserve alias identity, while explicit copy operations provide shallow copy-on-write views where documented.
 
-## Build and run
+## Language tour
 
-Simi currently requires Rust 1.85 or newer.
+Start with [Hello, world!](docs/language-tour/hello-world.md), follow the complete [language tour](docs/language-tour.md), then run the [explicit-state Fibonacci example](examples/fibonacci.simi).
 
-```sh
-cargo build --bin simi
-cargo run --bin simi -- run examples/fibonacci.simi
-```
+## Install with Cargo
 
-Scripts control their own output. To also render the final value:
+Simi currently requires Rust 1.85 or newer. Install the `simi` executable directly from the public repository:
 
 ```sh
-cargo run --bin simi -- run --inspect examples/fibonacci.simi
+cargo install --git https://github.com/Microwave-WYB/simi-lang --bin simi
 ```
 
-Run the language server over standard input and output with:
+Run a script with:
 
 ```sh
-cargo run --bin simi -- lsp
+simi run examples/fibonacci.simi
 ```
+
+Scripts control their own output. To also render the final value, including `nil`:
+
+```sh
+simi run --inspect examples/fibonacci.simi
+```
+
+The language server runs over standard input and output:
+
+```sh
+simi lsp
+```
+
+## Editor plugins
+
+Simi includes editor integrations that launch the installed `simi lsp` server:
+
+- [Visual Studio Code](editors/vscode/README.md): TextMate highlighting, language configuration, and LSP features;
+- [Zed](editors/zed/README.md): Tree-sitter editing support and LSP features;
+- [Tree-sitter](editors/tree-sitter/README.md): the shared structural grammar for compatible editors.
+
+The editor extensions are currently installed from this repository rather than an extension marketplace. Follow each linked guide for local setup.
 
 ## Language highlights
 
@@ -59,7 +78,7 @@ cargo run --bin simi -- lsp
 - opt-in text IO through `std/io`;
 - Rowan syntax, Salsa-backed analysis, LSP support, and VS Code, Zed, and Tree-sitter integrations.
 
-Start with the [language tour](docs/language-tour.md), then run the [explicit-state Fibonacci example](examples/fibonacci.simi). The erased type design is documented in [docs/type-system.md](docs/type-system.md).
+The erased type design is documented in [docs/type-system.md](docs/type-system.md).
 
 ## Embedding
 

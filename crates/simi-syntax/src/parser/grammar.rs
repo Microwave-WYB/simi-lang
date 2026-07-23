@@ -131,10 +131,8 @@ fn function_parts(p: &mut Parser<'_>, open: &str, allow_posts: bool) {
     }
     p.expect(K::DO_KW, "`do` before function body");
     let old_loop = std::mem::replace(&mut p.loop_depth, 0);
-    let old_block = std::mem::replace(&mut p.standalone_block_depth, 0);
     block(p);
     p.loop_depth = old_loop;
-    p.standalone_block_depth = old_block;
     p.expect(K::END_KW, "`end` after function body");
 }
 
@@ -336,6 +334,7 @@ fn type_map(p: &mut Parser<'_>) {
 
 fn block(p: &mut Parser<'_>) -> CompletedMarker {
     let marker = p.start();
+    p.block_depth += 1;
     while !p.at_end() && !is_block_terminator(p.current()) {
         let before = p.position;
         statement(p);
@@ -343,6 +342,7 @@ fn block(p: &mut Parser<'_>) -> CompletedMarker {
             recover_statement(p);
         }
     }
+    p.block_depth -= 1;
     marker.complete(&mut p.events, K::BLOCK)
 }
 
@@ -542,11 +542,8 @@ fn postfix(p: &mut Parser<'_>) -> Parsed {
             let marker = value.marker.precede(&mut p.events);
             let span = p.current_span();
             p.bump();
-            if p.standalone_block_depth == 0 {
-                p.error_at(
-                    span,
-                    "nil propagation `?` outside of a standalone `do ... end` block".to_owned(),
-                );
+            if p.block_depth == 0 {
+                p.error_at(span, "nil propagation `?` outside of a block".to_owned());
             }
             value = Parsed {
                 marker: marker.complete(&mut p.events, K::NIL_PROPAGATE_EXPR),
@@ -638,9 +635,7 @@ fn function_expr(p: &mut Parser<'_>) -> Parsed {
 fn block_expr(p: &mut Parser<'_>) -> Parsed {
     let marker = p.start();
     p.bump();
-    p.standalone_block_depth += 1;
     block(p);
-    p.standalone_block_depth -= 1;
     p.expect(K::END_KW, "`end` after standalone block");
     Parsed {
         marker: marker.complete(&mut p.events, K::BLOCK_EXPR),

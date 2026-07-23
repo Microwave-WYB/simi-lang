@@ -63,7 +63,7 @@ end
 
 A standalone `do ... end` is a primary block expression with zero or more items. It evaluates in a fresh child scope to its last item's value, or to `nil` when empty, and composes with postfix calls, field access, indexing, and `?`.
 
-Postfix `?` passes a non-`nil` value through unchanged. A `nil` value aborts the nearest lexically enclosing standalone block, making that block evaluate to `nil`; nested standalone blocks therefore stop propagation at the nearest boundary. This boundary cannot cross a named or anonymous function body. Raises and hard diagnostics are unaffected. The canonical Rust parser rejects `?` at the operator when there is no same-function standalone block, while the Tree-sitter editor grammar may parse that form permissively for editor recovery.
+Postfix `?` passes a non-`nil` value through unchanged. A `nil` value stops the nearest lexically enclosing block and makes that block evaluate to `nil`. Every function body, standalone block, conditional branch, case or catch arm, try protected body, and loop body is such a boundary. Raises and hard diagnostics are unaffected, and nil propagation from a protected try body bypasses catches. In a functional loop, the body block's ordinary value supplies the next state, so propagation directly from that body is equivalent to `continue nil`, not `break nil`; only `break value` determines the loop expression's result. The canonical Rust parser rejects `?` at the operator only when there is no enclosing block, while the Tree-sitter editor grammar may parse that form permissively for editor recovery.
 
 ### Bindings and assignment
 
@@ -315,6 +315,8 @@ let doubled =
     end)
     |> iter.to_list()
 ```
+
+The language tour is split into stable, unnumbered topic files under `docs/language-tour/`. Its current order lives in `docs/language-tour/order.txt`; run `just docs tour` after changing pages, headings, or order to regenerate every page's shared contents and two-line Previous/Next navigation and to validate snippets and links. Each page lists its own title as plain text, links its own subsections, and links sibling topics. Tour Simi fences use `elixir` only for approximate GitHub highlighting and must be independently complete; examples intended to demonstrate a static diagnostic begin with an `-- Expected type` comment.
 
 Rust module layout must use a facade file plus a same-named directory:
 

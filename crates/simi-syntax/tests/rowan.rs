@@ -93,6 +93,25 @@ fn recovery_keeps_later_declarations_typed() {
 }
 
 #[test]
+fn postfix_nil_propagation_requires_an_enclosing_block() {
+    let source = "nil?";
+    let parse = parse_source(source);
+    assert_eq!(parse.syntax().to_string(), source);
+    assert_eq!(parse.diagnostics().len(), 1);
+    let diagnostic = &parse.diagnostics()[0];
+    assert_eq!(diagnostic.kind, DiagnosticKind::Parse);
+    assert_eq!(diagnostic.span.start, 3);
+    assert_eq!(diagnostic.span.end, 4);
+    assert_eq!(diagnostic.message, "nil propagation `?` outside of a block");
+    assert!(
+        parse
+            .syntax()
+            .descendants()
+            .any(|node| node.kind() == SyntaxKind::NIL_PROPAGATE_EXPR)
+    );
+}
+
+#[test]
 fn utf8_tokens_keep_byte_ranges() {
     let source = "let cafe = \"猫\"";
     let parse = parse_source(source);

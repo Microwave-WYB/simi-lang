@@ -1,0 +1,4 @@
+# Regenerate shared tour contents/navigation and validate documentation examples and links.
+tour:
+    python3 build-language-tour.py
+    cargo test --manifest-path ../Cargo.toml -p simi-analysis --test documentation
