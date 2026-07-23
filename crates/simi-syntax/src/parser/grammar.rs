@@ -456,9 +456,22 @@ fn equality(p: &mut Parser<'_>) -> Parsed {
 fn comparison(p: &mut Parser<'_>) -> Parsed {
     binary_chain(
         p,
-        additive,
+        concatenation,
         &[K::LESS, K::LESS_EQ, K::GREATER, K::GREATER_EQ],
     )
+}
+fn concatenation(p: &mut Parser<'_>) -> Parsed {
+    let left = additive(p);
+    if !p.at(K::LESS_GREATER) {
+        return left;
+    }
+    let marker = left.marker.precede(&mut p.events);
+    p.bump();
+    concatenation(p);
+    Parsed {
+        marker: marker.complete(&mut p.events, K::BINARY_EXPR),
+        flavor: Flavor::Other,
+    }
 }
 fn additive(p: &mut Parser<'_>) -> Parsed {
     binary_chain(p, multiplicative, &[K::PLUS, K::MINUS])

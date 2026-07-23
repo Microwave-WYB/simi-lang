@@ -180,6 +180,10 @@ impl<'a> Scanner<'a> {
                 self.double(start, SyntaxKind::LESS_PIPE, TokenKind::LessPipe);
                 Ok(())
             }
+            b'<' if self.peek(1) == Some(b'>') => {
+                self.double(start, SyntaxKind::LESS_GREATER, TokenKind::LessGreater);
+                Ok(())
+            }
             b'<' => {
                 self.one_or_two(
                     start,

@@ -39,6 +39,7 @@ end
 let values = [1, 2.5e1, 3]
 let result = values ?> list.map() <| transform
 let optional = do result? end
+let concatenated = "Simi" <> " language"
 let has_runtime_label = type(result) == "list"
 let is = has_runtime_label
 let final = loop state = 0 do

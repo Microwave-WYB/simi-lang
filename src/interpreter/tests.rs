@@ -38,6 +38,19 @@ fn expect_raised(source: &str) -> Raised {
 }
 
 #[test]
+fn concatenation_is_strict_and_right_associative() {
+    assert!(matches!(
+        evaluate("\"a\" <> \"b\" <> \"c\"").unwrap(),
+        Value::String(value) if value == "abc"
+    ));
+    assert!(matches!(
+        evaluate("\"a\" <> (\"b\" <> \"c\")").unwrap(),
+        Value::String(value) if value == "abc"
+    ));
+    assert!(evaluate_script("\"a\" <> 1").is_err());
+}
+
+#[test]
 fn destructuring_let_installs_bindings_atomically() {
     let globals = Environment::new();
     let program =

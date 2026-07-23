@@ -33,6 +33,7 @@ loop state = 0 do
     if state > 1 then break state else continue state + 1 end
 end
 let bad_escape = "\q"
+let concatenated = "Simi" <> " language"
 let integer_check = type(threshold) == "integer"
 let function_check = type(mapper) == "function"
 let is = integer_check

@@ -232,6 +232,19 @@ impl Interpreter {
             BinaryOp::Divide => divide(left, right, span),
             BinaryOp::FloorDivide => floor_divide(left, right, span),
             BinaryOp::Remainder => remainder(left, right, span),
+            BinaryOp::Concatenate => match (left, right) {
+                (Value::String(left), Value::String(right)) => {
+                    Ok(Value::String(format!("{left}{right}")))
+                }
+                (left, right) => Err(NumericError::Runtime(RuntimeError::new(
+                    span,
+                    format!(
+                        "operator `<>` requires string operands, got {} and {}",
+                        left.type_name(),
+                        right.type_name()
+                    ),
+                ))),
+            },
             BinaryOp::Equal => primitive_equal(&left, &right, span).map(Value::Bool),
             BinaryOp::NotEqual => {
                 primitive_equal(&left, &right, span).map(|value| Value::Bool(!value))

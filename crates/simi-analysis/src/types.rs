@@ -1615,6 +1615,11 @@ impl Context<'_> {
             K::PLUS | K::MINUS | K::STAR | K::SLASH | K::SLASH_SLASH | K::PERCENT => {
                 self.numeric_binary(left, right, op_kind, op_span)
             }
+            K::LESS_GREATER => {
+                self.constrain(&Type::String, &left, op_span);
+                self.constrain(&Type::String, &right, op_span);
+                Type::String
+            }
             K::LESS | K::LESS_EQ | K::GREATER | K::GREATER_EQ => {
                 let _ = self.numeric_operands(left, right, op_span);
                 Type::Boolean
@@ -3727,6 +3732,7 @@ fn binary_operator(node: &SyntaxNode) -> Option<K> {
                     | K::SLASH
                     | K::SLASH_SLASH
                     | K::PERCENT
+                    | K::LESS_GREATER
                     | K::EQ_EQ
                     | K::BANG_EQ
                     | K::LESS

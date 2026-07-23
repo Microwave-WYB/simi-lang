@@ -186,6 +186,7 @@ pub enum BinaryOp {
     Divide,
     FloorDivide,
     Remainder,
+    Concatenate,
     Equal,
     NotEqual,
     Less,

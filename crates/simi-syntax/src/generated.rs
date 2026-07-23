@@ -65,6 +65,7 @@ pub enum SyntaxKind {
     PERCENT,
     LESS,
     LESS_EQ,
+    LESS_GREATER,
     GREATER,
     GREATER_EQ,
     QUESTION,

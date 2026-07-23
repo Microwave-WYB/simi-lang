@@ -40,7 +40,7 @@ FieldExpr = Expr '.' 'ident'
 IndexExpr = Expr '[' Expr ']'
 NilPropagateExpr = Expr '?'
 UnaryExpr = ('-' | 'not') Expr
-BinaryExpr = Expr ('+' | '-' | '*' | '/' | '//' | '%' | '==' | '!=' | '<' | '<=' | '>' | '>=' | 'and' | 'or') Expr
+BinaryExpr = Expr ('+' | '-' | '*' | '/' | '//' | '%' | '==' | '!=' | '<' | '<=' | '>' | '>=' | '<>' | 'and' | 'or') Expr
 AssignExpr = Expr '=' Expr
 PipelineExpr = Expr PipelineStage PipelineStage*
 PipelineStage = ('|>' | '?>') 'tap'? Expr ArgList ('<|' Expr)?

@@ -9,10 +9,11 @@ const PREC = {
   AND: 5,
   EQUALITY: 6,
   COMPARISON: 7,
-  ADDITIVE: 8,
-  MULTIPLICATIVE: 9,
-  UNARY: 10,
-  POSTFIX: 11,
+  CONCATENATION: 8,
+  ADDITIVE: 9,
+  MULTIPLICATIVE: 10,
+  UNARY: 11,
+  POSTFIX: 12,
 };
 
 module.exports = grammar({
@@ -173,7 +174,13 @@ module.exports = grammar({
           field("operator", operator),
           field("right", $._logical_or_expression),
         )),
-      ),
+      ).concat([
+        prec.right(PREC.CONCATENATION, seq(
+          field("left", $._logical_or_expression),
+          field("operator", "<>"),
+          field("right", $._logical_or_expression),
+        )),
+      ]),
     ),
 
     unary_expression: ($) => prec.right(PREC.UNARY, seq(

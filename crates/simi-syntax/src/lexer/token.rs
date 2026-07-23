@@ -57,6 +57,7 @@ pub enum TokenKind {
     Percent,
     Less,
     LessEqual,
+    LessGreater,
     Greater,
     GreaterEqual,
     Question,

@@ -459,6 +459,7 @@ fn token_lexeme(kind: TokenKind) -> (SyntaxKind, String) {
         TokenKind::Percent => (SyntaxKind::PERCENT, "%"),
         TokenKind::Less => (SyntaxKind::LESS, "<"),
         TokenKind::LessEqual => (SyntaxKind::LESS_EQ, "<="),
+        TokenKind::LessGreater => (SyntaxKind::LESS_GREATER, "<>"),
         TokenKind::Greater => (SyntaxKind::GREATER, ">"),
         TokenKind::GreaterEqual => (SyntaxKind::GREATER_EQ, ">="),
         TokenKind::Question => (SyntaxKind::QUESTION, "?"),
