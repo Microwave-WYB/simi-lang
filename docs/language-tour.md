@@ -2,10 +2,11 @@
 
 Simi is a small, embeddable scripting language with mutable containers, expression-valued control flow, pipelines, structural patterns, value-based errors, and optional erased types. This tour starts with every runtime value and literal form, then builds through Simi's expression forms and standard library.
 
-The complete companion program is [`examples/language-tour.simi`](../examples/language-tour.simi).
+A runnable explicit-state Fibonacci program is available at [`examples/fibonacci.simi`](../examples/fibonacci.simi).
 
 ## Table of contents
 
+- [Hello, world](#hello-world)
 - [1. Runtime values and literals](#1-runtime-values-and-literals)
 - [2. The expression model](#2-the-expression-model)
 - [3. Bindings, declarations, and patterns](#3-bindings-declarations-and-patterns)
@@ -20,16 +21,27 @@ The complete companion program is [`examples/language-tour.simi`](../examples/la
 Run a file with:
 
 ```sh
-simi run examples/language-tour.simi
+simi run examples/fibonacci.simi
 ```
 
 Scripts control their output explicitly. To inspect a script's final value as well, use:
 
 ```sh
-simi run --inspect examples/language-tour.simi
+simi run --inspect examples/fibonacci.simi
 ```
 
 Simi comments begin with `--` and continue to the end of the line.
+
+## Hello, world
+
+Output is explicit. A complete first script imports the CLI's opt-in text IO capability and prints a string:
+
+```elixir
+let io = require("std/io")
+io.println("Hello, world!")
+```
+
+Save it as `hello.simi`, then run `simi run hello.simi`.
 
 ## 1. Runtime values and literals
 
@@ -50,7 +62,7 @@ The shadowable builtin `type(value)` returns those labels as ordinary strings.
 
 ### Nil and booleans
 
-```simi
+```elixir
 nil
 true
 false
@@ -60,7 +72,7 @@ false
 
 ### Integers and floats
 
-```simi
+```elixir
 0
 42
 -7
@@ -72,7 +84,7 @@ false
 
 Integers and finite floating-point numbers are different runtime categories. A leading minus is a unary operator rather than part of the literal. `/` always returns a float; `//` and `%` use floor-division semantics.
 
-```simi
+```elixir
 5 / 2   -- 2.5
 5 // 2  -- 2
 -5 // 2 -- -3
@@ -82,7 +94,7 @@ Integers and finite floating-point numbers are different runtime categories. A l
 
 Strings are Unicode text enclosed in double quotes:
 
-```simi
+```elixir
 "Simi"
 "line one\nline two"
 "quote: \""
@@ -91,7 +103,7 @@ Strings are Unicode text enclosed in double quotes:
 
 Supported escapes are `\"`, `\\`, `\n`, `\r`, and `\t`. String concatenation is strict:
 
-```simi
+```elixir
 "Hello, " <> "Ada"
 ```
 
@@ -101,7 +113,7 @@ Both operands of `<>` must be strings. Convert other values explicitly with func
 
 Lists are mutable, ordered, zero-based, and may contain any value—including `nil`:
 
-```simi
+```elixir
 []
 [1, 2, 3]
 ["name", true, nil]
@@ -110,7 +122,7 @@ Lists are mutable, ordered, zero-based, and may contain any value—including `n
 
 Trailing commas are accepted:
 
-```simi
+```elixir
 [1, 2, 3,]
 ```
 
@@ -120,7 +132,7 @@ A non-negative out-of-range read returns `nil`. Negative and non-integer indices
 
 Maps are mutable insertion-ordered key/value containers:
 
-```simi
+```elixir
 {}
 {
     name = "Ada",
@@ -134,7 +146,7 @@ String, integer, finite non-integral float, and boolean keys are supported. A co
 
 Maps cannot retain `nil` values. A nil-valued literal entry is omitted, and assigning `nil` deletes an existing key:
 
-```simi
+```elixir
 user.nickname = nil
 user[dynamic_key] = nil
 ```
@@ -143,7 +155,7 @@ user[dynamic_key] = nil
 
 Functions are values. Anonymous functions may appear anywhere an expression is accepted:
 
-```simi
+```elixir
 fn(value) do
     value * 2
 end
@@ -161,7 +173,7 @@ Simi programs are sequences of declarations and expressions. Most constructs tha
 
 A literal evaluates to its value. A name reads its current lexical binding. Parentheses group an expression:
 
-```simi
+```elixir
 42
 name
 (1 + 2) * 3
@@ -171,7 +183,7 @@ name
 
 `do ... end` creates a fresh child scope and evaluates to its final item, or `nil` when empty:
 
-```simi
+```elixir
 let answer = do
     let left = 20
     let right = 22
@@ -183,7 +195,7 @@ Bindings created inside the block do not escape it.
 
 ### Unary expressions
 
-```simi
+```elixir
 -number
 not condition
 ```
@@ -194,7 +206,7 @@ Unary `-` requires a number. `not` requires a boolean.
 
 Numeric arithmetic:
 
-```simi
+```elixir
 left + right
 left - right
 left * right
@@ -205,13 +217,13 @@ left % right
 
 Strict string concatenation:
 
-```simi
+```elixir
 left <> right
 ```
 
 Equality and ordering:
 
-```simi
+```elixir
 left == right
 left != right
 left < right
@@ -224,7 +236,7 @@ Ordering operators require numbers. Numeric comparisons handle mixed integer and
 
 Boolean composition is strict and short-circuiting:
 
-```simi
+```elixir
 ready and valid
 missing or fallback
 ```
@@ -235,17 +247,27 @@ Use parentheses when grouping is important. Arithmetic binds more tightly than c
 
 A call evaluates its callee and arguments, then returns the function's result:
 
-```simi
+```elixir
+fn add(left, right) do
+    left + right
+end
+
+let double = fn(value) do value * 2 end
+
+fn make_greeter(greeting) do
+    fn(name) do greeting <> ", " <> name end
+end
+
 add(1, 2)
-callback(value)
-factory()(argument)
+double(3)
+make_greeter("Hello")("Ada")
 ```
 
 Arguments are evaluated once from left to right. Wrong arity and calling a non-function are hard diagnostics.
 
 ### Field and index access
 
-```simi
+```elixir
 user.name
 user[dynamic_key]
 values[0]
@@ -253,15 +275,19 @@ values[0]
 
 Field access is string-key map access. Postfix calls, fields, and indexing compose:
 
-```simi
-factory().users[0].name
+```elixir
+fn load_team() do
+    {users = [{name = "Ada"}]}
+end
+
+load_team().users[0].name
 ```
 
 ### Assignment expressions
 
 Assignment updates an existing binding or mutates a list/map location. It evaluates to the assigned value and associates to the right:
 
-```simi
+```elixir
 count = count + 1
 user.name = "Grace"
 values[0] = 10
@@ -274,7 +300,7 @@ Assigning to an undefined name is a hard diagnostic. `let` introduces a binding;
 
 `if` chooses one branch and evaluates to that branch's final value:
 
-```simi
+```elixir
 let label = if score >= 90 then
     "excellent"
 elseif score >= 60 then
@@ -288,7 +314,7 @@ Conditions must be booleans. A missing `else` produces `nil` when no condition m
 
 ### Anonymous function expressions
 
-```simi
+```elixir
 let multiplier = 3
 let scale = fn(value) do
     value * multiplier
@@ -301,31 +327,40 @@ The body is expression-valued. A function boundary contains loop control and pos
 
 `|>` inserts its input as the first argument of a call stage:
 
-```simi
-value |> transform(extra)
+```elixir
+fn add(value, extra) do value + extra end
+10 |> add(5)
 ```
 
 This is equivalent in argument placement to:
 
-```simi
-transform(value, extra)
+```elixir
+fn add(value, extra) do value + extra end
+add(10, 5)
 ```
 
 A pipeline stage must visibly be a call.
 
 `?>` is a nil-aware stage. A nil input skips the stage's callee and every argument lazily; a non-nil input behaves like `|>`:
 
-```simi
-maybe_user
-?> load_profile()
-?> format_profile()
+```elixir
+fn increment(value) do value + 1 end
+fn double(value) do value * 2 end
+
+let maybe_number = nil
+maybe_number
+?> increment()
+?> double()
 ```
 
 Nil-awareness is stage-local. A later ordinary `|>` stage still receives nil.
 
 The compound operators `|> tap` and `?> tap` run a stage for its effects, discard the stage result, and preserve the incoming value with the same alias identity:
 
-```simi
+```elixir
+let list = require("std/list")
+let values = [1, 2, 3]
+
 values
 |> tap list.append(4)
 |> tap list.reverse()
@@ -335,7 +370,9 @@ values
 
 Binding a tap result creates another alias, not a copy:
 
-```simi
+```elixir
+let list = require("std/list")
+let values = [1, 2, 3]
 let alias = values |> tap list.append(5)
 ```
 
@@ -345,7 +382,11 @@ Here `alias` and `values` denote the same mutated list.
 
 Callback APIs are ordinary functions. Introduce them using a direct argument first:
 
-```simi
+```elixir
+let list = require("std/list")
+let iter = require("std/iter")
+let values = [1, 2, 3]
+
 values
 |> list.iter()
 |> iter.map(fn(value) do
@@ -356,7 +397,11 @@ end)
 
 The right-associative `<|` operator optionally appends one trailing argument to the call on its left. It is useful when a multiline callback should end cleanly with `end` rather than `end)`:
 
-```simi
+```elixir
+let list = require("std/list")
+let iter = require("std/iter")
+let values = [1, 2, 3]
+
 values
 |> list.iter()
 |> iter.map() <| fn(value) do
@@ -371,7 +416,7 @@ A left operand of `<|` must be a call. It appends exactly one argument; it is no
 
 Postfix `?` passes a non-nil value through. A nil value aborts the nearest lexically enclosing standalone `do ... end` block and makes that block evaluate to nil:
 
-```simi
+```elixir
 fn greeting(maybe_name) do
     do
         let name = maybe_name?
@@ -386,7 +431,7 @@ Nested standalone blocks stop propagation at the nearest boundary. `?` cannot cr
 
 `case` evaluates a value and selects the first matching pattern whose optional guard is true:
 
-```simi
+```elixir
 let message = case result
 of { kind = "ok", value = value } do
     "received " <> value
@@ -403,17 +448,20 @@ Guards must be booleans. Clause bindings are visible only in that clause. An unm
 
 Any value may be raised:
 
-```simi
+```elixir
 raise { error = "not_found", key = key }
 ```
 
 `try` protects one or more items and structurally matches a raised value:
 
-```simi
+```elixir
+fn load(key) do
+    raise {error = "not_found", key = key}
+end
+
 let recovered = try
-    prepare()
-    operation()
-catch { error = "not_found", key = key } do
+    load("profile")
+catch {error = "not_found", key = key} do
     "missing: " <> key
 catch error do
     raise error
@@ -424,9 +472,23 @@ Only raises from the protected block are considered by its catches. Raises from 
 
 ### Loop, continue, and break expressions
 
+A direct recursive Fibonacci definition mirrors the mathematical recurrence:
+
+```elixir
+fn fibonacci(n: integer) -> integer do
+    if n < 2 then
+        n
+    else
+        fibonacci(n - 1) + fibonacci(n - 2)
+    end
+end
+
+fibonacci(10)
+```
+
 Loops are expressions and may thread state:
 
-```simi
+```elixir
 let result = loop state = 0 do
     if state < 3 then
         continue state + 1
@@ -438,12 +500,31 @@ end
 
 The initializer runs once. Each ordinary iteration result supplies the next state. `continue value` transitions early; bare `continue` supplies nil. `break value` determines the loop's result.
 
+The recursive definition is clear, but it repeats function calls and recomputes earlier results. For nonnegative input, a loop expresses the same algorithm in linear time with explicit state:
+
+```elixir
+fn fibonacci(n: integer) -> integer do
+    loop state = {remaining = n, current = 0, next = 1} do
+        if state.remaining == 0 then
+            break state.current
+        else
+            {
+                remaining = state.remaining - 1,
+                current = state.next,
+                next = state.current + state.next,
+            }
+        end
+    end
+end
+```
+
+When an algorithm is fundamentally state evolution, idiomatic Simi prefers `loop` over recursive helper calls or forcing the work through a higher-order iterator operation. The state remains visible, while each iteration functionally produces the next state instead of mutating several hidden locals.
+
 A stateless loop omits the initializer:
 
-```simi
+```elixir
 loop do
-    if finished() then break result() end
-    continue
+    break "finished"
 end
 ```
 
@@ -455,13 +536,13 @@ Loop control targets the nearest lexical loop and cannot escape a function body.
 
 `let` introduces a lexical binding:
 
-```simi
+```elixir
 let count = 1
 ```
 
 A repeated `let` creates a new symbol, even in the same scope:
 
-```simi
+```elixir
 let value = "first"
 let earlier = fn() do value end
 let value = "second"
@@ -473,7 +554,7 @@ let value = "second"
 
 The left side of `let` may be a structural pattern:
 
-```simi
+```elixir
 let [first, second, ..rest] = values
 let { name = name, ..settings } = user
 ```
@@ -484,7 +565,7 @@ The right side is evaluated once. Matching is atomic: no bindings are installed 
 
 Patterns include literals, bindings, wildcards, lists, and maps:
 
-```simi
+```elixir
 case input
 of 42 do
     "literal"
@@ -509,19 +590,19 @@ Named map fields normally require presence. The literal nil pattern is the excep
 
 A named function is a declaration rather than a function expression:
 
-```simi
+```elixir
 fn factorial(n) do
     if n == 0 then 1 else n * factorial(n - 1) end
 end
 ```
 
-Named functions support recursion and capture surrounding lexical bindings.
+Named functions support recursion and capture surrounding lexical bindings. The loop section compares recursive Fibonacci with the explicit-state form preferred for efficient iteration.
 
 ## 4. Mutation, aliases, and copies
 
 Lists and maps are reference-like mutable values. Ordinary assignment copies the alias:
 
-```simi
+```elixir
 let values = [1, 2]
 let alias = values
 values[0] = 10
@@ -538,7 +619,9 @@ set     append  extend  insert  remove  pop  reverse
 
 `list.reverse` mutates in place and returns nil. In a pipeline, tap makes that effect explicit:
 
-```simi
+```elixir
+let list = require("std/list")
+let values = [1, 2, 3]
 values |> tap list.reverse()
 ```
 
@@ -550,7 +633,7 @@ Maps use language field/index assignment for mutation and provide collection-spe
 
 `std/iter` contains generic lazy traversal. List and map modules only create collection-specific iterators:
 
-```simi
+```elixir
 let list = require("std/list")
 let map = require("std/map")
 let iter = require("std/iter")
@@ -560,7 +643,7 @@ let iter = require("std/iter")
 
 `map.iter(entries)` snapshots insertion-ordered entries and yields maps shaped like:
 
-```simi
+```elixir
 { key = key, value = value }
 ```
 
@@ -568,7 +651,11 @@ let iter = require("std/iter")
 
 `iter.map` and `iter.filter` return new iterators. They do not invoke callbacks until the result is consumed:
 
-```simi
+```elixir
+let list = require("std/list")
+let iter = require("std/iter")
+let values = [-2, 1, 3]
+
 let transformed =
     values
     |> list.iter()
@@ -594,7 +681,11 @@ count
 
 Iterators are single-pass. Searches and boolean queries short-circuit and leave later elements available. `each` returns nil. Predicate callbacks must return booleans. Callback raises propagate unchanged.
 
-```simi
+```elixir
+let list = require("std/list")
+let iter = require("std/iter")
+let values = [1, 2, 3]
+
 let total =
     values
     |> list.iter()
@@ -607,7 +698,7 @@ let total =
 
 `iter.next(iterator)` returns a tagged map, never an untagged nil sentinel:
 
-```simi
+```elixir
 { done = false, value = item }
 { done = true }
 ```
@@ -616,7 +707,9 @@ A legitimate nil item is represented as `{ done = false }`, because maps omit ni
 
 A custom iterator is a zero-argument function returning those steps:
 
-```simi
+```elixir
+let iter = require("std/iter")
+
 fn countdown(start) do
     let current = start
 
@@ -640,7 +733,7 @@ Use `iter.fold` and ordinary functions for custom collection logic. There is no 
 
 Modules are explicit host-registered capabilities:
 
-```simi
+```elixir
 let string = require("std/string")
 ```
 
@@ -658,7 +751,8 @@ std/string
 
 `string.to_number(text)` parses a complete signed decimal integer or decimal/exponent float and returns nil for malformed, overflowing, or non-finite input:
 
-```simi
+```elixir
+let string = require("std/string")
 "42" |> string.to_number()   -- integer 42
 "42.0" |> string.to_number() -- float 42.0
 "nope" |> string.to_number() -- nil
@@ -666,7 +760,9 @@ std/string
 
 `string.concat(left, right)` is the pipeline-friendly equivalent of strict `<>`:
 
-```simi
+```elixir
+let string = require("std/string")
+let name = "Ada"
 name |> string.concat("!")
 ```
 
@@ -676,7 +772,7 @@ The globals `require`, `type`, and `inspect` are shadowable ordinary bindings. `
 
 Standard IO is an opt-in host capability exposed by one module:
 
-```simi
+```elixir
 let io = require("std/io")
 ```
 
@@ -692,7 +788,9 @@ eprintln(string) -> nil
 
 The print family accepts strings only and flushes automatically. Rendering another value is explicit:
 
-```simi
+```elixir
+let io = require("std/io")
+let value = {answer = 42}
 value
 |> inspect()
 |> io.println()
@@ -708,7 +806,7 @@ The CLI registers `std/io`; a plain portable embedding does not. `simi run` leav
 
 Annotations improve analysis and editor feedback but never alter runtime behavior:
 
-```simi
+```elixir
 let count: integer = 1
 
 fn display(value: integer | float) -> string do
@@ -732,28 +830,28 @@ There is deliberately no static `number`; use `integer | float`. `never` is the 
 
 Transparent aliases may be generic:
 
-```simi
+```elixir
 alias maybe<'a> = 'a | nil
 alias pair<'a, 'b> = ['a, 'b]
 ```
 
 Functions use arrows in type expressions:
 
-```simi
+```elixir
 alias transform = integer -> integer
 alias predicate = (integer, string) -> boolean
 ```
 
 Lists may have exact positional shapes or homogeneous rest shapes:
 
-```simi
+```elixir
 alias row = [integer, string]
 alias integers = [..integer]
 ```
 
 Maps use structural fields, open rests, and index signatures:
 
-```simi
+```elixir
 alias person = { name: string, age: integer }
 alias named = { name: string, .. }
 alias counts = { [string]: integer }
@@ -761,11 +859,11 @@ alias counts = { [string]: integer }
 
 Named functions may describe normal-return mutation effects:
 
-```simi
-fn append(xs: [..'a], value: 'b) -> nil
-    after xs becomes [..'a | 'b]
+```elixir
+fn append_text(xs: [..integer], value: string) -> nil
+    after xs becomes [..integer | string]
 do
-    host.call("private/append", xs, value)
+    require("std/list").append(xs, value)
 end
 ```
 

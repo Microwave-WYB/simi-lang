@@ -20,14 +20,10 @@ fn inferred(
 }
 
 #[test]
-fn language_tour_example_is_syntax_and_type_clean() {
+fn fibonacci_example_is_syntax_and_type_clean() {
     let db = AnalysisDatabase::default();
     let modules = [
-        ("std/list", include_str!("../../../stdlib/list.simi")),
-        ("std/map", include_str!("../../../stdlib/map.simi")),
-        ("std/iter", include_str!("../../../stdlib/iter.simi")),
         ("std/number", include_str!("../../../stdlib/number.simi")),
-        ("std/string", include_str!("../../../stdlib/string.simi")),
         ("std/io", include_str!("../../../stdlib/io.simi")),
     ]
     .into_iter()
@@ -36,7 +32,7 @@ fn language_tour_example_is_syntax_and_type_clean() {
         (name.to_owned(), simi_analysis::module_shape(&db, file))
     })
     .collect::<HashMap<_, _>>();
-    let source = include_str!("../../../examples/language-tour.simi");
+    let source = include_str!("../../../examples/fibonacci.simi");
     let file = db.add_file(source);
     assert!(
         parse(&db, file).diagnostics.is_empty(),
@@ -52,7 +48,7 @@ fn language_tour_example_is_syntax_and_type_clean() {
 }
 
 #[test]
-fn language_tour_simi_fences_are_syntax_and_type_clean() {
+fn language_tour_highlighted_simi_fences_are_syntax_and_type_clean() {
     let db = AnalysisDatabase::default();
     let modules = [
         ("std/list", include_str!("../../../stdlib/list.simi")),
@@ -73,8 +69,8 @@ fn language_tour_simi_fences_are_syntax_and_type_clean() {
     let mut snippets = Vec::new();
     let mut current = None::<String>;
     for line in markdown.lines() {
-        if line == "```simi" {
-            assert!(current.is_none(), "nested Simi fence");
+        if line == "```elixir" {
+            assert!(current.is_none(), "nested highlighted Simi fence");
             current = Some(String::new());
         } else if line == "```" {
             if let Some(source) = current.take() {
@@ -85,15 +81,18 @@ fn language_tour_simi_fences_are_syntax_and_type_clean() {
             source.push('\n');
         }
     }
-    assert!(current.is_none(), "unterminated Simi fence");
-    assert!(!snippets.is_empty(), "language tour has no Simi fences");
+    assert!(current.is_none(), "unterminated highlighted Simi fence");
+    assert!(
+        !snippets.is_empty(),
+        "language tour has no highlighted Simi fences"
+    );
 
     for (index, source) in snippets.iter().enumerate() {
         let file = db.add_file(source);
         let syntax = parse(&db, file);
         assert!(
             syntax.diagnostics.is_empty(),
-            "Simi fence {} has syntax diagnostics: {:?}\n{}",
+            "highlighted Simi fence {} has syntax diagnostics: {:?}\n{}",
             index + 1,
             syntax.diagnostics,
             source
@@ -101,7 +100,7 @@ fn language_tour_simi_fences_are_syntax_and_type_clean() {
         let inference = infer_types(&db, file, &modules);
         assert!(
             inference.diagnostics.is_empty(),
-            "Simi fence {} has type diagnostics: {:?}\n{}",
+            "highlighted Simi fence {} has type diagnostics: {:?}\n{}",
             index + 1,
             inference.diagnostics,
             source

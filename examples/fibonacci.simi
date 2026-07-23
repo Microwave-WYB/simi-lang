@@ -1,0 +1,19 @@
+let io = require("std/io")
+let number = require("std/number")
+
+fn fibonacci(n: integer) -> integer do
+    loop state = {remaining = n, current = 0, next = 1} do
+        if state.remaining == 0 then
+            break state.current
+        else
+            {
+                remaining = state.remaining - 1,
+                current = state.next,
+                next = state.current + state.next,
+            }
+        end
+    end
+end
+
+let result = fibonacci(10)
+io.println("fib(10) = " <> number.to_string(result))

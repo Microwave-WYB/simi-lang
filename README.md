@@ -6,7 +6,7 @@ Simi is a small, embeddable scripting language implemented in Rust. It combines 
 
 ## A small example
 
-```simi
+```elixir
 let list = require("std/list")
 let iter = require("std/iter")
 let io = require("std/io")
@@ -30,13 +30,13 @@ Simi currently requires Rust 1.85 or newer.
 
 ```sh
 cargo build --bin simi
-cargo run --bin simi -- run examples/language-tour.simi
+cargo run --bin simi -- run examples/fibonacci.simi
 ```
 
 Scripts control their own output. To also render the final value:
 
 ```sh
-cargo run --bin simi -- run --inspect examples/language-tour.simi
+cargo run --bin simi -- run --inspect examples/fibonacci.simi
 ```
 
 Run the language server over standard input and output with:
@@ -59,7 +59,7 @@ cargo run --bin simi -- lsp
 - opt-in text IO through `std/io`;
 - Rowan syntax, Salsa-backed analysis, LSP support, and VS Code, Zed, and Tree-sitter integrations.
 
-Start with the [language tour](docs/language-tour.md) and its [runnable companion](examples/language-tour.simi). The erased type design is documented in [docs/type-system.md](docs/type-system.md).
+Start with the [language tour](docs/language-tour.md), then run the [explicit-state Fibonacci example](examples/fibonacci.simi). The erased type design is documented in [docs/type-system.md](docs/type-system.md).
 
 ## Embedding
 
