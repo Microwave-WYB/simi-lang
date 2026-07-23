@@ -32,14 +32,14 @@ function createExtensionRuntime({ vscode, LanguageClient, resolveServerCommand, 
     };
   }
 
-  async function disposeAfterFailure(current) {
+  async function disposeAfterFailure(current, command) {
     if (typeof current.dispose !== "function") {
       return;
     }
     try {
       await current.dispose();
-    } catch {
-      // The original lifecycle failure is the actionable error to report.
+    } catch (error) {
+      await reportFailure("Unable to dispose", command, error);
     }
   }
 
@@ -56,7 +56,7 @@ function createExtensionRuntime({ vscode, LanguageClient, resolveServerCommand, 
       await current.client.stop();
       return true;
     } catch (error) {
-      await disposeAfterFailure(current.client);
+      await disposeAfterFailure(current.client, current.command);
       await reportFailure("Unable to stop", current.command, error);
       return false;
     } finally {
@@ -88,16 +88,18 @@ function createExtensionRuntime({ vscode, LanguageClient, resolveServerCommand, 
           try {
             await next.stop();
           } catch (error) {
+            await disposeAfterFailure(next, options.command);
             await reportFailure("Unable to stop", options.command, error);
+          } finally {
+            watcher.dispose();
           }
-          watcher.dispose();
           return false;
         }
         active = { client: next, watcher, command: options.command };
         return true;
       } catch (error) {
         watcher.dispose();
-        await disposeAfterFailure(next);
+        await disposeAfterFailure(next, options.command);
         await reportFailure("Unable to start", options.command, error);
         return false;
       } finally {

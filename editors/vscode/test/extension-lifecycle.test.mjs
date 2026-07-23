@@ -6,6 +6,14 @@ const require = createRequire(import.meta.url);
 const { createExtensionRuntime } = require("../src/extension-runtime.js");
 const { resolveServerCommand } = require("../src/server.js");
 
+function deferred() {
+  let resolve;
+  const promise = new Promise((complete) => {
+    resolve = complete;
+  });
+  return { promise, resolve };
+}
+
 function harness(plans) {
   const commands = new Map();
   const errors = [];
@@ -69,6 +77,7 @@ function harness(plans) {
 
     async start() {
       this.starts += 1;
+      if (this.plan.startGate) await this.plan.startGate.promise;
       if (this.plan.startError) throw new Error(this.plan.startError);
     }
 
@@ -79,6 +88,7 @@ function harness(plans) {
 
     async dispose() {
       this.disposals += 1;
+      if (this.plan.disposeError) throw new Error(this.plan.disposeError);
     }
   }
 
@@ -180,6 +190,48 @@ test("manual restarts are serialized and cannot race client state", async () => 
 
   await app.deactivate();
   assert.equal(app.clients[2].stops, 1);
+});
+
+test("deactivation during delayed startup disposes a client whose stop fails", async () => {
+  const startGate = deferred();
+  const app = harness([{ startGate, stopError: "stuck startup process" }, {}]);
+
+  const activation = app.activate(app.context);
+  assert.equal(app.clients[0].starts, 1);
+  const deactivation = app.deactivate();
+
+  startGate.resolve();
+  await Promise.all([activation, deactivation]);
+
+  assert.equal(app.clients[0].stops, 1);
+  assert.equal(app.clients[0].disposals, 1);
+  assert.equal(app.watchers[0].disposed, true);
+  assert.match(app.errors.at(-1), /Unable to stop simi-lsp/);
+
+  await app.activate(app.context);
+  assert.equal(app.clients.length, 2);
+  assert.equal(app.clients[1].starts, 1);
+  await app.deactivate();
+  assert.equal(app.clients[1].stops, 1);
+});
+
+test("cleanup failures are reported without rejecting deactivation", async () => {
+  const startGate = deferred();
+  const app = harness([{
+    startGate,
+    stopError: "stuck startup process",
+    disposeError: "dispose failed",
+  }]);
+
+  const activation = app.activate(app.context);
+  const deactivation = app.deactivate();
+  startGate.resolve();
+  await Promise.all([activation, deactivation]);
+
+  assert.equal(app.clients[0].disposals, 1);
+  assert.equal(app.watchers[0].disposed, true);
+  assert.match(app.errors[0], /Unable to dispose simi-lsp/);
+  assert.match(app.errors[1], /Unable to stop simi-lsp/);
 });
 
 test("stop failure is reported, cleaned, and does not launch a competing client", async () => {
