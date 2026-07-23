@@ -26,7 +26,7 @@
 
 `nil` represents absence. Booleans are `true` and `false`:
 
-```elixir
+```simi
 let missing = nil
 let ready = true
 let blocked = false
@@ -36,7 +36,7 @@ let blocked = false
 
 `nil` is not another spelling of `false`. Simi has no general truthiness: conditions and the operators `not`, `and`, and `or` require booleans.
 
-```elixir
+```simi
 let has_name = true
 let has_email = false
 
@@ -49,13 +49,13 @@ Boolean operators short-circuit, so an unnecessary right-hand expression is not 
 
 Simi distinguishes integers from finite floating-point numbers:
 
-```elixir
+```simi
 [0, 42, -7, 3.14, -0.5, 2e3, 1.5E-2]
 ```
 
 A leading `-` is a unary operator rather than part of the literal. The `/` operator always returns a float. `//` performs floor division, and `%` uses matching floor-division semantics:
 
-```elixir
+```simi
 [
     5 / 2,    -- 2.5
     5 // 2,   -- 2
@@ -70,7 +70,7 @@ Arithmetic works across integer and float values. Mixed numeric comparisons pres
 
 Strings are Unicode text enclosed in double quotes:
 
-```elixir
+```simi
 [
     "Simi",
     "line one\nline two",
@@ -83,14 +83,14 @@ Supported escapes are `\"`, `\\`, `\n`, `\r`, and `\t`.
 
 The `<>` operator concatenates strings:
 
-```elixir
+```simi
 let name = "Ada"
 "Hello, " <> name <> "!"
 ```
 
 Concatenation is strict: both operands must be strings. Convert numbers explicitly with `std/number`:
 
-```elixir
+```simi
 let number = require("std/number")
 "The answer is " <> number.to_string(42)
 ```
@@ -101,20 +101,20 @@ The builtin `inspect(value)` can produce a human-readable representation of any 
 
 Lists are mutable, ordered, and zero-based. They may contain values of different categories, including `nil` and nested collections:
 
-```elixir
+```simi
 let values = ["name", true, nil, [2, 3], {answer = 42}]
 [values[0], values[3], values[4].answer]
 ```
 
 An empty list is `[]`. Trailing commas are accepted:
 
-```elixir
+```simi
 [1, 2, 3,]
 ```
 
 Reading a nonnegative index beyond the end of a list returns `nil`:
 
-```elixir
+```simi
 let values = [10, 20, 30]
 values[10]
 ```
@@ -125,7 +125,7 @@ Negative or non-integer indices are hard runtime diagnostics. Writes replace exi
 
 Maps are mutable, insertion-ordered key/value containers. Identifier-like string keys use field syntax, while computed keys use brackets:
 
-```elixir
+```simi
 let settings = {
     name = "Ada",
     visits = 1,
@@ -138,14 +138,14 @@ let settings = {
 
 An empty map is `{}`. Map keys may be strings, integers, finite non-integral floats, or booleans. Missing reads return `nil`:
 
-```elixir
+```simi
 let user = {name = "Ada"}
 user.nickname
 ```
 
 Maps cannot retain `nil` values. A nil-valued literal entry is omitted, and assigning `nil` deletes an existing key:
 
-```elixir
+```simi
 let user = {name = "Ada", nickname = "ace", visits = 3}
 let dynamic_key = "visits"
 
@@ -160,7 +160,7 @@ Lists are different: they may store `nil` as an element.
 
 Anonymous functions use `fn(parameters) do ... end`. Like other values, they can be stored in bindings, passed to other functions, and returned from functions:
 
-```elixir
+```simi
 let multiplier = 2
 let double = fn(value) do
     value * multiplier

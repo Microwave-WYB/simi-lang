@@ -67,7 +67,7 @@ fn highlighted_simi_fences(markdown: &str, page: &Path) -> Vec<String> {
     let mut snippets = Vec::new();
     let mut current = None::<String>;
     for line in markdown.lines() {
-        if line == "```elixir" {
+        if line == "```simi" {
             assert!(current.is_none(), "nested Simi fence in {}", page.display());
             current = Some(String::new());
         } else if line == "```" {

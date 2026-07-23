@@ -26,7 +26,7 @@
 
 An `if` evaluates only its selected branch and returns that branch's final value:
 
-```elixir
+```simi
 let score = 82
 let label = if score >= 90 then
     "excellent"
@@ -43,7 +43,7 @@ Conditions must be booleans; Simi does not use general truthiness. If no conditi
 
 Each branch is a child block. A binding created in a branch is not visible after the `if`:
 
-```elixir
+```simi
 let result = if true then
     let message = "local to this branch"
     message
@@ -58,7 +58,7 @@ result
 
 A `case` evaluates its input once, then selects the first matching `of` clause whose optional guard succeeds. The selected clause's block supplies the value of the whole expression:
 
-```elixir
+```simi
 let response = {kind = "ok", value = "profile"}
 
 let message = case response
@@ -83,7 +83,7 @@ Patterns include:
 - nested list and map patterns;
 - list and map rest captures.
 
-```elixir
+```simi
 let input = {kind = "point", coordinates = [3, 4, 5], color = "blue"}
 
 case input
@@ -102,7 +102,7 @@ A binding name matches any value. `_` matches without creating a binding. Patter
 
 Named map fields normally require the key to be present. The literal `nil` field pattern is the exception: it also matches an absent key, because a missing map lookup produces `nil`.
 
-```elixir
+```simi
 let settings = {theme = "dark"}
 
 case settings
@@ -117,7 +117,7 @@ end
 
 The left side of `let` may use the same structural patterns:
 
-```elixir
+```simi
 let values = [10, 20, 30, 40]
 let [first, second, ..rest] = values
 
@@ -135,7 +135,7 @@ Rest captures are independent shallow containers. A list rest is an O(1) copy-on
 
 Postfix `?` is for leaving the current block early when a value is absent. A non-`nil` value passes through unchanged. A `nil` value stops the nearest lexically enclosing block and makes that block evaluate to `nil`.
 
-```elixir
+```simi
 fn greeting(maybe_name: string | nil) -> string | nil do
     let name = maybe_name?
     "Hello, " <> name
@@ -150,7 +150,7 @@ Every control-flow body is a block: each `if` branch, each `case` clause, the pr
 
 For example, propagation inside an `if` branch makes that branch `nil`; it does not stop the surrounding standalone block:
 
-```elixir
+```simi
 let result = do
     let selected = if true then
         nil?
@@ -167,7 +167,7 @@ result
 
 Nested standalone blocks follow the same nearest-boundary rule:
 
-```elixir
+```simi
 let result = do
     let inner = do
         nil?
@@ -186,7 +186,7 @@ result
 
 A `try` has a protected block, and every `catch` has its own handler block. `catch` matches raised values; it does **not** catch postfix nil propagation. If `?` sees `nil` in the protected block, that block simply evaluates to `nil` and catch selection never begins:
 
-```elixir
+```simi
 let selected = try
     nil?
     "unreachable"
@@ -199,7 +199,7 @@ end
 
 Likewise, `?` inside a selected catch stops that catch block as `nil`; later catches are not tried:
 
-```elixir
+```simi
 let selected = try
     raise "missing"
 catch "missing" do
@@ -218,7 +218,7 @@ Raised values and the full error model are covered in [Errors and embedding](err
 
 A loop is also an expression. With a state initializer, each ordinary body result becomes the next iteration's state. `continue value` performs that transition early, while `break value` finishes the loop and supplies its result.
 
-```elixir
+```simi
 let result = loop state = 0 do
     if state < 3 then
         continue state + 1
@@ -232,7 +232,7 @@ result
 
 The initializer runs once. Bare `continue` is equivalent to `continue nil`. A stateless loop omits the initializer:
 
-```elixir
+```simi
 let result = loop do
     break "finished"
 end
@@ -242,7 +242,7 @@ result
 
 Because a loop body is a block, postfix nil propagation from that body produces the next state. It is equivalent to `continue nil`; it never means `break nil`.
 
-```elixir
+```simi
 let result = loop state = 0 do
     if state == nil then
         break "the next state was nil"
@@ -257,7 +257,7 @@ result
 
 This remains true even when `?` appears inside the operand of a `break`: the propagation stops the loop body before `break` can execute, and the next state is `nil`.
 
-```elixir
+```simi
 let result = loop state = 0 do
     if state == nil then
         break "break was skipped"
@@ -271,7 +271,7 @@ result
 
 An ordinary `break nil` still ends a loop with `nil`:
 
-```elixir
+```simi
 let result = loop do
     break nil
 end

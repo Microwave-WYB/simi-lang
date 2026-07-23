@@ -25,7 +25,7 @@
 
 `list.iter(values)` takes an O(1) copy-on-write snapshot. Later structural mutations to the original outer list do not change the iterator's traversal.
 
-```elixir
+```simi
 let list = require("std/list")
 let iter = require("std/iter")
 let values = [1, 2]
@@ -42,7 +42,7 @@ list.append(values, 3)
 
 `iter.map` and `iter.filter` return new iterators. They do not invoke their callbacks when the adapter is created; work begins only when a consumer requests values.
 
-```elixir
+```simi
 let list = require("std/list")
 let iter = require("std/iter")
 let calls = []
@@ -84,7 +84,7 @@ count
 
 Consumers advance the iterator they receive. `to_list` consumes all remaining values. `fold` threads an accumulator. `find` and `find_index` return `nil` when there is no match, and `each` always returns `nil` after successful traversal.
 
-```elixir
+```simi
 let list = require("std/list")
 let iter = require("std/iter")
 let values = [1, 2, 3, 4]
@@ -105,7 +105,7 @@ end)
 
 Predicates passed to `find`, `find_index`, `any`, `all`, and predicate-based `count` must return booleans. Searches and boolean queries short-circuit, leaving later values unconsumed.
 
-```elixir
+```simi
 let list = require("std/list")
 let iter = require("std/iter")
 let source = list.iter([1, 2, 3, 4])
@@ -121,7 +121,7 @@ end)
 
 Iterators are single-pass: once a value has been consumed, it is not available again. They are also sticky after exhaustion—every later `iter.next` call remains done.
 
-```elixir
+```simi
 let list = require("std/list")
 let iter = require("std/iter")
 let values: [..string] = ["a", "b"]
@@ -150,7 +150,7 @@ Lists may legitimately contain `nil`. Such an item produces `{done = false}` bec
 
 A custom producer is a zero-argument function returning these step maps. Wrap it with `iter.from` to obtain a public iterator:
 
-```elixir
+```simi
 let iter = require("std/iter")
 
 fn countdown(start) do

@@ -6,7 +6,7 @@ Simi is a small, Lua-like embeddable scripting language implemented in Rust. It 
 
 ## A small example
 
-```elixir
+```simi
 let io = require("std/io")
 
 --- Finds two numbers whose sum equals the target.

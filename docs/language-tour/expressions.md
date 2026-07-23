@@ -28,7 +28,7 @@
 
 A literal evaluates to its value, a name reads its current lexical binding, and parentheses control grouping:
 
-```elixir
+```simi
 let width = 6
 let height = 7
 let result = (width * height) + 1
@@ -37,7 +37,7 @@ result
 
 Lists and maps can contain expressions too:
 
-```elixir
+```simi
 let base = 20
 [base + 1, base + 2, {answer = base * 2 + 2}]
 ```
@@ -46,7 +46,7 @@ let base = 20
 
 Unary `-` negates a number. Unary `not` requires a boolean:
 
-```elixir
+```simi
 let temperature = 5
 let enabled = false
 [-temperature, not enabled]
@@ -63,13 +63,13 @@ Simi provides the usual numeric arithmetic operators:
 | `//` | floor division |
 | `%` | remainder using floor-division semantics |
 
-```elixir
+```simi
 [5 + 2, 5 - 2, 5 * 2, 5 / 2, 5 // 2, 5 % 2, -5 // 2]
 ```
 
 The strict string-concatenation operator is `<>`. Both operands must be strings:
 
-```elixir
+```simi
 let greeting = "Hello"
 let name = "Ada"
 greeting <> ", " <> name <> "!"
@@ -77,7 +77,7 @@ greeting <> ", " <> name <> "!"
 
 Equality uses `==` and `!=`. Ordering uses `<`, `<=`, `>`, and `>=` and requires numeric operands. Integers and floats compare numerically, including at integer boundaries where a lossy float conversion would give the wrong answer:
 
-```elixir
+```simi
 [
     1 == 1.0,
     1 != 2,
@@ -90,7 +90,7 @@ Equality uses `==` and `!=`. Ordering uses `<`, `<=`, `>`, and `>=` and requires
 
 Boolean `and` and `or` require booleans and short-circuit. Simi has no general truthiness:
 
-```elixir
+```simi
 let ready = true
 let valid = false
 [ready and valid, ready or valid, not valid]
@@ -98,7 +98,7 @@ let valid = false
 
 From tighter to looser grouping, the common operator levels are unary operators, multiplication/division, addition/subtraction, concatenation, comparisons, `and`, and `or`. Use parentheses whenever they make intent clearer:
 
-```elixir
+```simi
 let subtotal = 10
 let surcharge = 2
 let label = "total: "
@@ -111,7 +111,7 @@ Operator contract violations—such as multiplying a string, applying `not` to a
 
 A call evaluates its callee and arguments, then produces the function's result. Arguments are evaluated once, from left to right:
 
-```elixir
+```simi
 fn add(left, right) do
     left + right
 end
@@ -122,7 +122,7 @@ result
 
 Calls compose with other postfix operations, so a returned function can be called immediately:
 
-```elixir
+```simi
 fn make_greeter(greeting) do
     fn(name) do
         greeting <> ", " <> name
@@ -138,7 +138,7 @@ Calling a non-function or supplying the wrong number of arguments is a hard diag
 
 Dot access reads a string-keyed map field. Brackets read a computed map key or a zero-based list index:
 
-```elixir
+```simi
 let selected_key = "role"
 let user = {name = "Ada", role = "engineer"}
 let scores = [91, 95, 98]
@@ -147,7 +147,7 @@ let scores = [91, 95, 98]
 
 Missing map fields and nonnegative out-of-range list reads return `nil`. Postfix calls, fields, and indexing can be chained:
 
-```elixir
+```simi
 fn load_team() do
     {members = [{name = "Ada"}, {name = "Grace"}]}
 end
@@ -159,7 +159,7 @@ load_team().members[1].name
 
 `let` introduces a binding; assignment updates an existing one. Assignment itself evaluates to the assigned value:
 
-```elixir
+```simi
 let count = 1
 let new_count = count = count + 1
 [count, new_count]
@@ -167,7 +167,7 @@ let new_count = count = count + 1
 
 Assignment is right-associative:
 
-```elixir
+```simi
 let left = 1
 let right = 2
 left = right = 0
@@ -176,7 +176,7 @@ left = right = 0
 
 A field or index assignment mutates a container location and also evaluates to the assigned value:
 
-```elixir
+```simi
 let user = {name = "Ada"}
 let values = [1, 2, 3]
 let renamed = user.name = "Grace"
@@ -190,7 +190,7 @@ Assigning to an undefined name is a hard diagnostic. List writes replace existin
 
 `|>` passes its input as the first argument to a call stage:
 
-```elixir
+```simi
 fn add(value, extra) do
     value + extra
 end
@@ -208,7 +208,7 @@ The first stage above is equivalent to `add(10, 5)`. A pipeline stage must visib
 
 The nil-aware `?>` behaves like `|>` for a non-`nil` input. For a `nil` input, it skips that stage's callee and all its arguments:
 
-```elixir
+```simi
 fn increment(value) do
     value + 1
 end
@@ -225,7 +225,7 @@ Nil-awareness is stage-local. An ordinary `|>` later in the same chain still rec
 
 `|> tap` performs a stage call for its effects, discards the call's result, and preserves the original input with the same alias identity:
 
-```elixir
+```simi
 let list = require("std/list")
 let values = [1, 2, 3]
 
@@ -238,7 +238,7 @@ values
 
 Binding a tap pipeline result creates another alias rather than a copy:
 
-```elixir
+```simi
 let list = require("std/list")
 let values = [1, 2, 3]
 let alias = values |> tap list.append(4)
@@ -249,7 +249,7 @@ let alias = values |> tap list.append(4)
 
 Functions are values, so callback APIs first work through ordinary call arguments. This complete script creates a lazy mapped iterator and consumes it into a list:
 
-```elixir
+```simi
 let list = require("std/list")
 let iter = require("std/iter")
 let values = [1, 2, 3]
@@ -264,7 +264,7 @@ end)
 
 The optional `<|` operator appends its right operand as exactly one final argument to the call on its left. It is useful when a multiline callback should end with `end` instead of `end)`:
 
-```elixir
+```simi
 let list = require("std/list")
 let iter = require("std/iter")
 let values = [1, 2, 3]

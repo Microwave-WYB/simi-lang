@@ -28,7 +28,7 @@
 
 An annotated script is still an ordinary Simi script. Removing its type syntax must not change its values, mutation, errors, module behavior, or host result.
 
-```elixir
+```simi
 let count: integer = 1
 
 fn display(value: integer | float) -> string do
@@ -40,7 +40,7 @@ display(count)
 
 Annotations do not insert runtime checks or conversions. This script may receive a static diagnostic, but it still evaluates to the string at runtime:
 
-```elixir
+```simi
 -- Expected type diagnostic: the annotation says integer.
 let deliberately_wrong: integer = "still dynamic"
 deliberately_wrong
@@ -48,7 +48,7 @@ deliberately_wrong
 
 Types also occupy a separate namespace from runtime bindings, so an alias and a value may have the same lowercase name:
 
-```elixir
+```simi
 alias option<'a> = 'a | nil
 let option = 42
 option
@@ -74,7 +74,7 @@ There is deliberately no static `number` type. Use the union `integer | float` f
 
 The `|` operator forms unions. String literals may be singleton types, which makes them useful as discriminants:
 
-```elixir
+```simi
 alias mode = "read" | "write"
 alias maybe_name = string | nil
 
@@ -89,7 +89,7 @@ Numeric and Boolean literals widen to `integer`, `float`, and `boolean`. `nil` r
 
 Function types use arrows:
 
-```elixir
+```simi
 alias transform = integer -> integer
 alias predicate = (integer, string) -> boolean
 alias supplier = () -> integer
@@ -105,7 +105,7 @@ Arrows associate to the right, so `integer -> string -> boolean` means a functio
 
 Generic variables begin with an apostrophe. Alias parameters are declared explicitly and applied with angle brackets:
 
-```elixir
+```simi
 alias option<'a> = 'a | nil
 alias pair<'a, 'b> = ['a, 'b]
 
@@ -116,7 +116,7 @@ let entry: pair<integer, string> = [1, "one"]
 
 Free generic variables in function annotations are implicitly quantified:
 
-```elixir
+```simi
 fn identity(value: 'a) -> 'a do
     value
 end
@@ -138,7 +138,7 @@ All list types describe the existing mutable runtime list. Simi does not have a 
 
 A bracketed comma list is an exact positional shape, while a rest element describes a homogeneous list of arbitrary length:
 
-```elixir
+```simi
 alias row = [integer, string]
 alias integers = [..integer]
 alias matrix = [..[..integer]]
@@ -155,7 +155,7 @@ The empty list literal begins with exact shape `[]`. Analysis retains exact shap
 
 Structural records and index signatures describe the existing mutable runtime map. Records are closed by default; `..` permits additional fields:
 
-```elixir
+```simi
 alias person = {name: string, age: integer}
 alias named = {name: string, ..}
 alias counts = {[string]: integer}
@@ -168,7 +168,7 @@ let totals: counts = {apples = 2, pears = 3}
 
 An index signature may use a key union, and compatible known fields may coexist with it:
 
-```elixir
+```simi
 alias flags = {[string | integer]: boolean}
 let values: flags = {ready = true, [1] = false}
 values
@@ -178,7 +178,7 @@ A dynamic map read includes `nil`, because the requested key may be absent. A re
 
 Discriminated record unions combine literal fields with structural maps:
 
-```elixir
+```simi
 alias result<'value, 'error> =
     {kind: "ok", value: 'value}
     | {kind: "error", error: 'error}
@@ -205,7 +205,7 @@ Analysis narrows branch-local types through:
 - successful structural patterns and strict Boolean guards;
 - explicit comparisons with `nil`.
 
-```elixir
+```simi
 fn describe(value: integer | string) -> string do
     if type(value) == "integer" then
         require("std/number").to_string(value)
@@ -223,7 +223,7 @@ Because `type` is an ordinary shadowable binding, only a call resolved to the bu
 
 Postfix `?` removes `nil` on the surviving path inside its nearest lexical block. The block's normal and nil-abort exits join again outside that boundary:
 
-```elixir
+```simi
 fn greeting(name: string | nil) -> string | nil do
     let present = name?
     "Hello, " <> present
@@ -240,7 +240,7 @@ Runtime lists and maps remain mutable and aliased. An erased annotation cannot f
 
 A named function may document the guaranteed parameter state after **normal return**:
 
-```elixir
+```simi
 fn append_text(values: [..integer], value: string) -> nil
     after values becomes [..integer | string]
 do

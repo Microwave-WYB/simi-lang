@@ -34,7 +34,7 @@ eprintln(string) -> nil
 
 `print` and `println` write to standard output. `eprint` and `eprintln` write to standard error. The `ln` variants append a line ending. All four output operations flush automatically and return `nil` after a successful write.
 
-```elixir
+```simi
 let io = require("std/io")
 
 io.print("loading... ")
@@ -48,7 +48,7 @@ Automatic flushing means a prompt written with `print` is visible before the fol
 
 `read_line()` reads Unicode text, removes its line ending, and returns the remaining string. It returns `nil` at end of file, so handle that ordinary absence explicitly.
 
-```elixir
+```simi
 let io = require("std/io")
 
 io.print("What is your name? ")
@@ -67,7 +67,7 @@ A blank input line is an empty string, not `nil`. Only end of file produces `nil
 
 The print family accepts strings only. Passing an integer, list, map, or other non-string value is a hard contract diagnostic. Convert numbers with `std/number`, or use the global `inspect` function when human-readable rendering is appropriate.
 
-```elixir
+```simi
 let io = require("std/io")
 let value = {answer = 42}
 

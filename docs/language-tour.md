@@ -2,9 +2,6 @@
 
 This tour introduces Simi through focused, independently runnable scripts. Start with Hello, world, then follow the current reading order below or jump directly to a topic.
 
-> [!WARNING]
-> GitHub does not currently recognize Simi code fences. The tour labels Simi examples as `elixir` to provide approximate syntax highlighting, so some tokens may be colored incorrectly. Every such example is Simi—not Elixir.
-
 <!-- tour:contents:start -->
 ## Tour contents
 

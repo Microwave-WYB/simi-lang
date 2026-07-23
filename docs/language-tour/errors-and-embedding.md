@@ -33,14 +33,14 @@ Use these rules for new APIs and application code:
 
 For example, an unsuccessful numeric conversion is ordinary absence:
 
-```elixir
+```simi
 let string = require("std/string")
 string.to_number("not a number")
 ```
 
 Any Simi value can be raised, though structured maps with a stable `error` discriminator are the usual shape for recoverable failures:
 
-```elixir
+```simi
 raise {error = "invalid_input", value = "not a number"}
 ```
 
@@ -48,7 +48,7 @@ Generated error maps may gain fields over time, so consumers should match the fi
 
 A programmer mistake is instead a hard diagnostic. This complete script intentionally applies numeric addition to a string:
 
-```elixir
+```simi
 -- Expected type and runtime diagnostics: addition requires numbers.
 1 + "two"
 ```
@@ -59,7 +59,7 @@ Hard diagnostics must not be converted to `nil` or a partially successful mutati
 
 A `try` expression evaluates one or more protected items. Its `catch` clauses use the same structural patterns and Boolean guards as `case`, in source order:
 
-```elixir
+```simi
 fn load(key) do
     raise {error = "not_found", key = key}
 end
@@ -77,7 +77,7 @@ Only a raise from the protected block is considered by those catches. If no clau
 
 A raise from a catch guard or handler body escapes the current `try`; it is not offered to later sibling catches:
 
-```elixir
+```simi
 try
     try
         raise "original"
@@ -91,7 +91,7 @@ end
 
 `try` catches neither postfix nil propagation nor hard diagnostics. This complete script intentionally produces a hard operand diagnostic; its handler is not entered:
 
-```elixir
+```simi
 -- Expected type and runtime diagnostics: catch handles raises, not hard diagnostics.
 try
     1 + "two"

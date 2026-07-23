@@ -26,7 +26,7 @@
 
 Binding an existing list or map to another name does not copy it. Both names refer to the same container, so mutation through either name is visible through the other:
 
-```elixir
+```simi
 let values = [1, 2]
 let alias = values
 
@@ -37,7 +37,7 @@ values[0] = 10
 
 The same rule applies to maps:
 
-```elixir
+```simi
 let user = {name = "Ada", visits = 1}
 let alias = user
 
@@ -52,7 +52,7 @@ This identity is preserved when containers are passed to functions or returned f
 
 Lists are zero-based. Index assignment replaces an existing element and evaluates to the assigned value:
 
-```elixir
+```simi
 let values = [10, 20, 30]
 let assigned = values[1] = 99
 
@@ -71,7 +71,7 @@ set     append  extend  insert  remove  pop  reverse
 
 Mutation functions operate on the supplied list. For example:
 
-```elixir
+```simi
 let list = require("std/list")
 let values = [2, 3]
 
@@ -87,7 +87,7 @@ let popped = list.pop(values)
 
 When a mutating function returns `nil`, a tap pipeline can preserve the original list for the next stage:
 
-```elixir
+```simi
 let list = require("std/list")
 let values = [1, 2, 3]
 
@@ -105,7 +105,7 @@ let same_values =
 
 Use `list.copy` when the outer list must be independently mutable. It creates an O(1) copy-on-write view covering the source's full visible range. Mutating either outer list detaches backing storage as needed:
 
-```elixir
+```simi
 let list = require("std/list")
 let source = [1, 2, 3]
 let copied = list.copy(source)
@@ -118,7 +118,7 @@ list.append(copied, 4)
 
 `list.slice` creates the same kind of independent shallow view over a visible range:
 
-```elixir
+```simi
 let list = require("std/list")
 let source = [0, 1, 2, 3]
 let middle = list.slice(source, 1, 3)
@@ -133,7 +133,7 @@ Copy-on-write is an implementation strategy, not delayed aliasing: from the lang
 
 These copies are shallow. Nested mutable values retain their identity:
 
-```elixir
+```simi
 let list = require("std/list")
 let nested = [1]
 let source = [nested, [2]]
@@ -149,7 +149,7 @@ The outer replacement affects only `copied`, but the mutation inside the nested 
 
 List-rest patterns use the same O(1), independent, shallow copy-on-write behavior:
 
-```elixir
+```simi
 let list = require("std/list")
 let source = [1, 2, 3]
 let [first, ..rest] = source
@@ -164,7 +164,7 @@ list.append(source, 4)
 
 Map field assignment is shorthand for assignment with a string key. Bracket syntax accepts a computed supported key:
 
-```elixir
+```simi
 let settings = {theme = "light"}
 let key = "language"
 
@@ -176,7 +176,7 @@ settings
 
 Maps cannot retain `nil` values. Assigning `nil` deletes the key, and a missing read returns `nil`:
 
-```elixir
+```simi
 let settings = {theme = "dark", temporary = true}
 
 settings.temporary = nil
@@ -186,7 +186,7 @@ settings.temporary = nil
 
 Because script-created maps cannot store a nil value, `map[key] != nil` is a valid existence check. The `std/map` module also provides `has` when the intent should be explicit.
 
-```elixir
+```simi
 let map = require("std/map")
 let settings = {theme = "dark"}
 
@@ -195,7 +195,7 @@ let settings = {theme = "dark"}
 
 `map.clear` removes every entry in place and returns `nil`:
 
-```elixir
+```simi
 let map = require("std/map")
 let settings = {theme = "dark", language = "simi"}
 let alias = settings
@@ -209,7 +209,7 @@ let result = map.clear(settings)
 
 `map.copy` creates an independent shallow map in O(n). It preserves normalized keys and insertion order:
 
-```elixir
+```simi
 let map = require("std/map")
 let source = {name = "Ada", visits = 1}
 let copied = map.copy(source)
@@ -222,7 +222,7 @@ copied.name = "Grace"
 
 As with lists, shallow copying preserves aliases to nested values:
 
-```elixir
+```simi
 let map = require("std/map")
 let roles = ["admin"]
 let source = {name = "Ada", roles = roles}
@@ -238,7 +238,7 @@ The top-level `name` fields are independent. Both maps still point to the same n
 
 A map-rest pattern also creates an independent shallow map:
 
-```elixir
+```simi
 let source = {name = "Ada", role = "admin", active = true}
 let {name = name, ..details} = source
 

@@ -34,7 +34,7 @@ std/string
 
 Each module groups operations for one kind of work. Import only the modules a script uses:
 
-```elixir
+```simi
 let list = require("std/list")
 let number = require("std/number")
 
@@ -49,7 +49,7 @@ list.length(values)
 
 A module's exports are a mutable map. Repeated `require` calls in one engine return the same map with the same alias identity, so mutations are visible through every reference:
 
-```elixir
+```simi
 let first = require("std/string")
 let second = require("std/string")
 
@@ -65,7 +65,7 @@ Source-backed modules are evaluated lazily on first use and then cached. A circu
 
 `string.to_number(text)` accepts a complete signed decimal integer or decimal/exponent float. Integer syntax produces an integer and float syntax produces a finite float. Malformed input, overflow, and non-finite results return `nil`.
 
-```elixir
+```simi
 let string = require("std/string")
 
 [
@@ -78,7 +78,7 @@ let string = require("std/string")
 
 String concatenation with `<>` is strict: both operands must be strings. `string.concat(left, right)` provides the same operation in a pipeline-friendly call form.
 
-```elixir
+```simi
 let string = require("std/string")
 let name = "Ada"
 
@@ -91,7 +91,7 @@ name
 
 Normal interpreters and all `Engine` evaluations provide `require`, `type`, and `inspect` as ordinary shadowable globals. `type` returns stable runtime category labels. `inspect` produces cycle-safe, human-readable text; it is not serialization.
 
-```elixir
+```simi
 let list = require("std/list")
 let values = []
 list.append(values, values)

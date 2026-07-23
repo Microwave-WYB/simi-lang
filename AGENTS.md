@@ -316,7 +316,7 @@ let doubled =
     |> iter.to_list()
 ```
 
-The language tour is split into stable, unnumbered topic files under `docs/language-tour/`. Its current order lives in `docs/language-tour/order.txt`; run `just docs tour` after changing pages, headings, or order to regenerate every page's shared contents and two-line Previous/Next navigation and to validate snippets and links. Each page lists its own title as plain text, links its own subsections, and links sibling topics. Tour Simi fences use `elixir` only for approximate GitHub highlighting and must be independently complete; examples intended to demonstrate a static diagnostic begin with an `-- Expected type` comment.
+The language tour is split into stable, unnumbered topic files under `docs/language-tour/`. Its current order lives in `docs/language-tour/order.txt`; run `just docs tour` after changing pages, headings, or order to regenerate every page's shared contents and two-line Previous/Next navigation and to validate snippets and links. Each page lists its own title as plain text, links its own subsections, and links sibling topics. Tour examples use `simi` fences and must be independently complete; examples intended to demonstrate a static diagnostic begin with an `-- Expected type` comment.
 
 Rust module layout must use a facade file plus a same-named directory:
 

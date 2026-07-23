@@ -28,7 +28,7 @@
 
 `let` introduces a new binding in the current lexical scope:
 
-```elixir
+```simi
 let language = "Simi"
 let status = "unreleased"
 language <> " " <> status
@@ -36,7 +36,7 @@ language <> " " <> status
 
 The right-hand expression is evaluated before the new binding is installed. Assignment is different: it updates the nearest existing binding and never creates one implicitly.
 
-```elixir
+```simi
 let visits = 1
 visits = visits + 1
 visits
@@ -48,7 +48,7 @@ Bindings may hold any value, including mutable containers and functions. Structu
 
 A function's parameters and body-local bindings belong to that function call. They do not escape into the surrounding scope:
 
-```elixir
+```simi
 let message = "outside"
 
 fn decorate(message) do
@@ -61,7 +61,7 @@ end
 
 Function bodies may contain multiple items. The final expression is the function's return value; there is no required `return` statement:
 
-```elixir
+```simi
 fn full_name(first, last) do
     let separator = " "
     first <> separator <> last
@@ -74,7 +74,7 @@ full_name("Ada", "Lovelace")
 
 A later `let` may reuse a name. This creates a new binding; it does not overwrite the old one:
 
-```elixir
+```simi
 let value = "first"
 let value = "second"
 value
@@ -82,7 +82,7 @@ value
 
 Closures make the distinction visible. A function created before the second `let` keeps the earlier binding, while later code sees the new one:
 
-```elixir
+```simi
 let value = "first"
 let read_first = fn() do
     value
@@ -98,7 +98,7 @@ end
 
 Assignment follows each closure's lexical view. Here `set_first` updates the first binding, while the top-level assignment updates the later binding:
 
-```elixir
+```simi
 let value = 1
 let read_first = fn() do value end
 let set_first = fn(next) do value = next end
@@ -116,7 +116,7 @@ This precise shadowing rule makes captured state predictable even when a scope r
 
 A named function uses a declaration:
 
-```elixir
+```simi
 fn area(width, height) do
     width * height
 end
@@ -126,7 +126,7 @@ area(6, 7)
 
 Parameters are fresh bindings for each call. A function captures bindings from its surrounding lexical environment:
 
-```elixir
+```simi
 let tax_rate = 0.2
 
 fn with_tax(price) do
@@ -142,7 +142,7 @@ Named function declarations support recursion. [Control flow and patterns](contr
 
 An anonymous function is an expression and may appear anywhere an expression is accepted:
 
-```elixir
+```simi
 let double = fn(value) do
     value * 2
 end
@@ -152,7 +152,7 @@ double(21)
 
 It can be stored in a container or called immediately:
 
-```elixir
+```simi
 let operations = [
     fn(value) do value + 1 end,
     fn(value) do value * 3 end,
@@ -163,7 +163,7 @@ let operations = [
 
 Anonymous functions are ordinary function values, just like named functions and host-provided native functions. The builtin `type` reports `"function"` for all of them:
 
-```elixir
+```simi
 fn named(value) do value end
 let anonymous = fn(value) do value end
 [type(named), type(anonymous), type(inspect)]
@@ -173,7 +173,7 @@ let anonymous = fn(value) do value end
 
 A function may outlive the call that created it while retaining access to that call's lexical bindings. Such a function is a closure:
 
-```elixir
+```simi
 fn make_adder(base) do
     fn(value) do
         base + value
@@ -187,7 +187,7 @@ let add_ten = make_adder(10)
 
 Captured bindings remain assignable. Separate calls create separate captured state:
 
-```elixir
+```simi
 fn make_counter(start) do
     let count = start
     fn() do
@@ -206,7 +206,7 @@ The assignment is also the body’s final expression, so each call returns the n
 
 Higher-order functions accept or return other functions. Callbacks are passed directly like any other value:
 
-```elixir
+```simi
 fn apply_twice(callback, value) do
     callback(callback(value))
 end
@@ -220,7 +220,7 @@ apply_twice(increment, 40)
 
 A function factory returns a closure selected by its captured arguments:
 
-```elixir
+```simi
 fn make_multiplier(factor) do
     fn(value) do
         value * factor
