@@ -9,6 +9,8 @@ Simi is a small, Lua-like embeddable scripting language implemented in Rust. It 
 ```elixir
 let io = require("std/io")
 
+--- Finds two numbers whose sum equals the target.
+--- Returns the matching values, or nil when no pair exists.
 fn two_sum(numbers, target) do
     loop state = {seen = {}, numbers = numbers} do
         case state
