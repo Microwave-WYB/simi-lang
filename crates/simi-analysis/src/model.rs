@@ -369,8 +369,22 @@ impl Resolution {
             .scopes
             .iter()
             .filter(|(_, scope)| contains_inclusive(scope.span, offset))
-            .min_by_key(|(_, scope)| scope.span.end.saturating_sub(scope.span.start))
+            .min_by_key(|(id, scope)| {
+                (
+                    scope.span.end.saturating_sub(scope.span.start),
+                    std::cmp::Reverse(self.scope_depth(*id)),
+                )
+            })
             .map(|(id, _)| id)
+    }
+
+    fn scope_depth(&self, mut scope: ScopeId) -> usize {
+        let mut depth = 0;
+        while let Some(parent) = self.hir.scopes[scope].parent {
+            depth += 1;
+            scope = parent;
+        }
+        depth
     }
 }
 

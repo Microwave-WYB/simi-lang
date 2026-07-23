@@ -448,3 +448,18 @@ fn source_updates_invalidate_dependent_queries() {
     assert!(symbols.iter().any(|symbol| symbol.name == "after"));
     assert!(!symbols.iter().any(|symbol| symbol.name == "before"));
 }
+
+#[test]
+fn recovery_prefers_the_function_scope_when_it_ties_the_root_span() {
+    let source = "fn fib(n) do\n    case n\n    of\nend";
+    let db = AnalysisDatabase::default();
+    let file = db.add_file(source);
+    let resolution = resolve(&db, file);
+    let offset = source.find("case n").unwrap() + "case n".len();
+    let visible = resolution.visible_symbols(offset);
+    let names = visible
+        .iter()
+        .map(|id| resolution.hir.symbols[*id].name.as_str())
+        .collect::<Vec<_>>();
+    assert!(names.contains(&"n"), "visible names: {names:?}");
+}

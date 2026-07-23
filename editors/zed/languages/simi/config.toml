@@ -14,5 +14,5 @@ brackets = [
 
 # These patterns complement indents.scm while a construct is incomplete.
 # Branch markers realign before their `do` body; complete one-line forms do not match.
-increase_indent_pattern = "^.*\\b(do|then|else|try)\\s*(--.*)?$"
+increase_indent_pattern = "^(?:.*\\b(do|then|else|try)\\s*|\\s*case\\b(?:[^\\s-]|-[^>]|\\s+[^o\\s-]|\\s+o[^f]|\\s+of\\w|\\s+-[^>])*)\\s*(--.*)?$"
 decrease_indent_pattern = "^\\s*(elseif|else|of|catch|end)\\b"

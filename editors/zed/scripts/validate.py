@@ -97,11 +97,17 @@ def check_source_extension() -> None:
 
     increase = re.compile(config["increase_indent_pattern"])
     decrease = re.compile(config["decrease_indent_pattern"])
-    for line in ("of [head, ..tail] when ready do", "catch _ do", "try"):
+    for line in ("of [head, ..tail] when ready do", "catch _ do", "try", "    case n"):
         check(increase.search(line) is not None, f"line should increase indentation: {line}")
-    check(increase.search("of _ do value end") is None, "one-line clause must not indent next line")
+    for line in ("of _ do value end", "case n of _ do n end"):
+        check(increase.search(line) is None, f"one-line form must not indent next line: {line}")
     for line in ("end", "of _ do", "catch _ do", "elseif ready then", "else"):
         check(decrease.search(line) is not None, f"line should decrease indentation: {line}")
+    case_indent = 4
+    provisional_indent = case_indent + (4 if increase.search("    case n") else 0)
+    aligned_of_indent = provisional_indent - (4 if decrease.search("of") else 0)
+    check(provisional_indent == 8, "incomplete case must provisionally indent one level")
+    check(aligned_of_indent == case_indent, "of must realign exactly with its case")
     for legacy in ("match value with", "case value ->"):
         check(increase.search(legacy) is None, f"legacy syntax affects indentation: {legacy}")
         check(decrease.search(legacy) is None, f"legacy syntax affects indentation: {legacy}")

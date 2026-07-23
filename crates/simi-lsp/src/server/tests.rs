@@ -311,6 +311,72 @@ fn symbols_navigation_references_hover_and_completion_use_fresh_analysis() {
 }
 
 #[test]
+fn completion_suppresses_exact_visible_identifiers_during_recovery() {
+    let source = "fn fib(n) do\n    case n\n    of\nend";
+    let mut backend = Backend::new();
+    open(&mut backend, source);
+    let cursor = source.find("case n").unwrap() + "case n".len();
+
+    let completion: Option<CompletionResponse> = serde_json::from_value(
+        request(
+            &mut backend,
+            Completion::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": position::position(source, cursor).unwrap()
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let CompletionResponse::Array(items) = completion.unwrap() else {
+        panic!("expected completion array")
+    };
+    assert!(
+        items.is_empty(),
+        "exact parameter `n` should suppress completion"
+    );
+}
+
+#[test]
+fn completion_prioritizes_partial_lexical_matches_before_builtins() {
+    let source = "fn find(needle) do\n    case ne\n    of\nend";
+    let mut backend = Backend::new();
+    open(&mut backend, source);
+    let cursor = source.find("case ne").unwrap() + "case ne".len();
+
+    let completion: Option<CompletionResponse> = serde_json::from_value(
+        request(
+            &mut backend,
+            Completion::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": position::position(source, cursor).unwrap()
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let CompletionResponse::Array(items) = completion.unwrap() else {
+        panic!("expected completion array")
+    };
+    let labels = items
+        .iter()
+        .map(|item| item.label.as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(labels.first(), Some(&"needle"));
+    assert!(labels.contains(&"inspect"));
+    assert!(labels.contains(&"require"));
+    assert!(
+        items[0].sort_text.as_deref().unwrap()
+            < items[labels.iter().position(|label| *label == "inspect").unwrap()]
+                .sort_text
+                .as_deref()
+                .unwrap()
+    );
+}
+
+#[test]
 fn duplicate_future_bindings_are_diagnosed_and_navigation_keeps_first_runtime_binding() {
     let source = "let closure = fn() do later end let later = 1 let later = 2";
     let mut backend = Backend::new();

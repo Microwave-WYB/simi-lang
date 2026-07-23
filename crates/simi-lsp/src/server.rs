@@ -405,22 +405,41 @@ impl Backend {
         params: CompletionParams,
     ) -> Result<Option<CompletionResponse>, ProtocolError> {
         let uri = params.text_document_position.text_document.uri;
-        let (_, _, resolution, offset) =
+        let (_, text, resolution, offset) =
             self.analysis_at(&uri, params.text_document_position.position)?;
+        let prefix = identifier_prefix(&text, offset);
+        let visible = resolution.visible_symbols(offset);
+        if !prefix.is_empty()
+            && visible
+                .iter()
+                .any(|symbol| resolution.hir.symbols[*symbol].name == prefix)
+        {
+            return Ok(Some(CompletionResponse::Array(Vec::new())));
+        }
+
         let mut names = BTreeSet::new();
         let mut items = Vec::new();
-        for symbol in resolution.visible_symbols(offset) {
+        for symbol in visible {
             let data = &resolution.hir.symbols[symbol];
             if names.insert(data.name.clone()) {
+                let builtin_rank = u8::from(data.builtin);
+                let prefix_rank = if prefix.is_empty() || data.name.starts_with(prefix) {
+                    0
+                } else if data.name.contains(prefix) {
+                    1
+                } else {
+                    2
+                };
                 items.push(CompletionItem {
                     label: data.name.clone(),
                     kind: Some(completion_kind(data.kind)),
                     detail: Some(completion_detail(data.kind, data.arity)),
+                    sort_text: Some(format!("{builtin_rank}{prefix_rank}:{}", data.name)),
                     ..CompletionItem::default()
                 });
             }
         }
-        items.sort_by(|left, right| left.label.cmp(&right.label));
+        items.sort_by(|left, right| left.sort_text.cmp(&right.sort_text));
         Ok(Some(CompletionResponse::Array(items)))
     }
 
@@ -557,6 +576,17 @@ fn lsp_symbol_kind(kind: SymbolKind) -> LspSymbolKind {
             LspSymbolKind::VARIABLE
         }
     }
+}
+
+fn identifier_prefix(text: &str, offset: usize) -> &str {
+    let mut start = offset;
+    while start > 0
+        && (text.as_bytes()[start - 1].is_ascii_alphanumeric()
+            || text.as_bytes()[start - 1] == b'_')
+    {
+        start -= 1;
+    }
+    &text[start..offset]
 }
 
 fn completion_kind(kind: SymbolKind) -> CompletionItemKind {
