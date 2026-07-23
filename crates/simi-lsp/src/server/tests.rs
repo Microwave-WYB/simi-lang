@@ -165,6 +165,30 @@ fn invalid_incremental_position_is_rejected_without_mutating_source() {
 }
 
 #[test]
+fn crlf_terminator_positions_are_rejected_without_mutating_source() {
+    let mut backend = Backend::new();
+    open(&mut backend, "a\r\nb");
+    let result = backend.change(DidChangeTextDocumentParams {
+        text_document: VersionedTextDocumentIdentifier {
+            uri: uri(),
+            version: 2,
+        },
+        content_changes: vec![TextDocumentContentChangeEvent {
+            range: Some(lsp_types::Range::new(
+                Position::new(0, 1),
+                Position::new(0, 2),
+            )),
+            range_length: None,
+            text: String::new(),
+        }],
+    });
+    assert!(result.is_err());
+    let document = backend.documents.get(&uri()).unwrap();
+    assert_eq!(document.version, 1);
+    assert_eq!(source_text(&backend.db, document.file).as_str(), "a\r\nb");
+}
+
+#[test]
 fn symbols_navigation_references_hover_and_completion_use_fresh_analysis() {
     let source = concat!(
         "fn add(left, right) do left + right end\n",
@@ -440,6 +464,26 @@ fn rename_preparation_edits_and_rejections_follow_analysis_rules() {
             &mut backend,
             Rename::METHOD,
             json!({ "textDocument": { "uri": uri() }, "position": unresolved, "newName": "host" }),
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn rename_rejects_capture_of_an_unresolved_host_name() {
+    let source = "let target = 1 do missing target end";
+    let mut backend = Backend::new();
+    open(&mut backend, source);
+    let target = text_position(source, "target", 0);
+    assert!(
+        request(
+            &mut backend,
+            Rename::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": target,
+                "newName": "missing"
+            }),
         )
         .is_err()
     );

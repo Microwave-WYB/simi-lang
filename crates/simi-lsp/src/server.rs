@@ -23,7 +23,7 @@ use lsp_types::{
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 use simi_analysis::{
-    AnalysisDatabase, FileId, RenameError, Resolution, Span, SymbolId, SymbolKind, diagnostics,
+    AnalysisDatabase, FileId, RenameError, Resolution, Span, SymbolKind, diagnostics,
     document_symbols, references, resolve, source_text,
 };
 
@@ -319,16 +319,13 @@ impl Backend {
     ) -> Result<Option<PrepareRenameResponse>, ProtocolError> {
         let uri = params.text_document.uri;
         let (_, text, resolution, offset) = self.analysis_at(&uri, params.position)?;
-        let Some(symbol) = resolution.symbol_at(offset) else {
+        let Some((symbol, span)) = resolution.symbol_span_at(offset) else {
             return Ok(None);
         };
         let data = &resolution.hir.symbols[symbol];
         if data.builtin {
             return Ok(None);
         }
-        let Some(span) = occurrence_span(&resolution, symbol, offset) else {
-            return Ok(None);
-        };
         Ok(Some(PrepareRenameResponse::RangeWithPlaceholder {
             range: self.range(&text, span)?,
             placeholder: data.name.clone(),
@@ -347,13 +344,8 @@ impl Backend {
         resolution
             .check_rename(symbol, &params.new_name)
             .map_err(rename_error)?;
-        let mut spans = resolution.references(symbol).to_vec();
-        if let Some(declaration) = resolution.definition_span(symbol) {
-            spans.push(declaration);
-        }
-        spans.sort_by_key(|span| (span.start, span.end));
-        spans.dedup();
-        let edits = spans
+        let edits = resolution
+            .rename_spans(symbol)
             .into_iter()
             .map(|span| {
                 Ok(TextEdit {
@@ -401,8 +393,9 @@ impl Backend {
                 kind: MarkupKind::PlainText,
                 value: detail,
             }),
-            range: occurrence_span(&resolution, facts.symbol, offset)
-                .map(|span| self.range(&text, span))
+            range: resolution
+                .symbol_span_at(offset)
+                .map(|(_, span)| self.range(&text, span))
                 .transpose()?,
         }))
     }
@@ -528,25 +521,6 @@ pub fn run_connection(connection: Connection) -> Result<(), Box<dyn Error + Sync
         }
     }
     Ok(())
-}
-
-fn occurrence_span(resolution: &Resolution, symbol: SymbolId, offset: usize) -> Option<Span> {
-    resolution.hir.symbols[symbol]
-        .declaration
-        .filter(|span| span.start <= offset && offset < span.end)
-        .or_else(|| {
-            resolution
-                .hir
-                .occurrences
-                .iter()
-                .zip(&resolution.occurrence_symbols)
-                .find_map(|(occurrence, resolved)| {
-                    (*resolved == Some(symbol)
-                        && occurrence.span.start <= offset
-                        && offset < occurrence.span.end)
-                        .then_some(occurrence.span)
-                })
-        })
 }
 
 fn rename_error(error: RenameError) -> ProtocolError {

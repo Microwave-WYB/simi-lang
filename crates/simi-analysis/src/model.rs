@@ -120,6 +120,10 @@ pub enum RenameError {
 
 impl Resolution {
     pub fn symbol_at(&self, offset: usize) -> Option<SymbolId> {
+        self.symbol_span_at(offset).map(|(symbol, _)| symbol)
+    }
+
+    pub fn symbol_span_at(&self, offset: usize) -> Option<(SymbolId, Span)> {
         self.hir
             .symbols
             .iter()
@@ -127,7 +131,7 @@ impl Resolution {
                 symbol
                     .declaration
                     .filter(|span| contains(*span, offset))
-                    .map(|_| id)
+                    .map(|span| (id, span))
             })
             .or_else(|| {
                 self.hir
@@ -136,7 +140,7 @@ impl Resolution {
                     .zip(&self.occurrence_symbols)
                     .find_map(|(occurrence, symbol)| {
                         contains(occurrence.span, offset)
-                            .then_some(*symbol)
+                            .then(|| symbol.map(|symbol| (symbol, occurrence.span)))
                             .flatten()
                     })
             })
@@ -150,6 +154,19 @@ impl Resolution {
         self.symbol_references
             .get(&symbol)
             .map_or(&[], Vec::as_slice)
+    }
+
+    pub fn rename_spans(&self, symbol: SymbolId) -> Vec<Span> {
+        let Some(data) = self.symbol(symbol) else {
+            return Vec::new();
+        };
+        let mut spans = self.references(symbol).to_vec();
+        if let Some(declaration) = data.declaration {
+            spans.push(declaration);
+        }
+        spans.sort_by_key(|span| (span.start, span.end));
+        spans.dedup();
+        spans
     }
 
     pub fn hover(&self, offset: usize) -> Option<HoverFacts> {
@@ -215,20 +232,61 @@ impl Resolution {
             });
         }
         for (occurrence, resolved) in self.hir.occurrences.iter().zip(&self.occurrence_symbols) {
-            if *resolved == Some(symbol)
-                && let Some(other) =
-                    self.resolve_name(occurrence.scope, occurrence.span.start, new_name)
-                && other != symbol
+            if *resolved == Some(symbol) {
+                if let Some(other) = self.resolve_name_after_rename(
+                    occurrence.scope,
+                    occurrence.span.start,
+                    new_name,
+                    symbol,
+                    new_name,
+                ) && other != symbol
+                {
+                    return Err(RenameError::Collision {
+                        name: new_name.to_owned(),
+                        at: self.hir.symbols[other]
+                            .declaration
+                            .unwrap_or(Span::new(0, 0)),
+                    });
+                }
+            } else if occurrence.name == new_name
+                && self.resolve_name_after_rename(
+                    occurrence.scope,
+                    occurrence.span.start,
+                    new_name,
+                    symbol,
+                    new_name,
+                ) == Some(symbol)
             {
                 return Err(RenameError::Collision {
                     name: new_name.to_owned(),
-                    at: self.hir.symbols[other]
-                        .declaration
-                        .unwrap_or(Span::new(0, 0)),
+                    at: occurrence.span,
                 });
             }
         }
         Ok(())
+    }
+
+    fn resolve_name_after_rename(
+        &self,
+        mut scope: ScopeId,
+        offset: usize,
+        name: &str,
+        renamed: SymbolId,
+        new_name: &str,
+    ) -> Option<SymbolId> {
+        let occurrence_depth = self.hir.scopes[scope].function_depth;
+        loop {
+            if let Some(symbol) = self.symbol_in_scope_with_name(
+                scope,
+                occurrence_depth,
+                offset,
+                name,
+                Some((renamed, new_name)),
+            ) {
+                return Some(symbol);
+            }
+            scope = self.hir.scopes[scope].parent?;
+        }
     }
 
     fn symbol(&self, id: SymbolId) -> Option<&SymbolData> {
@@ -260,14 +318,32 @@ impl Resolution {
         offset: usize,
         name: &str,
     ) -> Option<SymbolId> {
+        self.symbol_in_scope_with_name(scope, occurrence_depth, offset, name, None)
+    }
+
+    fn symbol_in_scope_with_name(
+        &self,
+        scope: ScopeId,
+        occurrence_depth: u32,
+        offset: usize,
+        name: &str,
+        renamed: Option<(SymbolId, &str)>,
+    ) -> Option<SymbolId> {
         let scope_data = &self.hir.scopes[scope];
+        let has_name = |id: SymbolId| {
+            let symbol = &self.hir.symbols[id];
+            let effective = renamed
+                .filter(|(renamed, _)| *renamed == id)
+                .map_or(symbol.name.as_str(), |(_, new_name)| new_name);
+            effective == name
+        };
         let preceding_user = scope_data.symbols.iter().copied().find(|id| {
             let symbol = &self.hir.symbols[*id];
-            symbol.name == name && symbol.activation <= offset && symbol.declaration.is_some()
+            has_name(*id) && symbol.activation <= offset && symbol.declaration.is_some()
         });
         let preceding_builtin = scope_data.symbols.iter().copied().find(|id| {
             let symbol = &self.hir.symbols[*id];
-            symbol.name == name && symbol.activation <= offset && symbol.builtin
+            has_name(*id) && symbol.activation <= offset && symbol.builtin
         });
         let preceding = preceding_user.or(preceding_builtin);
         // Closures capture shared outer frames, so a declaration installed later in an
@@ -277,9 +353,7 @@ impl Resolution {
             .then(|| {
                 scope_data.symbols.iter().copied().find(|id| {
                     let symbol = &self.hir.symbols[*id];
-                    symbol.name == name
-                        && symbol.activation > offset
-                        && symbol.declaration.is_some()
+                    has_name(*id) && symbol.activation > offset && symbol.declaration.is_some()
                 })
             })
             .flatten();

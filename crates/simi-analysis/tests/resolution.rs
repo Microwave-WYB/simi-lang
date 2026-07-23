@@ -361,6 +361,59 @@ fn rename_checks_collisions_and_exact_lexer_identifier_rules() {
 }
 
 #[test]
+fn rename_rejects_capture_of_unresolved_and_shadowed_occurrences() {
+    for source in [
+        "let target = 1 do missing target end",
+        "let target = 1 do let missing = 2 target end",
+        "let closure = fn() do missing end let target = 1 closure()",
+    ] {
+        let db = AnalysisDatabase::default();
+        let file = db.add_file(source);
+        let resolution = resolve(&db, file);
+        let target = symbol_named(&resolution, "target", SymbolKind::Let);
+        assert!(
+            matches!(
+                resolution.check_rename(target, "missing"),
+                Err(RenameError::Collision { .. })
+            ),
+            "source: {source}"
+        );
+    }
+}
+
+#[test]
+fn rename_preserves_unresolved_host_names_that_stay_out_of_scope() {
+    let source = "do missing end let target = 1 target";
+    let db = AnalysisDatabase::default();
+    let file = db.add_file(source);
+    let resolution = resolve(&db, file);
+    let target = symbol_named(&resolution, "target", SymbolKind::Let);
+    assert_eq!(resolution.check_rename(target, "missing"), Ok(()));
+}
+
+#[test]
+fn analysis_owns_symbol_and_rename_spans() {
+    let source = "let target = 1 target";
+    let db = AnalysisDatabase::default();
+    let file = db.add_file(source);
+    let resolution = resolve(&db, file);
+    let target = symbol_named(&resolution, "target", SymbolKind::Let);
+    let declaration = source.find("target").expect("declaration");
+    let reference = source.rfind("target").expect("reference");
+    assert_eq!(
+        resolution.symbol_span_at(reference),
+        Some((target, simi_analysis::Span::new(reference, reference + 6)))
+    );
+    assert_eq!(
+        resolution.rename_spans(target),
+        vec![
+            simi_analysis::Span::new(declaration, declaration + 6),
+            simi_analysis::Span::new(reference, reference + 6),
+        ]
+    );
+}
+
+#[test]
 fn parser_diagnostics_and_later_symbols_survive_recovery() {
     let source = "let broken = ) fn later() do nil end";
     let db = AnalysisDatabase::default();
