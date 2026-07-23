@@ -337,9 +337,9 @@ The portable standard library currently includes `std/list`, `std/map`, `std/num
 
 Rowan syntax, Salsa-backed lexical analysis, `simi-lsp`, and the VS Code/Zed adapters are implemented. They currently provide syntax and symbol analysis only; they do not parse annotations or infer types.
 
-Likely later milestones include CLI arguments, filesystem/script module loading, formatting, and optional static typing. These are roadmap items, not implemented features. Do not add them opportunistically outside an approved task.
+Likely later milestones include script-visible command-line arguments, filesystem/script module loading, formatting, and optional static typing. These are roadmap items, not implemented features. Do not add them opportunistically outside an approved task.
 
-The authoritative initial erased-type design is documented in [`docs/type-system.md`](docs/type-system.md). It uses inline optional annotations and a LuaLS-level scope; every example there remains invalid executable syntax until parsing, inference, erasure, diagnostics, and editor support land together.
+The authoritative initial erased-type design is documented in [`docs/type-system.md`](docs/type-system.md). It uses inline optional annotations and a LuaLS-level scope; its annotation, alias, and type-grammar forms remain invalid until parsing, inference, erasure, diagnostics, and editor support land together.
 
 Builtin `type(value) == "label"` comparisons remain the primitive runtime category check and may later be recognized by the analyzer for narrowing. Static `int` will correspond to the existing runtime label `"integer"`; changing that label is a separate compatibility decision. `TypeIs` is not part of the initial type-system scope.
 

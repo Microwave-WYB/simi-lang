@@ -1,8 +1,9 @@
 # Future erased type system
 
-> **Design only:** none of the syntax in this document is currently accepted by the
-> Simi parser. The runtime remains dynamically typed, and analysis must never
-> change program execution.
+> **Design only:** type annotations, aliases, and type grammar described here are
+> not currently accepted by the Simi parser. Some examples also contain ordinary
+> executable Simi expressions. The runtime remains dynamically typed, and
+> analysis must never change program execution.
 
 This document defines the initial target for optional static analysis. Its scope
 is intentionally comparable to LuaLS: useful annotations, structural container

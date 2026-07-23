@@ -5,9 +5,11 @@ This crate implements Simi's stdio Language Server Protocol adapter. It provides
 The canonical executable entry point is the root CLI:
 
 ```sh
-cargo build --bin simi
-simi lsp
+cargo run --bin simi -- lsp
 ```
+
+After `cargo build --bin simi`, the equivalent project-local command is
+`./target/debug/simi lsp`.
 
 Editors should start `simi` with the `lsp` argument and connect stdin/stdout to LSP transport. The server negotiates UTF-16 positions and incremental document synchronization. Each open document is analyzed independently; filesystem and script-module loading are not implemented.
 
