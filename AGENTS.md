@@ -335,8 +335,12 @@ Add tests at the lowest useful layer and at the public language boundary when se
 
 The portable standard library currently includes `std/list`, `std/map`, `std/number`, and `std/string`; `type` and `inspect` are globals. Anonymous functions, trailing callback application, and Gleam-inspired higher-order list queries are implemented. The CLI additionally registers the opt-in `std/io/*` standard-stream modules.
 
-Likely later milestones include CLI arguments, filesystem/script module loading, formatting, optional static typing, and editor tooling. These are roadmap items, not implemented features. Do not add them opportunistically outside an approved task.
+Rowan syntax, Salsa-backed lexical analysis, `simi-lsp`, and the VS Code/Zed adapters are implemented. They currently provide syntax and symbol analysis only; they do not parse annotations or infer types.
 
-Builtin `type(value) == "label"` comparisons are the primitive runtime category check and may later be recognized by an analyzer for narrowing. A user-facing `TypeIs` construct is a future language-design question only and is not implemented.
+Likely later milestones include CLI arguments, filesystem/script module loading, formatting, and optional static typing. These are roadmap items, not implemented features. Do not add them opportunistically outside an approved task.
 
-Filesystem/script module loading, serialization, formatter/LSP work, tuples, and static typing remain out of scope until explicitly requested.
+The authoritative initial erased-type design is documented in [`docs/type-system.md`](docs/type-system.md). It uses inline optional annotations and a LuaLS-level scope; every example there remains invalid executable syntax until parsing, inference, erasure, diagnostics, and editor support land together.
+
+Builtin `type(value) == "label"` comparisons remain the primitive runtime category check and may later be recognized by the analyzer for narrowing. Static `int` will correspond to the existing runtime label `"integer"`; changing that label is a separate compatibility decision. `TypeIs` is not part of the initial type-system scope.
+
+Filesystem/script module loading, serialization, formatter work, runtime tuples, and static type implementation remain out of scope until explicitly requested.
