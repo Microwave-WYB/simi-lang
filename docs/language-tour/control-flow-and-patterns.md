@@ -100,13 +100,15 @@ end
 
 A binding name matches any value. `_` matches without creating a binding. Patterns may be nested to mirror the structure being inspected.
 
-Named map fields normally require the key to be present. The literal `nil` field pattern is the exception: it also matches an absent key, because a missing map lookup produces `nil`.
+Map patterns are closed by default. `{name = name}` matches a map containing exactly that field. Add `..` to allow and discard additional keys, or `..rest` to capture them in a new shallow map. Both string and computed extra keys count when checking whether a pattern is closed.
+
+Named map fields normally require the key to be present. The literal `nil` field pattern is the exception: it also matches an absent key, because a missing map lookup produces `nil`. A closed pattern still rejects unrelated keys, so use `..` when testing absence inside a larger map.
 
 ```simi
 let settings = {theme = "dark"}
 
 case settings
-of {nickname = nil} do
+of {nickname = nil, ..} do
     "no nickname"
 of _ do
     "has a nickname"

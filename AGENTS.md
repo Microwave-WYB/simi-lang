@@ -238,7 +238,7 @@ end
 
 The canonical case grammar requires one or more `of` clauses, repeats `of` before each sibling clause, and uses one final `end` for the whole expression rather than a per-clause `end`. Patterns support literals, bindings, wildcards, nested list/map patterns, and list/map rests. Guards must evaluate to booleans. Bindings are scoped to the selected clause; its `do` body extends until the next `of` or the final `end`, so clauses remain whitespace-independent and may appear on one line.
 
-Map fields normally require key presence. The literal nil field pattern is the exception: `{ missing = nil }` matches an absent field, consistent with map lookup and deletion semantics.
+Map patterns are closed by default: `{field = pattern}` rejects maps with any additional string or computed keys. Add `..` to allow additional keys or `..rest` to capture them. Named fields normally require key presence. The literal nil field pattern is the exception: `{missing = nil}` matches an absent field, consistent with map lookup and deletion semantics; without a rest marker, unrelated keys still make that closed pattern fail.
 
 ### Errors
 

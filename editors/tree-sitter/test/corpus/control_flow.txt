@@ -55,7 +55,7 @@ Case-of pattern clauses and nested patterns
 let selected = case payload
 of [head, {kind = "ok", value = value}, ..tail] when head >= 0 do
   [value, tail]
-of {error = nil, .._rest} do
+of {error = nil, ..} do
   nil
 of _ignored do
   case true of true do "fallback" of false do nil end
@@ -93,8 +93,7 @@ end
           (map_pattern_field
             (identifier)
             (nil))
-          (rest_pattern
-            (wildcard_pattern)))
+          (rest_pattern))
         (block
           (nil)))
       (case_clause

@@ -70,6 +70,14 @@ fn mismatch_is_a_hard_runtime_error_at_the_pattern_span() {
         _ => panic!("expected a hard destructuring mismatch"),
     }
 
+    match eval("let {x=x} = {x=1, y=2}") {
+        Err(SimiError::Runtime(error)) => {
+            assert_eq!(error.message, "let pattern did not match");
+        }
+        _ => panic!("closed map destructuring must reject extra fields"),
+    }
+    assert_eq!(evaluate("let {x=x, ..} = {x=1, y=2} x").render(), "1");
+
     let attempted_catch = r#"
         fn unpack(value) do
             let [x, y] = value

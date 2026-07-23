@@ -178,6 +178,16 @@ pub(super) fn match_pattern(
                 let entries = entries.try_borrow().map_err(|_| {
                     RuntimeError::new(pattern.span, "could not borrow map for pattern matching")
                 })?;
+                if rest.is_none()
+                    && entries.iter().any(|(key, _)| {
+                        !matches!(key, MapKey::String(name) if fields.iter().any(
+                            |(field_name, _)| field_name == name
+                        ))
+                    })
+                {
+                    return Ok(false);
+                }
+
                 let mut field_values = Vec::with_capacity(fields.len());
                 for (name, field_pattern) in fields {
                     let key = MapKey::String(name.clone());

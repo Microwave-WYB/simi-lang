@@ -1004,13 +1004,13 @@ fn map_pattern(p: &mut Parser<'_>, bindings: &mut HashSet<String>) {
 fn rest_pattern(p: &mut Parser<'_>, bindings: &mut HashSet<String>) {
     let marker = p.start();
     p.expect(K::DOT_DOT, "`..`");
-    let name = p.current_text().unwrap_or_default().to_owned();
-    let span = p.current_span();
-    if p.expect(K::IDENT, "rest binding name after `..`")
-        && !name.starts_with('_')
-        && !bindings.insert(name.clone())
-    {
-        p.error_at(span, format!("duplicate binding `{name}` in pattern"));
+    if p.at(K::IDENT) {
+        let name = p.current_text().unwrap_or_default().to_owned();
+        let span = p.current_span();
+        p.bump();
+        if !name.starts_with('_') && !bindings.insert(name.clone()) {
+            p.error_at(span, format!("duplicate binding `{name}` in pattern"));
+        }
     }
     marker.complete(&mut p.events, K::REST_PATTERN);
 }

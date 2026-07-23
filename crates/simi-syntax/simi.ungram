@@ -63,5 +63,5 @@ LiteralPattern = 'int' | 'float' | 'string' | 'nil' | 'true' | 'false'
 ListPattern = '[' (Pattern (',' Pattern)* (',' RestPattern)? ','? | RestPattern ','?)? ']'
 MapPattern = '{' (MapPatternField (',' MapPatternField)* (',' RestPattern)? ','? | RestPattern ','?)? '}'
 MapPatternField = 'ident' '=' Pattern
-RestPattern = '..' 'ident'
+RestPattern = '..' 'ident'?
 Error = 'error'

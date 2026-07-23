@@ -142,7 +142,7 @@ fn recursive_head_tail_matching_handles_longer_lists() {
 }
 
 #[test]
-fn map_patterns_are_structural_and_map_rest_preserves_order_and_aliases() {
+fn map_patterns_are_closed_by_default_and_map_rest_preserves_order_and_aliases() {
     assert_eval(
         r#"
             let list = require("std/list")
@@ -152,16 +152,24 @@ fn map_patterns_are_structural_and_map_rest_preserves_order_and_aliases() {
                 of {take=1, last=n, ..rest} do [n, rest]
             end
             list.append(shared, 7)
+            let rejects_extra_field = case {x=1, extra=2}
+                of {x=1} do false
+                of _ do true
+            end
+            let rejects_extra_computed_key = case {x=1, [true]=2}
+                of {x=1} do false
+                of _ do true
+            end
             let permits_extras = case {x=1, extra=2}
-                of {x=1} do true
+                of {x=1, ..} do true
                 of _ do false
             end
             let rest_only = case {a=1, b=2}
                 of {..all} do all
             end
-            [captured, permits_extras, rest_only]
+            [captured, rejects_extra_field, rejects_extra_computed_key, permits_extras, rest_only]
         "#,
-        "[[3, {first=[7], [true]=[7]}], true, {a=1, b=2}]",
+        "[[3, {first=[7], [true]=[7]}], true, true, true, {a=1, b=2}]",
     );
 }
 
@@ -177,12 +185,16 @@ fn nil_map_fields_match_absence_while_other_patterns_require_presence() {
             of {missing=value} do false
             of _ do true
         end
+        let absent_nil_with_extra = case {other=1}
+            of {missing=nil} do false
+            of {missing=nil, ..} do true
+        end
         let omitted_literal = case {missing=nil}
             of {missing=nil, ..rest} do rest
         end
-        [absent_nil, absent_binding, omitted_literal]
+        [absent_nil, absent_binding, absent_nil_with_extra, omitted_literal]
         "#,
-        "[true, true, {}]",
+        "[true, true, true, {}]",
     );
 }
 

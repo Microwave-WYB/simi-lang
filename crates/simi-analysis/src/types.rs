@@ -3969,7 +3969,7 @@ fn unresolved_pattern_shape(pattern: &syntax::Pattern) -> Type {
                 })
                 .collect(),
             index: None,
-            open: true,
+            open: support::child::<syntax::RestPattern>(map.syntax()).is_some(),
         },
     }
 }
@@ -4038,6 +4038,26 @@ fn partition_map_pattern(source: Type, pattern: &syntax::MapPattern) -> (Type, T
         let shape = unresolved_pattern_shape(&syntax::Pattern::Map(pattern.clone()));
         return (shape, source);
     }
+    let has_rest = support::child::<syntax::RestPattern>(pattern.syntax()).is_some();
+    if !has_rest
+        && let Type::Map {
+            fields,
+            index: None,
+            open: false,
+        } = &source
+    {
+        let pattern_fields = support::children::<syntax::MapPatternField>(pattern.syntax())
+            .filter_map(|field| direct_token(field.syntax(), K::IDENT))
+            .map(|name| name.text().to_owned())
+            .collect::<HashSet<_>>();
+        if fields
+            .iter()
+            .any(|(name, _)| !pattern_fields.contains(name))
+        {
+            return (Type::Never, source);
+        }
+    }
+
     let mut matched = source;
     let mut failures = Vec::new();
     for field in support::children::<syntax::MapPatternField>(pattern.syntax()) {

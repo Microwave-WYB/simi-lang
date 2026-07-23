@@ -95,9 +95,9 @@ fn mixed_numeric_comparisons_remain_exact_at_float_boundaries() {
 fn every_zero_divisor_raises_the_same_structural_value() {
     let result = value(
         r#"
-        let divide = try 1 / 0 catch {error=error} do error  end
-        let floor = try 1 // -0.0 catch {error=error} do error  end
-        let remainder = try 1 % 0 catch {error=error} do error  end
+        let divide = try 1 / 0 catch {error=error, ..} do error  end
+        let floor = try 1 // -0.0 catch {error=error, ..} do error  end
+        let remainder = try 1 % 0 catch {error=error, ..} do error  end
         [divide, floor, remainder]
         "#,
     );

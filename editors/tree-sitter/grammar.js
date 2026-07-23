@@ -518,7 +518,7 @@ module.exports = grammar({
 
     rest_pattern: ($) => seq(
       "..",
-      field("name", choice($.wildcard_pattern, $.identifier)),
+      optional(field("name", choice($.wildcard_pattern, $.identifier))),
     ),
 
     boolean: (_) => choice("true", "false"),

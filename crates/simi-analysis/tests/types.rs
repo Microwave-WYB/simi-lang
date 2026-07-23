@@ -1174,6 +1174,15 @@ let result = case closed
 of {missing = missing} do missing
 of _ do "fallback"
 end
+let extra = {x = 1, y = 2}
+let closed_result = case extra
+of {x = 1} do "wrong"
+of _ do "closed"
+end
+let open_result = case extra
+of {x = value, ..} do "open"
+of _ do "wrong"
+end
 "#;
     let (inference, resolution) = inferred(source);
     assert!(
@@ -1192,6 +1201,14 @@ end
     assert_eq!(
         type_of(&inference, &resolution, "result").display(),
         "\"fallback\""
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "closed_result").display(),
+        "\"closed\""
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "open_result").display(),
+        "\"open\""
     );
 }
 

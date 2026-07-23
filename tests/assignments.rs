@@ -131,11 +131,11 @@ fn list_bounds_reads_return_nil_while_writes_raise_without_growth() {
         let rhs_ran = []
         let read = values[2]
         let write = try values[3] = list.append(rhs_ran, true)
-            catch {error=error, index=index, length=length} do [error, index, length]
+            catch {error=error, index=index, length=length, ..} do [error, index, length]
         end
         let get = list.get(values, 4)
         let set = try list.set(values, 5, 9)
-            catch {error=error, index=index, length=length} do [error, index, length]
+            catch {error=error, index=index, length=length, ..} do [error, index, length]
         end
         [read, write, get, set, values, rhs_ran]
         "#,

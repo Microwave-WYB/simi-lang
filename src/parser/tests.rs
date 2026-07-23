@@ -614,12 +614,11 @@ fn rejects_duplicate_bindings_and_map_pattern_fields_at_second_name() {
 }
 
 #[test]
-fn rejects_malformed_pattern_rests_and_computed_map_keys() {
+fn accepts_discarded_pattern_rests_and_rejects_malformed_positions_and_keys() {
+    parse_source("case [] of [..] do nil end").unwrap();
+    parse_source("case {} of {..} do nil end").unwrap();
+
     for (source, expected_message) in [
-        (
-            "case [] of [..] do nil end",
-            "expected rest binding name after `..`, found `]`",
-        ),
         (
             "case [] of [..xs, value] do nil end",
             "expected `]` after list pattern, found `identifier`",

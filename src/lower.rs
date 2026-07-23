@@ -356,10 +356,10 @@ fn lower_pattern(node: syntax::Pattern) -> ast::Pattern {
 }
 
 fn lower_rest(node: syntax::RestPattern) -> ast::PatternRest {
-    let name = direct_token(node.syntax(), K::IDENT)
-        .expect("rest name")
-        .text()
-        .to_string();
+    let Some(name) = direct_token(node.syntax(), K::IDENT).map(|token| token.text().to_string())
+    else {
+        return ast::PatternRest::Discard;
+    };
     if name.starts_with('_') {
         ast::PatternRest::Discard
     } else {
