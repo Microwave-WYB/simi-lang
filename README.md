@@ -8,18 +8,26 @@ Simi is a small, embeddable scripting language implemented in Rust. It combines 
 
 ```elixir
 let list = require("std/list")
-let iter = require("std/iter")
 let io = require("std/io")
 
-let doubled =
-    [1, 2, 3]
-    |> list.iter()
-    |> iter.map() <| fn(value) do
-        value * 2
+fn two_sum(numbers, target) do
+    loop remaining = numbers do
+        case remaining
+        of [] do
+            break nil
+        of [first, ..rest] do
+            let second = target - first
+            if list.contains(rest, second) then
+                break {first = first, second = second}
+            else
+                rest
+            end
+        end
     end
-    |> iter.to_list()
+end
 
-io.println(inspect(doubled))
+let pair = two_sum([2, 7, 11, 15], 9)
+io.println(inspect(pair))
 ```
 
 Simi is expression-oriented: blocks, conditionals, loops, cases, and error handlers all produce values. Lists and maps are mutable and preserve alias identity, while explicit copy operations provide shallow copy-on-write views where documented.
