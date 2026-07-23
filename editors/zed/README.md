@@ -4,13 +4,13 @@ A local [Zed language extension](https://zed.dev/docs/extensions/languages) for 
 
 ## Language server
 
-The Rust/WASM extension resolves `simi-lsp` with `worktree.which("simi-lsp")` and passes the worktree shell environment to the server. Install the binary into a directory visible on the worktree `PATH`, for example from the repository root:
+The Rust/WASM extension resolves `simi` with `worktree.which("simi")`, launches its `lsp` subcommand, and passes the worktree shell environment to the server. Install the binary into a directory visible on the worktree `PATH`, for example from the repository root:
 
 ```sh
-cargo install --path crates/simi-lsp
+cargo install --path .
 ```
 
-A binary at `target/debug/simi-lsp` is not discovered automatically. If lookup fails, Zed reports that `simi-lsp` was not found on the worktree `PATH`; adjust the environment used to launch Zed or your worktree environment and reload the extension.
+A binary at `target/debug/simi` is not discovered automatically. If lookup fails, Zed reports that `simi` was not found on the worktree `PATH`; adjust the environment used to launch Zed or your worktree environment and reload the extension.
 
 ## Why the checked-in manifest has no grammar URL
 
@@ -41,6 +41,20 @@ From this directory:
 just setup-local
 just test-local
 ```
+
+To build the project-local Simi executable without installing it globally:
+
+```sh
+just build-simi
+```
+
+To build the server, prepare the dev extension, and launch Zed with the local server on `PATH`:
+
+```sh
+just dev
+```
+
+From the repository root, the same recipes are available as `just editors::zed::build-simi` and `just editors::zed::dev`.
 
 If the shared grammar is elsewhere, pass it explicitly:
 

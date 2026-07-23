@@ -21,6 +21,7 @@ fn cli_routes_standard_output_and_error_to_distinct_streams() {
     .unwrap();
 
     let output = Command::new(env!("CARGO_BIN_EXE_simi"))
+        .arg("run")
         .arg(&path)
         .output()
         .unwrap();
@@ -46,6 +47,7 @@ fn cli_print_flushes_prompt_before_reading_stdin() {
     .unwrap();
 
     let mut child = Command::new(env!("CARGO_BIN_EXE_simi"))
+        .arg("run")
         .arg(&path)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -95,6 +97,7 @@ fn cli_stdin_reads_unicode_lines_and_returns_nil_at_eof() {
     .unwrap();
 
     let mut child = Command::new(env!("CARGO_BIN_EXE_simi"))
+        .arg("run")
         .arg(&path)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())

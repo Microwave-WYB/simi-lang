@@ -8,7 +8,7 @@ function createExtensionRuntime({ vscode, LanguageClient, resolveServerCommand, 
 
   function reportFailure(action, command, error) {
     const detail = error instanceof Error ? error.message : String(error);
-    const message = `${action} simi-lsp (${command}): ${detail}. Configure simi.languageServer.path, set SIMI_LSP_PATH, or install simi-lsp on PATH.`;
+    const message = `${action} simi lsp (${command} lsp): ${detail}. Configure simi.languageServer.path, set SIMI_PATH, or install simi on PATH.`;
     return Promise.resolve(vscode.window.showErrorMessage(message)).catch(() => undefined);
   }
 
@@ -18,6 +18,7 @@ function createExtensionRuntime({ vscode, LanguageClient, resolveServerCommand, 
       .get("languageServer.path");
     return {
       command: resolveServerCommand(configuredPath, environment),
+      args: ["lsp"],
       options: { env: environment },
     };
   }

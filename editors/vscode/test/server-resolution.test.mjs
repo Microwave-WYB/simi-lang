@@ -5,22 +5,22 @@ import { test } from "node:test";
 const require = createRequire(import.meta.url);
 const { resolveServerCommand } = require("../src/server.js");
 
-test("configured server path has priority", () => {
+test("configured Simi path has priority", () => {
   assert.equal(
-    resolveServerCommand(" /opt/simi/bin/simi-lsp ", {
-      SIMI_LSP_PATH: "/environment/simi-lsp",
+    resolveServerCommand(" /opt/simi/bin/simi ", {
+      SIMI_PATH: "/environment/simi",
     }),
-    "/opt/simi/bin/simi-lsp",
+    "/opt/simi/bin/simi",
   );
 });
 
-test("SIMI_LSP_PATH is used when configuration is empty", () => {
+test("SIMI_PATH is used when configuration is empty", () => {
   assert.equal(
-    resolveServerCommand("  ", { SIMI_LSP_PATH: " /environment/simi-lsp " }),
-    "/environment/simi-lsp",
+    resolveServerCommand("  ", { SIMI_PATH: " /environment/simi " }),
+    "/environment/simi",
   );
 });
 
-test("simi-lsp on PATH is the final fallback", () => {
-  assert.equal(resolveServerCommand(undefined, {}), "simi-lsp");
+test("simi on PATH is the final fallback", () => {
+  assert.equal(resolveServerCommand(undefined, {}), "simi");
 });

@@ -5,11 +5,7 @@ function nonempty(value) {
 }
 
 function resolveServerCommand(configuredPath, environment = process.env) {
-  return (
-    nonempty(configuredPath) ??
-    nonempty(environment.SIMI_LSP_PATH) ??
-    "simi-lsp"
-  );
+  return nonempty(configuredPath) ?? nonempty(environment.SIMI_PATH) ?? "simi";
 }
 
 module.exports = { resolveServerCommand };

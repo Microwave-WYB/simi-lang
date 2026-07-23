@@ -5,15 +5,24 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
-use clap::Parser;
+use clap::{Parser, Subcommand};
 
 use crate::span::line_column;
 use crate::{Engine, Raised, ScriptResult, SimiError};
 
-#[derive(Parser)]
+#[derive(Debug, Parser)]
 #[command(name = "simi")]
 pub struct Cli {
-    pub file: PathBuf,
+    #[command(subcommand)]
+    pub command: CliCommand,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum CliCommand {
+    /// Evaluate a Simi source file.
+    Run { file: PathBuf },
+    /// Run the Simi language server over standard input and output.
+    Lsp,
 }
 
 #[derive(Debug)]
@@ -22,9 +31,9 @@ pub enum CliError {
     Simi(SimiError),
 }
 
-pub fn run(cli: Cli) -> Result<ScriptResult, CliError> {
-    let source = fs::read_to_string(&cli.file).map_err(|source| CliError::Io {
-        path: cli.file.clone(),
+pub fn run(file: &Path) -> Result<ScriptResult, CliError> {
+    let source = fs::read_to_string(file).map_err(|source| CliError::Io {
+        path: file.to_path_buf(),
         source,
     })?;
     Engine::builder()
@@ -91,9 +100,22 @@ mod tests {
     use super::*;
 
     #[test]
+    fn parses_run_and_lsp_subcommands_and_rejects_direct_files() {
+        let run = Cli::try_parse_from(["simi", "run", "demo.simi"]).unwrap();
+        assert!(matches!(
+            run.command,
+            CliCommand::Run { file } if file == Path::new("demo.simi")
+        ));
+
+        let lsp = Cli::try_parse_from(["simi", "lsp"]).unwrap();
+        assert!(matches!(lsp.command, CliCommand::Lsp));
+        assert!(Cli::try_parse_from(["simi", "demo.simi"]).is_err());
+    }
+
+    #[test]
     fn reports_the_path_for_missing_files() {
         let path = PathBuf::from("this-file-does-not-exist.simi");
-        let error = match run(Cli { file: path.clone() }) {
+        let error = match run(&path) {
             Ok(_) => panic!("missing file should fail"),
             Err(error) => error,
         };
@@ -112,7 +134,7 @@ mod tests {
             "#,
         )
         .unwrap();
-        let result = run(Cli { file: path.clone() }).unwrap().unwrap();
+        let result = run(&path).unwrap().unwrap();
         fs::remove_file(path).unwrap();
         assert_eq!(result.render(), "[\"function\", \"function\"]");
     }

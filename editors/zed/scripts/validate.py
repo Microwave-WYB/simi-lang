@@ -76,11 +76,12 @@ def check_source_extension() -> None:
         "Zed extension API must pin published version 0.7.0",
     )
     rust_source = (COMPONENT / "src" / "lib.rs").read_text(encoding="utf-8")
-    check('worktree.which("simi-lsp")' in rust_source, "server must resolve from worktree PATH")
+    check('worktree.which("simi")' in rust_source, "server must resolve from worktree PATH")
     check("worktree.shell_env()" in rust_source, "server must inherit worktree shell environment")
+    check('args: vec!["lsp".to_owned()]' in rust_source, "server must use the lsp subcommand")
     check("target/debug" not in rust_source, "extension must not assume a Cargo target path")
     check(
-        "simi-lsp was not found on the worktree PATH" in rust_source,
+        "simi was not found on the worktree PATH" in rust_source,
         "missing-server diagnostic must explain PATH lookup",
     )
 

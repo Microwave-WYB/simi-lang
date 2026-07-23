@@ -1,6 +1,7 @@
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
 component := source_directory()
+repository := component / "../.."
 local_dir := component / ".local"
 cargo_target_dir := local_dir / "cargo-target"
 
@@ -11,6 +12,15 @@ default:
 # Check that local tooling required by this component is available.
 install:
     command -v cargo git python3 rustc tree-sitter >/dev/null
+
+# Build the project-local Simi executable under the ignored target directory.
+build-simi:
+    cd "{{ repository }}" && cargo build --bin simi
+
+# Prepare the dev extension and launch Zed with the local server on PATH.
+dev grammar_source=(component / "../tree-sitter"): (build-simi) (setup-local grammar_source)
+    command -v zed >/dev/null
+    PATH="{{ repository }}/target/debug:$PATH" zed "{{ repository }}"
 
 # Check portable metadata, configuration, query captures, and the published Zed API.
 check:

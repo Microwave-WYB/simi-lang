@@ -792,6 +792,7 @@ dependencies = [
  "clap",
  "gc",
  "gc_derive",
+ "simi-lsp",
  "simi-syntax",
 ]
 

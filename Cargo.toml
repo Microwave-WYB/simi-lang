@@ -11,10 +11,11 @@ path = "src/main.rs"
 clap = { version = "4", features = ["derive"] }
 gc = { version = "0.5", features = ["derive", "unstable-stats"] }
 gc_derive = "0.5"
+simi-lsp = { path = "crates/simi-lsp" }
 simi-syntax = { path = "crates/simi-syntax" }
 
 [workspace]
 members = [".", "crates/simi-analysis", "crates/simi-lsp", "crates/simi-syntax", "crates/simi-xtask"]
-default-members = [".", "crates/simi-lsp"]
+default-members = ["."]
 exclude = ["editors/zed"]
 resolver = "3"

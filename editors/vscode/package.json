@@ -52,7 +52,7 @@
           "type": "string",
           "default": "",
           "scope": "machine-overridable",
-          "description": "Path to the simi-lsp executable. When empty, SIMI_LSP_PATH and then simi-lsp on PATH are used."
+          "description": "Path to the simi executable. When empty, SIMI_PATH and then simi on PATH are used; the extension launches it with the lsp subcommand."
         }
       }
     },

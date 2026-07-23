@@ -1,15 +1,26 @@
 use std::fs;
+use std::path::PathBuf;
 use std::process::ExitCode;
 
 use clap::Parser;
-use simiscript::cli::{Cli, CliError, format_raised_trace};
+use simiscript::cli::{Cli, CliCommand, CliError, format_raised_trace};
 use simiscript::span::line_column;
 
 fn main() -> ExitCode {
-    let cli = Cli::parse();
-    let file = cli.file.clone();
+    match Cli::parse().command {
+        CliCommand::Run { file } => run_file(file),
+        CliCommand::Lsp => match simi_lsp::run_stdio() {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(error) => {
+                eprintln!("simi lsp: {error}");
+                ExitCode::FAILURE
+            }
+        },
+    }
+}
 
-    match simiscript::cli::run(cli) {
+fn run_file(file: PathBuf) -> ExitCode {
+    match simiscript::cli::run(&file) {
         Ok(Ok(value)) => {
             println!("{}", value.render());
             ExitCode::SUCCESS

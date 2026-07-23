@@ -96,7 +96,7 @@ function harness(plans) {
     vscode,
     LanguageClient,
     resolveServerCommand,
-    environment: { SIMI_LSP_PATH: "/env/simi-lsp" },
+    environment: { SIMI_PATH: "/env/simi" },
   });
   const context = { subscriptions: [] };
 
@@ -121,16 +121,17 @@ function harness(plans) {
   };
 }
 
-test("activation remains successful when simi-lsp cannot start", async () => {
+test("activation remains successful when simi lsp cannot start", async () => {
   const app = harness([{ startError: "ENOENT" }]);
 
   await app.activate(app.context);
 
   assert.equal(app.clients.length, 1);
-  assert.equal(app.clients[0].serverOptions.command, "/env/simi-lsp");
+  assert.equal(app.clients[0].serverOptions.command, "/env/simi");
+  assert.deepEqual(app.clients[0].serverOptions.args, ["lsp"]);
   assert.equal(app.watchers[0].disposed, true);
   assert.equal(app.clients[0].disposals, 1);
-  assert.match(app.errors[0], /Unable to start simi-lsp/);
+  assert.match(app.errors[0], /Unable to start simi lsp/);
   assert.match(app.errors[0], /simi\.languageServer\.path/);
   assert.ok(app.commands.has("simi.restartLanguageServer"));
   assert.equal(app.context.subscriptions.length, 2);
@@ -156,11 +157,12 @@ test("configuration restart failures are handled and leave restart command usabl
   const app = harness([{}, { startError: "permission denied" }, {}]);
   await app.activate(app.context);
 
-  app.configure("/configured/simi-lsp");
+  app.configure("/configured/simi");
   await app.fireConfigurationChange();
 
   assert.equal(app.clients[0].stops, 1);
-  assert.equal(app.clients[1].serverOptions.command, "/configured/simi-lsp");
+  assert.equal(app.clients[1].serverOptions.command, "/configured/simi");
+  assert.deepEqual(app.clients[1].serverOptions.args, ["lsp"]);
   assert.match(app.errors.at(-1), /permission denied/);
 
   await app.commands.get("simi.restartLanguageServer")();
@@ -206,7 +208,7 @@ test("deactivation during delayed startup disposes a client whose stop fails", a
   assert.equal(app.clients[0].stops, 1);
   assert.equal(app.clients[0].disposals, 1);
   assert.equal(app.watchers[0].disposed, true);
-  assert.match(app.errors.at(-1), /Unable to stop simi-lsp/);
+  assert.match(app.errors.at(-1), /Unable to stop simi lsp/);
 
   await app.activate(app.context);
   assert.equal(app.clients.length, 2);
@@ -230,8 +232,8 @@ test("cleanup failures are reported without rejecting deactivation", async () =>
 
   assert.equal(app.clients[0].disposals, 1);
   assert.equal(app.watchers[0].disposed, true);
-  assert.match(app.errors[0], /Unable to dispose simi-lsp/);
-  assert.match(app.errors[1], /Unable to stop simi-lsp/);
+  assert.match(app.errors[0], /Unable to dispose simi lsp/);
+  assert.match(app.errors[1], /Unable to stop simi lsp/);
 });
 
 test("stop failure is reported, cleaned, and does not launch a competing client", async () => {
@@ -243,6 +245,6 @@ test("stop failure is reported, cleaned, and does not launch a competing client"
   assert.equal(app.clients.length, 1);
   assert.equal(app.watchers[0].disposed, true);
   assert.equal(app.clients[0].disposals, 1);
-  assert.match(app.errors.at(-1), /Unable to stop simi-lsp/);
+  assert.match(app.errors.at(-1), /Unable to stop simi lsp/);
   await app.deactivate();
 });
