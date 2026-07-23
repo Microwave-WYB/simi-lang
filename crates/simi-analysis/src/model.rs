@@ -261,10 +261,15 @@ impl Resolution {
         name: &str,
     ) -> Option<SymbolId> {
         let scope_data = &self.hir.scopes[scope];
-        let preceding = scope_data.symbols.iter().copied().rev().find(|id| {
+        let preceding_user = scope_data.symbols.iter().copied().find(|id| {
             let symbol = &self.hir.symbols[*id];
-            symbol.name == name && symbol.activation <= offset
+            symbol.name == name && symbol.activation <= offset && symbol.declaration.is_some()
         });
+        let preceding_builtin = scope_data.symbols.iter().copied().find(|id| {
+            let symbol = &self.hir.symbols[*id];
+            symbol.name == name && symbol.activation <= offset && symbol.builtin
+        });
+        let preceding = preceding_user.or(preceding_builtin);
         // Closures capture shared outer frames, so a declaration installed later in an
         // outer function can still be the lexical target when the closure is invoked. A
         // user declaration also replaces the prelude binding in that shared frame.

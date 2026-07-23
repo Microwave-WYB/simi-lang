@@ -14,5 +14,6 @@ gc_derive = "0.5"
 simi-syntax = { path = "crates/simi-syntax" }
 
 [workspace]
-members = [".", "crates/simi-analysis", "crates/simi-syntax", "crates/simi-xtask"]
+members = [".", "crates/simi-analysis", "crates/simi-lsp", "crates/simi-syntax", "crates/simi-xtask"]
+default-members = [".", "crates/simi-lsp"]
 resolver = "3"

@@ -104,6 +104,39 @@ fn closures_resolve_and_expose_bindings_declared_later_in_captured_frames() {
 }
 
 #[test]
+fn duplicate_later_bindings_are_diagnosed_and_closures_keep_the_first_runtime_binding() {
+    let source = "let closure = fn() do later end let later = 1 let later = 2";
+    let db = AnalysisDatabase::default();
+    let file = db.add_file(source);
+    let resolution = resolve(&db, file);
+    let laters = resolution
+        .hir
+        .symbols
+        .iter()
+        .filter_map(|(id, symbol)| (symbol.name == "later").then_some(id))
+        .collect::<Vec<_>>();
+
+    assert_eq!(laters.len(), 2);
+    assert_eq!(resolution.references(laters[0]).len(), 1);
+    assert!(resolution.references(laters[1]).is_empty());
+    assert_eq!(
+        resolution.symbol_at(source.find("later end").unwrap()),
+        Some(laters[0])
+    );
+    let diagnostics = diagnostics(&db, file);
+    assert_eq!(diagnostics.len(), 1);
+    assert!(
+        diagnostics[0]
+            .message
+            .contains("already defined in this scope")
+    );
+    assert_eq!(
+        diagnostics[0].span,
+        resolution.hir.symbols[laters[1]].declaration.unwrap()
+    );
+}
+
+#[test]
 fn later_outer_bindings_hide_prelude_symbols_inside_closures() {
     let source = "let closure = fn() do type(nil) end let type = fn(value) do value end";
     let db = AnalysisDatabase::default();
@@ -158,7 +191,7 @@ end
 }
 
 #[test]
-fn repeated_bindings_resolve_to_latest_preceding_declaration() {
+fn repeated_bindings_are_diagnosed_and_keep_the_first_runtime_declaration() {
     let source = "let value = 1 let value = 2 value";
     let db = AnalysisDatabase::default();
     let file = db.add_file(source);
@@ -170,8 +203,9 @@ fn repeated_bindings_resolve_to_latest_preceding_declaration() {
         .filter_map(|(id, symbol)| (symbol.name == "value").then_some(id))
         .collect::<Vec<_>>();
     assert_eq!(symbols.len(), 2);
-    assert!(resolution.references(symbols[0]).is_empty());
-    assert_eq!(resolution.references(symbols[1]).len(), 1);
+    assert_eq!(resolution.references(symbols[0]).len(), 1);
+    assert!(resolution.references(symbols[1]).is_empty());
+    assert_eq!(diagnostics(&db, file).len(), 1);
 }
 
 #[test]

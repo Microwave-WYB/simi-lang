@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use salsa::Setter;
@@ -69,16 +70,41 @@ pub fn resolve(db: &dyn salsa::Database, file: FileId) -> Arc<Resolution> {
 
 #[salsa::tracked(returns(clone))]
 pub fn diagnostics(db: &dyn salsa::Database, file: FileId) -> Arc<Vec<AnalysisDiagnostic>> {
-    Arc::new(
-        parse(db, file)
-            .diagnostics
-            .iter()
-            .map(|diagnostic| AnalysisDiagnostic {
-                span: diagnostic.span,
-                message: diagnostic.message.clone(),
-            })
-            .collect(),
-    )
+    let parsed = parse(db, file);
+    let mut diagnostics = parsed
+        .diagnostics
+        .iter()
+        .map(|diagnostic| AnalysisDiagnostic {
+            span: diagnostic.span,
+            message: diagnostic.message.clone(),
+        })
+        .collect::<Vec<_>>();
+    // Recovered HIR can contain incomplete declarations, so resolver diagnostics are
+    // emitted only after syntax succeeds. Sequential declarations in one runtime frame
+    // are a guaranteed hard error; prelude symbols are intentionally shadowable.
+    if diagnostics.is_empty() {
+        let resolution = resolve(db, file);
+        for (_, scope) in resolution.hir.scopes.iter() {
+            let mut declarations = BTreeMap::<&str, Span>::new();
+            for symbol in scope.symbols.iter().map(|id| &resolution.hir.symbols[*id]) {
+                let Some(span) = symbol.declaration else {
+                    continue;
+                };
+                if let Some(previous) = declarations.get(symbol.name.as_str()) {
+                    diagnostics.push(AnalysisDiagnostic {
+                        span,
+                        message: format!(
+                            "name `{}` is already defined in this scope (first defined at byte {})",
+                            symbol.name, previous.start
+                        ),
+                    });
+                } else {
+                    declarations.insert(&symbol.name, span);
+                }
+            }
+        }
+    }
+    Arc::new(diagnostics)
 }
 
 #[salsa::tracked(returns(clone))]
