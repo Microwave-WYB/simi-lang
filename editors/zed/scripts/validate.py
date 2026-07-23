@@ -44,6 +44,7 @@ ALLOWED_CAPTURES = {
 }
 CAPTURE = re.compile(r"@([A-Za-z0-9_.-]+)")
 REVISION = re.compile(r"[0-9a-f]{40}(?:[0-9a-f]{24})?")
+SERVER_ID = "simi-lsp"
 
 
 def check(condition: bool, message: str) -> None:
@@ -62,6 +63,26 @@ def check_source_extension() -> None:
     check(manifest["name"] == "Simi", "extension name must be Simi")
     check(manifest["schema_version"] == 1, "unsupported extension schema")
     check("grammars" not in manifest, "source manifest must remain machine-independent")
+    language_server = manifest.get("language_servers", {}).get(SERVER_ID)
+    check(language_server is not None, "source manifest must declare simi-lsp")
+    check(language_server.get("name") == "Simi Language Server", "invalid server name")
+    check(language_server.get("languages") == ["Simi"], "simi-lsp must serve Simi")
+    check("capabilities" not in manifest, "PATH-only language server needs no process capability")
+
+    cargo = load_toml(COMPONENT / "Cargo.toml")
+    check(cargo["lib"]["crate-type"] == ["cdylib"], "Zed extension must be a cdylib")
+    check(
+        cargo["dependencies"].get("zed_extension_api") == "=0.7.0",
+        "Zed extension API must pin published version 0.7.0",
+    )
+    rust_source = (COMPONENT / "src" / "lib.rs").read_text(encoding="utf-8")
+    check('worktree.which("simi-lsp")' in rust_source, "server must resolve from worktree PATH")
+    check("worktree.shell_env()" in rust_source, "server must inherit worktree shell environment")
+    check("target/debug" not in rust_source, "extension must not assume a Cargo target path")
+    check(
+        "simi-lsp was not found on the worktree PATH" in rust_source,
+        "missing-server diagnostic must explain PATH lookup",
+    )
 
     language = COMPONENT / "languages" / "simi"
     for relative in LANGUAGE_FILES:
@@ -123,6 +144,18 @@ def check_generated_extension(extension: Path) -> Path:
     check(parsed.scheme in {"file", "https"}, "grammar URL must use file or https")
     check(parsed.username is None and parsed.password is None, "grammar URL contains credentials")
     check((extension / "languages" / "simi" / "config.toml").is_file(), "language not copied")
+    check((extension / "Cargo.toml").is_file(), "extension Cargo.toml not copied")
+    check((extension / "src" / "lib.rs").is_file(), "extension Rust source not copied")
+    server = manifest.get("language_servers", {}).get(SERVER_ID)
+    check(server is not None, "generated manifest has no simi-lsp declaration")
+    check(server.get("languages") == ["Simi"], "generated simi-lsp language mismatch")
+
+    if parsed.scheme == "https":
+        extension_repository = urlparse(manifest.get("repository", ""))
+        check(
+            extension_repository.scheme == "https" and bool(extension_repository.netloc),
+            "publishable extension repository must be top-level https",
+        )
 
     if parsed.scheme == "file":
         grammar_path = Path(parsed.path)

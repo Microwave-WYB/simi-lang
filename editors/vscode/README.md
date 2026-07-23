@@ -1,19 +1,36 @@
 # Simi Language Support for VS Code
 
-Local Visual Studio Code language support for Simi, including:
+Visual Studio Code language support for Simi, including:
 
 - `.simi` file association;
-- TextMate-based syntax highlighting for the current language syntax;
+- `simi-lsp` diagnostics, symbols, navigation, references, rename, hover, and completion;
+- TextMate-based syntax highlighting that remains available when the server is absent;
 - `--` line comments;
 - bracket matching, auto-closing, and surrounding pairs;
 - indentation rules for standalone `do` blocks and one-final-`end` repeated `of`/`catch` branches;
 - indentation-based folding plus `-- region` / `-- endregion` folding markers.
 
-This extension is declarative and has no activation-time JavaScript.
+The extension is a workspace extension. It launches an external `simi-lsp`; no platform-specific server binary is bundled in the VSIX.
+
+## Language server
+
+The executable is resolved in this strict order:
+
+1. the `simi.languageServer.path` VS Code setting;
+2. the `SIMI_LSP_PATH` environment variable;
+3. `simi-lsp` on the extension host's `PATH`.
+
+For development from this repository, install the server into a directory already on `PATH`:
+
+```sh
+cargo install --path crates/simi-lsp
+```
+
+Building `target/debug/simi-lsp` alone does not place it on `PATH`. Use **Simi: Restart Language Server** after changing the configured executable.
 
 ## Local installation
 
-Requirements: Node.js/npm, Visual Studio Code's `code` command, and optionally [`just`](https://just.systems/).
+Requirements: Node.js/npm, Visual Studio Code's `code` command, an installed `simi-lsp`, and optionally [`just`](https://just.systems/).
 
 From this directory:
 

@@ -1,0 +1,15 @@
+[package]
+name = "zed-simi"
+version = "0.0.1"
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+path = "src/lib.rs"
+
+[dependencies]
+zed_extension_api = "=0.7.0"
+
+[workspace]
+resolver = "2"

@@ -1,10 +1,11 @@
 {
   "name": "simi-language",
   "displayName": "Simi Language Support",
-  "description": "Syntax highlighting and editing support for the Simi scripting language.",
+  "description": "Syntax highlighting and language-server support for the Simi scripting language.",
   "version": "0.1.0",
   "publisher": "simi",
   "license": "UNLICENSED",
+  "main": "./src/extension.js",
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -14,10 +15,13 @@
   "keywords": [
     "simi",
     "language",
-    "syntax-highlighting"
+    "syntax-highlighting",
+    "language-server"
+  ],
+  "activationEvents": [
+    "onLanguage:simi"
   ],
   "extensionKind": [
-    "ui",
     "workspace"
   ],
   "contributes": {
@@ -40,6 +44,23 @@
         "scopeName": "source.simi",
         "path": "./syntaxes/simi.tmLanguage.json"
       }
+    ],
+    "configuration": {
+      "title": "Simi",
+      "properties": {
+        "simi.languageServer.path": {
+          "type": "string",
+          "default": "",
+          "scope": "machine-overridable",
+          "description": "Path to the simi-lsp executable. When empty, SIMI_LSP_PATH and then simi-lsp on PATH are used."
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "simi.restartLanguageServer",
+        "title": "Simi: Restart Language Server"
+      }
     ]
   },
   "scripts": {
@@ -47,6 +68,9 @@
     "prepackage": "npm test",
     "package": "vsce package",
     "publish": "vsce publish"
+  },
+  "dependencies": {
+    "vscode-languageclient": "9.0.1"
   },
   "devDependencies": {
     "@vscode/vsce": "3.9.2",

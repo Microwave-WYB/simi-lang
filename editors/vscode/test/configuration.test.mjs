@@ -19,6 +19,19 @@ test("extension manifest associates .simi files with the TextMate grammar", asyn
   assert.ok(grammar, "simi grammar contribution should exist");
   assert.equal(grammar.scopeName, "source.simi");
   assert.equal(grammar.path, "./syntaxes/simi.tmLanguage.json");
+  assert.equal(manifest.main, "./src/extension.js");
+  assert.deepEqual(manifest.activationEvents, ["onLanguage:simi"]);
+  assert.deepEqual(manifest.extensionKind, ["workspace"]);
+  assert.equal(
+    manifest.contributes.configuration.properties["simi.languageServer.path"].scope,
+    "machine-overridable",
+  );
+  assert.ok(
+    manifest.contributes.commands.some(
+      ({ command }) => command === "simi.restartLanguageServer",
+    ),
+  );
+  assert.equal(manifest.dependencies["vscode-languageclient"], "9.0.1");
   assert.equal(manifest.scripts.prepackage, "npm test");
   assert.equal(manifest.scripts.package, "vsce package");
   assert.equal(manifest.scripts.publish, "vsce publish");

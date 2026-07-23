@@ -1,6 +1,16 @@
 # Simi for Zed
 
-A basic local [Zed language extension](https://zed.dev/docs/extensions/languages) for `.simi` files. It provides syntax highlighting, bracket matching, indentation, a function outline, and Vim function/comment text objects. It intentionally has no language server.
+A local [Zed language extension](https://zed.dev/docs/extensions/languages) for `.simi` files. It provides `simi-lsp` integration plus syntax highlighting, bracket matching, indentation, a function outline, and Vim function/comment text objects. Tree-sitter editing features remain available when the language server is absent.
+
+## Language server
+
+The Rust/WASM extension resolves `simi-lsp` with `worktree.which("simi-lsp")` and passes the worktree shell environment to the server. Install the binary into a directory visible on the worktree `PATH`, for example from the repository root:
+
+```sh
+cargo install --path crates/simi-lsp
+```
+
+A binary at `target/debug/simi-lsp` is not discovered automatically. If lookup fails, Zed reports that `simi-lsp` was not found on the worktree `PATH`; adjust the environment used to launch Zed or your worktree environment and reload the extension.
 
 ## Why the checked-in manifest has no grammar URL
 
@@ -9,7 +19,8 @@ Zed requires every grammar entry to name a Git repository and an exact revision.
 1. copy `../tree-sitter` to `.local/tree-sitter-simi`;
 2. initialize that copy as a grammar-root Git repository;
 3. commit the snapshot with a tool-local, non-credential identity; and
-4. generate `.local/extension/extension.toml` with the repository's absolute `file://` URL and exact `rev`.
+4. copy the extension's pinned Cargo manifest and Rust source; and
+5. generate `.local/extension/extension.toml` with the repository's absolute `file://` URL and exact `rev`.
 
 No token, username, SSH URL, or developer Git identity is read or embedded.
 
@@ -18,6 +29,7 @@ No token, username, SSH URL, or developer Git identity is read or embedded.
 Prerequisites:
 
 - Zed;
+- Rust installed through `rustup` (required by Zed for Rust/WASM dev extensions);
 - Git;
 - Python 3.11 or newer;
 - [`just`](https://just.systems/);

@@ -16,4 +16,5 @@ simi-syntax = { path = "crates/simi-syntax" }
 [workspace]
 members = [".", "crates/simi-analysis", "crates/simi-lsp", "crates/simi-syntax", "crates/simi-xtask"]
 default-members = [".", "crates/simi-lsp"]
+exclude = ["editors/zed"]
 resolver = "3"

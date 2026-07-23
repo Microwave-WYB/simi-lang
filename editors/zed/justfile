@@ -2,6 +2,7 @@ set shell := ["bash", "-euo", "pipefail", "-c"]
 
 component := source_directory()
 local_dir := component / ".local"
+cargo_target_dir := local_dir / "cargo-target"
 
 # List component recipes.
 default:
@@ -9,54 +10,60 @@ default:
 
 # Check that local tooling required by this component is available.
 install:
-    command -v git python3 tree-sitter >/dev/null
+    command -v cargo git python3 rustc tree-sitter >/dev/null
 
-# Check portable metadata, configuration, and query capture names.
+# Check portable metadata, configuration, query captures, and the published Zed API.
 check:
-    python3 "{{component}}/scripts/validate.py"
+    python3 "{{ component }}/scripts/validate.py"
+    CARGO_TARGET_DIR="{{ cargo_target_dir }}" cargo check --manifest-path "{{ component }}/Cargo.toml"
+    if command -v rustup >/dev/null && rustup target list --installed | grep -qx wasm32-wasip1; then \
+        CARGO_TARGET_DIR="{{ cargo_target_dir }}" cargo check \
+            --manifest-path "{{ component }}/Cargo.toml" --target wasm32-wasip1; \
+    else \
+        echo "SKIP: wasm32-wasip1 target is not installed; host API check passed"; \
+    fi
 
 # Snapshot the shared grammar into a local Git repository and generate an extension.
 setup-local grammar_source=(component / "../tree-sitter"):
-    python3 "{{component}}/scripts/prepare_extension.py" local \
-        --grammar-source "{{grammar_source}}" \
-        --output "{{local_dir}}"
+    python3 "{{ component }}/scripts/prepare_extension.py" local \
+        --grammar-source "{{ grammar_source }}" \
+        --output "{{ local_dir }}"
 
 # Generate the local development extension and grammar snapshot.
 generate grammar_source=(component / "../tree-sitter"): (setup-local grammar_source)
 
 # Validate against the generated parser and compile every query.
 test-local grammar_source=(component / "../tree-sitter"): (setup-local grammar_source)
-    python3 "{{component}}/scripts/validate.py" \
-        --extension "{{local_dir}}/extension" \
+    python3 "{{ component }}/scripts/validate.py" \
+        --extension "{{ local_dir }}/extension" \
         --tree-sitter
 
 # Run static checks, and grammar-backed checks when the sibling grammar is present.
-test grammar_source=(component / "../tree-sitter"):
-    python3 "{{component}}/scripts/validate.py"
-    if [[ -f "{{grammar_source}}/grammar.js" && -f "{{grammar_source}}/src/parser.c" ]]; then \
-        just --justfile "{{component}}/justfile" test-local "{{grammar_source}}"; \
+test grammar_source=(component / "../tree-sitter"): check
+    if [[ -f "{{ grammar_source }}/grammar.js" && -f "{{ grammar_source }}/src/parser.c" ]]; then \
+        just --justfile "{{ component }}/justfile" test-local "{{ grammar_source }}"; \
     else \
-        echo "SKIP: grammar-backed checks require {{grammar_source}}/grammar.js and src/parser.c"; \
+        echo "SKIP: grammar-backed checks require {{ grammar_source }}/grammar.js and src/parser.c"; \
     fi
 
 # Package the validated local development extension without publishing it.
-package grammar_source=(component / "../tree-sitter"): (test-local grammar_source)
-    tar -C "{{local_dir}}/extension" -czf "{{local_dir}}/simi-zed-dev-extension.tar.gz" .
+package grammar_source=(component / "../tree-sitter"): check (test-local grammar_source)
+    tar -C "{{ local_dir }}/extension" -czf "{{ local_dir }}/simi-zed-dev-extension.tar.gz" .
 
 # Build a clean extension directory for a future public grammar-root revision.
-prepare-publish grammar_repository grammar_rev extension_repository:
-    python3 "{{component}}/scripts/prepare_extension.py" publish \
-        --grammar-repository "{{grammar_repository}}" \
-        --grammar-commit "{{grammar_rev}}" \
-        --extension-repository "{{extension_repository}}" \
-        --output "{{local_dir}}/publish"
-    python3 "{{component}}/scripts/validate.py" --extension "{{local_dir}}/publish"
+prepare-publish grammar_repository grammar_rev extension_repository: check
+    python3 "{{ component }}/scripts/prepare_extension.py" publish \
+        --grammar-repository "{{ grammar_repository }}" \
+        --grammar-commit "{{ grammar_rev }}" \
+        --extension-repository "{{ extension_repository }}" \
+        --output "{{ local_dir }}/publish"
+    python3 "{{ component }}/scripts/validate.py" --extension "{{ local_dir }}/publish"
     @echo "Before publishing, add an accepted license and complete Zed's manual review checklist."
 
 # Prepare the exact immutable extension payload used for a manual Zed registry submission.
 publish grammar_repository grammar_rev extension_repository: (prepare-publish grammar_repository grammar_rev extension_repository)
-    @echo "Prepared {{local_dir}}/publish; submit it through the Zed extensions registry workflow."
+    @echo "Prepared {{ local_dir }}/publish; submit it through the Zed extensions registry workflow."
 
 # Remove generated local grammar and extension directories.
 clean:
-    rm -rf "{{local_dir}}"
+    rm -rf "{{ local_dir }}"

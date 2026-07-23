@@ -14,6 +14,7 @@ from urllib.parse import urlparse
 COMPONENT = Path(__file__).resolve().parents[1]
 BASE_MANIFEST = COMPONENT / "extension.toml"
 LANGUAGES = COMPONENT / "languages"
+RUST_SOURCE = COMPONENT / "src"
 HEX_REVISION = re.compile(r"[0-9a-fA-F]{40}(?:[0-9a-fA-F]{24})?")
 
 
@@ -94,10 +95,22 @@ def write_extension(
         shutil.rmtree(destination)
     destination.mkdir(parents=True)
     shutil.copytree(LANGUAGES, destination / "languages")
+    shutil.copytree(RUST_SOURCE, destination / "src")
+    shutil.copy2(COMPONENT / "Cargo.toml", destination / "Cargo.toml")
+    cargo_lock = COMPONENT / "Cargo.lock"
+    if cargo_lock.is_file():
+        shutil.copy2(cargo_lock, destination / "Cargo.lock")
 
     manifest = BASE_MANIFEST.read_text(encoding="utf-8").rstrip() + "\n"
     if extension_repository is not None:
-        manifest += f'repository = "{extension_repository}"\n'
+        first_table = manifest.find("\n[")
+        if first_table < 0:
+            first_table = len(manifest)
+        manifest = (
+            manifest[:first_table]
+            + f'\nrepository = "{extension_repository}"\n'
+            + manifest[first_table:]
+        )
     manifest += (
         "\n[grammars.simi]\n"
         f'repository = "{grammar_repository}"\n'
