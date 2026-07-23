@@ -253,6 +253,10 @@
           "match": "->|\\|(?!>)"
         },
         {
+          "name": "keyword.operator.concatenation.simi",
+          "match": "<>"
+        },
+        {
           "name": "keyword.operator.comparison.simi",
           "match": "==|!=|<=|>=|<|>"
         },
