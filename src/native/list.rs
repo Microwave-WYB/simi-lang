@@ -13,6 +13,13 @@ pub fn list_length(args: &[Value], span: Span) -> NativeResult {
     Ok(Ok(Value::Int(length)))
 }
 
+pub fn list_iter(args: &[Value], span: Span) -> NativeResult {
+    expect_arity(args, 1, "iter", span)?;
+    let list = expect_list(&args[0], "iter", span)?;
+    let values = list.try_borrow().map_err(|_| borrow_error("iter", span))?;
+    Ok(Ok(Value::List(values.shallow_copy().into_shared())))
+}
+
 pub fn list_copy(args: &[Value], span: Span) -> NativeResult {
     expect_arity(args, 1, "copy", span)?;
     let list = expect_list(&args[0], "copy", span)?;

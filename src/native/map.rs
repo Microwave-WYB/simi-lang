@@ -58,6 +58,23 @@ pub fn map_entries(args: &[Value], span: Span) -> NativeResult {
     Ok(Ok(Value::List(List::shared(pairs))))
 }
 
+pub fn map_iter(args: &[Value], span: Span) -> NativeResult {
+    expect_arity(args, 1, "iter", span)?;
+    let map = expect_map(&args[0], "iter", span)?;
+    let entries = map.try_borrow().map_err(|_| borrow_error("iter", span))?;
+    let values = entries
+        .iter()
+        .map(|(key, value)| {
+            let ordered = vec![
+                (MapKey::String("key".into()), key_to_value(key)),
+                (MapKey::String("value".into()), value.clone()),
+            ];
+            Value::Map(Gc::new(GcCell::new(ordered)))
+        })
+        .collect();
+    Ok(Ok(Value::List(List::shared(values))))
+}
+
 pub fn map_clear(args: &[Value], span: Span) -> NativeResult {
     expect_arity(args, 1, "clear", span)?;
     let map = expect_map(&args[0], "clear", span)?;

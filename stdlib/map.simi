@@ -9,16 +9,21 @@ fn copy(entries: { .. }) -> { .. } do host.call("org.simi-lang/std/map/copy", en
 --- Return whether a map contains a key.
 fn has(entries: { .. }, key: string | integer | float | boolean) -> boolean do host.call("org.simi-lang/std/map/has", entries, key) end
 
---- Return the keys in insertion order.
-fn keys(entries: { .. }) -> [..string | integer | float | boolean] do host.call("org.simi-lang/std/map/keys", entries) end
-
---- Return the values in insertion order.
-fn values(entries: { .. }) -> [..any] do host.call("org.simi-lang/std/map/values", entries) end
-
---- Return key and value pairs in insertion order.
-fn entries(entries: { .. }) -> [..[string | integer | float | boolean, any]] do host.call("org.simi-lang/std/map/entries", entries) end
+--- Create an insertion-ordered iterator over map entries.
+fn iter(entries: { .. }) do
+    let snapshot = host.call("org.simi-lang/std/map/iter", entries)
+    let index = 0
+    fn() do
+        if index >= host.call("org.simi-lang/std/iter/length", snapshot) then { done = true }
+        else
+            let value = snapshot[index]
+            index = index + 1
+            { done = false, value = value }
+        end
+    end
+end
 
 --- Remove every entry from a map.
 fn clear(entries: { .. }) -> nil do host.call("org.simi-lang/std/map/clear", entries) end
 
-{ length = length, copy = copy, has = has, keys = keys, values = values, entries = entries, clear = clear }
+{ length = length, copy = copy, has = has, iter = iter, clear = clear }

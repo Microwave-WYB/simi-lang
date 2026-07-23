@@ -3600,11 +3600,12 @@ fn known_module_argument_is_pure(module: &str, field: &str, index: usize) -> boo
         "std/list" => {
             matches!(
                 field,
-                "length" | "copy" | "get" | "slice" | "contains" | "append"
+                "length" | "copy" | "get" | "slice" | "contains" | "append" | "iter"
             ) || (field != "fold" && index != 0)
         }
         "std/map" => index != 0 || field != "clear",
-        "std/number" | "std/string" | "std/io/stdin" | "std/io/stdout" | "std/io/stderr" => true,
+        "std/iter" | "std/number" | "std/string" | "std/io/stdin" | "std/io/stdout"
+        | "std/io/stderr" => true,
         _ => false,
     }
 }

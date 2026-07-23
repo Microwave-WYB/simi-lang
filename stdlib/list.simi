@@ -44,32 +44,20 @@ fn contains(xs: [..'a], x: 'a) -> boolean do host.call("org.simi-lang/std/list/c
 --- Reverse a list in place.
 fn reverse(xs: [..'a]) -> nil do host.call("org.simi-lang/std/list/reverse", xs) end
 
---- Transform every value in a snapshot of a list.
-fn map(xs: [..'a], transform: 'a -> 'b) -> [..'b] do host.call("org.simi-lang/std/list/map", xs, transform) end
-
---- Keep values for which a predicate returns true.
-fn filter(xs: [..'a], predicate: 'a -> boolean) -> [..'a] do host.call("org.simi-lang/std/list/filter", xs, predicate) end
-
---- Fold a list from left to right.
-fn fold(xs: [..'a], initial: 'b, reducer: ('b, 'a) -> 'b) -> 'b do host.call("org.simi-lang/std/list/fold", xs, initial, reducer) end
-
---- Return the first value matching a predicate.
-fn find(xs: [..'a], predicate: 'a -> boolean) -> 'a | nil do host.call("org.simi-lang/std/list/find", xs, predicate) end
-
---- Return the index of the first value matching a predicate.
-fn find_index(xs: [..'a], predicate: 'a -> boolean) -> integer | nil do host.call("org.simi-lang/std/list/find_index", xs, predicate) end
-
---- Return whether any value matches a predicate.
-fn any(xs: [..'a], predicate: 'a -> boolean) -> boolean do host.call("org.simi-lang/std/list/any", xs, predicate) end
-
---- Return whether every value matches a predicate.
-fn all(xs: [..'a], predicate: 'a -> boolean) -> boolean do host.call("org.simi-lang/std/list/all", xs, predicate) end
-
---- Visit each value and return the original list.
-fn each(xs: [..'a], callback: 'a -> any) -> [..'a] do host.call("org.simi-lang/std/list/each", xs, callback) end
-
---- Count values matching a predicate.
-fn count(xs: [..'a], predicate: 'a -> boolean) -> integer do host.call("org.simi-lang/std/list/count", xs, predicate) end
+--- Create a lazy iterator over an O(1) copy-on-write snapshot.
+fn iter(xs: [..'a]) do
+    let snapshot = host.call("org.simi-lang/std/list/iter", xs)
+    let length = host.call("org.simi-lang/std/list/length", snapshot)
+    let index = 0
+    fn() do
+        if index >= length then { done = true }
+        else
+            let value = snapshot[index]
+            index = index + 1
+            { done = false, value = value }
+        end
+    end
+end
 
 {
     length = length,
@@ -84,13 +72,5 @@ fn count(xs: [..'a], predicate: 'a -> boolean) -> integer do host.call("org.simi
     slice = slice,
     contains = contains,
     reverse = reverse,
-    map = map,
-    filter = filter,
-    fold = fold,
-    find = find,
-    find_index = find_index,
-    any = any,
-    all = all,
-    each = each,
-    count = count,
+    iter = iter,
 }

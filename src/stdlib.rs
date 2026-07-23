@@ -1,9 +1,8 @@
 use crate::Module;
-use crate::module::HostOperation;
 use crate::native::{
-    list_append, list_contains, list_copy, list_extend, list_get, list_insert, list_length,
-    list_pop, list_remove, list_reverse, list_set, list_slice, map_clear, map_copy, map_entries,
-    map_has, map_keys, map_length, map_values, number_from_string, number_to_string, stderr_flush,
+    list_append, list_contains, list_copy, list_extend, list_get, list_insert, list_iter,
+    list_length, list_pop, list_remove, list_reverse, list_set, list_slice, map_clear, map_copy,
+    map_has, map_iter, map_length, number_from_string, number_to_string, stderr_flush,
     stderr_print, stderr_println, stdin_read_line, stdout_flush, stdout_print, stdout_println,
     string_contains, string_ends_with, string_length, string_lower, string_slice, string_split,
     string_starts_with, string_trim, string_upper,
@@ -12,6 +11,7 @@ use crate::native::{
 pub fn list() -> Module {
     Module::source("std/list", include_str!("../stdlib/list.simi"))
         .host_function("org.simi-lang/std/list/length", 1, list_length)
+        .host_function("org.simi-lang/std/list/iter", 1, list_iter)
         .host_function("org.simi-lang/std/list/copy", 1, list_copy)
         .host_function("org.simi-lang/std/list/get", 2, list_get)
         .host_function("org.simi-lang/std/list/append", 2, list_append)
@@ -23,18 +23,13 @@ pub fn list() -> Module {
         .host_function("org.simi-lang/std/list/slice", 3, list_slice)
         .host_function("org.simi-lang/std/list/contains", 2, list_contains)
         .host_function("org.simi-lang/std/list/reverse", 1, list_reverse)
-        .host_intrinsic("org.simi-lang/std/list/map", HostOperation::ListMap)
-        .host_intrinsic("org.simi-lang/std/list/filter", HostOperation::ListFilter)
-        .host_intrinsic("org.simi-lang/std/list/fold", HostOperation::ListFold)
-        .host_intrinsic("org.simi-lang/std/list/find", HostOperation::ListFind)
-        .host_intrinsic(
-            "org.simi-lang/std/list/find_index",
-            HostOperation::ListFindIndex,
-        )
-        .host_intrinsic("org.simi-lang/std/list/any", HostOperation::ListAny)
-        .host_intrinsic("org.simi-lang/std/list/all", HostOperation::ListAll)
-        .host_intrinsic("org.simi-lang/std/list/each", HostOperation::ListEach)
-        .host_intrinsic("org.simi-lang/std/list/count", HostOperation::ListCount)
+        .build()
+}
+
+pub fn iter() -> Module {
+    Module::source("std/iter", include_str!("../stdlib/iter.simi"))
+        .host_function("org.simi-lang/std/iter/append", 2, list_append)
+        .host_function("org.simi-lang/std/iter/length", 1, list_length)
         .build()
 }
 
@@ -94,9 +89,8 @@ pub fn map() -> Module {
         .host_function("org.simi-lang/std/map/length", 1, map_length)
         .host_function("org.simi-lang/std/map/copy", 1, map_copy)
         .host_function("org.simi-lang/std/map/has", 2, map_has)
-        .host_function("org.simi-lang/std/map/keys", 1, map_keys)
-        .host_function("org.simi-lang/std/map/values", 1, map_values)
-        .host_function("org.simi-lang/std/map/entries", 1, map_entries)
+        .host_function("org.simi-lang/std/map/iter", 1, map_iter)
+        .host_function("org.simi-lang/std/iter/length", 1, list_length)
         .host_function("org.simi-lang/std/map/clear", 1, map_clear)
         .build()
 }

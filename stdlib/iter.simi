@@ -1,0 +1,121 @@
+---- Lazy, single-pass iterator operations.
+
+alias Step = { done: boolean, value: any }
+alias Iterator = () -> Step
+
+fn from(next_fn) do next_fn end
+
+fn next(iterator) do iterator() end
+
+fn map(iterator, transform) do
+    fn() do
+        let step = iterator()
+        if step.done then step else { done = false, value = transform(step.value) } end
+    end
+end
+
+fn filter(iterator, predicate) do
+    fn() do
+        loop do
+            let step = iterator()
+            if step.done then step
+            elseif predicate(step.value) then step
+            else continue
+            end
+        end
+    end
+end
+
+fn to_list(iterator) do
+    let result = []
+    loop do
+        let step = iterator()
+        if step.done then break result
+        else
+            host.call("org.simi-lang/std/iter/append", result, step.value)
+            continue
+        end
+    end
+end
+
+fn fold(iterator, initial, reducer) do
+    let state = initial
+    loop do
+        let step = iterator()
+        if step.done then break state
+        else
+            state = reducer(state, step.value)
+            continue
+        end
+    end
+end
+
+fn find(iterator, predicate) do
+    loop do
+        let step = iterator()
+        if step.done then break nil
+        elseif predicate(step.value) then break step.value
+        else continue
+        end
+    end
+end
+
+fn find_index(iterator, predicate) do
+    let index = 0
+    loop do
+        let step = iterator()
+        if step.done then break nil
+        elseif predicate(step.value) then break index
+        else
+            index = index + 1
+            continue
+        end
+    end
+end
+
+fn contains(iterator, needle) do
+    find(iterator, fn(value) do value == needle end) != nil
+end
+
+fn any(iterator, predicate) do
+    find(iterator, predicate) != nil
+end
+
+fn all(iterator, predicate) do
+    loop do
+        let step = iterator()
+        if step.done then break true
+        elseif predicate(step.value) then continue
+        else break false
+        end
+    end
+end
+
+fn each(iterator, callback) do
+    loop do
+        let step = iterator()
+        if step.done then break nil
+        else
+            callback(step.value)
+            continue
+        end
+    end
+end
+
+fn count(iterator, predicate) do
+    let total = 0
+    loop do
+        let step = iterator()
+        if step.done then break total
+        else
+            if predicate(step.value) then total = total + 1 end
+            continue
+        end
+    end
+end
+
+{
+    from = from, next = next, map = map, filter = filter,
+    to_list = to_list, fold = fold, find = find, find_index = find_index,
+    contains = contains, any = any, all = all, each = each, count = count,
+}

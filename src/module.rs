@@ -15,30 +15,12 @@ pub(crate) enum HostOperation {
         arity: usize,
         callback: Arc<NativeCallback>,
     },
-    ListMap,
-    ListFilter,
-    ListFold,
-    ListFind,
-    ListFindIndex,
-    ListAny,
-    ListAll,
-    ListEach,
-    ListCount,
 }
 
 impl HostOperation {
     pub(crate) fn arity(&self) -> usize {
         match self {
             Self::Callback { arity, .. } => *arity,
-            Self::ListFold => 3,
-            Self::ListMap
-            | Self::ListFilter
-            | Self::ListFind
-            | Self::ListFindIndex
-            | Self::ListAny
-            | Self::ListAll
-            | Self::ListEach
-            | Self::ListCount => 2,
         }
     }
 }
@@ -153,15 +135,6 @@ impl SourceModuleBuilder {
                 callback: Arc::new(callback),
             },
         );
-        self
-    }
-
-    pub(crate) fn host_intrinsic(
-        mut self,
-        id: impl Into<String>,
-        operation: HostOperation,
-    ) -> Self {
-        self.host_operations.insert(id.into(), operation);
         self
     }
 
