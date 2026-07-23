@@ -7,20 +7,20 @@ Simi is a small, embeddable scripting language implemented in Rust. It combines 
 ## A small example
 
 ```elixir
-let list = require("std/list")
 let io = require("std/io")
 
 fn two_sum(numbers, target) do
-    loop remaining = numbers do
-        case remaining
-        of [] do
+    loop state = {seen = {}, numbers = numbers} do
+        case state
+        of {numbers = []} do
             break nil
-        of [first, ..rest] do
-            let second = target - first
-            if list.contains(rest, second) then
-                break {first = first, second = second}
+        of {seen = seen, numbers = [number, ..rest]} do
+            let complement = target - number
+            if seen[complement] != nil then
+                break {first = complement, second = number}
             else
-                rest
+                seen[number] = true
+                {seen = seen, numbers = rest}
             end
         end
     end
