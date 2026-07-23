@@ -13,16 +13,16 @@ let io = require("std/io")
 --- Returns the matching values, or nil when no pair exists.
 fn two_sum(numbers: [..integer], target: integer) -> {first: integer, second: integer} | nil do
     loop state = {seen = {}, numbers = numbers} do
-        case state
-        of {numbers = []} do
+        case state.numbers
+        of [] do
             break nil
-        of {seen = seen, numbers = [number, ..rest]} do
+        of [number, ..rest] do
             let complement = target - number
-            if seen[complement] != nil then
+            if state.seen[complement] != nil then
                 break {first = complement, second = number}
             else
-                seen[number] = true
-                {seen = seen, numbers = rest}
+                state.seen[number] = true
+                {seen = state.seen, numbers = rest}
             end
         end
     end
