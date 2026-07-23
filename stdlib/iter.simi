@@ -18,8 +18,8 @@ fn filter(iterator, predicate) do
     fn() do
         loop do
             let step = iterator()
-            if step.done then step
-            elseif predicate(step.value) then step
+            if step.done then break step
+            elseif predicate(step.value) then break step
             else continue
             end
         end

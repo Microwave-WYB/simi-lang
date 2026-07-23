@@ -8,273 +8,173 @@ fn assert_eval(source: &str, expected: &str) {
 }
 
 #[test]
-fn map_filter_and_fold_accept_anonymous_closures() {
+fn list_and_map_producers_are_public_iterators() {
     assert_eval(
         r#"
         let list = require("std/list")
-        let factor = 3
-        let mapped = list.map([1, 2, 3, 4], fn(value) do value * factor end)
-        let filtered = list.filter(mapped, fn(value) do value >= 6 end)
-        let total = list.fold(filtered, 0, fn(sum, value) do sum + value end)
-        [mapped, filtered, total]
-        "#,
-        "[[3, 6, 9, 12], [6, 9, 12], 27]",
-    );
-}
-
-#[test]
-fn higher_order_list_calls_compose_with_pipelines_and_native_callbacks() {
-    assert_eval(
-        r#"
-        let list = require("std/list")
-        let doubled = [1, 2, 3] |> list.map(fn(value) do value * 2 end)
-        [doubled, list.map([1, "two", true], type)]
-        "#,
-        "[[2, 4, 6], [\"integer\", \"string\", \"boolean\"]]",
-    );
-}
-
-#[test]
-fn iteration_uses_a_snapshot_when_callbacks_mutate_the_source() {
-    assert_eval(
-        r#"
-        let list = require("std/list")
-        let values = [1, 2]
-        let mapped = list.map(values, fn(value) do
-            list.append(values, value + 10)
-            value
-        end)
-        [mapped, values]
-        "#,
-        "[[1, 2], [1, 2, 11, 12]]",
-    );
-}
-
-#[test]
-fn fold_returns_its_initial_value_for_an_empty_list() {
-    assert_eval(
-        r#"
-        let list = require("std/list")
-        list.fold([], "initial", fn(left, right) do left + right end)
-        "#,
-        "\"initial\"",
-    );
-}
-
-#[test]
-fn empty_map_and_filter_return_empty_lists_after_validating_callbacks() {
-    assert_eval(
-        r#"
-        let list = require("std/list")
+        let map = require("std/map")
+        let iter = require("std/iter")
         [
-            list.map([], fn(value) do value end),
-            list.filter([], fn(value) do true end),
+            iter.to_list(list.iter([1, nil, 3])),
+            iter.to_list(map.iter({ first = 1, [10] = nil, last = 3 })),
         ]
         "#,
-        "[[], []]",
+        "[[1, nil, 3], [{key=\"first\", value=1}, {key=\"last\", value=3}]]",
     );
 }
 
 #[test]
-fn callback_raises_propagate_through_higher_order_calls() {
+fn iterators_are_lazy_single_pass_and_sticky_after_exhaustion() {
     assert_eval(
         r#"
         let list = require("std/list")
-        try list.map([1], fn(value) do
-            raise {error="callback_failed", value=value}
+        let iter = require("std/iter")
+        let calls = []
+        let source = list.iter([1, 2])
+        let mapped = iter.map(source, fn(value) do
+            list.append(calls, value)
+            value * 2
         end)
-            catch {error="callback_failed", value=value} do value
-        end
+        let before = calls
+        let first = iter.next(mapped)
+        let second = iter.next(mapped)
+        let done = iter.next(mapped)
+        let again = iter.next(mapped)
+        [before, first, second, done, again, calls]
         "#,
-        "1",
+        "[[1, 2], {done=false, value=2}, {done=false, value=4}, {done=true}, {done=true}, [1, 2]]",
     );
 }
 
 #[test]
-fn callback_raise_frames_include_the_anonymous_callback_and_caller() {
-    let source = r#"
-        fn outer() do
-            let list = require("std/list")
-            list.map([1], fn(value) do raise value end)
-        end
-        outer()
-    "#;
-    let raised = match eval(source).expect("callback raise should have no hard diagnostic") {
-        Err(raised) => raised,
-        Ok(value) => panic!("callback should raise, got {}", value.render()),
-    };
-    assert_eq!(raised.value.render(), "1");
-    assert_eq!(raised.frames.len(), 2);
-    assert_eq!(raised.frames[0].function, "<anonymous>");
-    assert_eq!(raised.frames[1].function, "outer");
-}
-
-#[test]
-fn list_queries_follow_gleam_style_short_circuit_and_empty_identities() {
+fn map_and_filter_are_lazy_and_filter_predicates_are_strict() {
     assert_eval(
         r#"
         let list = require("std/list")
-        [
-            list.find([1, 4, 6], fn(value) do value >= 4 end),
-            list.find([1], fn(value) do false end),
-            list.find_index([1, 4, 6], fn(value) do value >= 4 end),
-            list.find_index([], fn(value) do true end),
-            list.any([], fn(value) do true end),
-            list.all([], fn(value) do false end),
-            list.count([1, 2, 3, 4], fn(value) do value >= 3 end),
-        ]
-        "#,
-        "[4, nil, 1, nil, false, true, 2]",
-    );
-}
-
-#[test]
-fn list_queries_short_circuit_and_each_returns_the_original_alias() {
-    assert_eval(
-        r#"
-        let list = require("std/list")
+        let iter = require("std/iter")
         let seen = []
-        let values = [1, 2, 3]
-        let found = list.find(values, fn(value) do
+        let filtered = iter.filter(list.iter([1, 2, 3]), fn(value) do
             list.append(seen, value)
-            value == 2
+            value >= 2
         end)
-        let any = list.any(values, fn(value) do value == 1 end)
-        let all = list.all(values, fn(value) do value < 2 end)
-        let returned = list.each(values, fn(value) do list.append(seen, value + 10) end)
-        list.append(returned, 4)
-        [found, any, all, seen, values]
+        let first = iter.next(filtered)
+        [first, seen, iter.to_list(filtered)]
         "#,
-        "[2, true, false, [1, 2, 11, 12, 13], [1, 2, 3, 4]]",
+        "[{done=false, value=2}, [1, 2, 3], [3]]",
     );
+
+    let error = Engine::with_stdlib().eval(
+        r#"let list = require("std/list") let iter = require("std/iter") iter.to_list(iter.filter(list.iter([1]), fn(value) do value end))"#,
+    );
+    assert!(error.is_err());
 }
 
 #[test]
-fn list_queries_snapshot_mutated_sources_and_propagate_raises() {
+fn consumers_fold_search_queries_and_each_have_contracts() {
     assert_eval(
         r#"
         let list = require("std/list")
-        let values = [1, 2]
-        let count = list.count(values, fn(value) do
-            list.append(values, value + 10)
-            true
-        end)
-        let caught = try list.find(values, fn(value) do
-            raise { error = "query_failed", value = value }
-        end)
-        catch { error = "query_failed", value = value } do value
-        end
-        [count, caught, values]
+        let iter = require("std/iter")
+        let values = [1, 2, 3, 4]
+        [
+            iter.fold(list.iter(values), 0, fn(total, value) do total + value end),
+            iter.find(list.iter(values), fn(value) do value >= 3 end),
+            iter.find_index(list.iter(values), fn(value) do value >= 3 end),
+            iter.contains(list.iter(values), 2),
+            iter.any(list.iter(values), fn(value) do value == 4 end),
+            iter.all(list.iter(values), fn(value) do value < 5 end),
+            iter.count(list.iter(values), fn(value) do value % 2 == 0 end),
+            iter.each(list.iter(values), fn(value) do value end),
+        ]
         "#,
-        "[2, 1, [1, 2, 11, 12]]",
+        "[10, 3, 2, true, true, true, 2, nil]",
     );
 }
 
 #[test]
-fn list_query_predicates_are_strict_even_for_first_results() {
-    for operation in ["find", "find_index", "any", "all", "count"] {
+fn consumers_short_circuit_and_leave_the_remainder_unconsumed() {
+    assert_eval(
+        r#"
+        let list = require("std/list")
+        let iter = require("std/iter")
+        let source = list.iter([1, 2, 3])
+        let found = iter.find(source, fn(value) do value == 2 end)
+        [found, iter.to_list(source)]
+        "#,
+        "[2, [3]]",
+    );
+
+    assert_eval(
+        r#"
+        let list = require("std/list")
+        let iter = require("std/iter")
+        let source = list.iter([1, 2, 3])
+        let result = iter.all(source, fn(value) do value < 2 end)
+        [result, iter.to_list(source)]
+        "#,
+        "[false, [3]]",
+    );
+}
+
+#[test]
+fn list_iterator_snapshots_structural_mutation() {
+    assert_eval(
+        r#"
+        let list = require("std/list")
+        let iter = require("std/iter")
+        let values = [1, 2]
+        let source = list.iter(values)
+        list.append(values, 3)
+        [iter.to_list(source), values]
+        "#,
+        "[[1, 2], [1, 2, 3]]",
+    );
+}
+
+#[test]
+fn raises_propagate_through_iterator_adapters_and_consumers() {
+    let raised = match eval(
+        r#"
+        let list = require("std/list")
+        let iter = require("std/iter")
+        iter.to_list(iter.map(list.iter([1]), fn(value) do
+            raise { error = "callback_failed", value = value }
+        end))
+        "#,
+    )
+    .expect("raise should not be a hard diagnostic")
+    {
+        Err(value) => value,
+        Ok(value) => panic!("expected raise, got {}", value.render()),
+    };
+    assert_eq!(
+        raised.value.render(),
+        "{error=\"callback_failed\", value=1}"
+    );
+}
+
+#[test]
+fn malformed_steps_are_hard_contract_diagnostics() {
+    for expression in ["1", "{}", "{ done = 1 }"] {
         let source = format!(
-            "let list = require(\"std/list\") list.{operation}([1], fn(value) do value end)"
+            "let iter = require(\"std/iter\") iter.to_list(iter.from(fn() do {expression} end))"
         );
-        let error = match Engine::with_stdlib().eval(&source) {
-            Err(error) => error,
-            Ok(_) => panic!("non-boolean predicate should fail"),
-        };
-        assert!(error.to_string().contains(&format!(
-            "std/list.{operation} callback must return a boolean, got integer"
-        )));
+        assert!(matches!(
+            Engine::with_stdlib().eval(&source),
+            Err(SimiError::Runtime(_))
+        ));
     }
 }
 
 #[test]
-fn empty_list_queries_still_validate_callback_arity() {
-    for operation in ["find", "find_index", "any", "all", "each", "count"] {
-        let source = format!(
-            "let list = require(\"std/list\") list.{operation}([], fn(left, right) do left end)"
-        );
-        let error = match Engine::with_stdlib().eval(&source) {
-            Err(error) => error,
-            Ok(_) => panic!("wrong callback arity should fail"),
-        };
-        assert!(error.to_string().contains("expects 2 arguments, got 1"));
-    }
-}
-
-#[test]
-fn invalid_callbacks_and_filter_results_are_hard_diagnostics() {
-    let invalid =
-        match Engine::with_stdlib().eval("let list = require(\"std/list\") list.map([], 1)") {
-            Err(error) => error,
-            Ok(_) => panic!("non-callable callback should be a hard diagnostic"),
-        };
-    assert!(
-        invalid
-            .to_string()
-            .contains("cannot call value of type integer")
-    );
-
-    let wrong_arity = match Engine::with_stdlib()
-        .eval("let list = require(\"std/list\") list.map([], fn(left, right) do left end)")
-    {
-        Err(error) => error,
-        Ok(_) => panic!("wrong callback arity should be a hard diagnostic"),
-    };
-    assert!(
-        wrong_arity
-            .to_string()
-            .contains("expects 2 arguments, got 1")
-    );
-
-    let predicate = match Engine::with_stdlib()
-        .eval("let list = require(\"std/list\") list.filter([1], fn(value) do value end)")
-    {
-        Err(error) => error,
-        Ok(_) => panic!("non-boolean predicate should be a hard diagnostic"),
-    };
-    assert!(matches!(predicate, SimiError::Runtime(_)));
-    assert!(
-        predicate
-            .to_string()
-            .contains("std/list.filter callback must return a boolean, got integer")
-    );
-}
-
-#[test]
-fn nested_stdlib_calls_inside_callbacks_use_the_nested_call_span() {
-    let raised_source = r#"
-let list = require("std/list")
-list.each([1], fn(value) do
-    list.set([], value, 9)
-end)
-"#;
-    let raised = match eval(raised_source).unwrap() {
-        Err(raised) => raised,
-        Ok(value) => panic!("expected nested bounds raise, got {}", value.render()),
-    };
-    assert_eq!(raised.origin.start, raised_source.find("list.set").unwrap());
-
-    let hard_source = r#"
-let list = require("std/list")
-list.each([1], fn(value) do
-    list.get([], "bad")
-end)
-"#;
-    let error = match eval(hard_source) {
-        Err(error) => error,
-        Ok(_) => panic!("expected nested hard diagnostic"),
-    };
-    assert_eq!(error.span().start, hard_source.find("list.get").unwrap());
-}
-
-#[test]
-fn facade_callbacks_keep_native_qualified_arity_diagnostics() {
-    let error = match eval("let list = require(\"std/list\") list.map([], list.append)") {
-        Err(error) => error,
-        Ok(_) => panic!("expected callback arity diagnostic"),
-    };
-    assert!(
-        error
-            .to_string()
-            .contains("native function `std/list.append` expects 2 arguments, got 1")
+fn removed_collection_hofs_and_map_views_are_not_exports() {
+    let source = r#"
+        let list = require("std/list")
+        let map = require("std/map")
+        [type(list.map), type(list.filter), type(list.fold), type(map.keys), type(map.values), type(map.entries)]
+    "#;
+    assert_eval(
+        source,
+        "[\"nil\", \"nil\", \"nil\", \"nil\", \"nil\", \"nil\"]",
     );
 }

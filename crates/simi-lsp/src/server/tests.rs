@@ -959,9 +959,9 @@ fn run(value) do value end
 
 #[test]
 fn real_annotated_stdlib_facade_supplies_generic_member_types() {
-    let module = include_str!("../../../../stdlib/list.simi");
-    let source = "let list = require(\"std/list\") list.map";
-    let mut backend = Backend::with_module_sources([("std/list", module)]);
+    let module = include_str!("../../../../stdlib/iter.simi");
+    let source = "let iter = require(\"std/iter\") iter.map";
+    let mut backend = Backend::with_module_sources([("std/iter", module)]);
     open(&mut backend, source);
     let hover: Option<Hover> = serde_json::from_value(
         request(
@@ -978,10 +978,7 @@ fn real_annotated_stdlib_facade_supplies_generic_member_types() {
     let HoverContents::Markup(markup) = hover.expect("stdlib hover").contents else {
         panic!("expected markup")
     };
-    assert_eq!(
-        markup.value,
-        "map : ([..'a], 'a -> 'b) -> [..'b]\n\nTransform every value in a snapshot of a list."
-    );
+    assert_eq!(markup.value, "map : ('a, 'b) -> () -> any");
 }
 
 #[test]

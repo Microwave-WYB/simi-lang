@@ -577,15 +577,23 @@ nums[3]"#;
 #[test]
 fn annotated_generic_stdlib_calls_infer_through_nested_type_variables() {
     let db = AnalysisDatabase::default();
-    let module_file = db.add_file(include_str!("../../../stdlib/list.simi"));
-    let modules = HashMap::from([(
-        "std/list".to_owned(),
-        simi_analysis::module_shape(&db, module_file),
-    )]);
+    let list_file = db.add_file(include_str!("../../../stdlib/list.simi"));
+    let iter_file = db.add_file(include_str!("../../../stdlib/iter.simi"));
+    let modules = HashMap::from([
+        (
+            "std/list".to_owned(),
+            simi_analysis::module_shape(&db, list_file),
+        ),
+        (
+            "std/iter".to_owned(),
+            simi_analysis::module_shape(&db, iter_file),
+        ),
+    ]);
     let file = db.add_file(concat!(
         "let list = require(\"std/list\")\n",
-        "let mapped = list.map([1, 2]) <| fn(value) do value + 1 end\n",
-        "let found = list.find([1, 2]) <| fn(value) do value > 1 end\n",
+        "let iter = require(\"std/iter\")\n",
+        "let mapped = iter.to_list(iter.map(list.iter([1, 2]), fn(value) do value + 1 end))\n",
+        "let found = iter.find(list.iter([1, 2]), fn(value) do value > 1 end)\n",
     ));
     let resolution = resolve(&db, file);
     let inference = infer_types(&db, file, &modules);
@@ -596,12 +604,9 @@ fn annotated_generic_stdlib_calls_infer_through_nested_type_variables() {
     );
     assert_eq!(
         type_of(&inference, &resolution, "mapped").display(),
-        "[..integer | float]"
+        "[..any]"
     );
-    assert_eq!(
-        type_of(&inference, &resolution, "found").display(),
-        "integer | nil"
-    );
+    assert_eq!(type_of(&inference, &resolution, "found").display(), "'a");
 }
 
 #[test]

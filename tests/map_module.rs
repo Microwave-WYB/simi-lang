@@ -5,18 +5,14 @@ fn map_inspection_preserves_mixed_key_insertion_order() {
     let value = eval(
         r#"
         let map = require("std/map")
+        let iter = require("std/iter")
         let source = {
             first=1,
             [2]="second",
             [false]=3,
             [1.5]="fourth",
         }
-        [
-            map.length(source),
-            map.keys(source),
-            map.values(source),
-            map.entries(source),
-        ]
+        [map.length(source), iter.to_list(map.iter(source))]
         "#,
     )
     .expect("map inspection should have no hard diagnostic")
@@ -24,7 +20,7 @@ fn map_inspection_preserves_mixed_key_insertion_order() {
 
     assert_eq!(
         value.render(),
-        "[4, [\"first\", 2, false, 1.5], [1, \"second\", 3, \"fourth\"], [[\"first\", 1], [2, \"second\"], [false, 3], [1.5, \"fourth\"]]]"
+        "[4, [{key=\"first\", value=1}, {key=2, value=\"second\"}, {key=false, value=3}, {key=1.5, value=\"fourth\"}]]"
     );
 }
 
@@ -33,6 +29,7 @@ fn map_copy_preserves_order_and_normalized_keys_with_shallow_independence() {
     let value = eval(
         r#"
         let map = require("std/map")
+        let iter = require("std/iter")
         let list = require("std/list")
         let nested = [1]
         let source = {
@@ -44,7 +41,7 @@ fn map_copy_preserves_order_and_normalized_keys_with_shallow_independence() {
         source[1] = "changed"
         copied.last = 4
         list.append(nested, 2)
-        [map.keys(copied), source, copied]
+        [iter.to_list(map.iter(copied)), source, copied]
         "#,
     )
     .expect("std/map.copy should have no hard diagnostic")
@@ -52,7 +49,7 @@ fn map_copy_preserves_order_and_normalized_keys_with_shallow_independence() {
 
     assert_eq!(
         value.render(),
-        "[[\"first\", 1, false, \"last\"], {first=[1, 2], [1]=\"changed\", [false]=3}, {first=[1, 2], [1]=\"one\", [false]=3, last=4}]"
+        "[[{key=\"first\", value=[1, 2]}, {key=1, value=\"one\"}, {key=false, value=3}, {key=\"last\", value=4}], {first=[1, 2], [1]=\"changed\", [false]=3}, {first=[1, 2], [1]=\"one\", [false]=3, last=4}]"
     );
 }
 
@@ -61,19 +58,23 @@ fn map_has_reflects_absence_and_normalized_numeric_keys() {
     let value = eval(
         r#"
         let map = require("std/map")
+        let iter = require("std/iter")
         let source = {[1]="one", [0]="zero"}
         [
             map.has(source, 1.0),
             map.has(source, -0.0),
             map.has(source, 2),
-            map.keys(source),
+            iter.to_list(map.iter(source)),
         ]
         "#,
     )
     .expect("std/map.has should have no hard diagnostic")
     .expect("std/map.has should not raise");
 
-    assert_eq!(value.render(), "[true, true, false, [1, 0]]");
+    assert_eq!(
+        value.render(),
+        "[true, true, false, [{key=1, value=\"one\"}, {key=0, value=\"zero\"}]]"
+    );
 }
 
 #[test]
@@ -115,14 +116,14 @@ fn map_argument_errors_are_qualified_hard_diagnostics() {
             .contains("native function `std/map.copy` expects 1 arguments, got 0")
     );
 
-    let wrong_map = match eval("let map = require(\"std/map\") map.values([])") {
+    let wrong_map = match eval("let map = require(\"std/map\") map.iter([])") {
         Err(error) => error,
         Ok(_) => panic!("wrong map argument should be a hard diagnostic"),
     };
     assert!(
         wrong_map
             .to_string()
-            .contains("std/map.values requires a map, got list")
+            .contains("std/map.iter requires a map, got list")
     );
 
     let wrong_key = match eval("let map = require(\"std/map\") map.has({}, [])") {
@@ -170,6 +171,6 @@ fn map_module_is_only_present_in_standard_library_engines() {
         .expect("standard map module should not raise");
     assert_eq!(
         exports.render(),
-        "{length=<native std/map.length>, copy=<native std/map.copy>, has=<native std/map.has>, keys=<native std/map.keys>, values=<native std/map.values>, entries=<native std/map.entries>, clear=<native std/map.clear>}"
+        "{length=<native std/map.length>, copy=<native std/map.copy>, has=<native std/map.has>, iter=<fn std/map.iter>, clear=<native std/map.clear>}"
     );
 }

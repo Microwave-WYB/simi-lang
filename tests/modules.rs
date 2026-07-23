@@ -536,6 +536,7 @@ fn every_bundled_module_is_source_backed() {
     for module in [
         simi::stdlib::list(),
         simi::stdlib::map(),
+        simi::stdlib::iter(),
         simi::stdlib::number(),
         simi::stdlib::string(),
         simi::stdlib::stdin(),
@@ -561,6 +562,7 @@ fn every_bundled_module_is_source_backed() {
             "std/io/stderr",
             "std/io/stdin",
             "std/io/stdout",
+            "std/iter",
             "std/list",
             "std/map",
             "std/number",
