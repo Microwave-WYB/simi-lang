@@ -30,8 +30,8 @@
 
 ```elixir
 let language = "Simi"
-let release = "alpha"
-language <> " " <> release
+let status = "unreleased"
+language <> " " <> status
 ```
 
 The right-hand expression is evaluated before the new binding is installed. Assignment is different: it updates the nearest existing binding and never creates one implicitly.

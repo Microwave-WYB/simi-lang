@@ -16,10 +16,11 @@
 - Errors and embedding
   - [Choosing a failure channel](#choosing-a-failure-channel)
   - [Catching raised values](#catching-raised-values)
+  - [Minimal Rust embedding](#minimal-rust-embedding)
   - [The host result layers](#the-host-result-layers)
   - [Engines and capabilities](#engines-and-capabilities)
   - [Runtime and embedding invariants](#runtime-and-embedding-invariants)
-  - [Current alpha boundaries](#current-alpha-boundaries)
+  - [Current scope boundaries](#current-scope-boundaries)
 <!-- tour:contents:end -->
 
 ## Choosing a failure channel
@@ -101,9 +102,49 @@ end
 
 Raises cross function boundaries and accumulate trace frames. Raising again in a handler creates a new raised event that retains the caught event as its cause; it is not a special syntax-level “rethrow.”
 
+## Minimal Rust embedding
+
+Create a new Rust binary with `cargo new`, then add Simi directly from its public Git repository:
+
+```sh
+cargo new simi-embed
+cd simi-embed
+```
+
+Add the dependency to `Cargo.toml`:
+
+```toml
+[dependencies]
+simi = { git = "https://github.com/Microwave-WYB/simi-lang" }
+```
+
+Replace `src/main.rs` with this complete program:
+
+```rust
+use simi::eval;
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let source = r#"
+        let answer = 40 + 2
+        answer
+    "#;
+
+    match eval(source)? {
+        Ok(value) => println!("{}", value.render()),
+        Err(raised) => eprintln!("script raised: {}", raised.value.render()),
+    }
+
+    Ok(())
+}
+```
+
+Run it with `cargo run`. It prints `42`.
+
+The `?` after `eval(source)` handles lexing, parsing, and hard runtime diagnostics as ordinary Rust errors. The inner match distinguishes normal script completion from an uncaught value raised by the script.
+
 ## The host result layers
 
-The public Rust contract makes the distinction explicit:
+That distinction is represented directly in the public API:
 
 ```rust
 pub type ScriptResult = Result<Value, Raised>;
@@ -115,22 +156,6 @@ Read the result from the outside in:
 - `Err(SimiError)` is a lexing, parsing, or hard runtime diagnostic;
 - `Ok(Err(Raised))` is a value raised by the script and not caught there;
 - `Ok(Ok(Value))` is normal completion, including a normal `Value::Nil` result.
-
-A host can handle all three outcomes without collapsing them:
-
-```rust
-use simi::{SimiError, eval};
-
-fn main() {
-    match eval("raise {error = \"stopped\"}") {
-        Ok(Ok(value)) => println!("value: {}", value.render()),
-        Ok(Err(raised)) => println!("raised: {}", raised.value.render()),
-        Err(SimiError::Lex(error)) => eprintln!("lex diagnostic: {error}"),
-        Err(SimiError::Parse(error)) => eprintln!("parse diagnostic: {error}"),
-        Err(SimiError::Runtime(error)) => eprintln!("runtime diagnostic: {error}"),
-    }
-}
-```
 
 `Raised` exposes the raised `value`, its source `origin`, function-call `frames`, and an optional prior `cause`. `SimiError` exposes the relevant source span through `span()`.
 
@@ -195,9 +220,9 @@ Keep these boundaries intact when extending Simi:
 
 Do not weaken the two-layer result contract by turning raised values into `SimiError` or hard diagnostics into catchable script values without a deliberate language-design decision.
 
-## Current alpha boundaries
+## Current scope boundaries
 
-The current alpha intentionally does not include:
+The current implementation intentionally does not include:
 
 - filesystem or package module discovery;
 - script-visible command-line arguments;

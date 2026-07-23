@@ -2,7 +2,7 @@
 
 Simi is a small, embeddable scripting language implemented in Rust. It combines a Lua-inspired dynamic runtime with expression-valued control flow, pipelines, closures, mutable lists and maps, structural pattern matching, value-based errors, lazy iterators, and optional erased type annotations.
 
-> **Status:** early alpha. The core language and tooling are usable, but compatibility is not yet guaranteed.
+> **Status:** unreleased. Simi has not published a release yet, and compatibility is not guaranteed.
 
 ## A small example
 
@@ -30,7 +30,7 @@ Start with [Hello, world!](docs/language-tour/hello-world.md), follow the comple
 
 ## Install with Cargo
 
-Simi currently requires Rust 1.85 or newer. Install the `simi` executable directly from the public repository:
+Simi currently requires Rust 1.85 or newer. First [install the Rust toolchain with rustup](https://rustup.rs/), then install the `simi` executable directly from the public repository:
 
 ```sh
 cargo install --git https://github.com/Microwave-WYB/simi-lang --bin simi
