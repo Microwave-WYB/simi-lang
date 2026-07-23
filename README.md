@@ -26,8 +26,9 @@ fn two_sum(numbers, target) do
     end
 end
 
-let pair = two_sum([2, 7, 11, 15], 9)
-io.println(inspect(pair))
+two_sum([2, 7, 11, 15], 9)
+|> inspect()
+|> io.println()
 ```
 
 Simi is expression-oriented: blocks, conditionals, loops, cases, and error handlers all produce values. Lists and maps are mutable and preserve alias identity, while explicit copy operations provide shallow copy-on-write views where documented.
