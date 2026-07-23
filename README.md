@@ -1,6 +1,6 @@
 # Simi
 
-Simi is a small, embeddable scripting language implemented in Rust. It combines a Lua-inspired dynamic runtime with expression-valued control flow, pipelines, closures, mutable lists and maps, structural pattern matching, value-based errors, lazy iterators, and optional erased type annotations.
+Simi is a small, Lua-like embeddable scripting language implemented in Rust. It is dynamically typed at runtime, with optional erased static type inference and checking for earlier feedback and editor tooling. Simi is expression-first, with value-producing control flow, pipelines, closures, mutable lists and maps, structural pattern matching, value-based errors, and lazy iterators.
 
 > **Status:** unreleased. Simi has not published a release yet, and compatibility is not guaranteed.
 
