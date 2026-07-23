@@ -13,8 +13,10 @@
 (loop_expression
   "end" @end) @indent
 
+; Clauses indent their own bodies. The enclosing case must not add another
+; level, so `of` and the final `end` align with `case`.
 (case_expression
-  "end" @end) @indent
+  "end" @end)
 
 (try_expression
   "end" @end) @indent
