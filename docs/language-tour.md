@@ -1,34 +1,492 @@
-# A short tour of Simi
+# A tour of Simi
 
-This is a progressive, approximately 15-minute tour. It uses the post-migration API: iteration lives in `std/iter`, strings use `<>` and `std/string` helpers, and standard I/O is an explicit opt-in. The complete example is [`examples/language-tour.simi`](../examples/language-tour.simi).
+Simi is a small, embeddable scripting language with mutable containers, expression-valued control flow, pipelines, structural patterns, value-based errors, and optional erased types. This tour starts with every runtime value and literal form, then builds through Simi's expression forms and standard library.
 
-## 1. Values and final expressions
+The complete companion program is [`examples/language-tour.simi`](../examples/language-tour.simi).
 
-Simi has integers, finite floats, strings, booleans, `nil`, lists, maps, and functions. There is no special truthiness: `and`, `or`, and `not` require booleans. Every block is an expression; its last item is its value.
+Run a file with:
+
+```sh
+simi run examples/language-tour.simi
+```
+
+Scripts control their output explicitly. To inspect a script's final value as well, use:
+
+```sh
+simi run --inspect examples/language-tour.simi
+```
+
+Simi comments begin with `--` and continue to the end of the line.
+
+## 1. Runtime values and literals
+
+Simi is dynamically typed. Every value belongs to one of eight runtime categories:
+
+```text
+nil
+boolean
+integer
+float
+string
+list
+map
+function
+```
+
+The shadowable builtin `type(value)` returns those labels as ordinary strings.
+
+### Nil and booleans
+
+```simi
+nil
+true
+false
+```
+
+`nil` represents absence. It is not false: Simi has no general truthiness, so conditions and `not`, `and`, and `or` require booleans.
+
+### Integers and floats
+
+```simi
+0
+42
+-7
+3.14
+-0.5
+2e3
+1.5E-2
+```
+
+Integers and finite floating-point numbers are different runtime categories. A leading minus is a unary operator rather than part of the literal. `/` always returns a float; `//` and `%` use floor-division semantics.
+
+```simi
+5 / 2   -- 2.5
+5 // 2  -- 2
+-5 // 2 -- -3
+```
+
+### Strings
+
+Strings are Unicode text enclosed in double quotes:
+
+```simi
+"Simi"
+"line one\nline two"
+"quote: \""
+"backslash: \\"
+```
+
+Supported escapes are `\"`, `\\`, `\n`, `\r`, and `\t`. String concatenation is strict:
+
+```simi
+"Hello, " <> "Ada"
+```
+
+Both operands of `<>` must be strings. Convert other values explicitly with functions such as `number.to_string` or the builtin `inspect`.
+
+### Lists
+
+Lists are mutable, ordered, zero-based, and may contain any value—including `nil`:
+
+```simi
+[]
+[1, 2, 3]
+["name", true, nil]
+[1, [2, 3], { answer = 42 }]
+```
+
+Trailing commas are accepted:
+
+```simi
+[1, 2, 3,]
+```
+
+A non-negative out-of-range read returns `nil`. Negative and non-integer indices are hard diagnostics. Writes replace existing positions and never grow a list.
+
+### Maps
+
+Maps are mutable insertion-ordered key/value containers:
+
+```simi
+{}
+{
+    name = "Ada",
+    visits = 1,
+    [true] = "enabled",
+    [10] = "ten",
+}
+```
+
+String, integer, finite non-integral float, and boolean keys are supported. A computed key uses brackets. Missing reads return `nil`.
+
+Maps cannot retain `nil` values. A nil-valued literal entry is omitted, and assigning `nil` deletes an existing key:
+
+```simi
+user.nickname = nil
+user[dynamic_key] = nil
+```
+
+### Functions
+
+Functions are values. Anonymous functions may appear anywhere an expression is accepted:
+
+```simi
+fn(value) do
+    value * 2
+end
+```
+
+They capture their lexical environment and may be stored, passed, and returned.
+
+Native functions supplied by the host and Simi functions both report `"function"` through `type`.
+
+## 2. The expression model
+
+Simi programs are sequences of declarations and expressions. Most constructs that would be statements in other languages evaluate to values in Simi.
+
+### Literal, name, and parenthesized expressions
+
+A literal evaluates to its value. A name reads its current lexical binding. Parentheses group an expression:
+
+```simi
+42
+name
+(1 + 2) * 3
+```
+
+### Standalone blocks
+
+`do ... end` creates a fresh child scope and evaluates to its final item, or `nil` when empty:
 
 ```simi
 let answer = do
-    let base = 6
-    base * 7
+    let left = 20
+    let right = 22
+    left + right
 end
 ```
 
-`answer` is `42`. An empty block is `nil`. A line break does not end a construct: closing `end` is conventionally unindented.
+Bindings created inside the block do not escape it.
 
-## 2. Bindings, shadowing, and functions
-
-`let` binds a name. A later `let` in a child scope may shadow it; assignment (`name = value`) updates an existing binding rather than creating one.
+### Unary expressions
 
 ```simi
-let greeting = "hello"
-let greet = fn(name) do
-    greeting <> ", " <> name
-end
-
-greet("Ada")
+-number
+not condition
 ```
 
-Functions are values, and closures retain their lexical environment. Named functions are convenient for recursion:
+Unary `-` requires a number. `not` requires a boolean.
+
+### Binary expressions
+
+Numeric arithmetic:
+
+```simi
+left + right
+left - right
+left * right
+left / right
+left // right
+left % right
+```
+
+Strict string concatenation:
+
+```simi
+left <> right
+```
+
+Equality and ordering:
+
+```simi
+left == right
+left != right
+left < right
+left <= right
+left > right
+left >= right
+```
+
+Ordering operators require numbers. Numeric comparisons handle mixed integer and float values without silently losing integer-boundary precision.
+
+Boolean composition is strict and short-circuiting:
+
+```simi
+ready and valid
+missing or fallback
+```
+
+Use parentheses when grouping is important. Arithmetic binds more tightly than concatenation, concatenation more tightly than comparisons, and pipelines come later.
+
+### Calls
+
+A call evaluates its callee and arguments, then returns the function's result:
+
+```simi
+add(1, 2)
+callback(value)
+factory()(argument)
+```
+
+Arguments are evaluated once from left to right. Wrong arity and calling a non-function are hard diagnostics.
+
+### Field and index access
+
+```simi
+user.name
+user[dynamic_key]
+values[0]
+```
+
+Field access is string-key map access. Postfix calls, fields, and indexing compose:
+
+```simi
+factory().users[0].name
+```
+
+### Assignment expressions
+
+Assignment updates an existing binding or mutates a list/map location. It evaluates to the assigned value and associates to the right:
+
+```simi
+count = count + 1
+user.name = "Grace"
+values[0] = 10
+left = right = 0
+```
+
+Assigning to an undefined name is a hard diagnostic. `let` introduces a binding; assignment never implicitly creates one.
+
+### Conditional expressions
+
+`if` chooses one branch and evaluates to that branch's final value:
+
+```simi
+let label = if score >= 90 then
+    "excellent"
+elseif score >= 60 then
+    "passing"
+else
+    "retry"
+end
+```
+
+Conditions must be booleans. A missing `else` produces `nil` when no condition matches. Each selected branch has a child scope.
+
+### Anonymous function expressions
+
+```simi
+let multiplier = 3
+let scale = fn(value) do
+    value * multiplier
+end
+```
+
+The body is expression-valued. A function boundary contains loop control and postfix nil propagation from its callers.
+
+### Pipeline expressions
+
+`|>` inserts its input as the first argument of a call stage:
+
+```simi
+value |> transform(extra)
+```
+
+This is equivalent in argument placement to:
+
+```simi
+transform(value, extra)
+```
+
+A pipeline stage must visibly be a call.
+
+`?>` is a nil-aware stage. A nil input skips the stage's callee and every argument lazily; a non-nil input behaves like `|>`:
+
+```simi
+maybe_user
+?> load_profile()
+?> format_profile()
+```
+
+Nil-awareness is stage-local. A later ordinary `|>` stage still receives nil.
+
+The compound operators `|> tap` and `?> tap` run a stage for its effects, discard the stage result, and preserve the incoming value with the same alias identity:
+
+```simi
+values
+|> tap list.append(4)
+|> tap list.reverse()
+```
+
+`tap` is part of the compound pipeline operator. It is not a function or an identifier that can be used elsewhere.
+
+Binding a tap result creates another alias, not a copy:
+
+```simi
+let alias = values |> tap list.append(5)
+```
+
+Here `alias` and `values` denote the same mutated list.
+
+### Direct and trailing callbacks
+
+Callback APIs are ordinary functions. Introduce them using a direct argument first:
+
+```simi
+values
+|> list.iter()
+|> iter.map(fn(value) do
+    value * 2
+end)
+|> iter.to_list()
+```
+
+The right-associative `<|` operator optionally appends one trailing argument to the call on its left. It is useful when a multiline callback should end cleanly with `end` rather than `end)`:
+
+```simi
+values
+|> list.iter()
+|> iter.map() <| fn(value) do
+    value * 2
+end
+|> iter.to_list()
+```
+
+A left operand of `<|` must be a call. It appends exactly one argument; it is not general partial application.
+
+### Postfix nil propagation
+
+Postfix `?` passes a non-nil value through. A nil value aborts the nearest lexically enclosing standalone `do ... end` block and makes that block evaluate to nil:
+
+```simi
+fn greeting(maybe_name) do
+    do
+        let name = maybe_name?
+        "Hello, " <> name
+    end
+end
+```
+
+Nested standalone blocks stop propagation at the nearest boundary. `?` cannot cross a named or anonymous function body, and it does not intercept raises or hard diagnostics.
+
+### Case expressions
+
+`case` evaluates a value and selects the first matching pattern whose optional guard is true:
+
+```simi
+let message = case result
+of { kind = "ok", value = value } do
+    "received " <> value
+of { kind = "error", error = error } when error != nil do
+    "failed: " <> error
+of _ do
+    "unknown"
+end
+```
+
+Guards must be booleans. Clause bindings are visible only in that clause. An unmatched case is a hard diagnostic.
+
+### Raise expressions and try expressions
+
+Any value may be raised:
+
+```simi
+raise { error = "not_found", key = key }
+```
+
+`try` protects one or more items and structurally matches a raised value:
+
+```simi
+let recovered = try
+    prepare()
+    operation()
+catch { error = "not_found", key = key } do
+    "missing: " <> key
+catch error do
+    raise error
+end
+```
+
+Only raises from the protected block are considered by its catches. Raises from catch guards or bodies escape. Hard diagnostics and postfix nil propagation are not catches.
+
+### Loop, continue, and break expressions
+
+Loops are expressions and may thread state:
+
+```simi
+let result = loop state = 0 do
+    if state < 3 then
+        continue state + 1
+    else
+        break state
+    end
+end
+```
+
+The initializer runs once. Each ordinary iteration result supplies the next state. `continue value` transitions early; bare `continue` supplies nil. `break value` determines the loop's result.
+
+A stateless loop omits the initializer:
+
+```simi
+loop do
+    if finished() then break result() end
+    continue
+end
+```
+
+Loop control targets the nearest lexical loop and cannot escape a function body.
+
+## 3. Bindings, declarations, and patterns
+
+### Let bindings and shadowing
+
+`let` introduces a lexical binding:
+
+```simi
+let count = 1
+```
+
+A repeated `let` creates a new symbol, even in the same scope:
+
+```simi
+let value = "first"
+let earlier = fn() do value end
+let value = "second"
+```
+
+`earlier()` still reads the first binding. Later reads use the second.
+
+### Destructuring let
+
+The left side of `let` may be a structural pattern:
+
+```simi
+let [first, second, ..rest] = values
+let { name = name, ..settings } = user
+```
+
+The right side is evaluated once. Matching is atomic: no bindings are installed unless the complete pattern succeeds. A mismatch is a hard diagnostic; use `case` when failure is expected.
+
+### Patterns
+
+Patterns include:
+
+```simi
+42                         -- literal
+name                       -- binding
+_                          -- wildcard
+[first, ..rest]            -- list
+{ kind = "ok", value = x } -- map
+{ name = name, ..other }   -- map rest
+```
+
+Patterns may nest. List-rest captures an independent O(1) copy-on-write view. Map-rest creates an independent shallow map. Nested values keep their alias identities.
+
+Named map fields normally require presence. The literal nil pattern is the exception: `{ missing = nil }` also matches an absent field because map lookup uses nil for absence.
+
+### Named functions
+
+A named function is a declaration rather than a function expression:
 
 ```simi
 fn factorial(n) do
@@ -36,109 +494,285 @@ fn factorial(n) do
 end
 ```
 
-`if` is also an expression. A missing `else` produces `nil`.
+Named functions support recursion and capture surrounding lexical bindings.
 
-## 3. Lists and maps
+## 4. Mutation, aliases, and copies
 
-Lists are mutable and zero-based. Maps are mutable, insertion-ordered, and accept string, integer, finite non-integral float, and boolean keys. Reading a missing key (or an out-of-range non-negative list index) returns `nil`; invalid indices are errors.
-
-```simi
-let user = { name = "Ada", visits = 1 }
-user.visits = user.visits + 1
-let numbers = [1, 2, 3]
-numbers[0] = 10
-let snapshot = numbers |> list.copy()
-```
-
-`list.copy` and `map.copy` are shallow independent containers: nested values remain aliases. Assigning `nil` to a map field deletes that field. List writes never grow a list.
-
-## 4. Calls, callbacks, and pipelines
-
-Start with an ordinary direct callback call. This keeps the callable and its arguments visible:
+Lists and maps are reference-like mutable values. Ordinary assignment copies the alias:
 
 ```simi
-let doubled = list.iter(numbers).map(fn(value) do value * 2 end).collect()
+let values = [1, 2]
+let alias = values
+values[0] = 10
+-- alias is now [10, 2]
 ```
 
-The trailing-argument operator `<|` is an optional multiline spelling. It appends exactly one final argument to the call on its left:
+`std/list` owns list-specific reads, copies, iteration, and mutation:
+
+```text
+length  get  contains
+copy    slice  iter
+set     append  extend  insert  remove  pop  reverse
+```
+
+`list.reverse` mutates in place and returns nil. In a pipeline, tap makes that effect explicit:
 
 ```simi
-let doubled = numbers |> list.iter() |> iter.map() <| fn(value) do
-    value * 2
-end |> iter.collect()
+values |> tap list.reverse()
 ```
 
-`|>` inserts its input as the first argument of a stage call. `?>` does the same, but skips the callee and all arguments when its input is `nil`; later stages still receive that `nil`. A stage must be a call.
+`list.copy` and `list.slice` create independent outer copy-on-write views. Their nested values remain shallow aliases.
 
-`|> tap call(...)` and `?> tap call(...)` are compound operators: they perform the call for its effects, discard its result, and preserve the input—including alias identity. `tap` is not a function and cannot be used outside these pipeline stages.
+Maps use language field/index assignment for mutation and provide collection-specific helpers such as `length`, `has`, `copy`, `clear`, and `iter`. Assigning nil deletes a key.
 
 ## 5. Iterators
 
-The post-migration standard library is `std/iter`. `list.iter(xs)` and `map.iter(table)` produce iterators; combinators are lazy until a terminal operation such as `collect`, `fold`, or `each`.
+`std/iter` contains generic lazy traversal. List and map modules only create collection-specific iterators:
 
 ```simi
+let list = require("std/list")
+let map = require("std/map")
 let iter = require("std/iter")
-let evens = numbers
-    |> list.iter()
-    |> iter.filter(fn(value) do value % 2 == 0 end)
-    |> iter.map(fn(value) do value * value end)
-    |> iter.collect()
 ```
 
-An iterator is consumed as it advances. `iter.next(iterator)` returns the next item or `nil`. Custom iterators can be made with `iter.unfold(initial, step)`: `step` returns `nil` to finish, or `{ value = item, state = next_state }` to yield an item and continue. This makes generators ordinary closures rather than a second control-flow system.
+`list.iter(values)` traverses an O(1) copy-on-write snapshot. Structural mutation of the original list after iterator creation does not change that traversal.
 
-## 6. Patterns and control flow
-
-`case` selects the first matching structural pattern. Guards must be booleans; list and map rests capture the remainder.
+`map.iter(entries)` snapshots insertion-ordered entries and yields maps shaped like:
 
 ```simi
-case user
-of { name = name, visits = visits } when visits > 1 do
-    name <> " is returning"
-of { name = name } do
-    name <> " is new"
-of _ do
-    "anonymous"
+{ key = key, value = value }
+```
+
+### Lazy adapters
+
+`iter.map` and `iter.filter` return new iterators. They do not invoke callbacks until the result is consumed:
+
+```simi
+let transformed = values
+|> list.iter()
+|> iter.filter(fn(value) do value >= 0 end)
+|> iter.map(fn(value) do value * 2 end)
+```
+
+### Consumers
+
+Consumers advance the remaining iterator:
+
+```text
+to_list
+fold
+find
+find_index
+contains
+any
+all
+each
+count
+```
+
+Iterators are single-pass. Searches and boolean queries short-circuit and leave later elements available. `each` returns nil. Predicate callbacks must return booleans. Callback raises propagate unchanged.
+
+```simi
+let total = values
+|> list.iter()
+|> iter.fold(0) <| fn(sum, value) do
+    sum + value
 end
 ```
 
-Loops are expressions too. `continue value` supplies the next state and `break value` supplies the result:
+### Steps and custom iterators
+
+`iter.next(iterator)` returns a tagged map, never an untagged nil sentinel:
 
 ```simi
-let total = loop state = 0 do
-    if state < 4 then continue state + 1 else break state end
+{ done = false, value = item }
+{ done = true }
+```
+
+A legitimate nil item is represented as `{ done = false }`, because maps omit nil-valued fields. The `done` field is therefore the authoritative completion signal.
+
+A custom iterator is a zero-argument function returning those steps:
+
+```simi
+fn countdown(start) do
+    let current = start
+
+    iter.from(fn() do
+        if current <= 0 then
+            { done = true }
+        else
+            let value = current
+            current = current - 1
+            { done = false, value = value }
+        end
+    end)
 end
 ```
 
-## 7. Raises and recovery
+`iter.from` makes exhaustion sticky: after the first done step, the wrapped producer is not called again. A non-map step, a missing `done`, or a non-boolean `done` is a hard contract diagnostic. Extra fields are ignored.
 
-`raise` can carry any value. `try` catches only raises from its protected block; `nil` propagation and hard runtime diagnostics are not silently converted into catches.
+Use `iter.fold` and ordinary functions for custom collection logic. There is no generic `collect` operation; `iter.to_list` is the concrete list consumer.
+
+## 6. Modules and the standard library
+
+Modules are explicit host-registered capabilities:
 
 ```simi
-let result = try
-    raise { error = "not_found", key = "answer" }
-catch { error = "not_found", key = key } do
-    "missing: " <> key
+let string = require("std/string")
+```
+
+Repeated `require` calls within one engine return the same mutable export map. Separate engines have separate module registries and caches.
+
+Portable standard-library engines provide:
+
+```text
+std/list
+std/map
+std/iter
+std/number
+std/string
+```
+
+`string.to_number(text)` parses a complete signed decimal integer or decimal/exponent float and returns nil for malformed, overflowing, or non-finite input:
+
+```simi
+"42" |> string.to_number()   -- integer 42
+"42.0" |> string.to_number() -- float 42.0
+"nope" |> string.to_number() -- nil
+```
+
+`string.concat(left, right)` is the pipeline-friendly equivalent of strict `<>`:
+
+```simi
+name |> string.concat("!")
+```
+
+The globals `require`, `type`, and `inspect` are shadowable ordinary bindings. `inspect` is cycle-safe human-readable rendering, not serialization.
+
+## 7. Explicit text IO
+
+Standard IO is an opt-in host capability exposed by one module:
+
+```simi
+let io = require("std/io")
+```
+
+Its initial text API is:
+
+```text
+read_line() -> string | nil
+print(string) -> nil
+println(string) -> nil
+eprint(string) -> nil
+eprintln(string) -> nil
+```
+
+The print family accepts strings only and flushes automatically. Rendering another value is explicit:
+
+```simi
+value
+|> inspect()
+|> io.println()
+```
+
+`read_line` removes the line ending and returns nil at EOF. Operational failures raise maps with `error = "io_error"` and an operation name.
+
+Raw bounded `read` and `write` are intentionally absent until Simi has a bytes type.
+
+The CLI registers `std/io`; a plain portable embedding does not. `simi run` leaves output to the script. `simi run --inspect` additionally renders the final expression, including nil. A future REPL may inspect results by default.
+
+## 8. Optional erased types
+
+Annotations improve analysis and editor feedback but never alter runtime behavior:
+
+```simi
+let count: integer = 1
+
+fn display(value: integer | float) -> string do
+    require("std/number").to_string(value)
 end
 ```
 
-Postfix `?` passes non-`nil` through, while `nil` aborts the nearest standalone `do ... end` block. It does not cross a function boundary.
+Primitive static types are:
 
-## 8. Modules and explicit I/O
+```text
+never
+nil
+boolean
+integer
+float
+string
+any
+```
 
-Use `require` for registered modules. The portable set includes `std/list`, `std/map`, `std/iter`, `std/number`, and `std/string`. `string.to_number(text)` returns a number or `nil`; `string.concat(left, right)` joins strings. The strict `<>` operator is the concise string concatenation form and rejects non-strings.
+There is deliberately no static `number`; use `integer | float`. `never` is the bottom type, and `any` is the explicit dynamic escape hatch.
 
-Standard I/O is one opt-in `std/io` capability. Its string-only `print`, `println`, and `flush` operations are explicit; input is `read_line`. A default `simi run` has no implicit I/O: request it with the explicit-I/O option, and use `--inspect` when you want the final value rendered. Embedders opt in through the engine builder instead.
-
-## 9. Optional erased types
-
-Annotations and aliases document and analyze programs but are erased at runtime:
+Transparent aliases may be generic:
 
 ```simi
-alias MaybeText = string | nil
-fn label(value: MaybeText) -> string do
-    if value == nil then "none" else value end
+alias maybe('a) = 'a | nil
+alias pair('a, 'b) = ['a, 'b]
+```
+
+Functions use arrows in type expressions:
+
+```simi
+integer -> integer
+(integer, string) -> boolean
+```
+
+Lists may have exact positional shapes or homogeneous rest shapes:
+
+```simi
+[integer, string]
+[..integer]
+```
+
+Maps use structural fields, open rests, and index signatures:
+
+```simi
+{ name: string, age: integer }
+{ name: string, .. }
+{ [string]: integer }
+```
+
+Named functions may describe normal-return mutation effects:
+
+```simi
+fn append(xs: [..'a], value: 'b) -> nil
+    after xs becomes [..'a | 'b]
+do
+    host.call("private/append", xs, value)
 end
 ```
 
-The alpha is intentionally small: there is no filesystem/package discovery, serializer, formatter, tuple value, or static runtime enforcement. APIs and diagnostics may still evolve while the language settles.
+`after` and `becomes` are contextual in that declaration form. Static types are erased: annotations cannot turn a dynamic mismatch into a runtime check.
+
+For the complete design, see [the erased type-system reference](type-system.md).
+
+## 9. Errors and embedding boundaries
+
+Simi distinguishes catchable raised values from hard diagnostics. The host API preserves that distinction:
+
+```rust
+pub type ScriptResult = Result<Value, Raised>;
+pub fn eval(source: &str) -> Result<ScriptResult, SimiError>;
+```
+
+Use nil for expected absence, raised structured values for recoverable operational failures, and hard diagnostics for programmer contract violations.
+
+## 10. Current alpha boundaries
+
+The initial alpha intentionally does not include:
+
+- filesystem or package module discovery;
+- command-line argument values;
+- a bytes type or raw stream IO;
+- serialization;
+- a formatter or REPL;
+- runtime tuples;
+- iterator collection protocols;
+- sequence/shape variables;
+- advanced traits, protocols, or type constraints.
+
+These omissions keep the runtime and embedding contract understandable while the language's core API settles.

@@ -1,50 +1,94 @@
--- A cohesive tour program. It targets the post-migration std/iter and std/io APIs.
+-- A runnable tour of Simi's values, expressions, mutation, and modules.
 let list = require("std/list")
 let map = require("std/map")
 let iter = require("std/iter")
 let string = require("std/string")
 let io = require("std/io")
 
-let greeting = "hello"
-let greet = fn(name) do greeting <> ", " <> name end
-let user = { name = "Ada", visits = 1 }
-user.visits = user.visits + 1
-let values = [1, 2, 3, 4, 5]
-let copied = values |> list.copy()
+-- Every runtime value can be stored in a list, including nil.
+let values = [1, 2, 3, 4]
+let mixed_values = [1, "two", true, nil]
+let profile = {
+    name = "Ada",
+    visits = 1,
+    [true] = "enabled",
+}
+
+-- Assignment mutates existing bindings and containers.
+profile.visits = profile.visits + 1
+let snapshot = values |> list.copy()
 values[0] = 10
+values |> tap list.append(5)
 
--- Direct callback form first: the callback is an ordinary argument.
-let doubled = list.iter(values).map(fn(value) do value * 2 end).collect()
--- <| is useful when the callback is multiline.
-let squares = values |> list.iter() |> iter.map() <| fn(value) do
-    value * value
-end |> iter.collect()
-
--- tap is a compound pipeline operator and preserves the list alias.
-let same_values = values |> tap list.append(6)
-let optional = nil ?> tap list.append(7)
-
-let classify = fn(value) do
-    case value
-    of { name = name, visits = visits } when visits > 1 do name <> " returns"
-    of { name = name } do name <> " is new"
-    of _ do "anonymous"
+fn greeting(name: string) -> string do
+    "Hello, " <> name <> "!"
 end
 
--- A custom iterator is an ordinary state transition.
-let countdown = iter.unfold(3, fn(state) do
-    if state == 0 then
-        nil
-    else
-        { value = state, state = state - 1 }
+fn classify(value) do
+    case value
+    of { name = name, visits = visits } when visits > 1 do
+        name <> " is returning"
+    of { name = name } do
+        name <> " is new"
+    of _ do
+        "anonymous"
     end
-end)
-let counted = countdown |> iter.collect()
-let first = iter.next(list.iter(values))
-let map_entries = map.iter({ answer = 42 }).collect()
+end
 
-let total = loop state = 0 do
-    if state < 4 then continue state + 1 else break state end
+-- The direct callback form exposes the ordinary function signature.
+let doubled = values
+|> list.iter()
+|> iter.filter(fn(value) do
+    value != nil
+end)
+|> iter.map(fn(value) do
+    value * 2
+end)
+|> iter.to_list()
+
+-- <| appends one multiline callback as the final argument.
+let squares = values
+|> list.iter()
+|> iter.filter() <| fn(value) do
+    value != nil
+end
+|> iter.map() <| fn(value) do
+    value * value
+end
+|> iter.to_list()
+
+-- A custom iterator is a zero-argument function returning tagged steps.
+fn countdown(start: integer) do
+    let current = start
+    iter.from(fn() do
+        if current <= 0 then
+            { done = true }
+        else
+            let value = current
+            current = current - 1
+            { done = false, value = value }
+        end
+    end)
+end
+
+let counted = countdown(3) |> iter.to_list()
+let words: [..string] = ["first", "second"]
+let first_step = words |> list.iter() |> iter.next()
+let entries = profile |> map.iter() |> iter.to_list()
+
+-- Blocks, conditionals, cases, loops, and error handlers are expressions.
+let block_value = do
+    let left = 20
+    let right = 22
+    left + right
+end
+
+let loop_value = loop state = 0 do
+    if state < 3 then
+        continue state + 1
+    else
+        break state
+    end
 end
 
 let recovered = try
@@ -53,15 +97,38 @@ catch { error = "missing", key = key } do
     "missing: " <> key
 end
 
-alias MaybeText = string | nil
-fn label(value: MaybeText) -> string do
+-- Postfix ? stops only the nearest standalone block when it sees nil.
+fn describe(maybe_name: string | nil) do
+    do
+        let name = maybe_name?
+        greeting(name)
+    end
+end
+
+alias maybe_text = string | nil
+fn label(value: maybe_text) -> string do
     if value == nil then "none" else value end
 end
 
-let parsed = string.to_number("42")
-let joined = string.concat(greeting, " world")
-io.println(greet(user.name))
-io.println(classify(user))
+let parsed = "42" |> string.to_number()
+let joined = "Simi" |> string.concat(" language")
+
+io.println(greeting(profile.name))
+io.println(classify(profile))
 io.println(recovered)
 io.println(joined)
-io.println(inspect({ doubled = doubled, squares = squares, counted = counted, first = first, entries = map_entries, total = total, parsed = parsed, copied = copied, same = same_values, label = label(nil) }))
+io.println(inspect({
+    original = values,
+    mixed_values = mixed_values,
+    snapshot = snapshot,
+    doubled = doubled,
+    squares = squares,
+    counted = counted,
+    first_step = first_step,
+    entries = entries,
+    block_value = block_value,
+    loop_value = loop_value,
+    missing_name = describe(nil),
+    label = label(nil),
+    parsed = parsed,
+}))

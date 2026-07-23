@@ -19,6 +19,41 @@ fn inferred(
     (infer_types(&db, file, &HashMap::new()), resolution)
 }
 
+#[test]
+fn language_tour_example_is_syntax_and_type_clean() {
+    let db = AnalysisDatabase::default();
+    let modules = [
+        ("std/list", include_str!("../../../stdlib/list.simi")),
+        ("std/map", include_str!("../../../stdlib/map.simi")),
+        ("std/iter", include_str!("../../../stdlib/iter.simi")),
+        ("std/number", include_str!("../../../stdlib/number.simi")),
+        ("std/string", include_str!("../../../stdlib/string.simi")),
+        (
+            "std/io",
+            "fn println(value: string) -> nil do nil end\n{ println = println }",
+        ),
+    ]
+    .into_iter()
+    .map(|(name, source)| {
+        let file = db.add_file(source);
+        (name.to_owned(), simi_analysis::module_shape(&db, file))
+    })
+    .collect::<HashMap<_, _>>();
+    let source = include_str!("../../../examples/language-tour.simi");
+    let file = db.add_file(source);
+    assert!(
+        parse(&db, file).diagnostics.is_empty(),
+        "syntax diagnostics: {:?}",
+        parse(&db, file).diagnostics
+    );
+    let inference = infer_types(&db, file, &modules);
+    assert!(
+        inference.diagnostics.is_empty(),
+        "type diagnostics: {:?}",
+        inference.diagnostics
+    );
+}
+
 fn type_of(
     inference: &simi_analysis::TypeInference,
     resolution: &simi_analysis::Resolution,
