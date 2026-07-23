@@ -1,0 +1,67 @@
+-- A cohesive tour program. It targets the post-migration std/iter and std/io APIs.
+let list = require("std/list")
+let map = require("std/map")
+let iter = require("std/iter")
+let string = require("std/string")
+let io = require("std/io")
+
+let greeting = "hello"
+let greet = fn(name) do greeting <> ", " <> name end
+let user = { name = "Ada", visits = 1 }
+user.visits = user.visits + 1
+let values = [1, 2, 3, 4, 5]
+let copied = values |> list.copy()
+values[0] = 10
+
+-- Direct callback form first: the callback is an ordinary argument.
+let doubled = list.iter(values).map(fn(value) do value * 2 end).collect()
+-- <| is useful when the callback is multiline.
+let squares = values |> list.iter() |> iter.map() <| fn(value) do
+    value * value
+end |> iter.collect()
+
+-- tap is a compound pipeline operator and preserves the list alias.
+let same_values = values |> tap list.append(6)
+let optional = nil ?> tap list.append(7)
+
+let classify = fn(value) do
+    case value
+    of { name = name, visits = visits } when visits > 1 do name <> " returns"
+    of { name = name } do name <> " is new"
+    of _ do "anonymous"
+end
+
+-- A custom iterator is an ordinary state transition.
+let countdown = iter.unfold(3, fn(state) do
+    if state == 0 then
+        nil
+    else
+        { value = state, state = state - 1 }
+    end
+end)
+let counted = countdown |> iter.collect()
+let first = iter.next(list.iter(values))
+let map_entries = map.iter({ answer = 42 }).collect()
+
+let total = loop state = 0 do
+    if state < 4 then continue state + 1 else break state end
+end
+
+let recovered = try
+    raise { error = "missing", key = "answer" }
+catch { error = "missing", key = key } do
+    "missing: " <> key
+end
+
+alias MaybeText = string | nil
+fn label(value: MaybeText) -> string do
+    if value == nil then "none" else value end
+end
+
+let parsed = string.to_number("42")
+let joined = string.concat(greeting, " world")
+io.println(greet(user.name))
+io.println(classify(user))
+io.println(recovered)
+io.println(joined)
+io.println(inspect({ doubled = doubled, squares = squares, counted = counted, first = first, entries = map_entries, total = total, parsed = parsed, copied = copied, same = same_values, label = label(nil) }))
