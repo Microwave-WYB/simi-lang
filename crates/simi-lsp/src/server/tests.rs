@@ -211,6 +211,7 @@ fn symbols_navigation_references_hover_and_completion_use_fresh_analysis() {
     let DocumentSymbolResponse::Nested(symbols) = symbols.unwrap() else {
         panic!("expected nested symbols")
     };
+    assert!(symbols.iter().all(|symbol| symbol.detail.is_none()));
     let names = symbols
         .into_iter()
         .map(|symbol| symbol.name)
@@ -273,12 +274,9 @@ fn symbols_navigation_references_hover_and_completion_use_fresh_analysis() {
     let HoverContents::Markup(markup) = hover.unwrap().contents else {
         panic!("expected markup")
     };
-    assert!(markup.value.contains("function `add` (2 parameters)"));
-    assert!(
-        markup
-            .value
-            .contains("declared at file:///workspace/test.simi:1:4")
-    );
+    assert_eq!(markup.value, "fn add/2");
+    assert!(!markup.value.contains("declared at"));
+    assert!(!markup.value.contains("file://"));
 
     let completion: Option<CompletionResponse> = serde_json::from_value(
         request(
@@ -295,12 +293,33 @@ fn symbols_navigation_references_hover_and_completion_use_fresh_analysis() {
     let CompletionResponse::Array(items) = completion.unwrap() else {
         panic!("expected completion array")
     };
-    let labels = items.into_iter().map(|item| item.label).collect::<Vec<_>>();
+    let labels = items
+        .iter()
+        .map(|item| item.label.clone())
+        .collect::<Vec<_>>();
     assert!(labels.contains(&"add".to_owned()));
     assert!(labels.contains(&"result".to_owned()));
     assert!(labels.contains(&"require".to_owned()));
     assert!(labels.contains(&"type".to_owned()));
     assert!(labels.contains(&"inspect".to_owned()));
+    assert_eq!(
+        items
+            .iter()
+            .find(|item| item.label == "add")
+            .unwrap()
+            .detail
+            .as_deref(),
+        Some("function /2")
+    );
+    assert_eq!(
+        items
+            .iter()
+            .find(|item| item.label == "result")
+            .unwrap()
+            .detail
+            .as_deref(),
+        Some("binding")
+    );
     assert_eq!(
         labels
             .iter()
@@ -308,6 +327,72 @@ fn symbols_navigation_references_hover_and_completion_use_fresh_analysis() {
             .len(),
         labels.len()
     );
+}
+
+#[test]
+fn syntax_diagnostics_use_structured_gleam_style_presentation() {
+    let source = "let broken = )";
+    let mut backend = Backend::new();
+    let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
+    assert_eq!(diagnostics.diagnostics.len(), 1);
+    let diagnostic = &diagnostics.diagnostics[0];
+    assert_eq!(diagnostic.source.as_deref(), Some("simi"));
+    assert_eq!(
+        diagnostic.code,
+        Some(lsp_types::NumberOrString::String("syntax_error".to_owned()))
+    );
+    assert_eq!(
+        diagnostic.severity,
+        Some(lsp_types::DiagnosticSeverity::ERROR)
+    );
+    assert_eq!(
+        diagnostic.message,
+        "Syntax error\n\nExpected expression, found `)`."
+    );
+    assert!(diagnostic.related_information.is_none());
+    assert_eq!(diagnostic.range.start, text_position(source, ")", 0));
+}
+
+#[test]
+fn binding_hover_hides_internal_binding_categories_and_locations() {
+    let source = concat!(
+        "fn sample(parameter) do\n",
+        "let [pattern] = [parameter]\n",
+        "loop state = pattern do state end\n",
+        "end",
+    );
+    let mut backend = Backend::new();
+    open(&mut backend, source);
+
+    for (name, occurrence) in [("parameter", 0), ("pattern", 0), ("state", 0)] {
+        let hover: Option<Hover> = serde_json::from_value(
+            request(
+                &mut backend,
+                HoverRequest::METHOD,
+                json!({
+                    "textDocument": { "uri": uri() },
+                    "position": text_position(source, name, occurrence)
+                }),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let HoverContents::Markup(markup) = hover.expect("binding hover").contents else {
+            panic!("expected markup")
+        };
+        assert_eq!(markup.value, name);
+        for hidden in [
+            "parameter",
+            "pattern binding",
+            "loop state",
+            "declared at",
+            "file://",
+        ] {
+            if hidden != name {
+                assert!(!markup.value.contains(hidden), "hover exposed {hidden}");
+            }
+        }
+    }
 }
 
 #[test]
@@ -382,10 +467,32 @@ fn duplicate_future_bindings_are_diagnosed_and_navigation_keeps_first_runtime_bi
     let mut backend = Backend::new();
     let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
     assert_eq!(diagnostics.diagnostics.len(), 1);
-    assert!(
-        diagnostics.diagnostics[0]
-            .message
-            .contains("already defined in this scope")
+    let diagnostic = &diagnostics.diagnostics[0];
+    assert_eq!(diagnostic.source.as_deref(), Some("simi"));
+    assert_eq!(
+        diagnostic.code,
+        Some(lsp_types::NumberOrString::String(
+            "duplicate_binding".to_owned()
+        ))
+    );
+    assert_eq!(
+        diagnostic.severity,
+        Some(lsp_types::DiagnosticSeverity::ERROR)
+    );
+    assert_eq!(
+        diagnostic.message,
+        "Duplicate binding\n\nThe name `later` is already bound in this scope."
+    );
+    let related = diagnostic
+        .related_information
+        .as_ref()
+        .expect("first declaration label");
+    assert_eq!(related.len(), 1);
+    assert_eq!(related[0].message, "First bound here.");
+    assert_eq!(related[0].location.uri, uri());
+    assert_eq!(
+        related[0].location.range.start,
+        text_position(source, "later", 1)
     );
 
     let definition: Option<GotoDefinitionResponse> = serde_json::from_value(

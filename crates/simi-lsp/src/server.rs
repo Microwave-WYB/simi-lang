@@ -12,19 +12,20 @@ use lsp_types::request::{
 };
 use lsp_types::{
     CompletionItem, CompletionItemKind, CompletionOptions, CompletionParams, CompletionResponse,
-    Diagnostic, DiagnosticSeverity, DidChangeTextDocumentParams, DidCloseTextDocumentParams,
-    DidOpenTextDocumentParams, DocumentSymbolParams, DocumentSymbolResponse, GotoDefinitionParams,
-    GotoDefinitionResponse, Hover, HoverContents, HoverParams, InitializeParams, InitializeResult,
-    Location, MarkupContent, MarkupKind, MessageType, OneOf, Position, PrepareRenameResponse,
-    PublishDiagnosticsParams, ReferenceParams, RenameOptions, RenameParams, ServerCapabilities,
-    ServerInfo, ShowMessageParams, SymbolKind as LspSymbolKind, TextDocumentSyncCapability,
+    Diagnostic, DiagnosticRelatedInformation, DiagnosticSeverity, DidChangeTextDocumentParams,
+    DidCloseTextDocumentParams, DidOpenTextDocumentParams, DocumentSymbolParams,
+    DocumentSymbolResponse, GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverContents,
+    HoverParams, InitializeParams, InitializeResult, Location, MarkupContent, MarkupKind,
+    MessageType, NumberOrString, OneOf, Position, PrepareRenameResponse, PublishDiagnosticsParams,
+    ReferenceParams, RenameOptions, RenameParams, ServerCapabilities, ServerInfo,
+    ShowMessageParams, SymbolKind as LspSymbolKind, TextDocumentSyncCapability,
     TextDocumentSyncKind, TextDocumentSyncOptions, TextEdit, Url, WorkspaceEdit,
 };
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 use simi_analysis::{
-    AnalysisDatabase, FileId, RenameError, Resolution, Span, SymbolKind, diagnostics,
-    document_symbols, references, resolve, source_text,
+    AnalysisDatabase, AnalysisDiagnosticSeverity, FileId, RenameError, Resolution, Span,
+    SymbolKind, diagnostics, document_symbols, references, resolve, source_text,
 };
 
 use crate::position;
@@ -237,11 +238,29 @@ impl Backend {
         let items = diagnostics(&self.db, document.file)
             .iter()
             .filter_map(|diagnostic| {
+                let related_information = diagnostic
+                    .related
+                    .iter()
+                    .filter_map(|related| {
+                        Some(DiagnosticRelatedInformation {
+                            location: Location::new(
+                                uri.clone(),
+                                position::range(&text, related.span).ok()?,
+                            ),
+                            message: related.message.clone(),
+                        })
+                    })
+                    .collect::<Vec<_>>();
                 Some(Diagnostic {
                     range: position::range(&text, diagnostic.span).ok()?,
-                    severity: Some(DiagnosticSeverity::ERROR),
+                    severity: Some(match diagnostic.severity {
+                        AnalysisDiagnosticSeverity::Error => DiagnosticSeverity::ERROR,
+                    }),
+                    code: Some(NumberOrString::String(diagnostic.code.as_str().to_owned())),
                     source: Some("simi".to_owned()),
-                    message: diagnostic.message.clone(),
+                    message: diagnostic.message(),
+                    related_information: (!related_information.is_empty())
+                        .then_some(related_information),
                     ..Diagnostic::default()
                 })
             })
@@ -261,7 +280,7 @@ impl Backend {
                 let range = position::range(&text, symbol.span).ok()?;
                 Some(lsp_types::DocumentSymbol {
                     name: symbol.name.clone(),
-                    detail: Some(symbol_kind_label(symbol.kind).to_owned()),
+                    detail: None,
                     kind: lsp_symbol_kind(symbol.kind),
                     tags: None,
                     deprecated: None,
@@ -370,24 +389,16 @@ impl Backend {
         let Some(facts) = resolution.hover(offset) else {
             return Ok(None);
         };
-        let data = &resolution.hir.symbols[facts.symbol];
-        let mut detail = format!("{} `{}`", symbol_kind_label(facts.kind), facts.name);
-        if let Some(arity) = facts.arity {
-            detail.push_str(&format!(" ({arity} parameters)"));
-        }
-        if let Some(declaration) = facts.declaration {
-            let at = position::position(&text, declaration.start).map_err(|error| {
-                ProtocolError::request_failed(format!("invalid symbol span: {error:?}"))
-            })?;
-            detail.push_str(&format!(
-                "\ndeclared at {}:{}:{}",
-                uri,
-                at.line + 1,
-                at.character + 1
-            ));
-        } else if data.builtin {
-            detail.push_str("\nSimi prelude builtin");
-        }
+        let detail = match facts.kind {
+            SymbolKind::Function | SymbolKind::Builtin => facts.arity.map_or_else(
+                || format!("fn {}", facts.name),
+                |arity| format!("fn {}/{arity}", facts.name),
+            ),
+            SymbolKind::Parameter
+            | SymbolKind::Let
+            | SymbolKind::Pattern
+            | SymbolKind::LoopState => facts.name,
+        };
         Ok(Some(Hover {
             contents: HoverContents::Markup(MarkupContent {
                 kind: MarkupKind::PlainText,
@@ -558,17 +569,6 @@ fn rename_error(error: RenameError) -> ProtocolError {
     }
 }
 
-fn symbol_kind_label(kind: SymbolKind) -> &'static str {
-    match kind {
-        SymbolKind::Function => "function",
-        SymbolKind::Parameter => "parameter",
-        SymbolKind::Let => "let binding",
-        SymbolKind::Pattern => "pattern binding",
-        SymbolKind::LoopState => "loop state",
-        SymbolKind::Builtin => "builtin function",
-    }
-}
-
 fn lsp_symbol_kind(kind: SymbolKind) -> LspSymbolKind {
     match kind {
         SymbolKind::Function | SymbolKind::Builtin => LspSymbolKind::FUNCTION,
@@ -600,9 +600,13 @@ fn completion_kind(kind: SymbolKind) -> CompletionItemKind {
 }
 
 fn completion_detail(kind: SymbolKind, arity: Option<usize>) -> String {
-    match arity {
-        Some(arity) => format!("{} ({arity} parameters)", symbol_kind_label(kind)),
-        None => symbol_kind_label(kind).to_owned(),
+    match kind {
+        SymbolKind::Function | SymbolKind::Builtin => arity
+            .map(|arity| format!("function /{arity}"))
+            .unwrap_or_else(|| "function".to_owned()),
+        SymbolKind::Parameter | SymbolKind::Let | SymbolKind::Pattern | SymbolKind::LoopState => {
+            "binding".to_owned()
+        }
     }
 }
 

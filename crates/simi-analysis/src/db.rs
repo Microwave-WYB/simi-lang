@@ -3,9 +3,12 @@ use std::sync::Arc;
 
 use salsa::Setter;
 use simi_syntax::span::Span;
-use simi_syntax::{SyntaxDiagnostic, SyntaxNode};
+use simi_syntax::{DiagnosticKind, SyntaxDiagnostic, SyntaxNode};
 
-use crate::model::{AnalysisDiagnostic, DocumentSymbol, Hir, Resolution, SymbolId};
+use crate::model::{
+    AnalysisDiagnostic, AnalysisDiagnosticCode, AnalysisDiagnosticSeverity, DocumentSymbol, Hir,
+    RelatedDiagnostic, Resolution, SymbolId,
+};
 
 #[salsa::input(debug)]
 pub struct FileId {
@@ -74,9 +77,19 @@ pub fn diagnostics(db: &dyn salsa::Database, file: FileId) -> Arc<Vec<AnalysisDi
     let mut diagnostics = parsed
         .diagnostics
         .iter()
-        .map(|diagnostic| AnalysisDiagnostic {
-            span: diagnostic.span,
-            message: diagnostic.message.clone(),
+        .map(|diagnostic| {
+            let (code, title) = match diagnostic.kind {
+                DiagnosticKind::Lex => (AnalysisDiagnosticCode::InvalidSyntax, "Invalid syntax"),
+                DiagnosticKind::Parse => (AnalysisDiagnosticCode::SyntaxError, "Syntax error"),
+            };
+            AnalysisDiagnostic {
+                span: diagnostic.span,
+                code,
+                title: title.to_owned(),
+                detail: sentence(&diagnostic.message),
+                severity: AnalysisDiagnosticSeverity::Error,
+                related: Vec::new(),
+            }
         })
         .collect::<Vec<_>>();
     // Recovered HIR can contain incomplete declarations, so resolver diagnostics are
@@ -93,10 +106,17 @@ pub fn diagnostics(db: &dyn salsa::Database, file: FileId) -> Arc<Vec<AnalysisDi
                 if let Some(previous) = declarations.get(symbol.name.as_str()) {
                     diagnostics.push(AnalysisDiagnostic {
                         span,
-                        message: format!(
-                            "name `{}` is already defined in this scope (first defined at byte {})",
-                            symbol.name, previous.start
+                        code: AnalysisDiagnosticCode::DuplicateBinding,
+                        title: "Duplicate binding".to_owned(),
+                        detail: format!(
+                            "The name `{}` is already bound in this scope.",
+                            symbol.name
                         ),
+                        severity: AnalysisDiagnosticSeverity::Error,
+                        related: vec![RelatedDiagnostic {
+                            span: *previous,
+                            message: "First bound here.".to_owned(),
+                        }],
                     });
                 } else {
                     declarations.insert(&symbol.name, span);
@@ -105,6 +125,19 @@ pub fn diagnostics(db: &dyn salsa::Database, file: FileId) -> Arc<Vec<AnalysisDi
         }
     }
     Arc::new(diagnostics)
+}
+
+fn sentence(message: &str) -> String {
+    let mut characters = message.chars();
+    let Some(first) = characters.next() else {
+        return String::new();
+    };
+    let mut result = first.to_uppercase().collect::<String>();
+    result.extend(characters);
+    if !matches!(result.chars().last(), Some('.' | '!' | '?')) {
+        result.push('.');
+    }
+    result
 }
 
 #[salsa::tracked(returns(clone))]

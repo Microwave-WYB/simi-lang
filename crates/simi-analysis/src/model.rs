@@ -87,10 +87,48 @@ pub struct Resolution {
     pub captures: BTreeSet<Capture>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AnalysisDiagnosticCode {
+    InvalidSyntax,
+    SyntaxError,
+    DuplicateBinding,
+}
+
+impl AnalysisDiagnosticCode {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::InvalidSyntax => "invalid_syntax",
+            Self::SyntaxError => "syntax_error",
+            Self::DuplicateBinding => "duplicate_binding",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AnalysisDiagnosticSeverity {
+    Error,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RelatedDiagnostic {
+    pub span: Span,
+    pub message: String,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AnalysisDiagnostic {
     pub span: Span,
-    pub message: String,
+    pub code: AnalysisDiagnosticCode,
+    pub title: String,
+    pub detail: String,
+    pub severity: AnalysisDiagnosticSeverity,
+    pub related: Vec<RelatedDiagnostic>,
+}
+
+impl AnalysisDiagnostic {
+    pub fn message(&self) -> String {
+        format!("{}\n\n{}", self.title, self.detail)
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

@@ -1,6 +1,7 @@
 use simi_analysis::{
-    AnalysisDatabase, OccurrenceKind, RenameError, SymbolId, SymbolKind, diagnostics,
-    document_symbols, parse, references, resolve, source_text,
+    AnalysisDatabase, AnalysisDiagnosticCode, AnalysisDiagnosticSeverity, OccurrenceKind,
+    RenameError, SymbolId, SymbolKind, diagnostics, document_symbols, parse, references, resolve,
+    source_text,
 };
 
 fn symbol_named(resolution: &simi_analysis::Resolution, name: &str, kind: SymbolKind) -> SymbolId {
@@ -125,14 +126,27 @@ fn duplicate_later_bindings_are_diagnosed_and_closures_keep_the_first_runtime_bi
     );
     let diagnostics = diagnostics(&db, file);
     assert_eq!(diagnostics.len(), 1);
-    assert!(
-        diagnostics[0]
-            .message
-            .contains("already defined in this scope")
+    let diagnostic = &diagnostics[0];
+    assert_eq!(diagnostic.code, AnalysisDiagnosticCode::DuplicateBinding);
+    assert_eq!(diagnostic.title, "Duplicate binding");
+    assert_eq!(
+        diagnostic.detail,
+        "The name `later` is already bound in this scope."
     );
     assert_eq!(
-        diagnostics[0].span,
+        diagnostic.message(),
+        "Duplicate binding\n\nThe name `later` is already bound in this scope."
+    );
+    assert_eq!(diagnostic.severity, AnalysisDiagnosticSeverity::Error);
+    assert_eq!(
+        diagnostic.span,
         resolution.hir.symbols[laters[1]].declaration.unwrap()
+    );
+    assert_eq!(diagnostic.related.len(), 1);
+    assert_eq!(diagnostic.related[0].message, "First bound here.");
+    assert_eq!(
+        diagnostic.related[0].span,
+        resolution.hir.symbols[laters[0]].declaration.unwrap()
     );
 }
 
@@ -418,7 +432,15 @@ fn parser_diagnostics_and_later_symbols_survive_recovery() {
     let source = "let broken = ) fn later() do nil end";
     let db = AnalysisDatabase::default();
     let file = db.add_file(source);
-    assert!(!diagnostics(&db, file).is_empty());
+    let diagnostics = diagnostics(&db, file);
+    assert_eq!(diagnostics[0].code, AnalysisDiagnosticCode::SyntaxError);
+    assert_eq!(diagnostics[0].title, "Syntax error");
+    assert_eq!(diagnostics[0].detail, "Expected expression, found `)`.");
+    assert_eq!(
+        diagnostics[0].message(),
+        "Syntax error\n\nExpected expression, found `)`."
+    );
+    assert!(diagnostics[0].related.is_empty());
     assert!(
         document_symbols(&db, file)
             .iter()

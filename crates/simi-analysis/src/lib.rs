@@ -10,7 +10,8 @@ pub use db::{
 pub use simi_syntax::span::Span;
 
 pub use model::{
-    AnalysisDiagnostic, Capture, DocumentSymbol, ExprData, ExprId, Hir, HoverFacts, NameOccurrence,
-    OccurrenceKind, PatternData, PatternId, RenameError, Resolution, ScopeData, ScopeId,
-    SymbolData, SymbolId, SymbolKind,
+    AnalysisDiagnostic, AnalysisDiagnosticCode, AnalysisDiagnosticSeverity, Capture,
+    DocumentSymbol, ExprData, ExprId, Hir, HoverFacts, NameOccurrence, OccurrenceKind, PatternData,
+    PatternId, RelatedDiagnostic, RenameError, Resolution, ScopeData, ScopeId, SymbolData,
+    SymbolId, SymbolKind,
 };
