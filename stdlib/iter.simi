@@ -3,7 +3,21 @@
 alias Step = { done: boolean, value: any }
 alias Iterator = () -> Step
 
-fn from(next_fn) do next_fn end
+fn from(next_fn) do
+    let exhausted = false
+    fn() do
+        if exhausted then { done = true }
+        else
+            let step = next_fn()
+            if step.done then
+                exhausted = true
+                { done = true }
+            else
+                { done = false, value = step.value }
+            end
+        end
+    end
+end
 
 fn next(iterator) do iterator() end
 
@@ -74,11 +88,23 @@ fn find_index(iterator, predicate) do
 end
 
 fn contains(iterator, needle) do
-    find(iterator, fn(value) do value == needle end) != nil
+    loop do
+        let step = iterator()
+        if step.done then break false
+        elseif step.value == needle then break true
+        else continue
+        end
+    end
 end
 
 fn any(iterator, predicate) do
-    find(iterator, predicate) != nil
+    loop do
+        let step = iterator()
+        if step.done then break false
+        elseif predicate(step.value) then break true
+        else continue
+        end
+    end
 end
 
 fn all(iterator, predicate) do

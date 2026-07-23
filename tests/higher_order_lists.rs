@@ -47,6 +47,31 @@ fn iterators_are_lazy_single_pass_and_sticky_after_exhaustion() {
 }
 
 #[test]
+fn custom_iterators_stay_exhausted_and_nil_queries_do_not_use_nil_as_a_sentinel() {
+    assert_eval(
+        r#"
+        let list = require("std/list")
+        let iter = require("std/iter")
+        let calls = 0
+        let source = iter.from(fn() do
+            calls = calls + 1
+            if calls == 1 then { done = true }
+            else { done = false, value = 1 }
+            end
+        end)
+        [
+            iter.next(source),
+            iter.next(source),
+            calls,
+            iter.contains(list.iter([nil]), nil),
+            iter.any(list.iter([nil]), fn(value) do value == nil end),
+        ]
+        "#,
+        "[{done=true}, {done=true}, 1, true, true]",
+    );
+}
+
+#[test]
 fn map_and_filter_are_lazy_and_filter_predicates_are_strict() {
     assert_eval(
         r#"
