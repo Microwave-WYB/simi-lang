@@ -1,67 +1,75 @@
 ---- Mutable list operations and higher-order queries.
 
 --- Return the number of visible elements in a list.
-fn length(xs) do host.call("org.simi-lang/std/list/length", xs) end
+fn length(xs: [..'a]) -> integer do host.call("org.simi-lang/std/list/length", xs) end
 
 --- Create an independent shallow copy of a list.
-fn copy(xs) do host.call("org.simi-lang/std/list/copy", xs) end
+fn copy(xs: [..'a]) -> [..'a] do host.call("org.simi-lang/std/list/copy", xs) end
 
 --- Return the value at an index, or nil when it is out of range.
-fn get(xs, index) do host.call("org.simi-lang/std/list/get", xs, index) end
+fn get(xs: [..'a], index: integer) -> 'a | nil do host.call("org.simi-lang/std/list/get", xs, index) end
 
 --- Append a value to a list.
-fn append(xs, x) do host.call("org.simi-lang/std/list/append", xs, x) end
+fn append(xs: [..'a], x: 'b) -> nil
+    after xs becomes [..'a | 'b]
+do host.call("org.simi-lang/std/list/append", xs, x) end
 
 --- Append every value from one list to another.
-fn extend(xs, other) do host.call("org.simi-lang/std/list/extend", xs, other) end
+fn extend(xs: [..'a], other: [..'b]) -> nil
+    after xs becomes [..'a | 'b]
+do host.call("org.simi-lang/std/list/extend", xs, other) end
 
 --- Replace the value at an existing index.
-fn set(xs, index, x) do host.call("org.simi-lang/std/list/set", xs, index, x) end
+fn set(xs: [..'a], index: integer, x: 'b) -> nil
+    after xs becomes [..'a | 'b]
+do host.call("org.simi-lang/std/list/set", xs, index, x) end
 
 --- Insert a value at an existing position.
-fn insert(xs, index, x) do host.call("org.simi-lang/std/list/insert", xs, index, x) end
+fn insert(xs: [..'a], index: integer, x: 'b) -> nil
+    after xs becomes [..'a | 'b]
+do host.call("org.simi-lang/std/list/insert", xs, index, x) end
 
 --- Remove and return the value at an index.
-fn remove(xs, index) do host.call("org.simi-lang/std/list/remove", xs, index) end
+fn remove(xs: [..'a], index: integer) -> 'a do host.call("org.simi-lang/std/list/remove", xs, index) end
 
 --- Remove and return the final value.
-fn pop(xs) do host.call("org.simi-lang/std/list/pop", xs) end
+fn pop(xs: [..'a]) -> 'a | nil do host.call("org.simi-lang/std/list/pop", xs) end
 
 --- Create a shallow copy of a visible range.
-fn slice(xs, start, stop) do host.call("org.simi-lang/std/list/slice", xs, start, stop) end
+fn slice(xs: [..'a], start: integer, stop: integer) -> [..'a] do host.call("org.simi-lang/std/list/slice", xs, start, stop) end
 
 --- Return whether a list contains a value.
-fn contains(xs, x) do host.call("org.simi-lang/std/list/contains", xs, x) end
+fn contains(xs: [..'a], x: 'a) -> boolean do host.call("org.simi-lang/std/list/contains", xs, x) end
 
 --- Reverse a list in place.
-fn reverse(xs) do host.call("org.simi-lang/std/list/reverse", xs) end
+fn reverse(xs: [..'a]) -> nil do host.call("org.simi-lang/std/list/reverse", xs) end
 
 --- Transform every value in a snapshot of a list.
-fn map(xs, transform) do host.call("org.simi-lang/std/list/map", xs, transform) end
+fn map(xs: [..'a], transform: 'a -> 'b) -> [..'b] do host.call("org.simi-lang/std/list/map", xs, transform) end
 
 --- Keep values for which a predicate returns true.
-fn filter(xs, predicate) do host.call("org.simi-lang/std/list/filter", xs, predicate) end
+fn filter(xs: [..'a], predicate: 'a -> boolean) -> [..'a] do host.call("org.simi-lang/std/list/filter", xs, predicate) end
 
 --- Fold a list from left to right.
-fn fold(xs, initial, reducer) do host.call("org.simi-lang/std/list/fold", xs, initial, reducer) end
+fn fold(xs: [..'a], initial: 'b, reducer: ('b, 'a) -> 'b) -> 'b do host.call("org.simi-lang/std/list/fold", xs, initial, reducer) end
 
 --- Return the first value matching a predicate.
-fn find(xs, predicate) do host.call("org.simi-lang/std/list/find", xs, predicate) end
+fn find(xs: [..'a], predicate: 'a -> boolean) -> 'a | nil do host.call("org.simi-lang/std/list/find", xs, predicate) end
 
 --- Return the index of the first value matching a predicate.
-fn find_index(xs, predicate) do host.call("org.simi-lang/std/list/find_index", xs, predicate) end
+fn find_index(xs: [..'a], predicate: 'a -> boolean) -> integer | nil do host.call("org.simi-lang/std/list/find_index", xs, predicate) end
 
 --- Return whether any value matches a predicate.
-fn any(xs, predicate) do host.call("org.simi-lang/std/list/any", xs, predicate) end
+fn any(xs: [..'a], predicate: 'a -> boolean) -> boolean do host.call("org.simi-lang/std/list/any", xs, predicate) end
 
 --- Return whether every value matches a predicate.
-fn all(xs, predicate) do host.call("org.simi-lang/std/list/all", xs, predicate) end
+fn all(xs: [..'a], predicate: 'a -> boolean) -> boolean do host.call("org.simi-lang/std/list/all", xs, predicate) end
 
 --- Visit each value and return the original list.
-fn each(xs, callback) do host.call("org.simi-lang/std/list/each", xs, callback) end
+fn each(xs: [..'a], callback: 'a -> any) -> [..'a] do host.call("org.simi-lang/std/list/each", xs, callback) end
 
 --- Count values matching a predicate.
-fn count(xs, predicate) do host.call("org.simi-lang/std/list/count", xs, predicate) end
+fn count(xs: [..'a], predicate: 'a -> boolean) -> integer do host.call("org.simi-lang/std/list/count", xs, predicate) end
 
 {
     length = length,

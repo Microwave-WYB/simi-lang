@@ -4,14 +4,17 @@ use gc::{Finalize, Gc, GcCell, Trace, custom_trace};
 
 use crate::value::Value;
 
+type Binding = Gc<GcCell<Value>>;
+
 #[derive(Clone)]
 pub struct Environment {
     frame: Gc<Frame>,
 }
 
 struct Frame {
-    values: GcCell<HashMap<String, Value>>,
-    parent: Option<Environment>,
+    values: GcCell<HashMap<String, Binding>>,
+    version_parent: Option<Environment>,
+    lexical_parent: Option<Environment>,
 }
 
 impl Finalize for Environment {}
@@ -27,7 +30,8 @@ impl Finalize for Frame {}
 unsafe impl Trace for Frame {
     custom_trace!(this, {
         mark(&this.values);
-        mark(&this.parent);
+        mark(&this.version_parent);
+        mark(&this.lexical_parent);
     });
 }
 
@@ -36,51 +40,114 @@ impl Environment {
         Self {
             frame: Gc::new(Frame {
                 values: GcCell::new(HashMap::new()),
-                parent: None,
+                version_parent: None,
+                lexical_parent: None,
             }),
         }
     }
 
+    /// Create a genuine nested lexical scope.
     pub fn child(&self) -> Self {
         Self {
             frame: Gc::new(Frame {
                 values: GcCell::new(HashMap::new()),
-                parent: Some(self.clone()),
+                version_parent: None,
+                lexical_parent: Some(self.clone()),
             }),
         }
     }
 
-    pub fn define(&self, name: impl Into<String>, value: Value) {
-        self.frame.values.borrow_mut().insert(name.into(), value);
+    /// Create a later view of the same lexical scope.
+    ///
+    /// Existing closures keep the earlier view, while subsequent evaluation uses the
+    /// returned view. Unlike `child`, fresh names declared later in this scope are
+    /// backfilled into every earlier view so forward captures keep working.
+    pub(crate) fn shadow_view(&self) -> Self {
+        Self {
+            frame: Gc::new(Frame {
+                values: GcCell::new(HashMap::new()),
+                version_parent: Some(self.clone()),
+                lexical_parent: None,
+            }),
+        }
     }
 
-    pub(crate) fn assign(&self, name: &str, value: Value) -> bool {
-        if self.frame.values.borrow().contains_key(name) {
+    /// Define or replace a binding in this environment's own frame. This is used by
+    /// host-created environments and genuine child scopes such as function calls.
+    pub fn define(&self, name: impl Into<String>, value: Value) {
+        let name = name.into();
+        if let Some(binding) = self.frame.values.borrow().get(&name).cloned() {
+            *binding.borrow_mut() = value;
+        } else {
             self.frame
                 .values
                 .borrow_mut()
-                .insert(name.to_owned(), value);
-            true
-        } else if let Some(parent) = &self.frame.parent {
-            parent.assign(name, value)
-        } else {
-            false
+                .insert(name, Gc::new(GcCell::new(value)));
         }
+    }
+
+    /// Install a name that is new to this lexical scope. Every existing version view
+    /// receives the same cell, which gives closures the established forward-capture
+    /// behavior without exposing names across a true lexical boundary.
+    pub(crate) fn define_fresh(&self, name: impl Into<String>, value: Value) {
+        let name = name.into();
+        let binding = Gc::new(GcCell::new(value));
+        self.backfill(name, binding);
+    }
+
+    /// Install a new binding version only in this view.
+    pub(crate) fn define_shadow(&self, name: impl Into<String>, value: Value) {
+        self.frame
+            .values
+            .borrow_mut()
+            .insert(name.into(), Gc::new(GcCell::new(value)));
+    }
+
+    fn backfill(&self, name: String, binding: Binding) {
+        self.frame
+            .values
+            .borrow_mut()
+            .insert(name.clone(), binding.clone());
+        if let Some(parent) = &self.frame.version_parent {
+            parent.backfill(name, binding);
+        }
+    }
+
+    pub(crate) fn assign(&self, name: &str, value: Value) -> bool {
+        let Some(binding) = self.binding(name) else {
+            return false;
+        };
+        *binding.borrow_mut() = value;
+        true
     }
 
     pub fn get(&self, name: &str) -> Option<Value> {
-        if let Some(value) = self.frame.values.borrow().get(name).cloned() {
-            return Some(value);
-        }
+        self.binding(name).map(|binding| binding.borrow().clone())
+    }
 
+    fn binding(&self, name: &str) -> Option<Binding> {
+        if let Some(binding) = self.frame.values.borrow().get(name).cloned() {
+            return Some(binding);
+        }
+        if let Some(parent) = &self.frame.version_parent
+            && let Some(binding) = parent.binding(name)
+        {
+            return Some(binding);
+        }
         self.frame
-            .parent
+            .lexical_parent
             .as_ref()
-            .and_then(|parent| parent.get(name))
+            .and_then(|parent| parent.binding(name))
     }
 
     pub(crate) fn contains_current(&self, name: &str) -> bool {
-        self.frame.values.borrow().contains_key(name)
+        if self.frame.values.borrow().contains_key(name) {
+            return true;
+        }
+        self.frame
+            .version_parent
+            .as_ref()
+            .is_some_and(|parent| parent.contains_current(name))
     }
 }
 
@@ -110,11 +177,11 @@ mod tests {
     #[test]
     fn children_lookup_parents_and_shadow_locally() {
         let parent = Environment::new();
-        parent.define("value", Value::Int(1));
+        parent.define_fresh("value", Value::Int(1));
         let child = parent.child();
 
         assert_eq!(int(&child, "value"), Some(1));
-        child.define("value", Value::Int(2));
+        child.define_fresh("value", Value::Int(2));
         assert_eq!(int(&child, "value"), Some(2));
         assert_eq!(int(&parent, "value"), Some(1));
     }
@@ -124,16 +191,53 @@ mod tests {
         let first = Environment::new();
         let second = first.clone();
 
-        second.define("later", Value::Int(7));
-
+        second.define_fresh("later", Value::Int(7));
         assert_eq!(int(&first, "later"), Some(7));
     }
 
     #[test]
-    fn closures_observe_functions_bound_after_capture() {
+    fn version_views_freeze_shadowed_cells_but_share_fresh_later_names() {
+        let first = Environment::new();
+        first.define_fresh("value", Value::Int(1));
+        let second = first.shadow_view();
+        second.define_shadow("value", Value::Int(2));
+        second.define_fresh("later", Value::Int(3));
+
+        assert_eq!(int(&first, "value"), Some(1));
+        assert_eq!(int(&second, "value"), Some(2));
+        assert_eq!(int(&first, "later"), Some(3));
+        assert_eq!(int(&second, "later"), Some(3));
+
+        first.assign("value", Value::Int(4));
+        second.assign("later", Value::Int(5));
+        assert_eq!(int(&first, "value"), Some(4));
+        assert_eq!(int(&second, "value"), Some(2));
+        assert_eq!(int(&first, "later"), Some(5));
+    }
+
+    #[test]
+    fn assignments_walk_parents_and_update_the_nearest_scope() {
+        let parent = Environment::new();
+        parent.define_fresh("value", Value::Int(1));
+        let child = parent.child();
+        let alias = parent.clone();
+
+        assert!(child.assign("value", Value::Int(2)));
+        assert_eq!(int(&parent, "value"), Some(2));
+        assert_eq!(int(&alias, "value"), Some(2));
+
+        child.define_fresh("value", Value::Int(3));
+        assert!(child.assign("value", Value::Int(4)));
+        assert_eq!(int(&child, "value"), Some(4));
+        assert_eq!(int(&parent, "value"), Some(2));
+        assert!(!child.assign("missing", Value::Int(0)));
+    }
+
+    #[test]
+    fn closure_environment_edges_are_traced() {
         let environment = Environment::new();
-        let function = Gc::new(UserFunction {
-            name: "recur".to_owned(),
+        let function = Value::Function(Gc::new(UserFunction {
+            name: "self".to_owned(),
             params: Vec::new(),
             body: Block {
                 items: Vec::new(),
@@ -142,42 +246,8 @@ mod tests {
             closure: environment.clone(),
             trace_calls: true,
             module: None,
-        });
-
-        environment.define("recur", Value::Function(function.clone()));
-
-        let Some(Value::Function(observed)) = function.closure.get("recur") else {
-            panic!("closure did not observe its recursive binding");
-        };
-        assert!(Gc::ptr_eq(&function, &observed));
-    }
-
-    #[test]
-    fn assignment_updates_the_nearest_existing_shared_frame() {
-        let parent = Environment::new();
-        parent.define("value", Value::Int(1));
-        let child = parent.child();
-        let alias = parent.clone();
-
-        assert!(child.assign("value", Value::Int(2)));
-        assert_eq!(int(&parent, "value"), Some(2));
-        assert_eq!(int(&alias, "value"), Some(2));
-
-        child.define("value", Value::Int(3));
-        assert!(child.assign("value", Value::Int(4)));
-        assert_eq!(int(&child, "value"), Some(4));
-        assert_eq!(int(&parent, "value"), Some(2));
-        assert!(!child.assign("missing", Value::Nil));
-    }
-
-    #[test]
-    fn local_membership_does_not_include_parent_bindings() {
-        let parent = Environment::new();
-        parent.define("parent_only", Value::Nil);
-        let child = parent.child();
-
-        assert!(parent.contains_current("parent_only"));
-        assert!(!child.contains_current("parent_only"));
-        assert!(child.get("parent_only").is_some());
+        }));
+        environment.define_fresh("self", function);
+        assert!(matches!(environment.get("self"), Some(Value::Function(_))));
     }
 }

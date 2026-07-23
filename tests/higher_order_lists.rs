@@ -1,4 +1,4 @@
-use simiscript::{Engine, SimiError, eval};
+use simi::{Engine, SimiError, eval};
 
 fn assert_eval(source: &str, expected: &str) {
     let value = eval(source)

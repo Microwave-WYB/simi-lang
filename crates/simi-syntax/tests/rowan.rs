@@ -111,6 +111,50 @@ fn utf8_tokens_keep_byte_ranges() {
 }
 
 #[test]
+fn erased_type_surface_is_lossless_and_alias_is_contextual() {
+    let source = concat!(
+        "let alias = 1\n",
+        "alias option('a) = 'a | nil\n",
+        "let value: option(string) = nil\n",
+        "fn apply(values: [integer, string], output: [..string]) -> nil ",
+        "after values becomes [..integer | string] ",
+        "after output becomes [..string] do nil end\n",
+        "let record: { name: string, [string | integer]: boolean, .. } = {}\n",
+    );
+    let parse = parse_source(source);
+    assert!(parse.diagnostics().is_empty(), "{:?}", parse.diagnostics());
+    assert_eq!(parse.syntax().to_string(), source);
+    let root = Root::cast(parse.syntax().clone()).unwrap();
+    assert!(matches!(root.statements().nth(1), Some(Stmt::AliasDecl(_))));
+    assert!(
+        parse
+            .syntax()
+            .descendants()
+            .any(|node| node.kind() == SyntaxKind::TYPE_FUNCTION)
+    );
+    assert!(
+        parse
+            .syntax()
+            .descendants()
+            .any(|node| node.kind() == SyntaxKind::TYPE_MAP)
+    );
+    assert_eq!(
+        parse
+            .syntax()
+            .descendants()
+            .filter(|node| node.kind() == SyntaxKind::POST_CONDITION)
+            .count(),
+        2
+    );
+    assert!(
+        parse
+            .syntax()
+            .descendants()
+            .any(|node| node.kind() == SyntaxKind::TYPE_LIST_REST)
+    );
+}
+
+#[test]
 fn malformed_lexemes_are_preserved_as_error_tokens() {
     let source = "let x = @\nlet y = 2";
     let parse = parse_source(source);

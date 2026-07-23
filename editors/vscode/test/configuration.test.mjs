@@ -95,7 +95,7 @@ test("grammar keyword inventory follows the current Simi lexer", async () => {
     .map(({ match }) => match)
     .join("\n")
     .replaceAll("\\b", "");
-  assert.ok(!operatorInventory.includes("->"), "legacy clause arrow must not be scoped");
+  assert.ok(operatorInventory.includes("->"), "type return arrow must be scoped");
   assert.match(operatorInventory, /\\\?>/, "nil-aware pipeline must be scoped");
   assert.match(operatorInventory, /\\\?/, "nil propagation must be scoped");
   assert.doesNotMatch(

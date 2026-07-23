@@ -1,4 +1,4 @@
-use simiscript::{Engine, SimiError, eval};
+use simi::{Engine, SimiError, eval};
 
 #[test]
 fn map_inspection_preserves_mixed_key_insertion_order() {

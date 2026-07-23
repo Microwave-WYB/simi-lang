@@ -1,4 +1,4 @@
-use simiscript::{SimiError, Value, eval};
+use simi::{SimiError, Value, eval};
 
 fn value(source: &str) -> Value {
     eval(source)
@@ -157,7 +157,7 @@ fn trailing_argument_is_right_associative_and_requires_call_left_operands() {
         let invalid_start = source.rfind('1').unwrap();
         assert_eq!(
             error.span(),
-            simiscript::span::Span::new(invalid_start, invalid_start + 1)
+            simi::span::Span::new(invalid_start, invalid_start + 1)
         );
         assert!(
             error

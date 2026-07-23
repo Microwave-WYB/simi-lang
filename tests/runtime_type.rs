@@ -1,4 +1,4 @@
-use simiscript::{SimiError, Value, eval};
+use simi::{SimiError, Value, eval};
 
 fn value(source: &str) -> Value {
     eval(source)

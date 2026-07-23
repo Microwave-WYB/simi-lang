@@ -2,20 +2,20 @@ use std::sync::Arc;
 
 use gc::{Gc, GcCell};
 
-use simiscript::interpreter::Interpreter;
-use simiscript::lexer::{LexError, Token, TokenKind, lex};
-use simiscript::native::{
+use simi::interpreter::Interpreter;
+use simi::lexer::{LexError, Token, TokenKind, lex};
+use simi::native::{
     list_append, list_contains, list_extend, list_get, list_insert, list_length, list_pop,
     list_remove, list_reverse, list_set, list_slice, map_clear, map_entries, map_has, map_keys,
     map_length, map_values,
 };
-use simiscript::parser::{ParseError, Parser, parse};
-use simiscript::runtime::{
+use simi::parser::{ParseError, Parser, parse};
+use simi::runtime::{
     Environment, FloatKey, List, MapKey, NativeFn, NativeFunction, NativeResult, Raised,
     RuntimeError, RuntimeResult, ScriptResult, SharedFunction, SharedList, SharedMap, TraceFrame,
     UserFunction, Value,
 };
-use simiscript::{
+use simi::{
     Engine, EngineBuilder, Module, ModuleBuilder, NativeCallback, Raised as RootRaised,
     ScriptResult as RootScriptResult, SourceModuleBuilder, TraceFrame as RootTraceFrame,
     Value as RootValue,
@@ -24,7 +24,7 @@ use simiscript::{
 #[test]
 fn existing_public_paths_remain_available() {
     let _ = lex as fn(&str) -> Result<Vec<Token>, LexError>;
-    let _ = parse as fn(Vec<Token>) -> Result<simiscript::ast::Program, ParseError>;
+    let _ = parse as fn(Vec<Token>) -> Result<simi::ast::Program, ParseError>;
     let _ = Parser::new;
     let _ = Interpreter::new;
     let _ = Engine::new;
@@ -32,7 +32,7 @@ fn existing_public_paths_remain_available() {
     let _ = EngineBuilder::new;
     let _: ModuleBuilder = Module::builder("example");
     let _: SourceModuleBuilder = Module::source("source", "{}");
-    let _: Module = simiscript::stdlib::map();
+    let _: Module = simi::stdlib::map();
     let _: Option<&NativeCallback> = None;
     let _ = [
         list_length,

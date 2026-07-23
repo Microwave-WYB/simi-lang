@@ -93,7 +93,14 @@ pub struct Resolution {
 pub enum AnalysisDiagnosticCode {
     InvalidSyntax,
     SyntaxError,
-    DuplicateBinding,
+    TypeMismatch,
+    InvalidOperator,
+    NotCallable,
+    WrongArity,
+    UnknownType,
+    WrongTypeArity,
+    CyclicTypeAlias,
+    InvalidType,
 }
 
 impl AnalysisDiagnosticCode {
@@ -101,7 +108,14 @@ impl AnalysisDiagnosticCode {
         match self {
             Self::InvalidSyntax => "invalid_syntax",
             Self::SyntaxError => "syntax_error",
-            Self::DuplicateBinding => "duplicate_binding",
+            Self::TypeMismatch => "type_mismatch",
+            Self::InvalidOperator => "invalid_operator",
+            Self::NotCallable => "not_callable",
+            Self::WrongArity => "wrong_arity",
+            Self::UnknownType => "unknown_type",
+            Self::WrongTypeArity => "wrong_type_arity",
+            Self::CyclicTypeAlias => "cyclic_type_alias",
+            Self::InvalidType => "invalid_type",
         }
     }
 }
@@ -147,6 +161,8 @@ pub struct ExportField {
     pub span: Span,
     pub parameters: Option<Vec<String>>,
     pub documentation: Option<String>,
+    pub ty: Option<Type>,
+    pub posts: Vec<ParameterPostType>,
     pub fields: Vec<ExportField>,
 }
 
@@ -166,6 +182,147 @@ pub struct ModuleValue {
 pub struct ModuleMember {
     pub module: String,
     pub field: ExportField,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum Type {
+    #[doc(hidden)]
+    Never,
+    Unknown,
+    Any,
+    Nil,
+    Boolean,
+    Int,
+    Float,
+    String,
+    LiteralInt(i64),
+    LiteralString(String),
+    LiteralBoolean(bool),
+    ListExact(Vec<Type>),
+    ListRest(Box<Type>),
+    Map {
+        fields: Vec<(String, Type)>,
+        index: Option<(Box<Type>, Box<Type>)>,
+        open: bool,
+    },
+    Function(Vec<Type>, Box<Type>),
+    #[doc(hidden)]
+    FunctionArgs(Vec<Type>),
+    Union(Vec<Type>),
+    Generic(u32),
+    Infer(u32),
+}
+
+impl Type {
+    pub fn display(&self) -> String {
+        display_type(self, false)
+    }
+}
+
+fn display_type(ty: &Type, nested: bool) -> String {
+    match ty {
+        Type::Never => "never".to_owned(),
+        Type::Unknown => "any".to_owned(),
+        Type::Any => "any".to_owned(),
+        Type::Nil => "nil".to_owned(),
+        Type::Boolean => "boolean".to_owned(),
+        Type::Int => "integer".to_owned(),
+        Type::Float => "float".to_owned(),
+        Type::String => "string".to_owned(),
+        Type::LiteralInt(value) => value.to_string(),
+        Type::LiteralString(value) => format!("{value:?}"),
+        Type::LiteralBoolean(value) => value.to_string(),
+        Type::ListExact(items) => format!(
+            "[{}]",
+            items
+                .iter()
+                .map(|item| display_type(item, false))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
+        Type::ListRest(item) => format!("[..{}]", display_type(item, false)),
+        Type::Map {
+            fields,
+            index,
+            open,
+        } => {
+            let mut parts = fields
+                .iter()
+                .map(|(name, ty)| format!("{name}: {}", display_type(ty, false)))
+                .collect::<Vec<_>>();
+            if let Some((key, value)) = index {
+                parts.push(format!(
+                    "[{}]: {}",
+                    display_type(key, false),
+                    display_type(value, false)
+                ));
+            }
+            if *open {
+                parts.push("..".to_owned());
+            }
+            format!("{{ {} }}", parts.join(", "))
+        }
+        Type::Function(parameters, result) => {
+            let left = match parameters.as_slice() {
+                [parameter] => display_type(parameter, true),
+                _ => format!(
+                    "({})",
+                    parameters
+                        .iter()
+                        .map(|parameter| display_type(parameter, false))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ),
+            };
+            let value = format!("{left} -> {}", display_type(result, false));
+            if nested { format!("({value})") } else { value }
+        }
+        Type::FunctionArgs(items) => format!(
+            "({})",
+            items
+                .iter()
+                .map(|item| display_type(item, false))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
+        Type::Union(items) => {
+            let value = items
+                .iter()
+                .map(|item| display_type(item, true))
+                .collect::<Vec<_>>()
+                .join(" | ");
+            if nested { format!("({value})") } else { value }
+        }
+        Type::Generic(index) => format!("'{}", generic_name(*index)),
+        Type::Infer(index) => format!("?{index}"),
+    }
+}
+
+fn generic_name(mut index: u32) -> String {
+    let mut name = String::new();
+    loop {
+        name.insert(0, (b'a' + (index % 26) as u8) as char);
+        if index < 26 {
+            return name;
+        }
+        index = index / 26 - 1;
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ParameterPostType {
+    pub parameter_index: usize,
+    pub parameter_name: String,
+    pub becomes: Type,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct TypeInference {
+    pub symbol_types: HashMap<SymbolId, Type>,
+    pub symbol_posts: HashMap<SymbolId, Vec<ParameterPostType>>,
+    pub expression_types: Vec<(Span, Type)>,
+    pub pattern_types: Vec<(Span, Type)>,
+    pub diagnostics: Vec<AnalysisDiagnostic>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -412,10 +569,15 @@ impl Resolution {
                 .map_or(symbol.name.as_str(), |(_, new_name)| new_name);
             effective == name
         };
-        let preceding_user = scope_data.symbols.iter().copied().find(|id| {
-            let symbol = &self.hir.symbols[*id];
-            has_name(*id) && symbol.activation <= offset && symbol.declaration.is_some()
-        });
+        let preceding_user = scope_data
+            .symbols
+            .iter()
+            .copied()
+            .filter(|id| {
+                let symbol = &self.hir.symbols[*id];
+                has_name(*id) && symbol.activation <= offset && symbol.declaration.is_some()
+            })
+            .max_by_key(|id| self.hir.symbols[*id].activation);
         let preceding_builtin = scope_data.symbols.iter().copied().find(|id| {
             let symbol = &self.hir.symbols[*id];
             has_name(*id) && symbol.activation <= offset && symbol.builtin
@@ -426,10 +588,15 @@ impl Resolution {
         // user declaration also replaces the prelude binding in that shared frame.
         let following = (occurrence_depth > scope_data.function_depth)
             .then(|| {
-                scope_data.symbols.iter().copied().find(|id| {
-                    let symbol = &self.hir.symbols[*id];
-                    has_name(*id) && symbol.activation > offset && symbol.declaration.is_some()
-                })
+                scope_data
+                    .symbols
+                    .iter()
+                    .copied()
+                    .filter(|id| {
+                        let symbol = &self.hir.symbols[*id];
+                        has_name(*id) && symbol.activation > offset && symbol.declaration.is_some()
+                    })
+                    .min_by_key(|id| self.hir.symbols[*id].activation)
             })
             .flatten();
         match preceding {

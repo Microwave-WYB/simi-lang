@@ -160,16 +160,29 @@ Stable labels are `"nil"`, `"boolean"`, `"integer"`, `"float"`, `"string"`, `"li
 
 ### Pipelines
 
-A `|>` or `?>` pipeline stage must be a call. The incoming value is inserted as the first argument, and `tap` performs the call while preserving that incoming value.
+A `|>` or `?>` pipeline stage must be a call. The incoming value is inserted as the first argument.
+
+The compound operators `|> tap` and `?> tap` perform their stage call for its effects, discard the call's result, and preserve the incoming value with the same alias identity. `tap` is part of these pipeline operators; it is not an identifier or callable function and cannot be used outside a pipeline stage.
 
 ```simi
 value |> transform(extra)
+value |> tap observe()
 value ?> tap observe()
 ```
 
-`?>` follows the same stage-call, first-argument, and `tap` rules as `|>`, but a `nil` input skips that stage's callee and all arguments lazily. A non-`nil` input behaves exactly like `|>`. The two operators may mix, and nil-awareness is stage-local: `nil ?> skipped() |> classify()` still calls `classify(nil)`. Only ordinary `nil` triggers skipping; raises and hard diagnostics from the input or an active stage propagate normally.
+Binding the result of a tap pipeline does not create a copy: `let alias = values |> tap list.append(item)` makes `alias` and `values` denote the same mutated list.
 
-The right-associative trailing-argument operator `<|` requires a call on its left and appends its right operand as exactly one final argument. It binds more tightly than pipelines, allowing callback-heavy stages without nested closing parentheses:
+`?>` follows the same stage-call and first-argument rules as `|>`, but a `nil` input skips that stage's callee and all arguments lazily. The compound `?> tap` operator preserves the skipped `nil`, while a non-`nil` input behaves like `|> tap`. The pipeline operators may mix, and nil-awareness is stage-local: `nil ?> skipped() |> classify()` still calls `classify(nil)`. Only ordinary `nil` triggers skipping; raises and hard diagnostics from the input or an active stage propagate normally.
+
+Pass callbacks directly in the ordinary call form first:
+
+```simi
+values |> list.map(fn(value) do
+    value * 2
+end)
+```
+
+The right-associative trailing-argument operator `<|` is an optional alternative. It requires a call on its left, appends its right operand as exactly one final argument, and binds more tightly than pipelines. This lets a multiline callback end its own scope without a trailing closing parenthesis:
 
 ```simi
 values
@@ -337,12 +350,12 @@ Add tests at the lowest useful layer and at the public language boundary when se
 
 The portable standard library currently includes `std/list`, `std/map`, `std/number`, and `std/string`; `type` and `inspect` are globals. Anonymous functions, trailing callback application, and Gleam-inspired higher-order list queries are implemented. The CLI additionally registers the opt-in `std/io/*` standard-stream modules.
 
-Rowan syntax, Salsa-backed lexical analysis, `simi-lsp`, and the VS Code/Zed adapters are implemented. They provide syntax and symbol analysis plus best-effort source-module export shapes for completion and hover; they do not parse annotations or infer types.
+Rowan syntax, Salsa-backed lexical and type analysis, `simi-lsp`, and the VS Code/Zed adapters are implemented. The erased optional type system parses inline annotations and transparent aliases, infers stable body-based function and binding types, reports definite contradictions, and supplies typed hover/completion for source modules.
 
-Likely later milestones include script-visible command-line arguments, filesystem/package module discovery, formatting, and optional static typing. These are roadmap items, not implemented features. Do not add them opportunistically outside an approved task.
+Likely later milestones include script-visible command-line arguments, filesystem/package module discovery, and formatting. These are roadmap items, not implemented features. Do not add them opportunistically outside an approved task.
 
-The authoritative initial erased-type design is documented in [`docs/type-system.md`](docs/type-system.md). It uses inline optional annotations and a LuaLS-level scope; its annotation, alias, and type-grammar forms remain invalid until parsing, inference, erasure, diagnostics, and editor support land together.
+The authoritative erased-type design is documented in [`docs/type-system.md`](docs/type-system.md). Its primitive static vocabulary is `never`, `nil`, `boolean`, `integer`, `float`, `string`, and `any`; numeric APIs use `integer | float`, never a special static `number` type. Annotations and aliases are erased and must not affect runtime semantics.
 
-Builtin `type(value) == "label"` comparisons remain the primitive runtime category check and may later be recognized by the analyzer for narrowing. Static `int` will correspond to the existing runtime label `"integer"`; changing that label is a separate compatibility decision. `TypeIs` is not part of the initial type-system scope.
+Builtin `type(value) == "label"` comparisons remain the primitive runtime category check and may later be recognized by the analyzer for narrowing. Static `integer` will correspond to the existing runtime label `"integer"`; changing that label is a separate compatibility decision. `TypeIs` is not part of the initial type-system scope.
 
-Filesystem/package module discovery, serialization, formatter work, runtime tuples, and static type implementation remain out of scope until explicitly requested.
+Filesystem/package module discovery, serialization, formatter work, runtime tuples, and advanced type features beyond the documented initial scope remain out of scope until explicitly requested.

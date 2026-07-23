@@ -1,6 +1,6 @@
-use simiscript::{Engine, SimiError, eval};
+use simi::{Engine, SimiError, eval};
 
-fn value(source: &str) -> simiscript::Value {
+fn value(source: &str) -> simi::Value {
     eval(source)
         .expect("source should have no hard diagnostic")
         .expect("source should not raise")
@@ -70,7 +70,7 @@ fn string_module_is_an_explicit_capability() {
     );
 
     let direct = Engine::builder()
-        .module(simiscript::stdlib::string())
+        .module(simi::stdlib::string())
         .build()
         .eval("let string = require(\"std/string\") string.upper(\"ok\")")
         .unwrap()

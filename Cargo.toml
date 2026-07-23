@@ -1,7 +1,15 @@
 [package]
-name = "simiscript"
+name = "simi"
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.85"
+description = "A small embeddable scripting language with expression-oriented control flow"
+license = "MIT"
+repository = "https://github.com/Microwave-WYB/simi-lang"
+homepage = "https://github.com/Microwave-WYB/simi-lang"
+readme = "README.md"
+keywords = ["language", "scripting", "interpreter", "embedding"]
+categories = ["compilers", "command-line-utilities"]
 
 [[bin]]
 name = "simi"

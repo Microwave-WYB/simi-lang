@@ -24,8 +24,12 @@ pub fn module_shape(db: &dyn salsa::Database, file: FileId) -> ModuleShape {
     let mut final_fields = Vec::new();
 
     for statement in root.statements() {
-        // A module exports the value of its final top-level item. Clear the
-        // previous candidate before every item so an earlier map cannot leak
+        // Type aliases are erased and therefore do not replace the final runtime value.
+        if matches!(statement, syntax::Stmt::AliasDecl(_)) {
+            continue;
+        }
+        // A module exports the value of its final runtime item. Clear the
+        // previous candidate before every such item so an earlier map cannot leak
         // through a later declaration, assignment, or unsupported expression.
         final_fields.clear();
         match statement {
@@ -100,12 +104,57 @@ pub fn module_shape(db: &dyn salsa::Database, file: FileId) -> ModuleShape {
                 }
             }
             syntax::Stmt::FunctionDecl(_) => {}
+            syntax::Stmt::AliasDecl(_) => unreachable!("aliases continue above"),
         }
     }
 
+    let inference = crate::types::infer_types(db, file, &HashMap::new());
+    let expression_types = parsed
+        .syntax()
+        .descendants()
+        .filter_map(syntax::MapEntry::cast)
+        .filter_map(|entry| {
+            let key = support::token(entry.syntax(), K::IDENT)?;
+            let value = support::child::<syntax::Expr>(entry.syntax())?;
+            let range = value.syntax().text_range();
+            let value_span = Span::new(range.start().into(), range.end().into());
+            let ty = inference
+                .expression_types
+                .iter()
+                .find_map(|(at, ty)| (*at == value_span).then(|| ty.clone()))?;
+            Some((token_span(&key), ty))
+        })
+        .collect::<Vec<_>>();
+    attach_field_types(
+        &mut final_fields,
+        &inference,
+        &resolution,
+        &expression_types,
+    );
     ModuleShape {
         documentation: module_documentation(&source_text(db, file)),
         fields: final_fields,
+    }
+}
+
+fn attach_field_types(
+    fields: &mut [ExportField],
+    inference: &crate::model::TypeInference,
+    resolution: &Resolution,
+    expression_types: &[(Span, crate::model::Type)],
+) {
+    for field in fields {
+        if let Some(symbol) = resolution.symbol_at(field.span.start) {
+            field.ty = inference.symbol_types.get(&symbol).cloned();
+            field.posts = inference
+                .symbol_posts
+                .get(&symbol)
+                .cloned()
+                .unwrap_or_default();
+        } else if let Some((_, ty)) = expression_types.iter().find(|(at, _)| *at == field.span) {
+            field.ty = Some(ty.clone());
+        }
+        attach_field_types(&mut field.fields, inference, resolution, expression_types);
     }
 }
 
@@ -157,6 +206,8 @@ fn field_from_value(
         span,
         parameters: None,
         documentation: None,
+        ty: None,
+        posts: Vec::new(),
         fields: Vec::new(),
     };
     match value {
@@ -177,7 +228,8 @@ fn field_from_value(
         syntax::Expr::Function(node) => {
             let parameters = support::child::<syntax::ParamList>(node.syntax())
                 .map(|params| {
-                    support::tokens(params.syntax(), K::IDENT)
+                    support::children::<syntax::Param>(params.syntax())
+                        .filter_map(|param| support::token(param.syntax(), K::IDENT))
                         .map(|token| token.text().to_owned())
                         .collect()
                 })

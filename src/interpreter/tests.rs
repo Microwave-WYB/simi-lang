@@ -40,16 +40,15 @@ fn expect_raised(source: &str) -> Raised {
 #[test]
 fn destructuring_let_installs_bindings_atomically() {
     let globals = Environment::new();
-    let program = parser::parse_source("let existing = 1 let [fresh, existing] = [2, 3]").unwrap();
-    let error = match Interpreter::with_globals(globals.clone()).evaluate(&program) {
-        Err(error) => error,
-        Ok(_) => panic!("binding conflict should be a hard error"),
-    };
-    assert_eq!(
-        error.message,
-        "name `existing` is already defined in this scope"
-    );
-    assert!(globals.get("fresh").is_none());
+    let program =
+        parser::parse_source("let existing = 1 let [fresh, existing] = [2, 3] [fresh, existing]")
+            .unwrap();
+    let result = Interpreter::with_globals(globals.clone())
+        .evaluate(&program)
+        .unwrap()
+        .unwrap();
+    assert_eq!(result.render(), "[2, 3]");
+    assert!(matches!(globals.get("fresh"), Some(Value::Int(2))));
     assert!(matches!(globals.get("existing"), Some(Value::Int(1))));
 
     let globals = Environment::new();

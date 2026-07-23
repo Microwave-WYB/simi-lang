@@ -1,4 +1,4 @@
-use simiscript::{Engine, SimiError, eval};
+use simi::{Engine, SimiError, eval};
 
 #[test]
 fn from_string_accepts_signed_simi_numeric_forms_with_syntax_directed_types() {

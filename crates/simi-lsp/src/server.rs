@@ -24,9 +24,10 @@ use lsp_types::{
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 use simi_analysis::{
-    AnalysisDatabase, AnalysisDiagnosticSeverity, FileId, ModuleShape, RenameError, Resolution,
-    Span, SymbolKind, diagnostics, display_signature, document_symbols, imported_members,
-    member_at, member_completions, module_at, module_shape, references, resolve, source_text,
+    AnalysisDatabase, AnalysisDiagnosticSeverity, FileId, ModuleShape, ParameterPostType,
+    RenameError, Resolution, Span, SymbolKind, diagnostics, document_symbols, expression_type_at,
+    field_type_at, imported_members, infer_types, member_at, member_completions, module_at,
+    module_shape, references, resolve, source_text, symbol_type_at, wildcard_type_at,
 };
 
 use crate::position;
@@ -253,7 +254,20 @@ impl Backend {
             );
         };
         let text = source_text(&self.db, document.file);
-        let items = diagnostics(&self.db, document.file)
+        let mut analysis_diagnostics = diagnostics(&self.db, document.file).as_ref().clone();
+        analysis_diagnostics
+            .extend(infer_types(&self.db, document.file, &self.module_shapes).diagnostics);
+        analysis_diagnostics.sort_by_key(|diagnostic| {
+            (
+                diagnostic.span.start,
+                diagnostic.span.end,
+                diagnostic.code.as_str(),
+            )
+        });
+        analysis_diagnostics.dedup_by(|left, right| {
+            left.span == right.span && left.code == right.code && left.detail == right.detail
+        });
+        let items = analysis_diagnostics
             .iter()
             .filter_map(|diagnostic| {
                 let related_information = diagnostic
@@ -405,7 +419,20 @@ impl Backend {
         let (document, text, resolution, offset) =
             self.analysis_at(&uri, params.text_document_position_params.position)?;
         if let Some(module) = module_at(&self.db, document.file, &self.module_shapes, offset) {
-            let mut value = module.module;
+            let mut value = resolution.hover(offset).map_or_else(
+                || module.module,
+                |facts| {
+                    let inference = infer_types(&self.db, document.file, &self.module_shapes);
+                    typed_detail(
+                        &facts.name,
+                        inference.symbol_types.get(&facts.symbol),
+                        inference
+                            .symbol_posts
+                            .get(&facts.symbol)
+                            .map_or(&[], Vec::as_slice),
+                    )
+                },
+            );
             if let Some(documentation) = module.documentation {
                 value.push_str("\n\n");
                 value.push_str(&documentation);
@@ -420,9 +447,10 @@ impl Backend {
         }
         if let Some(member) = member_at(&self.db, document.file, &self.module_shapes, &text, offset)
         {
-            let mut value = member.field.parameters.as_ref().map_or_else(
-                || member.field.name.clone(),
-                |parameters| display_signature(&member.field.name, parameters),
+            let mut value = typed_detail(
+                &member.field.name,
+                member.field.ty.as_ref(),
+                &member.field.posts,
             );
             if let Some(documentation) = member.field.documentation {
                 value.push_str("\n\n");
@@ -436,32 +464,72 @@ impl Backend {
                 range: None,
             }));
         }
-        let Some(facts) = resolution.hover(offset) else {
+        let inference = infer_types(&self.db, document.file, &self.module_shapes);
+        if let Some((span, ty)) = wildcard_type_at(&self.db, document.file, &inference, offset) {
+            return Ok(Some(Hover {
+                contents: HoverContents::Markup(MarkupContent {
+                    kind: MarkupKind::PlainText,
+                    value: format!("_ : {}", ty.display()),
+                }),
+                range: Some(self.range(&text, span)?),
+            }));
+        }
+        if let Some((name, span, ty)) = field_type_at(&self.db, document.file, &inference, offset) {
+            return Ok(Some(Hover {
+                contents: HoverContents::Markup(MarkupContent {
+                    kind: MarkupKind::PlainText,
+                    value: format!("{name} : {}", ty.display()),
+                }),
+                range: Some(self.range(&text, span)?),
+            }));
+        }
+        if let Some(facts) = resolution.hover(offset) {
+            let imported = imported_members(&self.db, document.file, &self.module_shapes);
+            let ty = symbol_type_at(&inference, &resolution, offset).or_else(|| {
+                imported
+                    .get(&facts.symbol)
+                    .and_then(|member| member.field.ty.clone())
+            });
+            let posts = inference
+                .symbol_posts
+                .get(&facts.symbol)
+                .map(Vec::as_slice)
+                .or_else(|| {
+                    imported
+                        .get(&facts.symbol)
+                        .map(|member| member.field.posts.as_slice())
+                })
+                .unwrap_or(&[]);
+            let mut detail = typed_detail(&facts.name, ty.as_ref(), posts);
+            let documentation = facts.documentation.or_else(|| {
+                imported
+                    .get(&facts.symbol)
+                    .and_then(|member| member.field.documentation.clone())
+            });
+            if let Some(documentation) = documentation {
+                detail.push_str("\n\n");
+                detail.push_str(&documentation);
+            }
+            return Ok(Some(Hover {
+                contents: HoverContents::Markup(MarkupContent {
+                    kind: MarkupKind::PlainText,
+                    value: detail,
+                }),
+                range: resolution
+                    .symbol_span_at(offset)
+                    .map(|(_, span)| self.range(&text, span))
+                    .transpose()?,
+            }));
+        }
+        let Some((span, ty)) = expression_type_at(&inference, offset) else {
             return Ok(None);
         };
-        let mut detail = match facts.kind {
-            SymbolKind::Function | SymbolKind::Builtin => facts.parameters.as_ref().map_or_else(
-                || format!("fn {}", facts.name),
-                |parameters| display_signature(&facts.name, parameters),
-            ),
-            SymbolKind::Parameter
-            | SymbolKind::Let
-            | SymbolKind::Pattern
-            | SymbolKind::LoopState => facts.name,
-        };
-        if let Some(documentation) = facts.documentation {
-            detail.push_str("\n\n");
-            detail.push_str(&documentation);
-        }
         Ok(Some(Hover {
             contents: HoverContents::Markup(MarkupContent {
                 kind: MarkupKind::PlainText,
-                value: detail,
+                value: ty.display(),
             }),
-            range: resolution
-                .symbol_span_at(offset)
-                .map(|(_, span)| self.range(&text, span))
-                .transpose()?,
+            range: Some(self.range(&text, span)?),
         }))
     }
 
@@ -487,9 +555,10 @@ impl Backend {
                             } else {
                                 CompletionItemKind::FIELD
                             }),
-                            detail: Some(field.parameters.as_ref().map_or_else(
-                                || "field".to_owned(),
-                                |parameters| display_signature(&field.name, parameters),
+                            detail: Some(typed_detail(
+                                &field.name,
+                                field.ty.as_ref(),
+                                &field.posts,
                             )),
                             documentation: field.documentation.map(Documentation::String),
                             ..CompletionItem::default()
@@ -508,6 +577,7 @@ impl Backend {
         }
 
         let imported = imported_members(&self.db, document.file, &self.module_shapes);
+        let inference = infer_types(&self.db, document.file, &self.module_shapes);
         let mut names = BTreeSet::new();
         let mut items = Vec::new();
         for symbol in visible {
@@ -529,15 +599,23 @@ impl Backend {
                 } else {
                     completion_kind(data.kind)
                 };
-                let detail = imported.map_or_else(
-                    || completion_detail(data.kind, &data.name, data.parameters.as_deref()),
-                    |member| {
-                        member.field.parameters.as_ref().map_or_else(
-                            || "binding".to_owned(),
-                            |parameters| display_signature(&data.name, parameters),
-                        )
-                    },
-                );
+                let detail = inference
+                    .symbol_types
+                    .get(&symbol)
+                    .cloned()
+                    .or_else(|| imported.and_then(|member| member.field.ty.clone()))
+                    .map_or_else(
+                        || completion_detail(data.kind, &data.name, data.parameters.as_deref()),
+                        |ty| {
+                            let posts = inference
+                                .symbol_posts
+                                .get(&symbol)
+                                .map(Vec::as_slice)
+                                .or_else(|| imported.map(|member| member.field.posts.as_slice()))
+                                .unwrap_or(&[]);
+                            typed_detail(&data.name, Some(&ty), posts)
+                        },
+                    );
                 items.push(CompletionItem {
                     label: data.name.clone(),
                     kind: Some(kind),
@@ -705,15 +783,26 @@ fn completion_kind(kind: SymbolKind) -> CompletionItemKind {
     }
 }
 
-fn completion_detail(kind: SymbolKind, name: &str, parameters: Option<&[String]>) -> String {
-    match kind {
-        SymbolKind::Function | SymbolKind::Builtin => parameters
-            .map(|parameters| display_signature(name, parameters))
-            .unwrap_or_else(|| format!("fn {name}")),
-        SymbolKind::Parameter | SymbolKind::Let | SymbolKind::Pattern | SymbolKind::LoopState => {
-            "binding".to_owned()
-        }
+fn typed_detail(
+    name: &str,
+    ty: Option<&simi_analysis::Type>,
+    posts: &[ParameterPostType],
+) -> String {
+    let mut detail = format!(
+        "{name} : {}",
+        ty.map_or_else(|| "any".to_owned(), |ty| ty.display())
+    );
+    for post in posts {
+        detail.push_str("\n    after ");
+        detail.push_str(&post.parameter_name);
+        detail.push_str(" becomes ");
+        detail.push_str(&post.becomes.display());
     }
+    detail
+}
+
+fn completion_detail(_kind: SymbolKind, name: &str, _parameters: Option<&[String]>) -> String {
+    format!("{name} : any")
 }
 
 fn decode<T: DeserializeOwned>(value: Value) -> Result<T, ProtocolError> {

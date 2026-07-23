@@ -188,6 +188,40 @@ fn println(value) do nil end
 }
 
 #[test]
+fn annotated_exported_functions_carry_types_and_trailing_aliases_are_erased() {
+    let source = r#"
+fn map(xs: [..'a], transform: 'a -> 'b) -> [..'b] do [] end
+{ map = map, identity = fn(value) do value end }
+alias option('a) = 'a | nil
+"#;
+    let db = AnalysisDatabase::default();
+    let file = db.add_file(source);
+    let shape = module_shape(&db, file);
+    let map = shape
+        .fields
+        .iter()
+        .find(|field| field.name == "map")
+        .unwrap();
+    assert_eq!(
+        map.ty.as_ref().map(simi_analysis::Type::display).as_deref(),
+        Some("([..'a], 'a -> 'b) -> [..'b]")
+    );
+    let identity = shape
+        .fields
+        .iter()
+        .find(|field| field.name == "identity")
+        .unwrap();
+    assert_eq!(
+        identity
+            .ty
+            .as_ref()
+            .map(simi_analysis::Type::display)
+            .as_deref(),
+        Some("'a -> 'a")
+    );
+}
+
+#[test]
 fn documentation_requires_immediately_consecutive_triple_dash_comments() {
     let source = r#"
 --- Attached line one.

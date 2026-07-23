@@ -35,6 +35,7 @@ module.exports = grammar({
 
     _statement: ($) => choice(
       $.function_declaration,
+      $.alias_declaration,
       $.let_statement,
       $._expression,
     ),
@@ -45,14 +46,25 @@ module.exports = grammar({
       "fn",
       field("name", $.identifier),
       field("parameters", $.parameters),
+      optional(field("return_type", $.return_annotation)),
+      repeat($.post_condition),
       "do",
       optional(field("body", $.block)),
       "end",
     ),
 
+    alias_declaration: ($) => seq(
+      "alias",
+      field("name", $.identifier),
+      optional(field("parameters", $.type_parameters)),
+      "=",
+      field("type", $._type),
+    ),
+
     let_statement: ($) => seq(
       "let",
       field("pattern", $._let_pattern),
+      optional(field("type", $.type_annotation)),
       "=",
       field("value", $._expression),
     ),
@@ -214,7 +226,92 @@ module.exports = grammar({
       ")",
     ),
 
-    parameter: ($) => $.identifier,
+    parameter: ($) => seq(
+      field("name", $.identifier),
+      optional(field("type", $.type_annotation)),
+    ),
+
+    type_annotation: ($) => seq(":", $._type),
+    return_annotation: ($) => seq("->", $._type),
+    post_condition: ($) => seq(
+      "after",
+      field("parameter", $.identifier),
+      "becomes",
+      field("type", $._type),
+    ),
+
+    type_parameters: ($) => seq(
+      "(",
+      optional(commaSep1($.type_variable)),
+      optional(","),
+      ")",
+    ),
+
+    _type: ($) => $.function_type,
+
+    function_type: ($) => seq(
+      $.union_type,
+      optional(seq("->", $.function_type)),
+    ),
+
+    union_type: ($) => seq(
+      $._primary_type,
+      repeat(seq("|", $._primary_type)),
+    ),
+
+    _primary_type: ($) => choice(
+      $.named_type,
+      $.type_variable,
+      $.literal_type,
+      $.parenthesized_type,
+      $.list_type,
+      $.map_type,
+    ),
+
+    named_type: ($) => prec.right(seq(
+      field("name", $.identifier),
+      optional(field("arguments", $.type_arguments)),
+    )),
+
+    type_arguments: ($) => seq(
+      "(",
+      optional(commaSep1($._type)),
+      optional(","),
+      ")",
+    ),
+
+    type_variable: ($) => token(seq("'", /[A-Za-z_][A-Za-z0-9_]*/)),
+
+    literal_type: ($) => choice($.string, $.nil),
+
+    parenthesized_type: ($) => seq(
+      "(",
+      optional(commaSep1($._type)),
+      optional(","),
+      ")",
+    ),
+
+    list_type: ($) => seq(
+      "[",
+      optional(choice(seq("..", $._type), commaSep1($._type))),
+      optional(","),
+      "]",
+    ),
+
+    map_type: ($) => seq(
+      "{",
+      optional(choice(
+        seq(commaSep1($.map_type_entry), optional(seq(",", ".."))),
+        "..",
+      )),
+      optional(","),
+      "}",
+    ),
+
+    map_type_entry: ($) => choice(
+      seq(field("name", $.identifier), ":", field("type", $._type)),
+      seq("[", field("key", $._type), "]", ":", field("type", $._type)),
+    ),
 
     _primary_expression: ($) => choice(
       $.identifier,
@@ -275,6 +372,7 @@ module.exports = grammar({
     function_expression: ($) => seq(
       "fn",
       field("parameters", $.parameters),
+      optional(field("return_type", $.return_annotation)),
       "do",
       optional(field("body", $.block)),
       "end",

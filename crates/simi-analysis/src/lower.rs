@@ -115,7 +115,8 @@ impl Builder {
                 };
                 let params = support::child::<syntax::ParamList>(node.syntax());
                 let parameters = params.as_ref().map_or_else(Vec::new, |params| {
-                    support::tokens(params.syntax(), K::IDENT)
+                    support::children::<syntax::Param>(params.syntax())
+                        .filter_map(|param| direct_token(param.syntax(), K::IDENT))
                         .map(|token| token.text().to_string())
                         .collect()
                 });
@@ -129,7 +130,9 @@ impl Builder {
                 );
                 let function_scope = self.child_scope(scope, node.syntax(), true);
                 if let Some(params) = params {
-                    for token in support::tokens(params.syntax(), K::IDENT) {
+                    for token in support::children::<syntax::Param>(params.syntax())
+                        .filter_map(|param| direct_token(param.syntax(), K::IDENT))
+                    {
                         self.declare(
                             function_scope,
                             token.text().to_string(),
@@ -144,6 +147,7 @@ impl Builder {
                     self.block(&body, function_scope);
                 }
             }
+            syntax::Stmt::AliasDecl(_) => {}
             syntax::Stmt::LetStmt(node) => {
                 if let Some(value) = support::child::<syntax::Expr>(node.syntax()) {
                     self.expression(value, scope);
@@ -182,7 +186,9 @@ impl Builder {
             syntax::Expr::Function(node) => {
                 let function_scope = self.child_scope(scope, node.syntax(), true);
                 if let Some(params) = support::child::<syntax::ParamList>(node.syntax()) {
-                    for token in support::tokens(params.syntax(), K::IDENT) {
+                    for token in support::children::<syntax::Param>(params.syntax())
+                        .filter_map(|param| direct_token(param.syntax(), K::IDENT))
+                    {
                         self.declare(
                             function_scope,
                             token.text().to_string(),

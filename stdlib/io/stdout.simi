@@ -1,12 +1,12 @@
 ---- Standard output operations supplied by the CLI host.
 
 --- Write a value and flush standard output.
-fn print(value) do host.call("org.simi-lang/std/io/stdout/print", value) end
+fn print(value: any) -> nil do host.call("org.simi-lang/std/io/stdout/print", value) end
 
 --- Write a value and newline, then flush standard output.
-fn println(value) do host.call("org.simi-lang/std/io/stdout/println", value) end
+fn println(value: any) -> nil do host.call("org.simi-lang/std/io/stdout/println", value) end
 
 --- Flush standard output.
-fn flush() do host.call("org.simi-lang/std/io/stdout/flush") end
+fn flush() -> nil do host.call("org.simi-lang/std/io/stdout/flush") end
 
 { print = print, println = println, flush = flush }

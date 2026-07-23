@@ -1,4 +1,4 @@
-use simiscript::eval;
+use simi::eval;
 
 #[test]
 fn maps_support_named_integer_string_and_boolean_keys() {

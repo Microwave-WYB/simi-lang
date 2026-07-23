@@ -671,7 +671,7 @@ fn reports_required_case_clause_delimiters() {
         ),
         (
             "case value of _ -> nil end",
-            "expected `do` before clause body, found `-`",
+            "expected `do` before clause body, found `->`",
         ),
     ] {
         let error = parse_source(source).unwrap_err();

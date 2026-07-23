@@ -253,12 +253,8 @@ fn preserves_comments_minus_and_single_dot() {
                 span: Span::new(0, 1),
             },
             Token {
-                kind: TokenKind::Minus,
-                span: Span::new(2, 3),
-            },
-            Token {
-                kind: TokenKind::Greater,
-                span: Span::new(3, 4),
+                kind: TokenKind::Arrow,
+                span: Span::new(2, 4),
             },
             Token {
                 kind: TokenKind::Dot,

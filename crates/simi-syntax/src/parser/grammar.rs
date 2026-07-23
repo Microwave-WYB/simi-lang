@@ -43,6 +43,10 @@ pub(super) fn root(p: &mut Parser<'_>) {
 fn statement(p: &mut Parser<'_>) {
     if p.at(K::FN_KW) && p.nth(1) != K::L_PAREN {
         function_decl(p);
+    } else if p.at(K::ALIAS_KW)
+        || (p.at(K::IDENT) && p.current_text() == Some("alias") && p.nth(1) == K::IDENT)
+    {
+        alias_decl(p);
     } else if p.at(K::LET_KW) {
         let_stmt(p);
     } else {
@@ -57,7 +61,12 @@ fn recover_statement(p: &mut Parser<'_>) {
     if !p.at_end() {
         p.bump();
     }
-    while !p.at_end() && !p.at(K::FN_KW) && !p.at(K::LET_KW) {
+    while !(p.at_end()
+        || p.at(K::FN_KW)
+        || p.at(K::ALIAS_KW)
+        || p.at(K::LET_KW)
+        || (p.at(K::IDENT) && p.current_text() == Some("alias") && p.nth(1) == K::IDENT))
+    {
         p.bump();
     }
     marker.complete(&mut p.events, K::ERROR);
@@ -67,21 +76,26 @@ fn function_decl(p: &mut Parser<'_>) {
     let marker = p.start();
     p.expect(K::FN_KW, "`fn`");
     p.expect(K::IDENT, "function name");
-    function_parts(p, "`(` after function name");
+    function_parts(p, "`(` after function name", true);
     marker.complete(&mut p.events, K::FUNCTION_DECL);
 }
 
-fn function_parts(p: &mut Parser<'_>, open: &str) {
+fn function_parts(p: &mut Parser<'_>, open: &str, allow_posts: bool) {
     let params = p.start();
     p.expect(K::L_PAREN, open);
     let mut seen = HashSet::new();
     if !p.at(K::R_PAREN) && !p.at_end() {
         loop {
+            let param = p.start();
             let span = p.current_span();
             let name = p.current_text().unwrap_or_default().to_owned();
             if p.expect(K::IDENT, "parameter name") && !seen.insert(name.clone()) {
                 p.error_at(span, format!("duplicate parameter `{name}`"));
             }
+            if p.at(K::COLON) {
+                type_annotation(p);
+            }
+            param.complete(&mut p.events, K::PARAM);
             if !p.bump_if(K::COMMA) || p.at(K::R_PAREN) {
                 break;
             }
@@ -89,6 +103,32 @@ fn function_parts(p: &mut Parser<'_>, open: &str) {
     }
     p.expect(K::R_PAREN, "`)` after parameters");
     params.complete(&mut p.events, K::PARAM_LIST);
+    if p.at(K::ARROW) {
+        let result = p.start();
+        p.bump();
+        type_expr(p);
+        result.complete(&mut p.events, K::RETURN_ANNOTATION);
+    }
+    while allow_posts
+        && (p.at(K::AFTER_KW) || (p.at(K::IDENT) && p.current_text() == Some("after")))
+    {
+        let post = p.start();
+        if p.at(K::AFTER_KW) {
+            p.bump();
+        } else {
+            p.bump_as(K::AFTER_KW);
+        }
+        p.expect(K::IDENT, "postcondition parameter name");
+        if p.at(K::BECOMES_KW) {
+            p.bump();
+        } else if p.at(K::IDENT) && p.current_text() == Some("becomes") {
+            p.bump_as(K::BECOMES_KW);
+        } else {
+            p.expect(K::BECOMES_KW, "`becomes` in postcondition");
+        }
+        type_expr(p);
+        post.complete(&mut p.events, K::POST_CONDITION);
+    }
     p.expect(K::DO_KW, "`do` before function body");
     let old_loop = std::mem::replace(&mut p.loop_depth, 0);
     let old_block = std::mem::replace(&mut p.standalone_block_depth, 0);
@@ -96,6 +136,37 @@ fn function_parts(p: &mut Parser<'_>, open: &str) {
     p.loop_depth = old_loop;
     p.standalone_block_depth = old_block;
     p.expect(K::END_KW, "`end` after function body");
+}
+
+fn alias_decl(p: &mut Parser<'_>) {
+    let marker = p.start();
+    p.bump();
+    p.expect(K::IDENT, "type alias name");
+    if p.at(K::L_PAREN) {
+        let parameters = p.start();
+        p.bump();
+        let mut seen = HashSet::new();
+        if !p.at(K::R_PAREN) {
+            loop {
+                let variable = p.start();
+                p.expect(K::APOSTROPHE, "`'` before type variable");
+                let span = p.current_span();
+                let name = p.current_text().unwrap_or_default().to_owned();
+                if p.expect(K::IDENT, "type variable name") && !seen.insert(name.clone()) {
+                    p.error_at(span, format!("duplicate type parameter `'{}'", name));
+                }
+                variable.complete(&mut p.events, K::TYPE_VARIABLE);
+                if !p.bump_if(K::COMMA) || p.at(K::R_PAREN) {
+                    break;
+                }
+            }
+        }
+        p.expect(K::R_PAREN, "`)` after type parameters");
+        parameters.complete(&mut p.events, K::TYPE_PARAM_LIST);
+    }
+    p.expect(K::EQ, "`=` after type alias");
+    type_expr(p);
+    marker.complete(&mut p.events, K::ALIAS_DECL);
 }
 
 fn let_stmt(p: &mut Parser<'_>) {
@@ -109,9 +180,158 @@ fn let_stmt(p: &mut Parser<'_>) {
     } else {
         pattern(p, &mut bindings);
     }
+    if p.at(K::COLON) {
+        type_annotation(p);
+    }
     p.expect(K::EQ, "`=` after let pattern");
     expression(p);
     marker.complete(&mut p.events, K::LET_STMT);
+}
+
+fn type_annotation(p: &mut Parser<'_>) {
+    let marker = p.start();
+    p.bump();
+    type_expr(p);
+    marker.complete(&mut p.events, K::TYPE_ANNOTATION);
+}
+
+fn type_expr(p: &mut Parser<'_>) {
+    let marker = p.start();
+    type_function(p);
+    marker.complete(&mut p.events, K::TYPE_EXPR);
+}
+
+fn type_function(p: &mut Parser<'_>) {
+    let marker = p.start();
+    type_union(p);
+    if p.bump_if(K::ARROW) {
+        type_function(p);
+    }
+    marker.complete(&mut p.events, K::TYPE_FUNCTION);
+}
+
+fn type_union(p: &mut Parser<'_>) {
+    let marker = p.start();
+    type_primary(p);
+    while p.bump_if(K::PIPE) {
+        type_primary(p);
+    }
+    marker.complete(&mut p.events, K::TYPE_UNION);
+}
+
+fn type_primary(p: &mut Parser<'_>) {
+    if p.at(K::APOSTROPHE) {
+        type_variable(p);
+    } else if matches!(p.current(), K::STRING | K::NIL_KW) {
+        let marker = p.start();
+        p.bump();
+        marker.complete(&mut p.events, K::TYPE_LITERAL);
+    } else if p.at(K::IDENT) {
+        let marker = p.start();
+        p.bump();
+        if p.at(K::L_PAREN) {
+            type_argument_list(p);
+        }
+        marker.complete(&mut p.events, K::TYPE_NAME);
+    } else if p.at(K::L_PAREN) {
+        let marker = p.start();
+        p.bump();
+        if !p.at(K::R_PAREN) {
+            loop {
+                type_expr(p);
+                if !p.bump_if(K::COMMA) || p.at(K::R_PAREN) {
+                    break;
+                }
+            }
+        }
+        p.expect(K::R_PAREN, "`)` after type");
+        marker.complete(&mut p.events, K::TYPE_PAREN);
+    } else if p.at(K::L_BRACKET) {
+        type_list(p);
+    } else if p.at(K::L_BRACE) {
+        type_map(p);
+    } else {
+        let marker = p.start();
+        p.error(format!(
+            "expected type, found `{}`",
+            super::token_name(p.current(), p.at_end())
+        ));
+        if !p.at_end() {
+            p.bump();
+        }
+        marker.complete(&mut p.events, K::ERROR);
+    }
+}
+
+fn type_variable(p: &mut Parser<'_>) {
+    let marker = p.start();
+    p.expect(K::APOSTROPHE, "`'` before type variable");
+    p.expect(K::IDENT, "type variable name");
+    marker.complete(&mut p.events, K::TYPE_VARIABLE);
+}
+
+fn type_argument_list(p: &mut Parser<'_>) {
+    let marker = p.start();
+    p.bump();
+    if !p.at(K::R_PAREN) {
+        loop {
+            type_expr(p);
+            if !p.bump_if(K::COMMA) || p.at(K::R_PAREN) {
+                break;
+            }
+        }
+    }
+    p.expect(K::R_PAREN, "`)` after type arguments");
+    marker.complete(&mut p.events, K::TYPE_ARGUMENT_LIST);
+}
+
+fn type_list(p: &mut Parser<'_>) {
+    let marker = p.start();
+    p.bump();
+    if p.at(K::DOT_DOT) {
+        let rest = p.start();
+        p.bump();
+        type_expr(p);
+        rest.complete(&mut p.events, K::TYPE_LIST_REST);
+        p.bump_if(K::COMMA);
+    } else if !p.at(K::R_BRACKET) {
+        loop {
+            type_expr(p);
+            if !p.bump_if(K::COMMA) || p.at(K::R_BRACKET) {
+                break;
+            }
+        }
+    }
+    p.expect(K::R_BRACKET, "`]` after list type");
+    marker.complete(&mut p.events, K::TYPE_LIST);
+}
+
+fn type_map(p: &mut Parser<'_>) {
+    let marker = p.start();
+    p.bump();
+    while !p.at(K::R_BRACE) && !p.at_end() {
+        if p.at(K::DOT_DOT) {
+            let rest = p.start();
+            p.bump();
+            rest.complete(&mut p.events, K::TYPE_MAP_REST);
+        } else {
+            let entry = p.start();
+            if p.bump_if(K::L_BRACKET) {
+                type_expr(p);
+                p.expect(K::R_BRACKET, "`]` after map key type");
+            } else {
+                p.expect(K::IDENT, "map type field");
+            }
+            p.expect(K::COLON, "`:` in map type field");
+            type_expr(p);
+            entry.complete(&mut p.events, K::TYPE_MAP_ENTRY);
+        }
+        if !p.bump_if(K::COMMA) {
+            break;
+        }
+    }
+    p.expect(K::R_BRACE, "`}` after map type");
+    marker.complete(&mut p.events, K::TYPE_MAP);
 }
 
 fn block(p: &mut Parser<'_>) -> CompletedMarker {
@@ -395,7 +615,7 @@ fn error_expr(p: &mut Parser<'_>) -> Parsed {
 fn function_expr(p: &mut Parser<'_>) -> Parsed {
     let marker = p.start();
     p.bump();
-    function_parts(p, "`(` after `fn`");
+    function_parts(p, "`(` after `fn`", false);
     Parsed {
         marker: marker.complete(&mut p.events, K::FUNCTION_EXPR),
         flavor: Flavor::Other,

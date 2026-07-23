@@ -1,4 +1,19 @@
 -- Exercises the syntax used by the Zed queries.
+alias option('a) = 'a | nil
+alias pair('a, 'b) = ['a, 'b]
+
+let typed_value: option(string) = nil
+let typed_record: { name: string, .. } = { name = "Simi" }
+
+fn typed_identity(value: 'a) -> 'a do
+    value
+end
+
+fn declared_effect(xs: [..integer], pair: [integer, string]) -> nil
+    after xs becomes [..integer | string]
+    after pair becomes [..integer | string]
+do nil end
+
 let list = require("std/list")
 
 fn classify(value) do

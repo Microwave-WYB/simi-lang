@@ -2,10 +2,7 @@ use gc::{Gc, GcCell};
 
 use super::{EvaluationError, EvaluationResult, Interpreter, pattern::match_pattern};
 use crate::ast::{BinaryOp, Block, Expr, ExprKind, Stmt, StmtKind};
-use crate::runtime::{
-    Environment, List, MapKey, Raised, RuntimeError, RuntimeResult, UserFunction, Value,
-};
-use crate::span::Span;
+use crate::runtime::{Environment, List, MapKey, Raised, RuntimeError, UserFunction, Value};
 
 fn is_host_wrapper(body: &Block) -> bool {
     let [
@@ -34,11 +31,23 @@ impl Interpreter {
         items: &[Stmt],
         env: &Environment,
     ) -> EvaluationResult<Value> {
+        self.evaluate_items_with_environment(items, env)
+            .map(|(value, _)| value)
+    }
+
+    pub(super) fn evaluate_items_with_environment(
+        &mut self,
+        items: &[Stmt],
+        env: &Environment,
+    ) -> EvaluationResult<(Value, Environment)> {
         let mut result = Value::Nil;
+        let mut current = env.clone();
         for item in items {
-            result = self.evaluate_statement(item, env)?;
+            let (value, next) = self.evaluate_statement(item, &current)?;
+            result = value;
+            current = next;
         }
-        Ok(result)
+        Ok((result, current))
     }
 
     pub(super) fn evaluate_block(
@@ -53,10 +62,15 @@ impl Interpreter {
         &mut self,
         statement: &Stmt,
         env: &Environment,
-    ) -> EvaluationResult<Value> {
+    ) -> EvaluationResult<(Value, Environment)> {
         match &statement.kind {
             StmtKind::Function { name, params, body } => {
-                self.ensure_new_definition(env, name, statement.span)?;
+                let shadows = env.contains_current(name);
+                let binding_env = if shadows {
+                    env.shadow_view()
+                } else {
+                    env.clone()
+                };
                 let function = UserFunction {
                     name: self
                         .module_name
@@ -64,12 +78,17 @@ impl Interpreter {
                         .map_or_else(|| name.clone(), |module| format!("{module}.{name}")),
                     params: params.clone(),
                     body: body.clone(),
-                    closure: env.clone(),
+                    closure: binding_env.clone(),
                     trace_calls: self.trace_function_calls || !is_host_wrapper(body),
                     module: self.module_name.clone(),
                 };
-                env.define(name.clone(), Value::Function(Gc::new(function)));
-                Ok(Value::Nil)
+                let function = Value::Function(Gc::new(function));
+                if shadows {
+                    binding_env.define_shadow(name.clone(), function);
+                } else {
+                    binding_env.define_fresh(name.clone(), function);
+                }
+                Ok((Value::Nil, binding_env))
             }
             StmtKind::Let { pattern, value } => {
                 let value = self.evaluate_expression(value, env)?;
@@ -80,31 +99,27 @@ impl Interpreter {
                         "let pattern did not match",
                     )));
                 }
-                for (name, _) in &bindings {
-                    self.ensure_new_definition(env, name, statement.span)?;
+                let shadows = bindings
+                    .iter()
+                    .map(|(name, _)| env.contains_current(name))
+                    .collect::<Vec<_>>();
+                let binding_env = if shadows.iter().any(|shadows| *shadows) {
+                    env.shadow_view()
+                } else {
+                    env.clone()
+                };
+                for ((name, value), shadows) in bindings.into_iter().zip(shadows) {
+                    if shadows {
+                        binding_env.define_shadow(name, value);
+                    } else {
+                        binding_env.define_fresh(name, value);
+                    }
                 }
-                for (name, value) in bindings {
-                    env.define(name, value);
-                }
-                Ok(Value::Nil)
+                Ok((Value::Nil, binding_env))
             }
-            StmtKind::Expr(expression) => self.evaluate_expression(expression, env),
-        }
-    }
-
-    fn ensure_new_definition(
-        &self,
-        env: &Environment,
-        name: &str,
-        span: Span,
-    ) -> RuntimeResult<()> {
-        if env.contains_current(name) {
-            Err(RuntimeError {
-                span,
-                message: format!("name `{name}` is already defined in this scope"),
-            })
-        } else {
-            Ok(())
+            StmtKind::Expr(expression) => self
+                .evaluate_expression(expression, env)
+                .map(|value| (value, env.clone())),
         }
     }
 

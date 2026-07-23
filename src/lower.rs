@@ -10,7 +10,7 @@ use crate::span::Span;
 pub(crate) fn program(root: SyntaxNode) -> ast::Program {
     let root = syntax::Root::cast(root).expect("parser must produce a root node");
     ast::Program {
-        items: root.statements().map(stmt).collect(),
+        items: root.statements().filter_map(stmt).collect(),
     }
 }
 
@@ -23,7 +23,7 @@ pub(crate) fn program_with_origins(
     program
 }
 
-fn stmt(node: syntax::Stmt) -> ast::Stmt {
+fn stmt(node: syntax::Stmt) -> Option<ast::Stmt> {
     let span = span(node.syntax());
     let kind = match node {
         syntax::Stmt::FunctionDecl(node) => {
@@ -33,13 +33,15 @@ fn stmt(node: syntax::Stmt) -> ast::Stmt {
                 .to_string();
             let params = support::child::<syntax::ParamList>(node.syntax())
                 .expect("valid function has params");
-            let params = support::tokens(params.syntax(), K::IDENT)
+            let params = support::children::<syntax::Param>(params.syntax())
+                .filter_map(|param| direct_token(param.syntax(), K::IDENT))
                 .map(|token| token.text().to_string())
                 .collect();
             let body =
                 lower_block(support::child(node.syntax()).expect("valid function has a body"));
             ast::StmtKind::Function { name, params, body }
         }
+        syntax::Stmt::AliasDecl(_) => return None,
         syntax::Stmt::LetStmt(node) => {
             let pattern =
                 lower_pattern(support::child(node.syntax()).expect("valid let has a pattern"));
@@ -50,11 +52,11 @@ fn stmt(node: syntax::Stmt) -> ast::Stmt {
             support::child(node.syntax()).expect("valid expression statement"),
         )),
     };
-    ast::Stmt { kind, span }
+    Some(ast::Stmt { kind, span })
 }
 
 fn lower_block(node: syntax::Block) -> ast::Block {
-    let items = node.statements().map(stmt).collect::<Vec<_>>();
+    let items = node.statements().filter_map(stmt).collect::<Vec<_>>();
     let span = match (items.first(), items.last()) {
         (Some(first), Some(last)) => first.span.merge(last.span),
         _ => {
@@ -79,7 +81,8 @@ fn lower_expr(node: syntax::Expr) -> ast::Expr {
         syntax::Expr::Function(node) => {
             let params =
                 support::child::<syntax::ParamList>(node.syntax()).expect("function params");
-            let params = support::tokens(params.syntax(), K::IDENT)
+            let params = support::children::<syntax::Param>(params.syntax())
+                .filter_map(|param| direct_token(param.syntax(), K::IDENT))
                 .map(|token| token.text().to_string())
                 .collect();
             let body = lower_block(support::child(node.syntax()).expect("function body"));

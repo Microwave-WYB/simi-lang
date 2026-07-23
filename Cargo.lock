@@ -750,6 +750,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "simi"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "gc",
+ "gc_derive",
+ "simi-lsp",
+ "simi-syntax",
+]
+
+[[package]]
 name = "simi-analysis"
 version = "0.1.0"
 dependencies = [
@@ -783,17 +794,6 @@ name = "simi-xtask"
 version = "0.1.0"
 dependencies = [
  "ungrammar",
-]
-
-[[package]]
-name = "simiscript"
-version = "0.1.0"
-dependencies = [
- "clap",
- "gc",
- "gc_derive",
- "simi-lsp",
- "simi-syntax",
 ]
 
 [[package]]

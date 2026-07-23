@@ -1,4 +1,4 @@
-use simiscript::{SimiError, eval};
+use simi::{SimiError, eval};
 
 fn assert_eval(source: &str, expected: &str) {
     match eval(source) {

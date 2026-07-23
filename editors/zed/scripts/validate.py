@@ -34,6 +34,9 @@ ALLOWED_CAPTURES = {
         "punctuation.delimiter",
         "string",
         "string.escape",
+        "type",
+        "type.definition",
+        "type.parameter",
         "variable",
         "variable.parameter",
     },
@@ -123,8 +126,9 @@ def check_source_extension() -> None:
     highlights = (language / "highlights.scm").read_text(encoding="utf-8")
     for keyword in ('"case"', '"of"', '"when"'):
         check(keyword in highlights, f"missing highlight keyword: {keyword}")
-    for removed in ('"match"', '"with"', '"->"'):
+    for removed in ('"match"', '"with"'):
         check(removed not in highlights, f"legacy highlight token remains: {removed}")
+    check('"->"' in highlights, "type return arrow is not highlighted")
 
     indents = (language / "indents.scm").read_text(encoding="utf-8")
     check("(case_expression" in indents, "case_expression is not indented")
@@ -138,8 +142,9 @@ def check_source_extension() -> None:
     check("of _ do nil\n" in fixture, "fixture does not exercise final case clause")
     check("catch _ do nil\n" in fixture, "fixture does not exercise repeated catches")
     check("?>" in fixture and "?" in fixture, "fixture does not exercise nil control flow")
-    for removed in ("match ", " with\n", " ->"):
+    for removed in ("match ", " with\n"):
         check(removed not in fixture, f"fixture contains legacy syntax: {removed.strip()}")
+    check(" -> " in fixture, "fixture does not exercise return annotations")
 
     for query_name, allowed in ALLOWED_CAPTURES.items():
         text = (language / query_name).read_text(encoding="utf-8")

@@ -1,7 +1,6 @@
 use simi_analysis::{
-    AnalysisDatabase, AnalysisDiagnosticCode, AnalysisDiagnosticSeverity, OccurrenceKind,
-    RenameError, SymbolId, SymbolKind, diagnostics, document_symbols, parse, references, resolve,
-    source_text,
+    AnalysisDatabase, AnalysisDiagnosticCode, OccurrenceKind, RenameError, SymbolId, SymbolKind,
+    diagnostics, document_symbols, parse, references, resolve, source_text,
 };
 
 fn symbol_named(resolution: &simi_analysis::Resolution, name: &str, kind: SymbolKind) -> SymbolId {
@@ -105,8 +104,8 @@ fn closures_resolve_and_expose_bindings_declared_later_in_captured_frames() {
 }
 
 #[test]
-fn duplicate_later_bindings_are_diagnosed_and_closures_keep_the_first_runtime_binding() {
-    let source = "let closure = fn() do later end let later = 1 let later = 2";
+fn repeated_let_shadows_while_earlier_closures_keep_the_prior_symbol() {
+    let source = "let closure = fn() do later end let later = 1 let later = 2 later";
     let db = AnalysisDatabase::default();
     let file = db.add_file(source);
     let resolution = resolve(&db, file);
@@ -119,35 +118,16 @@ fn duplicate_later_bindings_are_diagnosed_and_closures_keep_the_first_runtime_bi
 
     assert_eq!(laters.len(), 2);
     assert_eq!(resolution.references(laters[0]).len(), 1);
-    assert!(resolution.references(laters[1]).is_empty());
+    assert_eq!(resolution.references(laters[1]).len(), 1);
     assert_eq!(
         resolution.symbol_at(source.find("later end").unwrap()),
         Some(laters[0])
     );
-    let diagnostics = diagnostics(&db, file);
-    assert_eq!(diagnostics.len(), 1);
-    let diagnostic = &diagnostics[0];
-    assert_eq!(diagnostic.code, AnalysisDiagnosticCode::DuplicateBinding);
-    assert_eq!(diagnostic.title, "Duplicate binding");
     assert_eq!(
-        diagnostic.detail,
-        "The name `later` is already bound in this scope."
+        resolution.symbol_at(source.rfind("later").unwrap()),
+        Some(laters[1])
     );
-    assert_eq!(
-        diagnostic.message(),
-        "Duplicate binding\n\nThe name `later` is already bound in this scope."
-    );
-    assert_eq!(diagnostic.severity, AnalysisDiagnosticSeverity::Error);
-    assert_eq!(
-        diagnostic.span,
-        resolution.hir.symbols[laters[1]].declaration.unwrap()
-    );
-    assert_eq!(diagnostic.related.len(), 1);
-    assert_eq!(diagnostic.related[0].message, "First bound here.");
-    assert_eq!(
-        diagnostic.related[0].span,
-        resolution.hir.symbols[laters[0]].declaration.unwrap()
-    );
+    assert!(diagnostics(&db, file).is_empty());
 }
 
 #[test]
@@ -205,7 +185,51 @@ end
 }
 
 #[test]
-fn repeated_bindings_are_diagnosed_and_keep_the_first_runtime_declaration() {
+fn shadow_versions_partition_initializer_closure_references_and_renames() {
+    let source = r#"let value = 1
+let before = fn() do value end
+let value = value + 1
+let after_value = fn() do value end
+value"#;
+    let db = AnalysisDatabase::default();
+    let file = db.add_file(source);
+    let resolution = resolve(&db, file);
+    let mut values = resolution
+        .hir
+        .symbols
+        .iter()
+        .filter(|(_, symbol)| symbol.name == "value")
+        .collect::<Vec<_>>();
+    values.sort_by_key(|(_, symbol)| symbol.declaration.unwrap().start);
+    let first = values[0].0;
+    let second = values[1].0;
+
+    assert_eq!(resolution.references(first).len(), 2);
+    assert_eq!(resolution.references(second).len(), 2);
+    assert_eq!(
+        resolution.symbol_at(source.find("value + 1").unwrap()),
+        Some(first)
+    );
+    assert_eq!(
+        resolution.symbol_at(source.rfind("value").unwrap()),
+        Some(second)
+    );
+    let first_rename = resolution.rename_spans(first);
+    let second_rename = resolution.rename_spans(second);
+    assert_eq!(first_rename.len(), 3);
+    assert_eq!(second_rename.len(), 3);
+    assert!(
+        first_rename
+            .iter()
+            .all(|span| !second_rename.contains(span))
+    );
+    assert!(resolution.check_rename(first, "prior_value").is_ok());
+    assert!(resolution.check_rename(second, "current_value").is_ok());
+    assert!(diagnostics(&db, file).is_empty());
+}
+
+#[test]
+fn repeated_bindings_create_distinct_symbols_and_later_reads_use_the_latest() {
     let source = "let value = 1 let value = 2 value";
     let db = AnalysisDatabase::default();
     let file = db.add_file(source);
@@ -217,9 +241,9 @@ fn repeated_bindings_are_diagnosed_and_keep_the_first_runtime_declaration() {
         .filter_map(|(id, symbol)| (symbol.name == "value").then_some(id))
         .collect::<Vec<_>>();
     assert_eq!(symbols.len(), 2);
-    assert_eq!(resolution.references(symbols[0]).len(), 1);
-    assert!(resolution.references(symbols[1]).is_empty());
-    assert_eq!(diagnostics(&db, file).len(), 1);
+    assert!(resolution.references(symbols[0]).is_empty());
+    assert_eq!(resolution.references(symbols[1]).len(), 1);
+    assert!(diagnostics(&db, file).is_empty());
 }
 
 #[test]
@@ -459,15 +483,18 @@ fn source_updates_invalidate_dependent_queries() {
             .any(|symbol| symbol.name == "before")
     );
 
-    db.set_source(file, "let after = 2 after");
+    db.set_source(file, "let after_value = 2 after_value");
     let after_parse = parse(&db, file);
     assert_ne!(
         before_parse.syntax().text().to_string(),
         after_parse.syntax().text().to_string()
     );
-    assert_eq!(source_text(&db, file).as_str(), "let after = 2 after");
+    assert_eq!(
+        source_text(&db, file).as_str(),
+        "let after_value = 2 after_value"
+    );
     let symbols = document_symbols(&db, file);
-    assert!(symbols.iter().any(|symbol| symbol.name == "after"));
+    assert!(symbols.iter().any(|symbol| symbol.name == "after_value"));
     assert!(!symbols.iter().any(|symbol| symbol.name == "before"));
 }
 

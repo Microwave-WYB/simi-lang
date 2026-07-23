@@ -19,9 +19,12 @@ pub enum SyntaxKind {
     END_KW,
     IF_KW,
     THEN_KW,
+    AFTER_KW,
     ELSEIF_KW,
     ELSE_KW,
     LET_KW,
+    ALIAS_KW,
+    BECOMES_KW,
     TAP_KW,
     NIL_KW,
     TRUE_KW,
@@ -45,6 +48,10 @@ pub enum SyntaxKind {
     L_BRACE,
     R_BRACE,
     COMMA,
+    COLON,
+    APOSTROPHE,
+    ARROW,
+    PIPE,
     DOT,
     DOT_DOT,
     EQ,
@@ -66,10 +73,30 @@ pub enum SyntaxKind {
     LESS_PIPE,
     ROOT,
     FUNCTION_DECL,
+    ALIAS_DECL,
     LET_STMT,
     EXPR_STMT,
     PARAM_LIST,
+    RETURN_ANNOTATION,
+    POST_CONDITION,
     BLOCK,
+    TYPE_PARAM_LIST,
+    TYPE_EXPR,
+    TYPE_ANNOTATION,
+    PARAM,
+    TYPE_VARIABLE,
+    TYPE_FUNCTION,
+    TYPE_UNION,
+    TYPE_PRIMARY,
+    TYPE_NAME,
+    TYPE_LITERAL,
+    TYPE_PAREN,
+    TYPE_LIST,
+    TYPE_MAP,
+    TYPE_ARGUMENT_LIST,
+    TYPE_LIST_REST,
+    TYPE_MAP_ENTRY,
+    TYPE_MAP_REST,
     LITERAL_EXPR,
     NAME_EXPR,
     FUNCTION_EXPR,
@@ -138,10 +165,30 @@ macro_rules! ast_node {
 
 ast_node!(Root, ROOT);
 ast_node!(FunctionDecl, FUNCTION_DECL);
+ast_node!(AliasDecl, ALIAS_DECL);
 ast_node!(LetStmt, LET_STMT);
 ast_node!(ExprStmt, EXPR_STMT);
 ast_node!(ParamList, PARAM_LIST);
+ast_node!(ReturnAnnotation, RETURN_ANNOTATION);
+ast_node!(PostCondition, POST_CONDITION);
 ast_node!(Block, BLOCK);
+ast_node!(TypeParamList, TYPE_PARAM_LIST);
+ast_node!(TypeExpr, TYPE_EXPR);
+ast_node!(TypeAnnotation, TYPE_ANNOTATION);
+ast_node!(Param, PARAM);
+ast_node!(TypeVariable, TYPE_VARIABLE);
+ast_node!(TypeFunction, TYPE_FUNCTION);
+ast_node!(TypeUnion, TYPE_UNION);
+ast_node!(TypePrimary, TYPE_PRIMARY);
+ast_node!(TypeName, TYPE_NAME);
+ast_node!(TypeLiteral, TYPE_LITERAL);
+ast_node!(TypeParen, TYPE_PAREN);
+ast_node!(TypeList, TYPE_LIST);
+ast_node!(TypeMap, TYPE_MAP);
+ast_node!(TypeArgumentList, TYPE_ARGUMENT_LIST);
+ast_node!(TypeListRest, TYPE_LIST_REST);
+ast_node!(TypeMapEntry, TYPE_MAP_ENTRY);
+ast_node!(TypeMapRest, TYPE_MAP_REST);
 ast_node!(LiteralExpr, LITERAL_EXPR);
 ast_node!(NameExpr, NAME_EXPR);
 ast_node!(FunctionExpr, FUNCTION_EXPR);
@@ -184,6 +231,7 @@ ast_node!(Error, ERROR);
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Stmt {
     FunctionDecl(FunctionDecl),
+    AliasDecl(AliasDecl),
     LetStmt(LetStmt),
     ExprStmt(ExprStmt),
 }
@@ -191,12 +239,16 @@ impl AstNode for Stmt {
     fn can_cast(kind: SyntaxKind) -> bool {
         matches!(
             kind,
-            SyntaxKind::FUNCTION_DECL | SyntaxKind::LET_STMT | SyntaxKind::EXPR_STMT
+            SyntaxKind::FUNCTION_DECL
+                | SyntaxKind::ALIAS_DECL
+                | SyntaxKind::LET_STMT
+                | SyntaxKind::EXPR_STMT
         )
     }
     fn cast(syntax: SyntaxNode) -> Option<Self> {
         Some(match syntax.kind() {
             SyntaxKind::FUNCTION_DECL => Self::FunctionDecl(FunctionDecl::cast(syntax)?),
+            SyntaxKind::ALIAS_DECL => Self::AliasDecl(AliasDecl::cast(syntax)?),
             SyntaxKind::LET_STMT => Self::LetStmt(LetStmt::cast(syntax)?),
             SyntaxKind::EXPR_STMT => Self::ExprStmt(ExprStmt::cast(syntax)?),
             _ => return None,
@@ -205,6 +257,7 @@ impl AstNode for Stmt {
     fn syntax(&self) -> &SyntaxNode {
         match self {
             Self::FunctionDecl(node) => node.syntax(),
+            Self::AliasDecl(node) => node.syntax(),
             Self::LetStmt(node) => node.syntax(),
             Self::ExprStmt(node) => node.syntax(),
         }

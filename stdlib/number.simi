@@ -1,9 +1,9 @@
 ---- Explicit numeric parsing and rendering conversions.
 
 --- Parse a complete decimal number, or return nil.
-fn from_string(text) do host.call("org.simi-lang/std/number/from_string", text) end
+fn from_string(text: string) -> integer | float | nil do host.call("org.simi-lang/std/number/from_string", text) end
 
 --- Render a number using canonical Simi notation.
-fn to_string(number) do host.call("org.simi-lang/std/number/to_string", number) end
+fn to_string(number: integer | float) -> string do host.call("org.simi-lang/std/number/to_string", number) end
 
 { from_string = from_string, to_string = to_string }

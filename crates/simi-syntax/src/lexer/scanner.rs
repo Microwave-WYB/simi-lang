@@ -111,6 +111,14 @@ impl<'a> Scanner<'a> {
                 self.simple(start, SyntaxKind::COMMA, TokenKind::Comma);
                 Ok(())
             }
+            b':' => {
+                self.simple(start, SyntaxKind::COLON, TokenKind::Colon);
+                Ok(())
+            }
+            b'\'' => {
+                self.simple(start, SyntaxKind::APOSTROPHE, TokenKind::Apostrophe);
+                Ok(())
+            }
             b'.' => {
                 self.one_or_two(
                     start,
@@ -124,6 +132,10 @@ impl<'a> Scanner<'a> {
             }
             b'+' => {
                 self.simple(start, SyntaxKind::PLUS, TokenKind::Plus);
+                Ok(())
+            }
+            b'-' if self.peek(1) == Some(b'>') => {
+                self.double(start, SyntaxKind::ARROW, TokenKind::Arrow);
                 Ok(())
             }
             b'-' => {
@@ -203,6 +215,10 @@ impl<'a> Scanner<'a> {
             }
             b'|' if self.peek(1) == Some(b'>') => {
                 self.double(start, SyntaxKind::PIPE_GREATER, TokenKind::PipeGreater);
+                Ok(())
+            }
+            b'|' => {
+                self.simple(start, SyntaxKind::PIPE, TokenKind::Pipe);
                 Ok(())
             }
             _ => {

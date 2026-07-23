@@ -1,14 +1,34 @@
 Root = Stmt*
-Stmt = FunctionDecl | LetStmt | ExprStmt
-FunctionDecl = 'fn' 'ident' ParamList 'do' Block 'end'
-LetStmt = 'let' Pattern '=' Expr
+Stmt = FunctionDecl | AliasDecl | LetStmt | ExprStmt
+FunctionDecl = 'fn' 'ident' ParamList ReturnAnnotation? PostCondition* 'do' Block 'end'
+AliasDecl = 'alias' 'ident' TypeParamList? '=' TypeExpr
+LetStmt = 'let' Pattern TypeAnnotation? '=' Expr
 ExprStmt = Expr
-ParamList = '(' ('ident' (',' 'ident')* ','?)? ')'
+ParamList = '(' (Param (',' Param)* ','?)? ')'
+Param = 'ident' TypeAnnotation?
+TypeAnnotation = ':' TypeExpr
+ReturnAnnotation = '->' TypeExpr
+PostCondition = 'after' 'ident' 'becomes' TypeExpr
+TypeParamList = '(' (TypeVariable (',' TypeVariable)* ','?)? ')'
+TypeExpr = TypeFunction
+TypeFunction = TypeUnion ('->' TypeFunction)?
+TypeUnion = TypePrimary ('|' TypePrimary)*
+TypePrimary = TypeName | TypeVariable | TypeLiteral | TypeParen | TypeList | TypeMap
+TypeName = 'ident' TypeArgumentList?
+TypeArgumentList = '(' (TypeExpr (',' TypeExpr)* ','?)? ')'
+TypeVariable = 'apostrophe' 'ident'
+TypeLiteral = 'string' | 'nil'
+TypeParen = '(' (TypeExpr (',' TypeExpr)* ','?)? ')'
+TypeList = '[' (TypeListRest | TypeExpr (',' TypeExpr)* ','?)? ']'
+TypeListRest = '..' TypeExpr
+TypeMap = '{' (TypeMapEntry (',' TypeMapEntry)* (',' TypeMapRest)? ','? | TypeMapRest ','?)? '}'
+TypeMapEntry = ('ident' ':' TypeExpr) | ('[' TypeExpr ']' ':' TypeExpr)
+TypeMapRest = '..'
 Block = Stmt*
 Expr = LiteralExpr | NameExpr | FunctionExpr | BlockExpr | ParenExpr | ListExpr | MapExpr | CallExpr | FieldExpr | IndexExpr | NilPropagateExpr | UnaryExpr | BinaryExpr | AssignExpr | PipelineExpr | TrailingArgumentExpr | RaiseExpr | TryExpr | CaseExpr | IfExpr | LoopExpr | ContinueExpr | BreakExpr
 LiteralExpr = ('int' | 'float' | 'string' | 'nil' | 'true' | 'false')
 NameExpr = 'ident'
-FunctionExpr = 'fn' ParamList 'do' Block 'end'
+FunctionExpr = 'fn' ParamList ReturnAnnotation? 'do' Block 'end'
 BlockExpr = 'do' Block 'end'
 ParenExpr = '(' Expr ')'
 ListExpr = '[' (Expr (',' Expr)* ','?)? ']'

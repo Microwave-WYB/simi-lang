@@ -1,4 +1,3 @@
-use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use salsa::Setter;
@@ -7,7 +6,7 @@ use simi_syntax::{DiagnosticKind, SyntaxDiagnostic, SyntaxNode};
 
 use crate::model::{
     AnalysisDiagnostic, AnalysisDiagnosticCode, AnalysisDiagnosticSeverity, DocumentSymbol, Hir,
-    RelatedDiagnostic, Resolution, SymbolId,
+    Resolution, SymbolId, TypeInference,
 };
 
 #[salsa::input(debug)]
@@ -72,6 +71,15 @@ pub fn resolve(db: &dyn salsa::Database, file: FileId) -> Arc<Resolution> {
 }
 
 #[salsa::tracked(returns(clone))]
+pub fn type_inference(db: &dyn salsa::Database, file: FileId) -> Arc<TypeInference> {
+    Arc::new(crate::types::infer_types(
+        db,
+        file,
+        &std::collections::HashMap::new(),
+    ))
+}
+
+#[salsa::tracked(returns(clone))]
 pub fn diagnostics(db: &dyn salsa::Database, file: FileId) -> Arc<Vec<AnalysisDiagnostic>> {
     let parsed = parse(db, file);
     let mut diagnostics = parsed
@@ -92,37 +100,9 @@ pub fn diagnostics(db: &dyn salsa::Database, file: FileId) -> Arc<Vec<AnalysisDi
             }
         })
         .collect::<Vec<_>>();
-    // Recovered HIR can contain incomplete declarations, so resolver diagnostics are
-    // emitted only after syntax succeeds. Sequential declarations in one runtime frame
-    // are a guaranteed hard error; prelude symbols are intentionally shadowable.
-    if diagnostics.is_empty() {
-        let resolution = resolve(db, file);
-        for (_, scope) in resolution.hir.scopes.iter() {
-            let mut declarations = BTreeMap::<&str, Span>::new();
-            for symbol in scope.symbols.iter().map(|id| &resolution.hir.symbols[*id]) {
-                let Some(span) = symbol.declaration else {
-                    continue;
-                };
-                if let Some(previous) = declarations.get(symbol.name.as_str()) {
-                    diagnostics.push(AnalysisDiagnostic {
-                        span,
-                        code: AnalysisDiagnosticCode::DuplicateBinding,
-                        title: "Duplicate binding".to_owned(),
-                        detail: format!(
-                            "The name `{}` is already bound in this scope.",
-                            symbol.name
-                        ),
-                        severity: AnalysisDiagnosticSeverity::Error,
-                        related: vec![RelatedDiagnostic {
-                            span: *previous,
-                            message: "First bound here.".to_owned(),
-                        }],
-                    });
-                } else {
-                    declarations.insert(&symbol.name, span);
-                }
-            }
-        }
+    if parsed.diagnostics.is_empty() {
+        diagnostics.extend(type_inference(db, file).diagnostics.iter().cloned());
+        diagnostics.sort_by_key(|diagnostic| (diagnostic.span.start, diagnostic.span.end));
     }
     Arc::new(diagnostics)
 }

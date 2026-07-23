@@ -8,6 +8,7 @@
     { "include": "#function-declarations" },
     { "include": "#anonymous-functions" },
     { "include": "#bindings" },
+    { "include": "#types" },
     { "include": "#loop-state" },
     { "include": "#numbers" },
     { "include": "#language-constants" },
@@ -72,6 +73,7 @@
             "1": { "name": "punctuation.definition.parameters.end.simi" }
           },
           "patterns": [
+            { "include": "#types" },
             {
               "name": "variable.parameter.simi",
               "match": "\\b[A-Za-z_][A-Za-z0-9_]*\\b"
@@ -96,6 +98,7 @@
             "1": { "name": "punctuation.definition.parameters.end.simi" }
           },
           "patterns": [
+            { "include": "#types" },
             {
               "name": "variable.parameter.simi",
               "match": "\\b[A-Za-z_][A-Za-z0-9_]*\\b"
@@ -114,6 +117,25 @@
             "1": { "name": "keyword.declaration.simi" },
             "2": { "name": "variable.other.readwrite.simi" }
           }
+        }
+      ]
+    },
+    "types": {
+      "patterns": [
+        {
+          "match": "\\b(alias)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "keyword.declaration.type.simi" },
+            "2": { "name": "entity.name.type.simi" }
+          }
+        },
+        {
+          "name": "variable.other.generic-type.simi",
+          "match": "'[A-Za-z_][A-Za-z0-9_]*"
+        },
+        {
+          "name": "support.type.primitive.simi",
+          "match": "\\b(?:any|never|boolean|integer|float|string)\\b"
         }
       ]
     },
@@ -157,7 +179,7 @@
       "patterns": [
         {
           "name": "keyword.control.conditional.simi",
-          "match": "\\b(?:if|then|elseif|else)\\b"
+          "match": "\\b(?:if|then|elseif|else|after|becomes)\\b"
         },
         {
           "name": "keyword.control.loop.simi",
@@ -177,7 +199,7 @@
         },
         {
           "name": "keyword.declaration.simi",
-          "match": "\\blet\\b"
+          "match": "\\b(?:let|alias)\\b"
         },
         {
           "name": "storage.type.function.simi",
@@ -227,6 +249,10 @@
           "match": "\\?>|\\?|\\|>|<\\|"
         },
         {
+          "name": "keyword.operator.type.simi",
+          "match": "->|\\|(?!>)"
+        },
+        {
           "name": "keyword.operator.comparison.simi",
           "match": "==|!=|<=|>=|<|>"
         },
@@ -247,6 +273,10 @@
     "punctuation": {
       "patterns": [
         { "include": "#comma" },
+        {
+          "name": "punctuation.separator.type.simi",
+          "match": ":"
+        },
         {
           "name": "punctuation.accessor.simi",
           "match": "\\."

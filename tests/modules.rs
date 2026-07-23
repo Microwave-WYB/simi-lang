@@ -1,9 +1,9 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use simiscript::runtime::RuntimeError;
-use simiscript::span::Span;
-use simiscript::{Engine, Module, NativeResult, SimiError, Value, eval};
+use simi::runtime::RuntimeError;
+use simi::span::Span;
+use simi::{Engine, Module, NativeResult, SimiError, Value, eval};
 
 fn constant(_: &[Value], _: Span) -> NativeResult {
     Ok(Ok(Value::Int(7)))
@@ -534,13 +534,13 @@ fn source_module_nested_loads_retry_failures_and_isolate_cached_mutation() {
 #[test]
 fn every_bundled_module_is_source_backed() {
     for module in [
-        simiscript::stdlib::list(),
-        simiscript::stdlib::map(),
-        simiscript::stdlib::number(),
-        simiscript::stdlib::string(),
-        simiscript::stdlib::stdin(),
-        simiscript::stdlib::stdout(),
-        simiscript::stdlib::stderr(),
+        simi::stdlib::list(),
+        simi::stdlib::map(),
+        simi::stdlib::number(),
+        simi::stdlib::string(),
+        simi::stdlib::stdin(),
+        simi::stdlib::stdout(),
+        simi::stdlib::stderr(),
     ] {
         assert!(
             module.is_source_backed(),

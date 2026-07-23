@@ -3,14 +3,14 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 use clap::Parser;
-use simiscript::cli::{Cli, CliCommand, CliError, format_raised_trace};
-use simiscript::span::line_column;
+use simi::cli::{Cli, CliCommand, CliError, format_raised_trace};
+use simi::span::line_column;
 
 fn main() -> ExitCode {
     match Cli::parse().command {
         CliCommand::Run { file } => run_file(file),
         CliCommand::Lsp => {
-            let engine = simiscript::Engine::builder().stdlib().stdio().build();
+            let engine = simi::Engine::builder().stdlib().stdio().build();
             match simi_lsp::run_stdio_with_module_sources(engine.module_sources()) {
                 Ok(()) => ExitCode::SUCCESS,
                 Err(error) => {
@@ -23,7 +23,7 @@ fn main() -> ExitCode {
 }
 
 fn run_file(file: PathBuf) -> ExitCode {
-    match simiscript::cli::run(&file) {
+    match simi::cli::run(&file) {
         Ok(Ok(value)) => {
             println!("{}", value.render());
             ExitCode::SUCCESS

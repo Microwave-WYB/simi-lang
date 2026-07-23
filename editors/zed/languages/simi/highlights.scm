@@ -13,8 +13,11 @@
   "do"
   "end"
   "let"
+  "alias"
   "if"
   "then"
+  "after"
+  "becomes"
   "elseif"
   "else"
   "loop"
@@ -51,12 +54,22 @@
   "|>"
   "<|"
   ".."
+  "->"
+  "|"
 ] @operator
 
 (identifier) @variable
 
 (function_declaration
   name: (identifier) @function)
+
+(alias_declaration
+  name: (identifier) @type.definition)
+
+(named_type
+  name: (identifier) @type)
+
+(type_variable) @type.parameter
 
 (parameter
   (identifier) @variable.parameter)

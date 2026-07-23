@@ -106,8 +106,11 @@ impl Interpreter {
 
     pub fn evaluate(&mut self, program: &Program) -> RuntimeResult<ScriptResult> {
         let globals = self.globals.clone();
-        match self.evaluate_items(&program.items, &globals) {
-            Ok(value) => Ok(Ok(value)),
+        match self.evaluate_items_with_environment(&program.items, &globals) {
+            Ok((value, globals)) => {
+                self.globals = globals;
+                Ok(Ok(value))
+            }
             Err(EvaluationError::Raised(raised)) => Ok(Err(raised)),
             Err(error) => Err(error.into_runtime_error()),
         }

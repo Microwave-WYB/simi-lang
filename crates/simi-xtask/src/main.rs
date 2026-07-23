@@ -18,9 +18,12 @@ const TOKENS: &[&str] = &[
     "END_KW",
     "IF_KW",
     "THEN_KW",
+    "AFTER_KW",
     "ELSEIF_KW",
     "ELSE_KW",
     "LET_KW",
+    "ALIAS_KW",
+    "BECOMES_KW",
     "TAP_KW",
     "NIL_KW",
     "TRUE_KW",
@@ -44,6 +47,10 @@ const TOKENS: &[&str] = &[
     "L_BRACE",
     "R_BRACE",
     "COMMA",
+    "COLON",
+    "APOSTROPHE",
+    "ARROW",
+    "PIPE",
     "DOT",
     "DOT_DOT",
     "EQ",
@@ -134,7 +141,7 @@ fn generate(grammar: &ungrammar::Grammar) -> String {
     for node in &concrete {
         out.push_str(&format!("ast_node!({node}, {});\n", shout(node)));
     }
-    out.push_str("\n#[derive(Clone, Debug, PartialEq, Eq)]\npub enum Stmt { FunctionDecl(FunctionDecl), LetStmt(LetStmt), ExprStmt(ExprStmt) }\nimpl AstNode for Stmt {\n    fn can_cast(kind: SyntaxKind) -> bool { matches!(kind, SyntaxKind::FUNCTION_DECL | SyntaxKind::LET_STMT | SyntaxKind::EXPR_STMT) }\n    fn cast(syntax: SyntaxNode) -> Option<Self> { Some(match syntax.kind() { SyntaxKind::FUNCTION_DECL => Self::FunctionDecl(FunctionDecl::cast(syntax)?), SyntaxKind::LET_STMT => Self::LetStmt(LetStmt::cast(syntax)?), SyntaxKind::EXPR_STMT => Self::ExprStmt(ExprStmt::cast(syntax)?), _ => return None }) }\n    fn syntax(&self) -> &SyntaxNode { match self { Self::FunctionDecl(node) => node.syntax(), Self::LetStmt(node) => node.syntax(), Self::ExprStmt(node) => node.syntax() } }\n}\n\n");
+    out.push_str("\n#[derive(Clone, Debug, PartialEq, Eq)]\npub enum Stmt { FunctionDecl(FunctionDecl), AliasDecl(AliasDecl), LetStmt(LetStmt), ExprStmt(ExprStmt) }\nimpl AstNode for Stmt {\n    fn can_cast(kind: SyntaxKind) -> bool { matches!(kind, SyntaxKind::FUNCTION_DECL | SyntaxKind::ALIAS_DECL | SyntaxKind::LET_STMT | SyntaxKind::EXPR_STMT) }\n    fn cast(syntax: SyntaxNode) -> Option<Self> { Some(match syntax.kind() { SyntaxKind::FUNCTION_DECL => Self::FunctionDecl(FunctionDecl::cast(syntax)?), SyntaxKind::ALIAS_DECL => Self::AliasDecl(AliasDecl::cast(syntax)?), SyntaxKind::LET_STMT => Self::LetStmt(LetStmt::cast(syntax)?), SyntaxKind::EXPR_STMT => Self::ExprStmt(ExprStmt::cast(syntax)?), _ => return None }) }\n    fn syntax(&self) -> &SyntaxNode { match self { Self::FunctionDecl(node) => node.syntax(), Self::AliasDecl(node) => node.syntax(), Self::LetStmt(node) => node.syntax(), Self::ExprStmt(node) => node.syntax() } }\n}\n\n");
     let expressions = union_nodes(grammar, "Expr");
     let patterns = union_nodes(grammar, "Pattern");
     enum_code(&mut out, "Expr", &expressions, "kind.is_expression()");

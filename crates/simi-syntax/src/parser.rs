@@ -233,6 +233,14 @@ impl<'a> Parser<'a> {
         }
     }
 
+    fn bump_as(&mut self, kind: SyntaxKind) {
+        self.eat_trivia();
+        if self.position < self.lexemes.len() {
+            self.events.push(Event::TokenAs(self.position, kind));
+            self.position += 1;
+        }
+    }
+
     fn bump_if(&mut self, kind: SyntaxKind) -> bool {
         if self.at(kind) {
             self.bump();
@@ -303,9 +311,12 @@ fn token_name(kind: SyntaxKind, eof: bool) -> &'static str {
         SyntaxKind::END_KW => "end",
         SyntaxKind::IF_KW => "if",
         SyntaxKind::THEN_KW => "then",
+        SyntaxKind::AFTER_KW => "after",
         SyntaxKind::ELSEIF_KW => "elseif",
         SyntaxKind::ELSE_KW => "else",
         SyntaxKind::LET_KW => "let",
+        SyntaxKind::ALIAS_KW => "alias",
+        SyntaxKind::BECOMES_KW => "becomes",
         SyntaxKind::TAP_KW => "tap",
         SyntaxKind::NIL_KW => "nil",
         SyntaxKind::TRUE_KW => "true",
@@ -329,6 +340,10 @@ fn token_name(kind: SyntaxKind, eof: bool) -> &'static str {
         SyntaxKind::L_BRACE => "{",
         SyntaxKind::R_BRACE => "}",
         SyntaxKind::COMMA => ",",
+        SyntaxKind::COLON => ":",
+        SyntaxKind::APOSTROPHE => "'",
+        SyntaxKind::ARROW => "->",
+        SyntaxKind::PIPE => "|",
         SyntaxKind::DOT => ".",
         SyntaxKind::DOT_DOT => "..",
         SyntaxKind::EQ => "=",
@@ -403,6 +418,7 @@ fn token_lexeme(kind: TokenKind) -> (SyntaxKind, String) {
         TokenKind::ElseIf => (SyntaxKind::ELSEIF_KW, "elseif"),
         TokenKind::Else => (SyntaxKind::ELSE_KW, "else"),
         TokenKind::Let => (SyntaxKind::LET_KW, "let"),
+        TokenKind::Alias => (SyntaxKind::ALIAS_KW, "alias"),
         TokenKind::Tap => (SyntaxKind::TAP_KW, "tap"),
         TokenKind::Nil => (SyntaxKind::NIL_KW, "nil"),
         TokenKind::True => (SyntaxKind::TRUE_KW, "true"),
@@ -426,6 +442,10 @@ fn token_lexeme(kind: TokenKind) -> (SyntaxKind, String) {
         TokenKind::LBrace => (SyntaxKind::L_BRACE, "{"),
         TokenKind::RBrace => (SyntaxKind::R_BRACE, "}"),
         TokenKind::Comma => (SyntaxKind::COMMA, ","),
+        TokenKind::Colon => (SyntaxKind::COLON, ":"),
+        TokenKind::Apostrophe => (SyntaxKind::APOSTROPHE, "'"),
+        TokenKind::Arrow => (SyntaxKind::ARROW, "->"),
+        TokenKind::Pipe => (SyntaxKind::PIPE, "|"),
         TokenKind::Dot => (SyntaxKind::DOT, "."),
         TokenKind::DotDot => (SyntaxKind::DOT_DOT, ".."),
         TokenKind::Equal => (SyntaxKind::EQ, "="),

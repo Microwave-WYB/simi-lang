@@ -1,6 +1,6 @@
 use gc::Gc;
 
-use simiscript::{Raised, SimiError, Value, eval};
+use simi::{Raised, SimiError, Value, eval};
 
 fn assert_eval(source: &str, expected: &str) {
     match eval(source) {
