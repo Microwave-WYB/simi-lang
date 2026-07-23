@@ -97,9 +97,17 @@ def check_source_extension() -> None:
 
     increase = re.compile(config["increase_indent_pattern"])
     decrease = re.compile(config["decrease_indent_pattern"])
-    for line in ("of [head, ..tail] when ready do", "catch _ do", "try", "    case n"):
+    for line in (
+        "of [head, ..tail] when ready do",
+        "catch _ do",
+        "try",
+        "    case n",
+        '    case "x of y"',
+        '    case " of "',
+        "    case n -- of in a comment",
+    ):
         check(increase.search(line) is not None, f"line should increase indentation: {line}")
-    for line in ("of _ do value end", "case n of _ do n end"):
+    for line in ("of _ do value end", "case n of _ do n end", 'case "x of y" of _ do 1 end'):
         check(increase.search(line) is None, f"one-line form must not indent next line: {line}")
     for line in ("end", "of _ do", "catch _ do", "elseif ready then", "else"):
         check(decrease.search(line) is not None, f"line should decrease indentation: {line}")
