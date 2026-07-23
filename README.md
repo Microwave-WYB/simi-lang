@@ -11,7 +11,7 @@ let io = require("std/io")
 
 --- Finds two numbers whose sum equals the target.
 --- Returns the matching values, or nil when no pair exists.
-fn two_sum(numbers, target) do
+fn two_sum(numbers: [..integer], target: integer) -> {first: integer, second: integer} | nil do
     loop state = {seen = {}, numbers = numbers} do
         case state
         of {numbers = []} do

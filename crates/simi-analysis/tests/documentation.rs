@@ -105,11 +105,12 @@ fn module_catalog(db: &AnalysisDatabase) -> HashMap<String, simi_analysis::Modul
 }
 
 #[test]
-fn every_tour_page_has_independently_validated_simi_scripts() {
+fn readme_and_every_tour_page_have_independently_validated_simi_scripts() {
     let db = AnalysisDatabase::default();
     let modules = module_catalog(&db);
-    let pages = tour_pages();
+    let mut pages = tour_pages();
     assert!(!pages.is_empty(), "language tour has no content pages");
+    pages.push(repository_root().join("README.md"));
 
     for page in pages {
         let markdown = fs::read_to_string(&page).expect("tour page");
