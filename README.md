@@ -39,7 +39,9 @@ Simi is expression-oriented: blocks, conditionals, loops, cases, and error handl
 
 Start with [Hello, world!](docs/language-tour/hello-world.md), follow the complete [language tour](docs/language-tour.md), then run the [explicit-state Fibonacci example](examples/fibonacci.simi).
 
-## Install with Cargo
+## Installation
+
+### Cargo
 
 Simi currently requires Rust 1.88 or newer. First [install the Rust toolchain with rustup](https://rustup.rs/), then install the `simi` executable directly from the public repository:
 
@@ -47,7 +49,37 @@ Simi currently requires Rust 1.88 or newer. First [install the Rust toolchain wi
 cargo install --git https://github.com/Microwave-WYB/simi-lang --bin simi
 ```
 
-Every validated `main` commit produces downloadable Linux, macOS, and Windows bundles on the [CI workflow run](https://github.com/Microwave-WYB/simi-lang/actions/workflows/ci.yml). These development artifacts follow GitHub's normal artifact-retention policy. A selected milestone may also be promoted manually to the single moving [latest release](https://github.com/Microwave-WYB/simi-lang/releases/tag/latest). Each target provides a CLI archive containing the native `simi` executable, installation README, and MIT license, plus a separate platform-specific `simi-vscode.vsix` with the matching language server bundled inside it. Asset names retain the complete 40-character Git commit hash; Simi does not use versions yet.
+### Latest development build
+
+Every validated `main` commit produces temporary downloads. Open the [CI workflow](https://github.com/Microwave-WYB/simi-lang/actions/workflows/ci.yml), select the newest successful `main` run, and download the artifact for your target:
+
+| System | Target |
+| --- | --- |
+| Linux x86-64 | `x86_64-unknown-linux-gnu` |
+| macOS Intel | `x86_64-apple-darwin` |
+| Windows x86-64 | `x86_64-pc-windows-msvc` |
+
+The downloaded Actions artifact contains a CLI archive, a self-contained platform VSIX, and a SHA-256 checksum for each. These development artifacts expire according to GitHub's artifact-retention policy.
+
+### Published build
+
+Selected milestones are promoted manually to the single moving [latest release](https://github.com/Microwave-WYB/simi-lang/releases/tag/latest). Download either the CLI archive for your target or its separate `simi-vscode-<full-sha>-<target>.vsix`, together with the corresponding `.sha256` file. Verify downloads on Linux with:
+
+```sh
+sha256sum -c <downloaded-file>.sha256
+```
+
+CLI archives contain `simi` or `simi.exe`, an installation README, and the MIT license. Asset names retain the complete 40-character source commit hash; Simi does not use versions yet.
+
+### VS Code extension
+
+The platform-specific VSIX includes its matching `simi` language server, so a separate CLI installation is not required for editor features. Install it and reload VS Code:
+
+```sh
+code --install-extension ./simi-vscode-<full-sha>-<target>.vsix
+```
+
+For rapid development, `simi.languageServer.path` or `SIMI_PATH` can override the bundled server with another build.
 
 Run a script with:
 
@@ -69,13 +101,13 @@ simi lsp
 
 ## Editor plugins
 
-Simi includes editor integrations that launch the installed `simi lsp` server:
+Simi includes editor integrations for its `simi lsp` server:
 
 - [Visual Studio Code](editors/vscode/README.md): TextMate highlighting, language configuration, and LSP features;
 - [Zed](editors/zed/README.md): Tree-sitter editing support and LSP features;
 - [Tree-sitter](editors/tree-sitter/README.md): the shared structural grammar for compatible editors.
 
-The editor extensions are currently installed from this repository rather than an extension marketplace. Follow each linked guide for local setup.
+The VS Code extension is available as a self-contained platform VSIX in CI artifacts and the latest release. Other editor integrations are currently installed from this repository rather than an extension marketplace. Follow each linked guide for setup.
 
 ## Language highlights
 

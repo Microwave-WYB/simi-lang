@@ -29,6 +29,16 @@ cargo install --path .
 
 Building `target/debug/simi` alone does not place it on `PATH`. Use **Simi: Restart Language Server** after changing the configured executable.
 
+## Release installation
+
+For the newest development build, open the latest successful [`main` CI run](https://github.com/Microwave-WYB/simi-lang/actions/workflows/ci.yml) and download the artifact for your platform. For a manually selected milestone, download `simi-vscode-<full-sha>-<target>.vsix` and its checksum from the [latest release](https://github.com/Microwave-WYB/simi-lang/releases/tag/latest). Install the matching self-contained VSIX and reload VS Code:
+
+```sh
+code --install-extension ./simi-vscode-<full-sha>-<target>.vsix
+```
+
+No separate CLI installation is required unless you choose to override the bundled language server.
+
 ## Local installation
 
 Requirements: Node.js/npm, Visual Studio Code's `code` command, an installed `simi` executable, and optionally [`just`](https://just.systems/).
