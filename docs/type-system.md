@@ -112,9 +112,7 @@ Omitting an effect clause asks the analyzer to infer it. `raises E` declares and
 
 ## Unions and literal types
 
-`|` forms unions. A union may optionally begin with `|`, which is useful for aligned multiline variants. String literals may be singleton types; numeric and Boolean
-literals widen to `integer`, `float`, and `boolean`. `nil` is also a type and an
-ordinary union member:
+`|` forms unions. The syntax accepts an optional leading `|`. Canonical documentation omits it for single-line unions; multiline unions put every member, including the first, on a line beginning with `|`. String literals may be singleton types; numeric and Boolean literals widen to `integer`, `float`, and `boolean`. `nil` is also a type and an ordinary union member:
 
 ```simi
 alias mode = "read" | "write"
@@ -125,7 +123,7 @@ Literal fields support discriminated structural records:
 
 ```simi
 alias result<'value, 'error> =
-    { kind: "ok", value: 'value }
+    | { kind: "ok", value: 'value }
     | { kind: "error", error: 'error }
 ```
 

@@ -306,7 +306,7 @@ Canonical source examples use compact delimiters with spaces after commas and ar
 [a, b, c]
 ```
 
-Empty forms remain `{}` and `[]`. Trailing commas are accepted in comma-separated constructs.
+Empty forms remain `{}` and `[]`. Trailing commas are accepted in comma-separated constructs. Write single-line type unions without a leading `|`. For multiline type unions, put every member—including the first—on its own line beginning with `|`.
 
 When a multiline pipeline is the right-hand side of a binding, break after `=` and indent the continuation:
 

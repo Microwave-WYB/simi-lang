@@ -137,7 +137,7 @@ Callers do not supply explicit generic arguments. Syntax such as `identity<strin
 An explicit callable header may bound generic variables with ordinary Simi types:
 
 ```simi
-fn negate<'a: | integer | float>(value: 'a) -> 'a noraise do
+fn negate<'a: integer | float>(value: 'a) -> 'a noraise do
     -value
 end
 
@@ -221,11 +221,11 @@ values
 
 A dynamic map read includes `nil`, because the requested key may be absent. A required known field can retain its declared type while analysis still proves its presence.
 
-Discriminated record unions combine literal fields with structural maps:
+Discriminated record unions combine literal fields with structural maps. Write single-line unions without a leading `|`; when a union spans multiple lines, begin every member line with `|`:
 
 ```simi
 alias result<'value, 'error> =
-    {kind: "ok", value: 'value}
+    | {kind: "ok", value: 'value}
     | {kind: "error", error: 'error}
 
 let outcome: result<integer, string> = {kind = "ok", value = 42}
