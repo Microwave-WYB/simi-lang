@@ -1,3 +1,6 @@
 /target/
+/dist/
 /demo/
 /.pi-subagents/
+__pycache__/
+*.pyc
