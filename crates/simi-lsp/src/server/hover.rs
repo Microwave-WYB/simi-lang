@@ -9,24 +9,29 @@ impl Backend {
             let mut value = keywords::hover_text(keyword);
             let inference = infer_types(&self.db, document.file, &self.module_shapes);
             if let Some((_, ty)) = expression_type_at(&inference, offset) {
-                value.push_str("\n\nExpression type: ");
+                value.push_str("\n\nExpression type:\n\n```simi\n");
                 value.push_str(&ty.display());
+                value.push_str("\n```");
             }
             return Ok(Some(Hover {
                 contents: HoverContents::Markup(MarkupContent {
-                    kind: MarkupKind::PlainText,
+                    kind: MarkupKind::Markdown,
                     value,
                 }),
                 range: Some(self.range(&text, span)?),
             }));
         }
         if let Some(module) = module_at(&self.db, document.file, &self.module_shapes, offset) {
-            let mut value = resolution.hover(offset).map_or_else(
-                || module.module,
+            let inference = infer_types(&self.db, document.file, &self.module_shapes);
+            let ty = resolution.hover(offset).map_or_else(
+                || {
+                    self.module_shapes
+                        .get(&module.module)
+                        .and_then(|shape| shape.ty.clone())
+                        .unwrap_or(Type::Any)
+                },
                 |facts| {
-                    let inference = infer_types(&self.db, document.file, &self.module_shapes);
-                    typed_detail(
-                        &facts.name,
+                    hover_type(
                         inference.symbol_types.get(&facts.symbol),
                         inference
                             .symbol_posts
@@ -35,53 +40,29 @@ impl Backend {
                     )
                 },
             );
-            if let Some(documentation) = module.documentation {
-                value.push_str("\n\n");
-                value.push_str(&documentation);
-            }
             return Ok(Some(Hover {
-                contents: HoverContents::Markup(MarkupContent {
-                    kind: MarkupKind::PlainText,
-                    value,
-                }),
+                contents: type_hover(&ty, module.documentation.as_deref()),
                 range: None,
             }));
         }
         if let Some(member) = member_at(&self.db, document.file, &self.module_shapes, &text, offset)
         {
-            let mut value = typed_detail(
-                &member.field.name,
-                member.field.ty.as_ref(),
-                &member.field.posts,
-            );
-            if let Some(documentation) = member.field.documentation {
-                value.push_str("\n\n");
-                value.push_str(&documentation);
-            }
+            let ty = hover_type(member.field.ty.as_ref(), &member.field.posts);
             return Ok(Some(Hover {
-                contents: HoverContents::Markup(MarkupContent {
-                    kind: MarkupKind::PlainText,
-                    value,
-                }),
+                contents: type_hover(&ty, member.field.documentation.as_deref()),
                 range: None,
             }));
         }
         let inference = infer_types(&self.db, document.file, &self.module_shapes);
         if let Some((span, ty)) = wildcard_type_at(&self.db, document.file, &inference, offset) {
             return Ok(Some(Hover {
-                contents: HoverContents::Markup(MarkupContent {
-                    kind: MarkupKind::PlainText,
-                    value: format!("_ : {}", ty.display()),
-                }),
+                contents: type_hover(&ty, None),
                 range: Some(self.range(&text, span)?),
             }));
         }
-        if let Some((name, span, ty)) = field_type_at(&self.db, document.file, &inference, offset) {
+        if let Some((_, span, ty)) = field_type_at(&self.db, document.file, &inference, offset) {
             return Ok(Some(Hover {
-                contents: HoverContents::Markup(MarkupContent {
-                    kind: MarkupKind::PlainText,
-                    value: format!("{name} : {}", ty.display()),
-                }),
+                contents: type_hover(&ty, None),
                 range: Some(self.range(&text, span)?),
             }));
         }
@@ -102,21 +83,14 @@ impl Backend {
                         .map(|member| member.field.posts.as_slice())
                 })
                 .unwrap_or(&[]);
-            let mut detail = typed_detail(&facts.name, ty.as_ref(), posts);
+            let ty = hover_type(ty.as_ref(), posts);
             let documentation = facts.documentation.or_else(|| {
                 imported
                     .get(&facts.symbol)
                     .and_then(|member| member.field.documentation.clone())
             });
-            if let Some(documentation) = documentation {
-                detail.push_str("\n\n");
-                detail.push_str(&documentation);
-            }
             return Ok(Some(Hover {
-                contents: HoverContents::Markup(MarkupContent {
-                    kind: MarkupKind::PlainText,
-                    value: detail,
-                }),
+                contents: type_hover(&ty, documentation.as_deref()),
                 range: resolution
                     .symbol_span_at(offset)
                     .map(|(_, span)| self.range(&text, span))
@@ -127,11 +101,36 @@ impl Backend {
             return Ok(None);
         };
         Ok(Some(Hover {
-            contents: HoverContents::Markup(MarkupContent {
-                kind: MarkupKind::PlainText,
-                value: ty.display(),
-            }),
+            contents: type_hover(&ty, None),
             range: Some(self.range(&text, span)?),
         }))
     }
+}
+
+fn hover_type(ty: Option<&Type>, posts: &[ParameterPostType]) -> Type {
+    let Some(Type::Function(callable)) = ty else {
+        return ty.cloned().unwrap_or(Type::Any);
+    };
+    if posts.is_empty() {
+        return Type::Function(callable.clone());
+    }
+    let mut callable = callable.clone();
+    for post in posts {
+        if let Some(parameter) = callable.parameters.get_mut(post.parameter_index) {
+            parameter.post = Some(post.becomes.clone());
+        }
+    }
+    Type::Function(callable)
+}
+
+fn type_hover(ty: &Type, documentation: Option<&str>) -> HoverContents {
+    let mut value = format!("```simi\n{}\n```", ty.display());
+    if let Some(documentation) = documentation {
+        value.push_str("\n\n");
+        value.push_str(documentation);
+    }
+    HoverContents::Markup(MarkupContent {
+        kind: MarkupKind::Markdown,
+        value,
+    })
 }

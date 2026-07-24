@@ -19,6 +19,9 @@ test("extension manifest associates .simi files with the TextMate grammar", asyn
   assert.ok(grammar, "simi grammar contribution should exist");
   assert.equal(grammar.scopeName, "source.simi");
   assert.equal(grammar.path, "./syntaxes/simi.tmLanguage.json");
+  assert.deepEqual(manifest.contributes.snippets, [
+    { language: "simi", path: "./snippets/simi.json" },
+  ]);
   assert.equal(manifest.main, "./src/extension.js");
   assert.equal(manifest.license, "MIT");
   assert.equal(manifest.repository.url, "https://github.com/Microwave-WYB/simi-lang.git");
@@ -54,11 +57,13 @@ test("language configuration covers comments, pairs, indentation, and folding", 
   assert.doesNotThrow(() => new RegExp(configuration.wordPattern));
   assert.doesNotThrow(() => new RegExp(configuration.indentationRules.increaseIndentPattern));
   assert.doesNotThrow(() => new RegExp(configuration.indentationRules.decreaseIndentPattern));
+  assert.doesNotThrow(() => new RegExp(configuration.indentationRules.indentNextLinePattern));
   assert.doesNotThrow(() => new RegExp(configuration.folding.markers.start));
   assert.doesNotThrow(() => new RegExp(configuration.folding.markers.end));
 
   const increase = new RegExp(configuration.indentationRules.increaseIndentPattern);
   const decrease = new RegExp(configuration.indentationRules.decreaseIndentPattern);
+  const indentNext = new RegExp(configuration.indentationRules.indentNextLinePattern);
   for (const line of [
     "fn add(a, b) do",
     "if ready then",
@@ -66,14 +71,15 @@ test("language configuration covers comments, pairs, indentation, and folding", 
     "catch _ do",
     "else",
     "let result = try",
-    "case n",
-    "    case n -- comment",
-    'case "x of y"',
   ]) {
     assert.match(line, increase);
   }
   for (const line of ["end", "elseif ready then", "else", "of _ do", "catch _ do"]) {
     assert.match(line, decrease);
+  }
+  for (const line of ["case n", "    case n -- comment", 'case "x of y"']) {
+    assert.match(line, indentNext);
+    assert.doesNotMatch(line, increase, "case indentation must affect only its next line");
   }
   for (const oneLine of [
     "of _ do value end",
@@ -81,18 +87,70 @@ test("language configuration covers comments, pairs, indentation, and folding", 
     'case "x of y" of _ do 1 end',
   ]) {
     assert.doesNotMatch(oneLine, increase, "one-line forms must not indent the following line");
+    assert.doesNotMatch(oneLine, indentNext, "complete cases must not indent the following line");
   }
 
-  const indentWidth = 4;
-  const caseIndent = 4;
-  const provisionalIndent = caseIndent + (increase.test("    case n") ? indentWidth : 0);
-  const alignedOfIndent = provisionalIndent - (decrease.test("of") ? indentWidth : 0);
-  assert.equal(provisionalIndent, 8, "an incomplete case should provisionally indent one level");
-  assert.equal(alignedOfIndent, caseIndent, "of should realign exactly with its case");
+  const nextIndent = (previousIndent, previousLine, currentLine) => {
+    const inherited = previousIndent
+      + (increase.test(previousLine) || indentNext.test(previousLine) ? 1 : 0);
+    return Math.max(0, inherited - (decrease.test(currentLine) ? 1 : 0));
+  };
+  const lines = [
+    "case value",
+    "of 1 do",
+    "    first()",
+    "of 2 do",
+    "    second()",
+    "end",
+  ];
+  const levels = [0];
+  for (let index = 1; index < lines.length; index += 1) {
+    levels.push(nextIndent(levels[index - 1], lines[index - 1], lines[index]));
+  }
+  assert.deepEqual(
+    levels,
+    [0, 0, 1, 0, 1, 0],
+    "each sibling of and the final end must align with case",
+  );
 
   for (const legacyLine of ["match value with", "case value ->"]) {
     assert.doesNotMatch(legacyLine, increase);
     assert.doesNotMatch(legacyLine, decrease);
+    assert.doesNotMatch(legacyLine, indentNext);
+  }
+});
+
+test("control-flow snippets use construct-specific final ends", async () => {
+  const snippets = await json("snippets/simi.json");
+  const byPrefix = Object.fromEntries(
+    Object.values(snippets).map((snippet) => [snippet.prefix, snippet]),
+  );
+
+  assert.deepEqual(Object.keys(byPrefix).sort(), [
+    "case", "do", "fn", "fnexpr", "if", "ifelse", "loop", "try",
+  ]);
+  assert.deepEqual(byPrefix.case.body, [
+    "case ${1:value}",
+    "of ${2:pattern} do",
+    "    ${3:value}",
+    "of _ do",
+    "    $0",
+    "end",
+  ]);
+  assert.equal(byPrefix.case.body.filter((line) => line === "end").length, 1);
+  assert.deepEqual(byPrefix.try.body, [
+    "try",
+    "    ${1:value}",
+    "catch ${2:error} do",
+    "    $0",
+    "end",
+  ]);
+  assert.equal(byPrefix.try.body.filter((line) => line === "end").length, 1);
+  assert.ok(!byPrefix.of, "case clauses must not insert their own end");
+  assert.ok(!byPrefix.catch, "catch clauses must not insert their own end");
+  for (const snippet of Object.values(snippets)) {
+    assert.equal(snippet.body.at(-1), "end", `${snippet.prefix} must own one final end`);
+    assert.equal(typeof snippet.description, "string");
   }
 });
 

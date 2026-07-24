@@ -1,0 +1,81 @@
+{
+  "Standalone block": {
+    "prefix": "do",
+    "body": [
+      "do",
+      "    $0",
+      "end"
+    ],
+    "description": "Create a standalone value-producing block"
+  },
+  "Named function": {
+    "prefix": "fn",
+    "body": [
+      "fn ${1:name}(${2:parameters}) do",
+      "    $0",
+      "end"
+    ],
+    "description": "Declare a named function"
+  },
+  "Anonymous function": {
+    "prefix": "fnexpr",
+    "body": [
+      "fn(${1:parameters}) do",
+      "    $0",
+      "end"
+    ],
+    "description": "Create an anonymous function expression"
+  },
+  "If expression": {
+    "prefix": "if",
+    "body": [
+      "if ${1:condition} then",
+      "    $0",
+      "end"
+    ],
+    "description": "Create an if expression"
+  },
+  "If else expression": {
+    "prefix": "ifelse",
+    "body": [
+      "if ${1:condition} then",
+      "    ${2:value}",
+      "else",
+      "    $0",
+      "end"
+    ],
+    "description": "Create an if/else expression"
+  },
+  "Functional loop": {
+    "prefix": "loop",
+    "body": [
+      "loop ${1:state} = ${2:initial} do",
+      "    $0",
+      "end"
+    ],
+    "description": "Create a state-threading functional loop"
+  },
+  "Case expression": {
+    "prefix": "case",
+    "body": [
+      "case ${1:value}",
+      "of ${2:pattern} do",
+      "    ${3:value}",
+      "of _ do",
+      "    $0",
+      "end"
+    ],
+    "description": "Create a case expression with one final end"
+  },
+  "Try catch expression": {
+    "prefix": "try",
+    "body": [
+      "try",
+      "    ${1:value}",
+      "catch ${2:error} do",
+      "    $0",
+      "end"
+    ],
+    "description": "Create a try/catch expression with one final end"
+  }
+}

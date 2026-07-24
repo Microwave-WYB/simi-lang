@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import subprocess
 import sys
@@ -66,6 +67,7 @@ def check_source_extension() -> None:
     check(manifest["name"] == "Simi", "extension name must be Simi")
     check(manifest["schema_version"] == 1, "unsupported extension schema")
     check("grammars" not in manifest, "source manifest must remain machine-independent")
+    check(manifest.get("snippets") == ["./snippets/simi.json"], "invalid snippets manifest")
     language_server = manifest.get("language_servers", {}).get(SERVER_ID)
     check(language_server is not None, "source manifest must declare simi-lsp")
     check(language_server.get("name") == "Simi Language Server", "invalid server name")
@@ -91,6 +93,22 @@ def check_source_extension() -> None:
     language = COMPONENT / "languages" / "simi"
     for relative in LANGUAGE_FILES:
         check((language / relative).is_file(), f"missing language file: {relative}")
+
+    snippets_path = COMPONENT / "snippets" / "simi.json"
+    check(snippets_path.is_file(), "missing Simi snippets")
+    snippets = json.loads(snippets_path.read_text(encoding="utf-8"))
+    prefixes = {snippet["prefix"] for snippet in snippets.values()}
+    check(
+        prefixes == {"case", "do", "fn", "fnexpr", "if", "ifelse", "loop", "try"},
+        "unexpected Simi snippet inventory",
+    )
+    check(list(snippets["Case expression"]["body"]).count("end") == 1, "case needs one final end")
+    check(list(snippets["Try catch expression"]["body"]).count("end") == 1, "try needs one final end")
+    vscode_snippets = COMPONENT.parent / "vscode" / "snippets" / "simi.json"
+    check(
+        snippets_path.read_bytes() == vscode_snippets.read_bytes(),
+        "VS Code and Zed snippets must stay identical",
+    )
 
     config = load_toml(language / "config.toml")
     check(config["name"] == "Simi", "language name must be Simi")
@@ -131,8 +149,8 @@ def check_source_extension() -> None:
     check('"->"' in highlights, "type return arrow is not highlighted")
 
     indents = (language / "indents.scm").read_text(encoding="utf-8")
-    check("(case_expression" in indents, "case_expression is not indented")
-    check("(case_clause" in indents, "case_clause is not indented")
+    check("(case_expression" not in indents, "case_expression double-indents sibling clauses")
+    check("(case_clause) @indent" in indents, "each case clause must own its body indentation")
     check("(catch_clause" in indents, "catch_clause is not indented")
     for removed_node in ("match_expression", "pattern_clause"):
         check(removed_node not in indents, f"legacy indent node remains: {removed_node}")
@@ -164,6 +182,7 @@ def check_generated_extension(extension: Path) -> Path:
     check(parsed.scheme in {"file", "https"}, "grammar URL must use file or https")
     check(parsed.username is None and parsed.password is None, "grammar URL contains credentials")
     check((extension / "languages" / "simi" / "config.toml").is_file(), "language not copied")
+    check((extension / "snippets" / "simi.json").is_file(), "snippets not copied")
     check((extension / "Cargo.toml").is_file(), "extension Cargo.toml not copied")
     check((extension / "src" / "lib.rs").is_file(), "extension Rust source not copied")
     server = manifest.get("language_servers", {}).get(SERVER_ID)

@@ -1,5 +1,7 @@
 # Simi
 
+![Simi `two_sum` example](assets/two_sum.png)
+
 Simi is a small scripting language designed to be easy to run and embed.
 
 ## Try the language
@@ -22,8 +24,8 @@ greet("Simi")
 let io = require("std/io")
 
 --- Finds two numbers whose sum equals the target.
---- Returns the matching values, or nil when no pair exists.
-fn two_sum(numbers: [..integer], target: integer) -> {first: integer, second: integer} | nil do
+fn two_sum(numbers: [..integer], target: integer) -> [integer, integer] | nil noraise
+do
     loop state = {seen = {}, numbers = numbers} do
         case state.numbers
         of [] do
@@ -31,7 +33,7 @@ fn two_sum(numbers: [..integer], target: integer) -> {first: integer, second: in
         of [number, ..rest] do
             let complement = target - number
             if state.seen[complement] != nil then
-                break {first = complement, second = number}
+                break [complement, number]
             else
                 state.seen[number] = true
                 {seen = state.seen, numbers = rest}

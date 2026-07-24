@@ -15,6 +15,7 @@ COMPONENT = Path(__file__).resolve().parents[1]
 BASE_MANIFEST = COMPONENT / "extension.toml"
 LANGUAGES = COMPONENT / "languages"
 RUST_SOURCE = COMPONENT / "src"
+SNIPPETS = COMPONENT / "snippets"
 HEX_REVISION = re.compile(r"[0-9a-fA-F]{40}(?:[0-9a-fA-F]{24})?")
 
 
@@ -96,6 +97,7 @@ def write_extension(
     destination.mkdir(parents=True)
     shutil.copytree(LANGUAGES, destination / "languages")
     shutil.copytree(RUST_SOURCE, destination / "src")
+    shutil.copytree(SNIPPETS, destination / "snippets")
     shutil.copy2(COMPONENT / "Cargo.toml", destination / "Cargo.toml")
     cargo_lock = COMPONENT / "Cargo.lock"
     if cargo_lock.is_file():

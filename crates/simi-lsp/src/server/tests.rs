@@ -42,6 +42,21 @@ fn request(backend: &mut Backend, method: &str, params: Value) -> Result<Value, 
     backend.request(method, params)
 }
 
+fn assert_simi_hover(markup: &MarkupContent, expected: &str) {
+    let (detail, documentation) = expected
+        .split_once("\n\n")
+        .map_or((expected, None), |(detail, documentation)| {
+            (detail, Some(documentation))
+        });
+    let mut formatted = format!("```simi\n{detail}\n```");
+    if let Some(documentation) = documentation {
+        formatted.push_str("\n\n");
+        formatted.push_str(documentation);
+    }
+    assert_eq!(markup.kind, MarkupKind::Markdown);
+    assert_eq!(markup.value, formatted);
+}
+
 fn text_position(source: &str, needle: &str, occurrence: usize) -> Position {
     let offset = source
         .match_indices(needle)
@@ -274,9 +289,9 @@ fn symbols_navigation_references_hover_and_completion_use_fresh_analysis() {
     let HoverContents::Markup(markup) = hover.unwrap().contents else {
         panic!("expected markup")
     };
-    assert_eq!(
-        markup.value,
-        "add : (left: integer | float, right: integer | float) -> integer | float"
+    assert_simi_hover(
+        &markup,
+        "(left: integer | float, right: integer | float) -> integer | float",
     );
     assert!(!markup.value.contains("declared at"));
     assert!(!markup.value.contains("file://"));
@@ -431,7 +446,7 @@ fn contextual_keyword_hover_does_not_capture_ordinary_identifiers() {
     let HoverContents::Markup(markup) = hover.expect("identifier hover").contents else {
         panic!("expected markup")
     };
-    assert_eq!(markup.value, "string : integer");
+    assert_simi_hover(&markup, "integer");
 }
 
 #[test]
@@ -486,12 +501,10 @@ fn binding_hover_hides_internal_binding_categories_and_locations() {
             panic!("expected markup")
         };
         let expected = match name {
-            "parameter" => "parameter : 'a",
-            "pattern" => "pattern : 'a",
-            "state" => "state : 'a",
+            "parameter" | "pattern" | "state" => "'a",
             _ => unreachable!(),
         };
-        assert_eq!(markup.value, expected);
+        assert_simi_hover(&markup, expected);
         for hidden in [
             "parameter",
             "pattern binding",
@@ -875,10 +888,7 @@ fn append(xs, x) do nil end
     let HoverContents::Markup(markup) = hover.unwrap().contents else {
         panic!("expected markup")
     };
-    assert_eq!(
-        markup.value,
-        "append : (xs: 'a, x: 'b) -> nil\n\nAppend one value."
-    );
+    assert_simi_hover(&markup, "(xs: 'a, x: 'b) -> nil\n\nAppend one value.");
 }
 
 #[test]
@@ -895,12 +905,12 @@ fn println(value) do nil end
         (
             "std/io",
             0,
-            "std/io\n\nStandard output operations.\nValues are flushed automatically.",
+            "{ println: (value: 'a) -> nil }\n\nStandard output operations.\nValues are flushed automatically.",
         ),
         (
             "stdout",
             1,
-            "stdout : { println: (value: 'a) -> nil }\n\nStandard output operations.\nValues are flushed automatically.",
+            "{ println: (value: 'a) -> nil }\n\nStandard output operations.\nValues are flushed automatically.",
         ),
     ] {
         let mut backend = Backend::with_module_sources([("std/io", module)]);
@@ -920,7 +930,7 @@ fn println(value) do nil end
         let HoverContents::Markup(markup) = hover.unwrap().contents else {
             panic!("expected markup")
         };
-        assert_eq!(markup.value, expected);
+        assert_simi_hover(&markup, expected);
     }
 }
 
@@ -939,25 +949,25 @@ let inspect: string -> string noraise = host.inspect
             "require(\"std/io\").println",
             "println",
             0,
-            "println : (value: 'a) -> nil\n\nPrint one value.",
+            "(value: 'a) -> nil\n\nPrint one value.",
         ),
         (
             "let print = require(\"std/io\").println print",
             "print",
             2,
-            "print : (value: 'a) -> nil\n\nPrint one value.",
+            "(value: 'a) -> nil\n\nPrint one value.",
         ),
         (
             "require(\"std/io\").identity",
             "identity",
             0,
-            "identity : (value: 'a) -> 'a",
+            "(value: 'a) -> 'a",
         ),
         (
             "require(\"std/io\").inspect",
             "inspect",
             0,
-            "inspect : string -> string noraise\n\nInspect text through a native alias.",
+            "string -> string noraise\n\nInspect text through a native alias.",
         ),
     ] {
         let mut backend = Backend::with_module_sources([("std/io", module)]);
@@ -977,7 +987,7 @@ let inspect: string -> string noraise = host.inspect
         let HoverContents::Markup(markup) = hover.unwrap().contents else {
             panic!("expected markup")
         };
-        assert_eq!(markup.value, expected);
+        assert_simi_hover(&markup, expected);
     }
 
     let completion_source = "let print = require(\"std/io\").println pri";
@@ -1100,10 +1110,7 @@ fn run(value) do value end
     let HoverContents::Markup(markup) = hover.unwrap().contents else {
         panic!("expected markup")
     };
-    assert_eq!(
-        markup.value,
-        "run : (value: 'a) -> 'a\n\nRun a nested operation."
-    );
+    assert_simi_hover(&markup, "(value: 'a) -> 'a\n\nRun a nested operation.");
 
     let incomplete = "let emoji = \"😀\"\nlet module = require(\"nested\")\nmodule.nested.";
     let mut backend = Backend::with_module_sources([("nested", module)]);
@@ -1148,9 +1155,9 @@ fn real_annotated_stdlib_facade_supplies_generic_member_types() {
     let HoverContents::Markup(markup) = hover.expect("stdlib hover").contents else {
         panic!("expected markup")
     };
-    assert_eq!(
-        markup.value,
-        "map : <'a, 'b, 'c, 'd> (iterator: () -> { done: boolean, .. } raises 'c, transform: 'a -> 'b raises 'd) -> () -> { done: boolean, .. } raises 'c | 'd noraise"
+    assert_simi_hover(
+        &markup,
+        "<'a, 'b, 'c, 'd> (iterator: () -> { done: boolean, .. } raises 'c, transform: 'a -> 'b raises 'd) -> () -> { done: boolean, .. } raises 'c | 'd noraise",
     );
 }
 
@@ -1166,11 +1173,11 @@ nums[3]"#;
     assert!(diagnostics.diagnostics.is_empty());
 
     let expected_nums = [
-        "nums : [integer, integer, integer]",
-        "nums : [integer, integer, integer, [integer, integer, integer]]",
-        "nums : [integer, integer, integer]",
-        "nums : [integer, integer, integer]",
-        "nums : [integer, integer, integer, [integer, integer, integer]]",
+        "[integer, integer, integer]",
+        "[integer, integer, integer, [integer, integer, integer]]",
+        "[integer, integer, integer]",
+        "[integer, integer, integer]",
+        "[integer, integer, integer, [integer, integer, integer]]",
     ];
     for (occurrence, expected) in expected_nums.into_iter().enumerate() {
         let hover: Option<Hover> = serde_json::from_value(
@@ -1188,7 +1195,7 @@ nums[3]"#;
         let HoverContents::Markup(markup) = hover.expect("nums hover").contents else {
             panic!("expected markup")
         };
-        assert_eq!(markup.value, expected);
+        assert_simi_hover(&markup, expected);
     }
 
     let append: Option<Hover> = serde_json::from_value(
@@ -1206,9 +1213,9 @@ nums[3]"#;
     let HoverContents::Markup(markup) = append.expect("append hover").contents else {
         panic!("expected markup")
     };
-    assert_eq!(
-        markup.value,
-        "append : (xs: [..'a] => [..('a | 'b)], value: 'b) -> nil noraise\n\nAppend a value to a list."
+    assert_simi_hover(
+        &markup,
+        "(xs: [..'a] => [..('a | 'b)], value: 'b) -> nil noraise\n\nAppend a value to a list.",
     );
 }
 
@@ -1245,13 +1252,13 @@ let repeated = loop state = 0 do break state end"#;
             panic!("expected markup")
         };
         if needle == "(1)" {
-            assert_eq!(markup.value, expected);
+            assert_simi_hover(&markup, expected);
         } else {
             assert!(markup.value.starts_with("keyword `"), "{}", markup.value);
             assert!(
                 markup
                     .value
-                    .ends_with(&format!("Expression type: {expected}")),
+                    .ends_with(&format!("Expression type:\n\n```simi\n{expected}\n```")),
                 "{}",
                 markup.value
             );
@@ -1282,7 +1289,7 @@ fn empty_record_hover_uses_compact_delimiters() {
     let HoverContents::Markup(markup) = hover.expect("data hover").contents else {
         panic!("expected markup")
     };
-    assert_eq!(markup.value, "data : {}");
+    assert_simi_hover(&markup, "{}");
 }
 
 #[test]
@@ -1308,7 +1315,7 @@ fn literal_require_call_hover_uses_the_evaluated_module_type() {
     let HoverContents::Markup(markup) = hover.expect("require call hover").contents else {
         panic!("expected markup")
     };
-    assert_eq!(markup.value, "{ answer: integer, empty: {} }");
+    assert_simi_hover(&markup, "{ answer: integer, empty: {} }");
 }
 
 #[test]
@@ -1320,12 +1327,7 @@ end"#;
     let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
     assert!(diagnostics.diagnostics.is_empty());
 
-    let expected = [
-        "value : integer | string",
-        "value : integer | string",
-        "value : integer",
-        "value : string",
-    ];
+    let expected = ["integer | string", "integer | string", "integer", "string"];
     for (occurrence, expected) in expected.into_iter().enumerate() {
         let hover: Option<Hover> = serde_json::from_value(
             request(
@@ -1342,7 +1344,7 @@ end"#;
         let HoverContents::Markup(markup) = hover.expect("value hover").contents else {
             panic!("expected markup")
         };
-        assert_eq!(markup.value, expected);
+        assert_simi_hover(&markup, expected);
     }
 }
 
@@ -1359,10 +1361,10 @@ ns"#;
     assert!(diagnostics.diagnostics.is_empty());
 
     let expected = [
-        "ns : [integer, integer]",
-        "ns : [integer, integer]",
-        "ns : [integer, integer]",
-        "ns : [integer, integer, integer]",
+        "[integer, integer]",
+        "[integer, integer]",
+        "[integer, integer]",
+        "[integer, integer, integer]",
     ];
     for (occurrence, expected) in expected.into_iter().enumerate() {
         let hover: Option<Hover> = serde_json::from_value(
@@ -1380,7 +1382,7 @@ ns"#;
         let HoverContents::Markup(markup) = hover.expect("ns hover").contents else {
             panic!("expected markup")
         };
-        assert_eq!(markup.value, expected);
+        assert_simi_hover(&markup, expected);
     }
 }
 
@@ -1394,11 +1396,7 @@ value"#;
     let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
     assert!(diagnostics.diagnostics.is_empty());
 
-    for (occurrence, expected) in [
-        (1, "value : any"),
-        (2, "value : any"),
-        (3, "value : \"later\""),
-    ] {
+    for (occurrence, expected) in [(1, "any"), (2, "any"), (3, "\"later\"")] {
         let hover: Option<Hover> = serde_json::from_value(
             request(
                 &mut backend,
@@ -1414,7 +1412,7 @@ value"#;
         let HoverContents::Markup(markup) = hover.expect("value hover").contents else {
             panic!("expected markup")
         };
-        assert_eq!(markup.value, expected);
+        assert_simi_hover(&markup, expected);
     }
 }
 
@@ -1435,11 +1433,7 @@ end
     let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
     assert!(diagnostics.diagnostics.is_empty());
 
-    for (occurrence, expected) in [
-        (1, "state : integer | nil"),
-        (2, "state : nil"),
-        (3, "state : integer"),
-    ] {
+    for (occurrence, expected) in [(1, "integer | nil"), (2, "nil"), (3, "integer")] {
         let hover: Option<Hover> = serde_json::from_value(
             request(
                 &mut backend,
@@ -1455,7 +1449,7 @@ end
         let HoverContents::Markup(markup) = hover.expect("state hover").contents else {
             panic!("expected markup")
         };
-        assert_eq!(markup.value, expected);
+        assert_simi_hover(&markup, expected);
     }
 }
 
@@ -1503,7 +1497,7 @@ sum_list(ns)
         let HoverContents::Markup(markup) = hover.expect("ns hover").contents else {
             panic!("expected markup")
         };
-        assert_eq!(markup.value, "ns : [..integer]");
+        assert_simi_hover(&markup, "[..integer]");
     }
 
     for (offset, _) in source
@@ -1525,7 +1519,7 @@ sum_list(ns)
         let HoverContents::Markup(markup) = hover.expect("state.acc hover").contents else {
             panic!("expected markup")
         };
-        assert_eq!(markup.value, "acc : [..integer]");
+        assert_simi_hover(&markup, "[..integer]");
     }
 }
 
@@ -1544,15 +1538,12 @@ let piped = [1] |> tap append_alias(2) |> tap append_alias(3)
     let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
     assert!(diagnostics.diagnostics.is_empty());
     for (name, expected) in [
-        (
-            "append",
-            "append : (xs: [..'a] => [..('a | 'b)], value: 'b) -> nil",
-        ),
+        ("append", "(xs: [..'a] => [..('a | 'b)], value: 'b) -> nil"),
         (
             "append_alias",
-            "append_alias : (xs: [..'a] => [..('a | 'b)], value: 'b) -> nil",
+            "(xs: [..'a] => [..('a | 'b)], value: 'b) -> nil",
         ),
-        ("piped", "piped : [..integer]"),
+        ("piped", "[..integer]"),
     ] {
         let hover: Option<Hover> = serde_json::from_value(
             request(
@@ -1569,7 +1560,7 @@ let piped = [1] |> tap append_alias(2) |> tap append_alias(3)
         let HoverContents::Markup(markup) = hover.expect("append hover").contents else {
             panic!("expected markup")
         };
-        assert_eq!(markup.value, expected);
+        assert_simi_hover(&markup, expected);
     }
 }
 
@@ -1622,14 +1613,14 @@ end
     let HoverContents::Markup(markup) = hover.expect("quicksort hover").contents else {
         panic!("expected markup")
     };
-    assert_eq!(
-        markup.value,
-        "quicksort : (values: [..(integer | float)]) -> [..(integer | float)]"
+    assert_simi_hover(
+        &markup,
+        "(values: [..(integer | float)]) -> [..(integer | float)]",
     );
 }
 
 #[test]
-fn typed_hover_uses_one_uniform_name_colon_type_format() {
+fn typed_hover_uses_type_only_simi_code_blocks() {
     let source = r#"
 fn process(n) do n + 1 end
 fn increment(n: integer) do n + 1 end
@@ -1643,15 +1634,12 @@ let found = indexed[key]
     let mut backend = Backend::new();
     open(&mut backend, source);
     for (name, expected) in [
-        (
-            "process",
-            "process : (n: integer | float) -> integer | float",
-        ),
-        ("increment", "increment : (n: integer) -> integer"),
-        ("identity", "identity : (value: 'a) -> 'a"),
-        ("selected", "selected : \"text\""),
-        ("values", "values : [integer, \"two\"]"),
-        ("found", "found : integer | nil"),
+        ("process", "(n: integer | float) -> integer | float"),
+        ("increment", "(n: integer) -> integer"),
+        ("identity", "(value: 'a) -> 'a"),
+        ("selected", "\"text\""),
+        ("values", "[integer, \"two\"]"),
+        ("found", "integer | nil"),
     ] {
         let hover: Option<Hover> = serde_json::from_value(
             request(
@@ -1668,7 +1656,7 @@ let found = indexed[key]
         let HoverContents::Markup(markup) = hover.expect("typed hover").contents else {
             panic!("expected markup")
         };
-        assert_eq!(markup.value, expected);
+        assert_simi_hover(&markup, expected);
     }
 }
 
@@ -1688,13 +1676,10 @@ fib(5)
     let mut backend = Backend::new();
     open(&mut backend, source);
     for (position, expected) in [
-        (
-            text_position(source, "fib", 0),
-            "fib : (n: integer) -> integer",
-        ),
+        (text_position(source, "fib", 0), "(n: integer) -> integer"),
         (
             position::position(source, source.find("state.a").unwrap() + "state.".len()).unwrap(),
-            "a : integer",
+            "integer",
         ),
     ] {
         let hover: Option<Hover> = serde_json::from_value(
@@ -1712,7 +1697,7 @@ fib(5)
         let HoverContents::Markup(markup) = hover.expect("typed hover").contents else {
             panic!("expected markup")
         };
-        assert_eq!(markup.value, expected);
+        assert_simi_hover(&markup, expected);
     }
 }
 
@@ -1771,7 +1756,7 @@ fn raised_contract_diagnostics_and_hover_use_protocol_types() {
     let HoverContents::Markup(markup) = hover.expect("bad hover").contents else {
         panic!("expected markup")
     };
-    assert_eq!(markup.value, "bad : () -> integer noraise");
+    assert_simi_hover(&markup, "() -> integer noraise");
 }
 
 #[test]

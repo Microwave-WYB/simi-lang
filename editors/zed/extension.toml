@@ -4,6 +4,7 @@ description = "Simi language support."
 version = "0.0.1"
 schema_version = 1
 authors = ["Simi contributors"]
+snippets = ["./snippets/simi.json"]
 
 [language_servers.simi-lsp]
 name = "Simi Language Server"

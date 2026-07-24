@@ -50,6 +50,12 @@
         "path": "./syntaxes/simi.tmLanguage.json"
       }
     ],
+    "snippets": [
+      {
+        "language": "simi",
+        "path": "./snippets/simi.json"
+      }
+    ],
     "configuration": {
       "title": "Simi",
       "properties": {

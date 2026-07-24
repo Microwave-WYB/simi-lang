@@ -13,14 +13,10 @@
 (loop_expression
   "end" @end) @indent
 
-(case_expression
-  "end" @end) @indent
-
 (try_expression
   "end" @end) @indent
 
-(case_clause
-  "of" @end) @indent
+(case_clause) @indent
 
 (catch_clause
   "catch" @end) @indent

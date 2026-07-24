@@ -1,6 +1,6 @@
 # Simi for Zed
 
-A local [Zed language extension](https://zed.dev/docs/extensions/languages) for `.simi` files. It provides `simi-lsp` integration plus syntax highlighting, bracket matching, indentation, a function outline, and Vim function/comment text objects. Tree-sitter editing features remain available when the language server is absent.
+A local [Zed language extension](https://zed.dev/docs/extensions/languages) for `.simi` files. It provides `simi-lsp` integration plus syntax highlighting, bracket matching, indentation, construct-specific control-flow snippets, a function outline, and Vim function/comment text objects. Tree-sitter editing features remain available when the language server is absent.
 
 ## Language server
 
