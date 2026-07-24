@@ -55,7 +55,11 @@ simi run two_sum.simi
 
 Start with [Hello, world!](docs/language-tour/hello-world.md), continue through the complete [language tour](docs/language-tour.md), and explore the runnable programs in [`examples/`](examples/).
 
-## Install the latest release
+## Installation
+
+> **Status:** Simi is under active development. It does not use version numbers yet; download names include the exact source commit instead.
+
+### Latest release
 
 The easiest way to try Simi is the [latest release](https://github.com/Microwave-WYB/simi-lang/releases/tag/latest). Choose the CLI download for your system:
 
@@ -65,27 +69,15 @@ The easiest way to try Simi is the [latest release](https://github.com/Microwave
 | macOS Intel | `x86_64-apple-darwin.tar.gz` |
 | Windows x86-64 | `x86_64-pc-windows-msvc.zip` |
 
-Extract the download, then copy `simi` or `simi.exe` to a directory on your `PATH`. The included `README.md` has platform-specific steps.
+Extract the download, then copy `simi` or `simi.exe` to a directory on your `PATH`. The included `README.md` has platform-specific steps. Each download also has a matching `.sha256` checksum file.
 
-### VS Code
-
-Download the `simi-vscode-...vsix` file for the same system from the release, then install it and reload VS Code:
-
-```sh
-code --install-extension ./simi-vscode-<full-sha>-<target>.vsix
-```
-
-The extension includes its matching language server, so it works without a separate CLI installation. Each release download also has a matching `.sha256` checksum file.
-
-> **Status:** Simi is under active development. It does not use version numbers yet; download names include the exact source commit instead.
-
-## Install the latest development build
+### Latest development build
 
 To try changes newer than the published release, open the [CI workflow](https://github.com/Microwave-WYB/simi-lang/actions/workflows/ci.yml), select the newest successful `main` run, and download the artifact for your system. After unzipping the Actions artifact, you will find both the CLI download and the self-contained VS Code extension, with checksums for each.
 
 Development artifacts are produced for Linux x86-64, Intel macOS, and Windows x86-64. They are temporary and expire according to GitHub's artifact-retention policy.
 
-## Install with Cargo
+### Cargo
 
 To build the newest source directly, first [install Rust with rustup](https://rustup.rs/). Simi currently requires Rust 1.88 or newer. Then run:
 
@@ -93,18 +85,37 @@ To build the newest source directly, first [install Rust with rustup](https://ru
 cargo install --git https://github.com/Microwave-WYB/simi-lang --bin simi
 ```
 
+## Editor support
+
+### Visual Studio Code
+
+Download the `simi-vscode-...vsix` file for your system from either the [latest release](https://github.com/Microwave-WYB/simi-lang/releases/tag/latest) or a successful `main` CI artifact. Install it and reload VS Code:
+
+```sh
+code --install-extension ./simi-vscode-<full-sha>-<target>.vsix
+```
+
+The extension includes its matching language server, so it works without a separate CLI installation. See the [VS Code guide](editors/vscode/README.md) for configuration and source-development instructions.
+
+### Other editors
+
+- [Zed](editors/zed/README.md): Tree-sitter editing support and language-server features;
+- [Tree-sitter](editors/tree-sitter/README.md): the shared structural grammar for compatible editors.
+
+Zed and other editor integrations are currently installed from this repository.
+
 ## Use Simi
 
 Run a script:
 
 ```sh
-simi run hello.simi
+simi run two_sum.simi
 ```
 
 Scripts control their own output. To also display the script's final value, including `nil`:
 
 ```sh
-simi run --inspect hello.simi
+simi run --inspect two_sum.simi
 ```
 
 Start the language server over standard input and output:
@@ -112,14 +123,6 @@ Start the language server over standard input and output:
 ```sh
 simi lsp
 ```
-
-## Editor plugins
-
-- [Visual Studio Code](editors/vscode/README.md): self-contained release downloads, TextMate highlighting, and language-server features;
-- [Zed](editors/zed/README.md): Tree-sitter editing support and language-server features;
-- [Tree-sitter](editors/tree-sitter/README.md): the shared structural grammar for compatible editors.
-
-The VS Code extension is available from both CI artifacts and the latest release. Zed and other editor integrations are currently installed from this repository.
 
 ## Language highlights
 
