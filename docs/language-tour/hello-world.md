@@ -23,7 +23,7 @@
 Simi programs are expression-oriented, so a script has a final value. This complete script evaluates to a string but does not print it itself:
 
 ```simi
-"Hello from a final value"
+"Hello, world!"
 ```
 
 Use `--inspect` when you want the CLI to render that final value:
