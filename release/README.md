@@ -1,12 +1,11 @@
-# Simi development build
+# Simi build
 
-This archive contains one immutable Simi development build:
+This archive contains one Simi command-line build:
 
 - `simi` or `simi.exe`: the interpreter, command-line runner, and language server;
-- `simi-vscode.vsix`: VS Code syntax highlighting and the matching bundled language server;
 - `LICENSE`: the MIT license.
 
-The full Git commit hash is part of the archive filename. Development builds do not promise compatibility with other commits.
+The full Git commit hash is part of the archive filename. Builds from different commits do not promise compatibility.
 
 ## Install the executable
 
@@ -29,13 +28,13 @@ simi.exe --help
 
 ## Install the VS Code extension
 
-With VS Code's `code` command available, run this from the extracted directory:
+Download the platform-specific `simi-vscode-<full-sha>-<target>.vsix` asset from the same release. Its hash and target must match this archive. With VS Code's `code` command available, run:
 
 ```sh
-code --install-extension ./simi-vscode.vsix
+code --install-extension /path/to/simi-vscode-<full-sha>-<target>.vsix
 ```
 
-Reload VS Code after installation. No separate `simi` installation is needed for editor features: this platform-specific VSIX uses its bundled executable. Explicit overrides are resolved in this order:
+Reload VS Code after installation. No separate `simi` installation is needed for editor features: the VSIX contains its matching executable. Explicit overrides are resolved in this order:
 
 1. the `simi.languageServer.path` VS Code setting;
 2. the `SIMI_PATH` environment variable;

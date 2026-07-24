@@ -22,7 +22,7 @@ ci:
     test -z "$(find src crates -type f -name mod.rs -print)"
     git diff --check
 
-# Build one native binary for the manually dispatched hash release workflow.
+# Build one native binary for CI artifacts or a manually promoted release.
 release-build target:
     cargo build --locked --release --bin simi --target "{{ target }}"
 
@@ -42,6 +42,6 @@ release-vscode target platform:
     just editors vscode package
     cp editors/vscode/simi-language-*.vsix release-input/simi-vscode.vsix
 
-# Package one native binary, the VS Code extension, instructions, and a checksum.
+# Package separate CLI and self-contained VSIX assets with checksums.
 release-package target platform sha vsix="release-input/simi-vscode.vsix":
     python3 scripts/package-release.py "{{ target }}" "{{ platform }}" "{{ sha }}" "{{ vsix }}"

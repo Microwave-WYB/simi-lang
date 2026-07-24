@@ -10,7 +10,7 @@ Visual Studio Code language support for Simi, including:
 - indentation rules for standalone `do` blocks and one-final-`end` repeated `of`/`catch` branches;
 - indentation-based folding plus `-- region` / `-- endregion` folding markers.
 
-The extension is a workspace extension. Platform-specific VSIX files shipped inside Simi Git-hash release archives bundle the matching `simi` language server. Ordinary source-development packages created with `just package` contain no native binary and fall back to an externally installed server.
+The extension is a workspace extension. Platform-specific VSIX release assets bundle the matching `simi` language server. Ordinary source-development packages created with `just package` contain no native binary and fall back to an externally installed server.
 
 ## Language server
 

@@ -1,10 +1,10 @@
-name: Nightly release
+name: Latest release
 
 on:
   workflow_dispatch:
     inputs:
       ref:
-        description: Git ref to validate and promote as nightly
+        description: Git ref to validate and promote as latest
         required: true
         default: main
         type: string
@@ -91,19 +91,19 @@ jobs:
           pattern: release-*
           path: dist
           merge-multiple: true
-      - name: Replace the moving nightly release
+      - name: Replace the moving latest release
         env:
           GH_TOKEN: ${{ github.token }}
           SHA: ${{ needs.validate.outputs.sha }}
         shell: bash
         run: |
           set -euo pipefail
-          if gh release view nightly --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release delete nightly --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes
+          if gh release view latest --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release delete latest --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes
           fi
-          gh release create nightly dist/* \
+          gh release create latest dist/* \
             --repo "$GITHUB_REPOSITORY" \
             --target "$SHA" \
-            --title "nightly — $SHA" \
-            --prerelease \
-            --notes "Nightly development build for Git commit $SHA. Archive names retain the complete commit hash. No compatibility guarantee is implied."
+            --title "Simi latest — $SHA" \
+            --latest \
+            --notes "Current recommended Simi build from Git commit $SHA. Every CLI archive and self-contained platform VSIX retains the complete commit hash."

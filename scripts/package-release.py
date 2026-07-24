@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Package one Simi binary for an immutable Git-hash release."""
+"""Package one Simi CLI archive and matching self-contained VSIX."""
 
 from __future__ import annotations
 
 import hashlib
+import shutil
 import sys
 import tarfile
 import zipfile
@@ -32,7 +33,6 @@ def main() -> None:
 
     bundled_files = (
         (source, executable),
-        (vsix, "simi-vscode.vsix"),
         (readme, "README.md"),
         (license_file, "LICENSE"),
     )
@@ -52,11 +52,15 @@ def main() -> None:
             for path, archived_name in bundled_files:
                 bundle.add(path, arcname=archived_name)
 
-    digest = hashlib.sha256(archive.read_bytes()).hexdigest()
-    checksum = archive.with_name(f"{archive.name}.sha256")
-    checksum.write_text(f"{digest}  {archive.name}\n", encoding="utf-8")
-    print(archive)
-    print(checksum)
+    vsix_output = output / f"simi-vscode-{sha}-{target}.vsix"
+    shutil.copyfile(vsix, vsix_output)
+
+    for artifact in (archive, vsix_output):
+        digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
+        checksum = artifact.with_name(f"{artifact.name}.sha256")
+        checksum.write_text(f"{digest}  {artifact.name}\n", encoding="utf-8")
+        print(artifact)
+        print(checksum)
 
 
 if __name__ == "__main__":
