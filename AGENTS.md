@@ -4,13 +4,7 @@ This file is the shared guide for coding agents working on Simi. Keep changes co
 
 ## Repository Skills
 
-Load the matching repository skill before specialized work:
-
-- [`write-simi-scripts`](.agents/skills/write-simi-scripts/SKILL.md) when authoring, explaining, migrating, or debugging Simi programs;
-- [`embed-simi-in-rust`](.agents/skills/embed-simi-in-rust/SKILL.md) when integrating the Rust host API or building modules and native capabilities;
-- [`develop-simi-language`](.agents/skills/develop-simi-language/SKILL.md) when changing syntax, runtime semantics, erased analysis, LSP behavior, standard-library facades, documentation, or editor grammars.
-
-These skills provide task-specific procedures and link back to the authoritative repository documentation. Do not duplicate their contents here.
+Before specialized work, inspect [`.agents/skills/`](.agents/skills/) and load the matching skill.
 
 ## Project Purpose
 
