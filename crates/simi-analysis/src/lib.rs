@@ -12,11 +12,12 @@ pub use db::{
 pub use simi_syntax::span::Span;
 
 pub use model::{
-    AnalysisDiagnostic, AnalysisDiagnosticCode, AnalysisDiagnosticSeverity, Capture,
-    DocumentSymbol, ExportField, ExprData, ExprId, Hir, HoverFacts, ModuleMember, ModuleShape,
-    ModuleValue, NameOccurrence, OccurrenceKind, ParameterPostType, PatternData, PatternId,
-    RelatedDiagnostic, RenameError, Resolution, ScopeData, ScopeId, SymbolData, SymbolId,
-    SymbolKind, Type, TypeInference, display_signature,
+    AnalysisDiagnostic, AnalysisDiagnosticCode, AnalysisDiagnosticSeverity, CallableParameter,
+    CallableType, Capture, DocumentSymbol, ExportField, ExprData, ExprId, GenericConstraint, Hir,
+    HoverFacts, ModuleMember, ModuleShape, ModuleValue, NameOccurrence, OccurrenceKind,
+    ParameterPostType, PatternData, PatternId, RaisedAnnotation, RelatedDiagnostic, RenameError,
+    Resolution, ScopeData, ScopeId, SymbolData, SymbolId, SymbolKind, Type, TypeInference,
+    display_signature,
 };
 pub use modules::{
     imported_members, imported_modules, member_at, member_completions, module_at, module_shape,

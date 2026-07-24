@@ -32,8 +32,10 @@ Before changing behavior, write down:
 
 ## High-risk invariants
 
-- Static annotations, aliases, and post-states are erased and never alter runtime behavior.
+- Static annotations, aliases, generic bounds, callable labels, raised contracts, and post-states are erased and never alter runtime behavior.
 - `=>` is parameter-local post-state metadata, not a general type operator. Ambiguous unparenthesized forms must receive the canonical targeted diagnostic.
+- Callable labels are presentation-only and calls remain positional. Nested generic headers own distinct binders; bounds are ordinary Simi types, never traits or protocols.
+- Omitted callable effects infer, `raises E` checks an upper bound, and `noraise` means `raises never`. Hard diagnostics and postfix `?` stay outside the raised channel; post-states apply only on normal completion.
 - Same-scope repeated `let` creates a new binding version; earlier closures retain earlier versions.
 - Map patterns are closed unless they contain `..` or `..rest`.
 - Postfix `?` stops the nearest lexical block. In a loop body its `nil` value supplies the next state.
@@ -54,7 +56,7 @@ cargo check --all-targets
 cargo test --all-targets
 cargo clippy --all-targets --all-features -- -D warnings
 cargo build --bin simi
-find src -type f -name mod.rs
+find src crates -type f -name mod.rs
 git diff --check
 ```
 

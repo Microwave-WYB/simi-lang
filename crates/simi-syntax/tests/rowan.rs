@@ -201,6 +201,121 @@ fn post_state_types_require_unambiguous_parameter_boundaries() {
 }
 
 #[test]
+fn callable_generics_labels_effects_and_leading_unions_are_lossless() {
+    let source = concat!(
+        "fn identity<'a: | integer | string>(value: 'a) -> 'a noraise do value end\n",
+        "let mapper: <'a, 'error: { error: string, .. }> (value: 'a) -> 'a raises 'error = nil\n",
+        "let callback: (input: | integer | string, state: [..integer] => [..integer]) -> nil = nil\n",
+        "let anonymous = fn<'a: any>(value: 'a) -> 'a raises string do value end\n",
+    );
+    let parse = parse_source(source);
+    assert!(parse.diagnostics().is_empty(), "{:?}", parse.diagnostics());
+    assert_eq!(parse.syntax().to_string(), source);
+    assert_eq!(
+        parse
+            .syntax()
+            .descendants()
+            .filter(|node| node.kind() == SyntaxKind::EFFECT_ANNOTATION)
+            .count(),
+        3
+    );
+    assert_eq!(
+        parse
+            .syntax()
+            .descendants()
+            .filter(|node| node.kind() == SyntaxKind::TYPE_CONSTRAINT)
+            .count(),
+        3
+    );
+}
+
+#[test]
+fn callable_effect_tails_bind_to_the_nearest_arrow() {
+    let sources_and_parents = [
+        (
+            "let value: integer -> string -> boolean raises string = nil",
+            vec!["string -> boolean raises string"],
+        ),
+        (
+            "let value: integer -> (string -> boolean) raises string = nil",
+            vec!["integer -> (string -> boolean) raises string"],
+        ),
+        (
+            "let value: integer -> (string -> boolean raises integer) raises string = nil",
+            vec![
+                "string -> boolean raises integer",
+                "integer -> (string -> boolean raises integer) raises string",
+            ],
+        ),
+    ];
+
+    for (source, expected_parents) in sources_and_parents {
+        let parse = parse_source(source);
+        assert!(parse.diagnostics().is_empty(), "{:?}", parse.diagnostics());
+        let actual = parse
+            .syntax()
+            .descendants()
+            .filter(|node| node.kind() == SyntaxKind::EFFECT_ANNOTATION)
+            .map(|effect| effect.parent().expect("effect parent").to_string())
+            .collect::<Vec<_>>();
+        assert_eq!(actual, expected_parents, "{source}");
+    }
+}
+
+#[test]
+fn callable_headers_and_effects_require_a_result_arrow() {
+    let generic = parse_source("let bad: <'a> 'a = nil");
+    assert!(generic.diagnostics().iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("generic header must be followed by `->`")
+    }));
+
+    let effect = parse_source("fn bad() raises string do nil end");
+    assert!(effect.diagnostics().iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("effect requires `->` and a result type")
+    }));
+}
+
+#[test]
+fn malformed_callable_effects_recover_before_following_bodies_and_declarations() {
+    let cases = [
+        (
+            "fn bad() -> nil raises do nil end\nlet after = 1",
+            "expected a raised type after `raises`",
+        ),
+        (
+            "fn bad() -> nil noraise string do nil end\nlet after = 1",
+            "`noraise` does not accept a type",
+        ),
+        (
+            "let bad: (value: integer) = nil\nlet after = 1",
+            "labeled parameter list must be followed by `->`",
+        ),
+    ];
+    for (source, expected) in cases {
+        let parse = parse_source(source);
+        assert!(
+            parse
+                .diagnostics()
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains(expected)),
+            "{source}: {:?}",
+            parse.diagnostics()
+        );
+        let root = Root::cast(parse.syntax().clone()).expect("root");
+        assert!(root.statements().any(|statement| {
+            let Stmt::LetStmt(statement) = statement else {
+                return false;
+            };
+            statement.syntax().to_string().contains("after")
+        }));
+    }
+}
+
+#[test]
 fn malformed_lexemes_are_preserved_as_error_tokens() {
     let source = "let x = @\nlet y = 2";
     let parse = parse_source(source);

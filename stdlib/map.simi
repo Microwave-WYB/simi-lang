@@ -1,13 +1,13 @@
 ---- Operations for mutable insertion-ordered maps.
 
 --- Return the number of entries in a map.
-let length: { .. } -> integer = host.length
+let length: (entries: { .. }) -> integer noraise = host.length
 
 --- Create an independent shallow copy of a map.
-let copy: { .. } -> { .. } = host.copy
+let copy: (entries: { .. }) -> { .. } noraise = host.copy
 
 --- Return whether a map contains a key.
-let has: ({ .. }, string | integer | float | boolean) -> boolean = host.has
+let has: (entries: { .. }, key: string | integer | float | boolean) -> boolean noraise = host.has
 
 --- Create an insertion-ordered iterator over map entries.
 fn iter(entries: { .. }) do
@@ -24,6 +24,6 @@ fn iter(entries: { .. }) do
 end
 
 --- Remove every entry from a map.
-let clear: { .. } -> nil = host.clear
+let clear: (entries: { .. } => {}) -> nil noraise = host.clear
 
 {length = length, copy = copy, has = has, iter = iter, clear = clear}

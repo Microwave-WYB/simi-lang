@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use simi_analysis::{
-    AnalysisDatabase, Type, imported_members, imported_modules, member_at, member_completions,
-    module_at, module_shape,
+    AnalysisDatabase, CallableType, Type, imported_members, imported_modules, member_at,
+    member_completions, module_at, module_shape,
 };
 
 #[test]
@@ -25,7 +25,11 @@ let append: ([..'a] => [..('a | 'b)], 'b) -> nil = host.append
     );
     assert_eq!(
         length.ty,
-        Some(Type::Function(vec![Type::String], Box::new(Type::Int),))
+        Some(Type::Function(Box::new(CallableType::inferred(
+            vec![Type::String],
+            Type::Int,
+            Type::Any,
+        ))))
     );
     assert!(length.parameters.is_none());
 
@@ -270,7 +274,7 @@ alias option<'a> = 'a | nil
         .unwrap();
     assert_eq!(
         map.ty.as_ref().map(simi_analysis::Type::display).as_deref(),
-        Some("([..'a], 'a -> 'b) -> [..'b]")
+        Some("(xs: [..'a], transform: 'a -> 'b) -> [..'b]")
     );
     let identity = shape
         .fields
@@ -283,7 +287,7 @@ alias option<'a> = 'a | nil
             .as_ref()
             .map(simi_analysis::Type::display)
             .as_deref(),
-        Some("'a -> 'a")
+        Some("(value: 'a) -> 'a")
     );
 }
 

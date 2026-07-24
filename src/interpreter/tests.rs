@@ -38,6 +38,21 @@ fn expect_raised(source: &str) -> Raised {
 }
 
 #[test]
+fn callable_generic_constraints_labels_and_effects_are_runtime_erased() {
+    let value = evaluate(
+        r#"
+fn apply<'a: | integer | string>(callback: (input: 'a) -> 'a raises string, value: 'a) -> 'a noraise do
+    callback(value)
+end
+let identity = fn<'a: any>(value: 'a => 'a) -> 'a raises string do value end
+apply(identity, 42)
+"#,
+    )
+    .unwrap();
+    assert!(matches!(value, Value::Int(42)));
+}
+
+#[test]
 fn concatenation_is_strict_and_right_associative() {
     assert!(matches!(
         evaluate("\"a\" <> \"b\" <> \"c\"").unwrap(),

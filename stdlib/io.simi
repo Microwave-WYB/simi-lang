@@ -1,19 +1,21 @@
 ---- Standard text input and output operations supplied by the host.
 
+alias IoError = { error: "io_error", operation: string, message: string, .. }
+
 --- Read one line without its line ending, or return nil at EOF.
-let read_line: () -> string | nil = host.read_line
+let read_line: () -> string | nil raises IoError = host.read_line
 
 --- Write a string and flush standard output.
-let print: string -> nil = host.print
+let print: (text: string) -> nil raises IoError = host.print
 
 --- Write a string and a newline, then flush standard output.
-let println: string -> nil = host.println
+let println: (text: string) -> nil raises IoError = host.println
 
 --- Write a string and flush standard error.
-let eprint: string -> nil = host.eprint
+let eprint: (text: string) -> nil raises IoError = host.eprint
 
 --- Write a string and a newline, then flush standard error.
-let eprintln: string -> nil = host.eprintln
+let eprintln: (text: string) -> nil raises IoError = host.eprintln
 
 {
     read_line = read_line,

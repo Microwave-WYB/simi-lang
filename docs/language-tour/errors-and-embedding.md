@@ -102,6 +102,26 @@ end
 
 Raises cross function boundaries and accumulate trace frames. Raising again in a handler creates a new raised event that retains the caught event as its cause; it is not a special syntax-level “rethrow.”
 
+Erased callable annotations describe this channel separately from normal results:
+
+```simi
+alias lookup_error =
+    | {error: "not_found", key: string, ..}
+    | {error: "unavailable", message: string, ..}
+
+fn lookup(key: string) -> string raises lookup_error do
+    raise {error = "not_found", key = key}
+end
+
+try
+    lookup("profile")
+catch {error = "not_found", key = key} do
+    "missing: " <> key
+end
+```
+
+An omitted clause is inferred. `raises E` checks an upper bound, and `noraise` means `raises never`. Generic effect variables can connect a callback's raised type to its caller. Catch patterns remove definitely handled variants from the protected effect; guarded matches remain possible, and handler effects escape. Post-states apply only on normal return, never on a raised path.
+
 ## Minimal Rust embedding
 
 Create a new Rust binary with `cargo new`, then add Simi directly from its public Git repository:

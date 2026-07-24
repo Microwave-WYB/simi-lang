@@ -7,9 +7,10 @@ Trailing arguments require a call on the left
 ---
 
 (program
-  (integer)
-  (ERROR)
-  (integer))
+  (binary_expression
+    (integer)
+    (ERROR)
+    (integer)))
 
 ==================
 Pipeline stages require a named call

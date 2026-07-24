@@ -28,6 +28,8 @@
   "try"
   "catch"
   "tap"
+  "raises"
+  "noraise"
 ] @keyword
 
 [
@@ -70,6 +72,9 @@
   name: (identifier) @type)
 
 (type_variable) @type.parameter
+
+(function_type_parameter
+  label: (identifier) @variable.parameter)
 
 (parameter
   (identifier) @variable.parameter)

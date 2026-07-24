@@ -1,40 +1,47 @@
 ---- Mutable list operations and higher-order queries.
 
+alias IndexError = {
+    error: "index_out_of_bounds",
+    index: integer,
+    length: integer,
+    ..
+}
+
 --- Return the number of visible elements in a list.
-let length: [..'a] -> integer = host.length
+let length: (xs: [..'a]) -> integer noraise = host.length
 
 --- Create an independent shallow copy of a list.
-let copy: [..'a] -> [..'a] = host.copy
+let copy: (xs: [..'a]) -> [..'a] noraise = host.copy
 
 --- Return the value at an index, or nil when it is out of range.
-let get: ([..'a], integer) -> 'a | nil = host.get
+let get: (xs: [..'a], index: integer) -> 'a | nil noraise = host.get
 
 --- Append a value to a list.
-let append: ([..'a] => [..('a | 'b)], 'b) -> nil = host.append
+let append: (xs: [..'a] => [..('a | 'b)], value: 'b) -> nil noraise = host.append
 
 --- Append every value from one list to another.
-let extend: ([..'a] => [..('a | 'b)], [..'b]) -> nil = host.extend
+let extend: (xs: [..'a] => [..('a | 'b)], values: [..'b]) -> nil noraise = host.extend
 
 --- Replace the value at an existing index.
-let set: ([..'a] => [..('a | 'b)], integer, 'b) -> nil = host.set
+let set: (xs: [..'a] => [..('a | 'b)], index: integer, value: 'b) -> nil raises IndexError = host.set
 
 --- Insert a value at an existing position.
-let insert: ([..'a] => [..('a | 'b)], integer, 'b) -> nil = host.insert
+let insert: (xs: [..'a] => [..('a | 'b)], index: integer, value: 'b) -> nil raises IndexError = host.insert
 
 --- Remove and return the value at an index.
-let remove: ([..'a], integer) -> 'a = host.remove
+let remove: (xs: [..'a], index: integer) -> 'a raises IndexError = host.remove
 
---- Remove and return the final value.
-let pop: [..'a] -> 'a | nil = host.pop
+--- Remove and return the final value, or raise when the list is empty.
+let pop: (xs: [..'a]) -> 'a raises IndexError = host.pop
 
 --- Create a shallow copy of a visible range.
-let slice: ([..'a], integer, integer) -> [..'a] = host.slice
+let slice: (xs: [..'a], start: integer, stop: integer) -> [..'a] noraise = host.slice
 
 --- Return whether a list contains a value.
-let contains: ([..'a], 'a) -> boolean = host.contains
+let contains: (xs: [..'a], value: 'a) -> boolean noraise = host.contains
 
 --- Reverse a list in place.
-let reverse: [..'a] -> nil = host.reverse
+let reverse: (xs: [..'a]) -> nil noraise = host.reverse
 
 --- Create a lazy iterator over an O(1) copy-on-write snapshot.
 fn iter(xs: [..'a]) do

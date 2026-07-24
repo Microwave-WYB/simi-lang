@@ -38,3 +38,11 @@ let integer_check = type(threshold) == "integer"
 let function_check = type(mapper) == "function"
 let is = integer_check
 let piped = mapped |> list.length()
+fn identity<'a: | integer | string>(value: 'a) -> 'a noraise do value end
+let typed_mapper: <'a: any> (input: | integer | string) -> 'a raises string = nil
+let generic_lambda = fn<'a: any>(value: 'a) -> 'a raises string do value end
+let raises = 1
+let noraise = raises
+fn nested<'a: wrapper<integer>>(value: 'a) -> 'a noraise do value end
+let typed_no_raise: () -> nil noraise = nil
+let literal_raise: () -> nil raises "oops" = nil

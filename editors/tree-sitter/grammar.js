@@ -46,8 +46,12 @@ module.exports = grammar({
     function_declaration: ($) => seq(
       "fn",
       field("name", $.identifier),
+      optional(field("type_parameters", $.callable_type_parameters)),
       field("parameters", $.declared_parameters),
-      optional(field("return_type", $.return_annotation)),
+      optional(seq(
+        field("return_type", $.return_annotation),
+        optional(field("effect", $.effect_annotation)),
+      )),
       "do",
       optional(field("body", $.block)),
       "end",
@@ -117,7 +121,7 @@ module.exports = grammar({
       field("function", $.pipeline_callee),
       field("arguments", $.arguments),
       optional(seq(
-        "<|",
+        token(prec(1, "<|")),
         field("trailing_argument", choice(
           $.trailing_argument_expression,
           $._logical_or_expression,
@@ -132,7 +136,7 @@ module.exports = grammar({
 
     trailing_argument_expression: ($) => prec.right(PREC.TRAILING_ARGUMENT, seq(
       field("call", choice($.call_expression, $.parenthesized_call)),
-      "<|",
+      token(prec(1, "<|")),
       field("argument", choice(
         $.trailing_argument_expression,
         $._logical_or_expression,
@@ -246,7 +250,7 @@ module.exports = grammar({
 
     parameter: ($) => seq(
       field("name", $.identifier),
-      optional(field("type", seq(":", $._type))),
+      optional(field("type", $.type_annotation)),
     ),
 
     type_annotation: ($) => seq(
@@ -266,14 +270,45 @@ module.exports = grammar({
       ">",
     ),
 
+    callable_type_parameters: ($) => seq(
+      "<",
+      optional(commaSep1($.type_parameter)),
+      optional(","),
+      ">",
+    ),
+
+    type_parameter: ($) => seq(
+      field("name", $.type_variable),
+      optional(seq(":", field("constraint", $._type))),
+    ),
+
     _type: ($) => $.function_type,
 
-    function_type: ($) => seq(
-      $.union_type,
-      optional(seq("->", $.function_type)),
+    function_type: ($) => prec.right(choice(
+      seq(
+        field("type_parameters", $.callable_type_parameters),
+        field("parameter", $.union_type),
+        "->",
+        field("result", $.function_type),
+        optional(field("effect", $.effect_annotation)),
+      ),
+      seq(
+        $.union_type,
+        optional(seq(
+          "->",
+          field("result", $.function_type),
+          optional(field("effect", $.effect_annotation)),
+        )),
+      ),
+    )),
+
+    effect_annotation: ($) => choice(
+      seq("raises", field("type", $._type)),
+      "noraise",
     ),
 
     union_type: ($) => seq(
+      optional("|"),
       $._primary_type,
       repeat(seq("|", $._primary_type)),
     ),
@@ -310,9 +345,12 @@ module.exports = grammar({
       ")",
     ),
 
-    function_type_parameter: ($) => choice(
-      seq(field("before", $.union_type), field("post", $.post_type)),
-      $._type,
+    function_type_parameter: ($) => seq(
+      optional(seq(field("label", $.identifier), ":")),
+      choice(
+        seq(field("before", $.union_type), field("post", $.post_type)),
+        $._type,
+      ),
     ),
 
     list_type: ($) => seq(
@@ -395,8 +433,12 @@ module.exports = grammar({
 
     function_expression: ($) => seq(
       "fn",
+      optional(field("type_parameters", $.callable_type_parameters)),
       field("parameters", $.parameters),
-      optional(field("return_type", $.return_annotation)),
+      optional(seq(
+        field("return_type", $.return_annotation),
+        optional(field("effect", $.effect_annotation)),
+      )),
       "do",
       optional(field("body", $.block)),
       "end",

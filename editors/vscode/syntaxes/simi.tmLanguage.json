@@ -62,11 +62,10 @@
       "patterns": [
         {
           "name": "meta.function.declaration.simi",
-          "begin": "\\b(fn)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*(\\()",
+          "begin": "\\b(fn)\\s+([A-Za-z_][A-Za-z0-9_]*)(?=\\s*(?:<[^\\n]*>\\s*)?\\()",
           "beginCaptures": {
             "1": { "name": "storage.type.function.simi" },
-            "2": { "name": "entity.name.function.simi" },
-            "3": { "name": "punctuation.definition.parameters.begin.simi" }
+            "2": { "name": "entity.name.function.simi" }
           },
           "end": "(\\))",
           "endCaptures": {
@@ -89,10 +88,9 @@
       "patterns": [
         {
           "name": "meta.function.anonymous.simi",
-          "begin": "\\b(fn)\\s*(\\()",
+          "begin": "\\b(fn)(?=\\s*(?:<[^\\n]*>\\s*)?\\()",
           "beginCaptures": {
-            "1": { "name": "storage.type.function.simi" },
-            "2": { "name": "punctuation.definition.parameters.begin.simi" }
+            "1": { "name": "storage.type.function.simi" }
           },
           "end": "(\\))",
           "endCaptures": {
@@ -134,6 +132,10 @@
         {
           "name": "variable.other.generic-type.simi",
           "match": "'[A-Za-z_][A-Za-z0-9_]*"
+        },
+        {
+          "name": "storage.modifier.effect.simi",
+          "match": "\\braises\\b(?=\\s*(?:\\||'|\\\"|\\{|\\[|\\(|[A-Za-z_]))|\\bnoraise\\b(?=\\s*(?:do\\b|end\\b))|(?<!\\blet )(?<!\\balias )\\bnoraise\\b(?=\\s*=)"
         },
         {
           "name": "support.type.primitive.simi",

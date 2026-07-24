@@ -77,7 +77,7 @@ The editor extensions are currently installed from this repository rather than a
 
 ## Language highlights
 
-- dynamic values with optional, runtime-erased type annotations;
+- dynamic values with optional, runtime-erased annotations, bounded generics, callable labels, and raised-effect contracts;
 - lexical closures, recursion, and same-scope shadowing;
 - expression-valued `if`, `case`, `try`, standalone blocks, and functional loops;
 - ordinary, nil-aware, tap, and trailing-callback pipeline operators;

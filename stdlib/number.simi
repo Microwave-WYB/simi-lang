@@ -1,6 +1,6 @@
 ---- Explicit numeric rendering conversions.
 
 --- Render a number using canonical Simi notation.
-let to_string: (integer | float) -> string = host.to_string
+let to_string: (value: integer | float) -> string noraise = host.to_string
 
 {to_string = to_string}

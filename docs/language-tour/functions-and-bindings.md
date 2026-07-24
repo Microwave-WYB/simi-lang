@@ -237,6 +237,19 @@ Pipelines and the optional trailing-callback operator `<|` were introduced in [E
 
 Calls use a fixed number of positional arguments. Supplying too few or too many arguments is a hard diagnostic, as is calling a value that is not a function. Argument expressions are evaluated once from left to right.
 
+Labels in a callable type are documentation metadata, not named call arguments:
+
+```simi
+let subtract: (left: integer, right: integer) -> integer noraise =
+    fn(left: integer, right: integer) -> integer noraise do
+        left - right
+    end
+
+subtract(10, 3)
+```
+
+`raises E` describes values that may leave through the language's raised channel, while `noraise` means that channel is `never`. Both forms are erased. Hard diagnostics and postfix nil propagation are separate, and a declared mutable-parameter post-state applies only after normal completion.
+
 Named and anonymous functions can both close over mutable lists and maps. That captures the same container alias rather than making a copy; [Mutation and copies](mutation-and-copies.md) explains aliasing, mutation, and explicit copy operations.
 
 <!-- tour:navigation:start -->

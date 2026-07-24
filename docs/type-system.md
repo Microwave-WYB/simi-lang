@@ -75,27 +75,44 @@ alias pair<'a, 'b> = ['a, 'b]
 let name: option<string> = nil
 ```
 
-Free generic variables in a function annotation are implicitly quantified:
+Free generic variables in a function annotation are implicitly quantified. A callable may also declare an explicit generic header, with optional ordinary-type upper bounds:
 
 ```simi
-fn identity(value: 'a) -> 'a do
+fn identity(value: 'a) -> 'a noraise do
     value
 end
 
-fn transform(value: 'a, callback: 'a -> 'b) -> 'b do
+fn negate<'a: integer | float>(value: 'a) -> 'a noraise do
+    -value
+end
+
+fn transform<'e>(
+    value: 'a,
+    callback: (input: 'a) -> 'b raises 'e,
+) -> 'b raises 'e do
     callback(value)
 end
 ```
 
-Callers never supply explicit generic arguments. Forms such as
-`identity<string>(value)` are not part of the initial design.
+Bounds are erased Simi types, not traits or protocols. Nested explicit headers introduce their own binders and may shadow an outer generic name. Unbounded entries are retained as callable metadata, though free variables remain implicitly quantified.
 
-Aliases are transparent: expanding an alias does not create a new runtime or
-nominal identity.
+Callable parameter labels are erased presentation metadata. They improve hover and completion signatures but calls remain positional. Labels do not participate in callable equality or compatibility.
+
+Callers never supply explicit generic arguments. Forms such as `identity<string>(value)` are not part of the initial design. Aliases are transparent: expanding an alias does not create a new runtime or nominal identity.
+
+A callable has a normal result type and a separate raised type:
+
+```simi
+string -> integer
+string -> integer raises {error: "invalid_input", ..}
+string -> integer noraise
+```
+
+Omitting an effect clause asks the analyzer to infer it. `raises E` declares and checks an upper bound; `noraise` is canonical sugar for `raises never`. Raised effects may use the callable's generics and propagate through callbacks. Hard diagnostics and postfix `?` are outside this channel. In chained shorthand, an effect tail belongs to the nearest right-hand arrow; use parentheses to put an effect on an outer callable.
 
 ## Unions and literal types
 
-`|` forms unions. String literals may be singleton types; numeric and Boolean
+`|` forms unions. A union may optionally begin with `|`, which is useful for aligned multiline variants. String literals may be singleton types; numeric and Boolean
 literals widen to `integer`, `float`, and `boolean`. `nil` is also a type and an
 ordinary union member:
 
@@ -198,7 +215,7 @@ Known operations retain the strongest representable fact. Appending to an exact
 list therefore extends its exact shape, while insertion at an unknown position
 widens it to a homogeneous rest list.
 
-A named function may declare normal-return parameter post-types directly beside each input type:
+A named or anonymous function may declare normal-return parameter post-types directly beside each input type:
 
 ```simi
 fn append(xs: [..'a] => [..('a | 'b)], value: 'b) -> nil do
@@ -217,12 +234,9 @@ post-state.
 Named functions also infer missing mutable-parameter post-types from modeled
 operations and already-known postconditions in their bodies. Normal-return paths
 are joined conservatively, inferred posts share generic identities with the
-function signature, and function aliases inherit them. An explicit post-state
-annotation takes precedence for its parameter and is checked against an ordinary
-Simi body when the final state is provable. A direct call to an ordinary native
-function on the private `host` value remains a trusted native contract. Unknown
-calls may widen state but cannot establish a
-stronger inferred guarantee.
+function signature, and function aliases inherit them. An explicit post-state annotation takes precedence for its parameter and is checked against an ordinary Simi body when the final state is provable. Callable values carry post-states as part of their authoritative type, so direct anonymous calls, aliases, and higher-order parameters apply the same guarantee. Compatibility rejects a callback that lacks a required post-state. A direct call to an ordinary native function on the private `host` value remains a trusted native contract. Unknown calls may widen state but cannot establish a stronger inferred guarantee.
+
+Raised exits snapshot flow independently from normal exits. Effects that may occur before a raise are visible in a matching catch, while declared post-states are applied only after normal completion. A catch removes only the raised variants that its pattern definitely handles; guarded matches remain possible for later clauses, and raises from guards or handlers escape the current `try`.
 
 ## Narrowing
 

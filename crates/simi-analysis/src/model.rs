@@ -1,7 +1,10 @@
 use std::collections::{BTreeSet, HashMap};
+use std::hash::{Hash, Hasher};
 
 use la_arena::{Arena, Idx};
 use simi_syntax::{lexer::is_identifier, span::Span};
+
+mod resolution;
 
 pub type ScopeId = Idx<ScopeData>;
 pub type SymbolId = Idx<SymbolData>;
@@ -184,6 +187,89 @@ pub struct ModuleMember {
     pub field: ExportField,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum RaisedAnnotation {
+    Inferred,
+    Explicit,
+    NoRaise,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct GenericConstraint {
+    pub variable: Type,
+    pub bound: Option<Type>,
+}
+
+#[derive(Clone, Debug)]
+pub struct CallableParameter {
+    pub name: Option<String>,
+    pub ty: Type,
+    pub post: Option<Type>,
+}
+
+impl PartialEq for CallableParameter {
+    fn eq(&self, other: &Self) -> bool {
+        self.ty == other.ty && self.post == other.post
+    }
+}
+
+impl Eq for CallableParameter {}
+
+impl Hash for CallableParameter {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.ty.hash(state);
+        self.post.hash(state);
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct CallableType {
+    pub constraints: Vec<GenericConstraint>,
+    pub parameters: Vec<CallableParameter>,
+    pub result: Box<Type>,
+    pub raised: Box<Type>,
+    pub raised_annotation: RaisedAnnotation,
+}
+
+impl CallableType {
+    pub fn inferred(parameters: Vec<Type>, result: Type, raised: Type) -> Self {
+        Self {
+            constraints: Vec::new(),
+            parameters: parameters
+                .into_iter()
+                .map(|ty| CallableParameter {
+                    name: None,
+                    ty,
+                    post: None,
+                })
+                .collect(),
+            result: Box::new(result),
+            raised: Box::new(raised),
+            raised_annotation: RaisedAnnotation::Inferred,
+        }
+    }
+}
+
+impl PartialEq for CallableType {
+    fn eq(&self, other: &Self) -> bool {
+        self.constraints == other.constraints
+            && self.parameters == other.parameters
+            && self.result == other.result
+            && self.raised == other.raised
+    }
+}
+
+impl Eq for CallableType {}
+
+impl Hash for CallableType {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.constraints.hash(state);
+        self.parameters.hash(state);
+        self.result.hash(state);
+        self.raised.hash(state);
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Type {
     #[doc(hidden)]
@@ -205,9 +291,9 @@ pub enum Type {
         index: Option<(Box<Type>, Box<Type>)>,
         open: bool,
     },
-    Function(Vec<Type>, Box<Type>),
+    Function(Box<CallableType>),
     #[doc(hidden)]
-    FunctionArgs(Vec<Type>),
+    FunctionArgs(Vec<CallableParameter>),
     Union(Vec<Type>),
     Generic(u32),
     Infer(u32),
@@ -262,26 +348,82 @@ fn display_type(ty: &Type, nested: bool) -> String {
             }
             format!("{{ {} }}", parts.join(", "))
         }
-        Type::Function(parameters, result) => {
-            let left = match parameters.as_slice() {
-                [parameter] => display_type(parameter, true),
-                _ => format!(
-                    "({})",
-                    parameters
-                        .iter()
-                        .map(|parameter| display_type(parameter, false))
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                ),
+        Type::Function(callable) => {
+            let constraints = if callable.constraints.is_empty() {
+                String::new()
+            } else {
+                let values = callable
+                    .constraints
+                    .iter()
+                    .map(|constraint| {
+                        let variable = display_type(&constraint.variable, false);
+                        constraint.bound.as_ref().map_or(variable.clone(), |bound| {
+                            format!("{variable}: {}", display_type(bound, false))
+                        })
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!("<{values}> ")
             };
-            let value = format!("{left} -> {}", display_type(result, false));
+            let rendered_parameters = callable
+                .parameters
+                .iter()
+                .map(|parameter| {
+                    let mut value = display_type(&parameter.ty, false);
+                    if let Some(post) = &parameter.post {
+                        value = format!("{value} => {}", display_type(post, false));
+                    }
+                    if let Some(name) = &parameter.name {
+                        value = format!("{name}: {value}");
+                    }
+                    value
+                })
+                .collect::<Vec<_>>();
+            let left = match callable.parameters.as_slice() {
+                [parameter] if parameter.name.is_none() && parameter.post.is_none() => {
+                    display_type(&parameter.ty, true)
+                }
+                _ => format!("({})", rendered_parameters.join(", ")),
+            };
+            let mut value = format!(
+                "{constraints}{left} -> {}",
+                display_type(&callable.result, false)
+            );
+            let orphan_inferred_effect = match callable.raised.as_ref() {
+                Type::Generic(id) if callable.raised_annotation == RaisedAnnotation::Inferred => {
+                    !callable.parameters.iter().any(|parameter| {
+                        contains_generic(&parameter.ty, *id)
+                            || parameter
+                                .post
+                                .as_ref()
+                                .is_some_and(|post| contains_generic(post, *id))
+                    }) && !contains_generic(&callable.result, *id)
+                        && !callable.constraints.iter().any(|constraint| {
+                            contains_generic(&constraint.variable, *id)
+                                || constraint
+                                    .bound
+                                    .as_ref()
+                                    .is_some_and(|bound| contains_generic(bound, *id))
+                        })
+                }
+                _ => false,
+            };
+            match (&*callable.raised, callable.raised_annotation) {
+                (Type::Never, RaisedAnnotation::Inferred) => {}
+                (Type::Never, _) => value.push_str(" noraise"),
+                (raised, _) if !orphan_inferred_effect => {
+                    value.push_str(" raises ");
+                    value.push_str(&display_type(raised, false));
+                }
+                _ => {}
+            }
             if nested { format!("({value})") } else { value }
         }
         Type::FunctionArgs(items) => format!(
             "({})",
             items
                 .iter()
-                .map(|item| display_type(item, false))
+                .map(|item| display_type(&item.ty, false))
                 .collect::<Vec<_>>()
                 .join(", ")
         ),
@@ -295,6 +437,39 @@ fn display_type(ty: &Type, nested: bool) -> String {
         }
         Type::Generic(index) => format!("'{}", generic_name(*index)),
         Type::Infer(index) => format!("?{index}"),
+    }
+}
+
+fn contains_generic(ty: &Type, id: u32) -> bool {
+    match ty {
+        Type::Generic(candidate) => *candidate == id,
+        Type::Union(items) | Type::ListExact(items) => {
+            items.iter().any(|item| contains_generic(item, id))
+        }
+        Type::ListRest(item) => contains_generic(item, id),
+        Type::Map { fields, index, .. } => {
+            fields.iter().any(|(_, value)| contains_generic(value, id))
+                || index.as_ref().is_some_and(|(key, value)| {
+                    contains_generic(key, id) || contains_generic(value, id)
+                })
+        }
+        Type::Function(callable) => {
+            callable.constraints.iter().any(|constraint| {
+                contains_generic(&constraint.variable, id)
+                    || constraint
+                        .bound
+                        .as_ref()
+                        .is_some_and(|bound| contains_generic(bound, id))
+            }) || callable.parameters.iter().any(|parameter| {
+                contains_generic(&parameter.ty, id)
+                    || parameter
+                        .post
+                        .as_ref()
+                        .is_some_and(|post| contains_generic(post, id))
+            }) || contains_generic(&callable.result, id)
+                || contains_generic(&callable.raised, id)
+        }
+        _ => false,
     }
 }
 
@@ -349,185 +524,6 @@ pub enum RenameError {
 }
 
 impl Resolution {
-    pub fn symbol_at(&self, offset: usize) -> Option<SymbolId> {
-        self.symbol_span_at(offset).map(|(symbol, _)| symbol)
-    }
-
-    pub fn symbol_span_at(&self, offset: usize) -> Option<(SymbolId, Span)> {
-        self.hir
-            .symbols
-            .iter()
-            .find_map(|(id, symbol)| {
-                symbol
-                    .declaration
-                    .filter(|span| contains(*span, offset))
-                    .map(|span| (id, span))
-            })
-            .or_else(|| {
-                self.hir
-                    .occurrences
-                    .iter()
-                    .zip(&self.occurrence_symbols)
-                    .find_map(|(occurrence, symbol)| {
-                        contains(occurrence.span, offset)
-                            .then(|| symbol.map(|symbol| (symbol, occurrence.span)))
-                            .flatten()
-                    })
-            })
-    }
-
-    pub fn definition_span(&self, symbol: SymbolId) -> Option<Span> {
-        self.symbol_data(symbol)?.declaration
-    }
-
-    pub fn references(&self, symbol: SymbolId) -> &[Span] {
-        self.symbol_references
-            .get(&symbol)
-            .map_or(&[], Vec::as_slice)
-    }
-
-    pub fn rename_spans(&self, symbol: SymbolId) -> Vec<Span> {
-        let Some(data) = self.symbol_data(symbol) else {
-            return Vec::new();
-        };
-        let mut spans = self.references(symbol).to_vec();
-        if let Some(declaration) = data.declaration {
-            spans.push(declaration);
-        }
-        spans.sort_by_key(|span| (span.start, span.end));
-        spans.dedup();
-        spans
-    }
-
-    pub fn hover(&self, offset: usize) -> Option<HoverFacts> {
-        let id = self.symbol_at(offset)?;
-        let symbol = self.symbol_data(id)?;
-        Some(HoverFacts {
-            symbol: id,
-            name: symbol.name.clone(),
-            kind: symbol.kind,
-            arity: symbol.arity,
-            parameters: symbol.parameters.clone(),
-            documentation: symbol.documentation.clone(),
-            declaration: symbol.declaration,
-        })
-    }
-
-    pub fn visible_symbols(&self, offset: usize) -> Vec<SymbolId> {
-        let mut scope = self.scope_at(offset);
-        let Some(start_scope) = scope else {
-            return Vec::new();
-        };
-        let occurrence_depth = self.hir.scopes[start_scope].function_depth;
-        let mut names = BTreeSet::new();
-        let mut result = Vec::new();
-        while let Some(id) = scope {
-            let data = &self.hir.scopes[id];
-            let mut scope_names = BTreeSet::new();
-            for symbol in data.symbols.iter().rev().copied() {
-                let name = self.hir.symbols[symbol].name.clone();
-                if scope_names.insert(name.clone())
-                    && !names.contains(&name)
-                    && let Some(symbol) = self.symbol_in_scope(id, occurrence_depth, offset, &name)
-                {
-                    names.insert(name);
-                    result.push(symbol);
-                }
-            }
-            scope = data.parent;
-        }
-        result
-    }
-
-    pub fn check_rename(&self, symbol: SymbolId, new_name: &str) -> Result<(), RenameError> {
-        if !is_identifier(new_name) {
-            return Err(RenameError::InvalidName);
-        }
-        let target = self.symbol_data(symbol).ok_or(RenameError::Unresolved)?;
-        if target.builtin {
-            return Err(RenameError::Builtin);
-        }
-        if target.name == new_name {
-            return Ok(());
-        }
-        if let Some(other) = self.hir.scopes[target.scope]
-            .symbols
-            .iter()
-            .copied()
-            .find(|other| *other != symbol && self.hir.symbols[*other].name == new_name)
-        {
-            return Err(RenameError::Collision {
-                name: new_name.to_owned(),
-                at: self.hir.symbols[other]
-                    .declaration
-                    .unwrap_or(Span::new(0, 0)),
-            });
-        }
-        for (occurrence, resolved) in self.hir.occurrences.iter().zip(&self.occurrence_symbols) {
-            if *resolved == Some(symbol) {
-                if let Some(other) = self.resolve_name_after_rename(
-                    occurrence.scope,
-                    occurrence.span.start,
-                    new_name,
-                    symbol,
-                    new_name,
-                ) && other != symbol
-                {
-                    return Err(RenameError::Collision {
-                        name: new_name.to_owned(),
-                        at: self.hir.symbols[other]
-                            .declaration
-                            .unwrap_or(Span::new(0, 0)),
-                    });
-                }
-            } else if occurrence.name == new_name
-                && self.resolve_name_after_rename(
-                    occurrence.scope,
-                    occurrence.span.start,
-                    new_name,
-                    symbol,
-                    new_name,
-                ) == Some(symbol)
-            {
-                return Err(RenameError::Collision {
-                    name: new_name.to_owned(),
-                    at: occurrence.span,
-                });
-            }
-        }
-        Ok(())
-    }
-
-    fn resolve_name_after_rename(
-        &self,
-        mut scope: ScopeId,
-        offset: usize,
-        name: &str,
-        renamed: SymbolId,
-        new_name: &str,
-    ) -> Option<SymbolId> {
-        let occurrence_depth = self.hir.scopes[scope].function_depth;
-        loop {
-            if let Some(symbol) = self.symbol_in_scope_with_name(
-                scope,
-                occurrence_depth,
-                offset,
-                name,
-                Some((renamed, new_name)),
-            ) {
-                return Some(symbol);
-            }
-            scope = self.hir.scopes[scope].parent?;
-        }
-    }
-
-    pub fn symbol_data(&self, id: SymbolId) -> Option<&SymbolData> {
-        self.hir
-            .symbols
-            .iter()
-            .find_map(|(candidate, symbol)| (candidate == id).then_some(symbol))
-    }
-
     pub(crate) fn resolve_name(
         &self,
         mut scope: ScopeId,
@@ -541,92 +537,6 @@ impl Resolution {
             }
             scope = self.hir.scopes[scope].parent?;
         }
-    }
-
-    fn symbol_in_scope(
-        &self,
-        scope: ScopeId,
-        occurrence_depth: u32,
-        offset: usize,
-        name: &str,
-    ) -> Option<SymbolId> {
-        self.symbol_in_scope_with_name(scope, occurrence_depth, offset, name, None)
-    }
-
-    fn symbol_in_scope_with_name(
-        &self,
-        scope: ScopeId,
-        occurrence_depth: u32,
-        offset: usize,
-        name: &str,
-        renamed: Option<(SymbolId, &str)>,
-    ) -> Option<SymbolId> {
-        let scope_data = &self.hir.scopes[scope];
-        let has_name = |id: SymbolId| {
-            let symbol = &self.hir.symbols[id];
-            let effective = renamed
-                .filter(|(renamed, _)| *renamed == id)
-                .map_or(symbol.name.as_str(), |(_, new_name)| new_name);
-            effective == name
-        };
-        let preceding_user = scope_data
-            .symbols
-            .iter()
-            .copied()
-            .filter(|id| {
-                let symbol = &self.hir.symbols[*id];
-                has_name(*id) && symbol.activation <= offset && symbol.declaration.is_some()
-            })
-            .max_by_key(|id| self.hir.symbols[*id].activation);
-        let preceding_builtin = scope_data.symbols.iter().copied().find(|id| {
-            let symbol = &self.hir.symbols[*id];
-            has_name(*id) && symbol.activation <= offset && symbol.builtin
-        });
-        let preceding = preceding_user.or(preceding_builtin);
-        // Closures capture shared outer frames, so a declaration installed later in an
-        // outer function can still be the lexical target when the closure is invoked. A
-        // user declaration also replaces the prelude binding in that shared frame.
-        let following = (occurrence_depth > scope_data.function_depth)
-            .then(|| {
-                scope_data
-                    .symbols
-                    .iter()
-                    .copied()
-                    .filter(|id| {
-                        let symbol = &self.hir.symbols[*id];
-                        has_name(*id) && symbol.activation > offset && symbol.declaration.is_some()
-                    })
-                    .min_by_key(|id| self.hir.symbols[*id].activation)
-            })
-            .flatten();
-        match preceding {
-            Some(symbol) if self.hir.symbols[symbol].builtin => following.or(Some(symbol)),
-            Some(symbol) => Some(symbol),
-            None => following,
-        }
-    }
-
-    fn scope_at(&self, offset: usize) -> Option<ScopeId> {
-        self.hir
-            .scopes
-            .iter()
-            .filter(|(_, scope)| contains_inclusive(scope.span, offset))
-            .min_by_key(|(id, scope)| {
-                (
-                    scope.span.end.saturating_sub(scope.span.start),
-                    std::cmp::Reverse(self.scope_depth(*id)),
-                )
-            })
-            .map(|(id, _)| id)
-    }
-
-    fn scope_depth(&self, mut scope: ScopeId) -> usize {
-        let mut depth = 0;
-        while let Some(parent) = self.hir.scopes[scope].parent {
-            depth += 1;
-            scope = parent;
-        }
-        depth
     }
 }
 

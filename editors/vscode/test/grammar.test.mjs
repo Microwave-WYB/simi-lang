@@ -56,6 +56,13 @@ function assertScope(lines, lineNumber, needle, expected, occurrence) {
   );
 }
 
+function assertNotScope(lines, lineNumber, needle, unexpected, occurrence) {
+  assert.ok(
+    !scopesAt(lines, lineNumber, needle, occurrence).includes(unexpected),
+    `${JSON.stringify(needle)} on line ${lineNumber} should not have scope ${unexpected}`,
+  );
+}
+
 test("TextMate grammar assigns semantic scopes to representative Simi syntax", async () => {
   const grammar = await loadGrammar();
   assert.ok(grammar, "source.simi grammar should load");
@@ -105,4 +112,18 @@ test("TextMate grammar assigns semantic scopes to representative Simi syntax", a
   assertScope(lines, 38, "==", "keyword.operator.comparison.simi");
   assertScope(lines, 38, "\"function\"", "string.quoted.double.simi");
   assertScope(lines, 39, "is", "variable.other.readwrite.simi");
+  assertScope(lines, 41, "identity", "entity.name.function.simi");
+  assertScope(lines, 41, "'a", "variable.other.generic-type.simi");
+  assertScope(lines, 41, "integer", "support.type.primitive.simi");
+  assertScope(lines, 41, "value", "variable.parameter.simi");
+  assertScope(lines, 41, "noraise", "storage.modifier.effect.simi");
+  assertScope(lines, 42, "raises", "storage.modifier.effect.simi");
+  assertScope(lines, 43, "'a", "variable.other.generic-type.simi");
+  assertScope(lines, 43, "raises", "storage.modifier.effect.simi");
+  assertNotScope(lines, 44, "raises", "storage.modifier.effect.simi");
+  assertNotScope(lines, 45, "noraise", "storage.modifier.effect.simi");
+  assertNotScope(lines, 45, "raises", "storage.modifier.effect.simi");
+  assertScope(lines, 46, "nested", "entity.name.function.simi");
+  assertScope(lines, 47, "noraise", "storage.modifier.effect.simi");
+  assertScope(lines, 48, "raises", "storage.modifier.effect.simi");
 });

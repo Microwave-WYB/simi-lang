@@ -1,6 +1,6 @@
 Root = Stmt*
 Stmt = FunctionDecl | AliasDecl | LetStmt | ExprStmt
-FunctionDecl = 'fn' 'ident' ParamList ReturnAnnotation? 'do' Block 'end'
+FunctionDecl = 'fn' 'ident' CallableTypeParamList? ParamList (ReturnAnnotation EffectAnnotation?)? 'do' Block 'end'
 AliasDecl = 'alias' 'ident' TypeParamList? '=' TypeExpr
 LetStmt = 'let' Pattern TypeAnnotation? '=' Expr
 ExprStmt = Expr
@@ -10,16 +10,19 @@ TypeAnnotation = ':' TypeExpr
 ReturnAnnotation = '->' TypeExpr
 PostType = '=>' TypeExpr
 TypeParamList = '<' (TypeVariable (',' TypeVariable)* ','?)? '>'
+CallableTypeParamList = '<' ((TypeVariable TypeConstraint?) (',' (TypeVariable TypeConstraint?))* ','?)? '>'
+TypeConstraint = ':' TypeExpr
+EffectAnnotation = 'ident' TypeExpr?
 TypeExpr = TypeFunction
-TypeFunction = TypeUnion ('->' TypeFunction)?
-TypeUnion = TypePrimary ('|' TypePrimary)*
+TypeFunction = CallableTypeParamList? TypeUnion ('->' TypeFunction EffectAnnotation?)?
+TypeUnion = '|'? TypePrimary ('|' TypePrimary)*
 TypePrimary = TypeName | TypeVariable | TypeLiteral | TypeParen | TypeList | TypeMap
 TypeName = 'ident' TypeArgumentList?
 TypeArgumentList = '<' (TypeExpr (',' TypeExpr)* ','?)? '>'
 TypeVariable = 'apostrophe' 'ident'
 TypeLiteral = 'string' | 'nil'
 TypeParen = '(' (TypeFunctionParam (',' TypeFunctionParam)* ','?)? ')'
-TypeFunctionParam = TypeExpr PostType?
+TypeFunctionParam = ('ident' ':')? TypeExpr PostType?
 TypeList = '[' (TypeListRest | TypeExpr (',' TypeExpr)* ','?)? ']'
 TypeListRest = '..' TypeExpr
 TypeMap = '{' (TypeMapEntry (',' TypeMapEntry)* (',' TypeMapRest)? ','? | TypeMapRest ','?)? '}'
@@ -29,7 +32,7 @@ Block = Stmt*
 Expr = LiteralExpr | NameExpr | FunctionExpr | BlockExpr | ParenExpr | ListExpr | MapExpr | CallExpr | FieldExpr | IndexExpr | NilPropagateExpr | UnaryExpr | BinaryExpr | AssignExpr | PipelineExpr | TrailingArgumentExpr | RaiseExpr | TryExpr | CaseExpr | IfExpr | LoopExpr | ContinueExpr | BreakExpr
 LiteralExpr = ('int' | 'float' | 'string' | 'nil' | 'true' | 'false')
 NameExpr = 'ident'
-FunctionExpr = 'fn' ParamList ReturnAnnotation? 'do' Block 'end'
+FunctionExpr = 'fn' CallableTypeParamList? ParamList (ReturnAnnotation EffectAnnotation?)? 'do' Block 'end'
 BlockExpr = 'do' Block 'end'
 ParenExpr = '(' Expr ')'
 ListExpr = '[' (Expr (',' Expr)* ','?)? ']'

@@ -76,8 +76,10 @@ pub enum SyntaxKind {
     ALIAS_DECL,
     LET_STMT,
     EXPR_STMT,
+    CALLABLE_TYPE_PARAM_LIST,
     PARAM_LIST,
     RETURN_ANNOTATION,
+    EFFECT_ANNOTATION,
     BLOCK,
     TYPE_PARAM_LIST,
     TYPE_EXPR,
@@ -85,6 +87,7 @@ pub enum SyntaxKind {
     PARAM,
     POST_TYPE,
     TYPE_VARIABLE,
+    TYPE_CONSTRAINT,
     TYPE_FUNCTION,
     TYPE_UNION,
     TYPE_PRIMARY,
@@ -169,8 +172,10 @@ ast_node!(FunctionDecl, FUNCTION_DECL);
 ast_node!(AliasDecl, ALIAS_DECL);
 ast_node!(LetStmt, LET_STMT);
 ast_node!(ExprStmt, EXPR_STMT);
+ast_node!(CallableTypeParamList, CALLABLE_TYPE_PARAM_LIST);
 ast_node!(ParamList, PARAM_LIST);
 ast_node!(ReturnAnnotation, RETURN_ANNOTATION);
+ast_node!(EffectAnnotation, EFFECT_ANNOTATION);
 ast_node!(Block, BLOCK);
 ast_node!(TypeParamList, TYPE_PARAM_LIST);
 ast_node!(TypeExpr, TYPE_EXPR);
@@ -178,6 +183,7 @@ ast_node!(TypeAnnotation, TYPE_ANNOTATION);
 ast_node!(Param, PARAM);
 ast_node!(PostType, POST_TYPE);
 ast_node!(TypeVariable, TYPE_VARIABLE);
+ast_node!(TypeConstraint, TYPE_CONSTRAINT);
 ast_node!(TypeFunction, TYPE_FUNCTION);
 ast_node!(TypeUnion, TYPE_UNION);
 ast_node!(TypePrimary, TYPE_PRIMARY);

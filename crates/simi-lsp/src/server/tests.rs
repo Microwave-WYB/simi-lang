@@ -276,7 +276,7 @@ fn symbols_navigation_references_hover_and_completion_use_fresh_analysis() {
     };
     assert_eq!(
         markup.value,
-        "add : (integer | float, integer | float) -> integer | float"
+        "add : (left: integer | float, right: integer | float) -> integer | float"
     );
     assert!(!markup.value.contains("declared at"));
     assert!(!markup.value.contains("file://"));
@@ -312,7 +312,7 @@ fn symbols_navigation_references_hover_and_completion_use_fresh_analysis() {
             .unwrap()
             .detail
             .as_deref(),
-        Some("add : (integer | float, integer | float) -> integer | float")
+        Some("add : (left: integer | float, right: integer | float) -> integer | float")
     );
     assert_eq!(
         items
@@ -321,7 +321,7 @@ fn symbols_navigation_references_hover_and_completion_use_fresh_analysis() {
             .unwrap()
             .detail
             .as_deref(),
-        Some("require : string -> any")
+        Some("require : string -> any raises any")
     );
     assert_eq!(
         items
@@ -755,7 +755,10 @@ fn append(xs, x) do nil end
     };
     assert_eq!(items.len(), 1);
     assert_eq!(items[0].label, "append");
-    assert_eq!(items[0].detail.as_deref(), Some("append : ('a, 'b) -> nil"));
+    assert_eq!(
+        items[0].detail.as_deref(),
+        Some("append : (xs: 'a, x: 'b) -> nil")
+    );
     assert_eq!(
         items[0].documentation,
         Some(Documentation::String("Append one value.".to_owned()))
@@ -781,7 +784,7 @@ fn append(xs, x) do nil end
     };
     assert_eq!(
         markup.value,
-        "append : ('a, 'b) -> nil\n\nAppend one value."
+        "append : (xs: 'a, x: 'b) -> nil\n\nAppend one value."
     );
 }
 
@@ -834,7 +837,7 @@ fn direct_module_fields_and_aliases_keep_signatures_and_docs() {
 --- Print one value.
 fn println(value) do nil end
 --- Inspect text through a native alias.
-let inspect: string -> string = host.inspect
+let inspect: string -> string noraise = host.inspect
 { println = println, identity = fn(value) do value end, inspect = inspect }
 "#;
 
@@ -843,25 +846,25 @@ let inspect: string -> string = host.inspect
             "require(\"std/io\").println",
             "println",
             0,
-            "println : 'a -> nil\n\nPrint one value.",
+            "println : (value: 'a) -> nil\n\nPrint one value.",
         ),
         (
             "let print = require(\"std/io\").println print",
             "print",
             2,
-            "print : 'a -> nil\n\nPrint one value.",
+            "print : (value: 'a) -> nil\n\nPrint one value.",
         ),
         (
             "require(\"std/io\").identity",
             "identity",
             0,
-            "identity : 'a -> 'a",
+            "identity : (value: 'a) -> 'a",
         ),
         (
             "require(\"std/io\").inspect",
             "inspect",
             0,
-            "inspect : string -> string\n\nInspect text through a native alias.",
+            "inspect : string -> string noraise\n\nInspect text through a native alias.",
         ),
     ] {
         let mut backend = Backend::with_module_sources([("std/io", module)]);
@@ -907,7 +910,7 @@ let inspect: string -> string = host.inspect
         .find(|item| item.label == "print")
         .expect("print completion");
     assert_eq!(print.kind, Some(CompletionItemKind::FUNCTION));
-    assert_eq!(print.detail.as_deref(), Some("print : 'a -> nil"));
+    assert_eq!(print.detail.as_deref(), Some("print : (value: 'a) -> nil"));
     assert_eq!(
         print.documentation,
         Some(Documentation::String("Print one value.".to_owned()))
@@ -967,7 +970,7 @@ let inspect: string -> string = host.inspect
     assert_eq!(inspect.kind, Some(CompletionItemKind::FUNCTION));
     assert_eq!(
         inspect.detail.as_deref(),
-        Some("inspect : string -> string")
+        Some("inspect : string -> string noraise")
     );
     assert_eq!(
         inspect.documentation,
@@ -1004,7 +1007,10 @@ fn run(value) do value end
     let HoverContents::Markup(markup) = hover.unwrap().contents else {
         panic!("expected markup")
     };
-    assert_eq!(markup.value, "run : 'a -> 'a\n\nRun a nested operation.");
+    assert_eq!(
+        markup.value,
+        "run : (value: 'a) -> 'a\n\nRun a nested operation."
+    );
 
     let incomplete = "let emoji = \"😀\"\nlet module = require(\"nested\")\nmodule.nested.";
     let mut backend = Backend::with_module_sources([("nested", module)]);
@@ -1025,7 +1031,7 @@ fn run(value) do value end
         panic!("expected completion array")
     };
     assert_eq!(items.len(), 1);
-    assert_eq!(items[0].detail.as_deref(), Some("run : 'a -> 'a"));
+    assert_eq!(items[0].detail.as_deref(), Some("run : (value: 'a) -> 'a"));
 }
 
 #[test]
@@ -1049,7 +1055,10 @@ fn real_annotated_stdlib_facade_supplies_generic_member_types() {
     let HoverContents::Markup(markup) = hover.expect("stdlib hover").contents else {
         panic!("expected markup")
     };
-    assert_eq!(markup.value, "map : ('a, 'b) -> () -> any");
+    assert_eq!(
+        markup.value,
+        "map : <'a, 'b, 'c, 'd> (iterator: () -> { done: boolean, .. } raises 'c, transform: 'a -> 'b raises 'd) -> () -> { done: boolean, .. } raises 'c | 'd noraise"
+    );
 }
 
 #[test]
@@ -1106,7 +1115,7 @@ nums[3]"#;
     };
     assert_eq!(
         markup.value,
-        "append : ([..'a] => [..('a | 'b)], 'b) -> nil\n\nAppend a value to a list."
+        "append : (xs: [..'a] => [..('a | 'b)], value: 'b) -> nil noraise\n\nAppend a value to a list."
     );
 }
 
@@ -1380,10 +1389,13 @@ let piped = [1] |> tap append_alias(2) |> tap append_alias(3)
     let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
     assert!(diagnostics.diagnostics.is_empty());
     for (name, expected) in [
-        ("append", "append : ([..'a] => [..('a | 'b)], 'b) -> nil"),
+        (
+            "append",
+            "append : (xs: [..'a] => [..('a | 'b)], value: 'b) -> nil",
+        ),
         (
             "append_alias",
-            "append_alias : ([..'a] => [..('a | 'b)], 'b) -> nil",
+            "append_alias : (xs: [..'a] => [..('a | 'b)], value: 'b) -> nil",
         ),
         ("piped", "piped : [..integer]"),
     ] {
@@ -1457,7 +1469,7 @@ end
     };
     assert_eq!(
         markup.value,
-        "quicksort : [..(integer | float)] -> [..(integer | float)]"
+        "quicksort : (values: [..(integer | float)]) -> [..(integer | float)]"
     );
 }
 
@@ -1476,9 +1488,12 @@ let found = indexed[key]
     let mut backend = Backend::new();
     open(&mut backend, source);
     for (name, expected) in [
-        ("process", "process : (integer | float) -> integer | float"),
-        ("increment", "increment : integer -> integer"),
-        ("identity", "identity : 'a -> 'a"),
+        (
+            "process",
+            "process : (n: integer | float) -> integer | float",
+        ),
+        ("increment", "increment : (n: integer) -> integer"),
+        ("identity", "identity : (value: 'a) -> 'a"),
         ("selected", "selected : \"text\""),
         ("values", "values : [integer, \"two\"]"),
         ("found", "found : integer | nil"),
@@ -1518,7 +1533,10 @@ fib(5)
     let mut backend = Backend::new();
     open(&mut backend, source);
     for (position, expected) in [
-        (text_position(source, "fib", 0), "fib : integer -> integer"),
+        (
+            text_position(source, "fib", 0),
+            "fib : (n: integer) -> integer",
+        ),
         (
             position::position(source, source.find("state.a").unwrap() + "state.".len()).unwrap(),
             "a : integer",
@@ -1565,6 +1583,40 @@ fn ambiguous_post_state_annotations_publish_targeted_syntax_diagnostics() {
     assert!(malformed.diagnostics.iter().any(
         |diagnostic| diagnostic.code == Some(NumberOrString::String("syntax_error".to_owned()))
     ));
+}
+
+#[test]
+fn raised_contract_diagnostics_and_hover_use_protocol_types() {
+    let source = "let prefix = \"😀\"\nfn bad() -> integer noraise do raise \"boom\" end\n";
+    let mut backend = Backend::new();
+    let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
+    let contract = diagnostics
+        .diagnostics
+        .iter()
+        .find(|diagnostic| {
+            diagnostic.code == Some(NumberOrString::String("type_mismatch".to_owned()))
+        })
+        .expect("noraise contract diagnostic");
+    assert_eq!(contract.range.start.line, 1);
+    assert_eq!(contract.range.start.character, 0);
+    assert!(contract.message.contains("never"));
+
+    let hover: Option<Hover> = serde_json::from_value(
+        request(
+            &mut backend,
+            HoverRequest::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": text_position(source, "bad", 0),
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let HoverContents::Markup(markup) = hover.expect("bad hover").contents else {
+        panic!("expected markup")
+    };
+    assert_eq!(markup.value, "bad : () -> integer noraise");
 }
 
 #[test]

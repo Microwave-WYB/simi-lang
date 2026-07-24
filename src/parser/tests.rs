@@ -168,6 +168,33 @@ fn parses_anonymous_functions_as_postfix_and_nested_expressions() {
 }
 
 #[test]
+fn callable_generics_constraints_labels_and_effects_are_erased_from_runtime_ast() {
+    let source = concat!(
+        "fn identity<'a: | integer | string>(value: 'a) -> 'a noraise do value end\n",
+        "let callback: <'a> (input: 'a) -> 'a raises string = ",
+        "fn<'a: any>(value: 'a) -> 'a raises string do value end\n",
+        "identity(callback(42))",
+    );
+    let program = parse_source(source).unwrap();
+
+    let StmtKind::Function { name, params, body } = &program.items[0].kind else {
+        panic!("expected erased function declaration");
+    };
+    assert_eq!(name, "identity");
+    assert_eq!(params, &["value"]);
+    assert_eq!(body.items.len(), 1);
+
+    let StmtKind::Let { value, .. } = &program.items[1].kind else {
+        panic!("expected erased annotated binding");
+    };
+    let ExprKind::Function { params, .. } = &value.kind else {
+        panic!("expected erased anonymous function");
+    };
+    assert_eq!(params, &["value"]);
+    assert_eq!(program.items.len(), 3);
+}
+
+#[test]
 fn anonymous_functions_compose_with_indexing_and_pipelines() {
     let program = parse_source("[fn(value) do value end][0] |> apply(1)").unwrap();
     let StmtKind::Expr(Expr {

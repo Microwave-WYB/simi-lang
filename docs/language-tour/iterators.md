@@ -92,11 +92,11 @@ let values = [1, 2, 3, 4]
 let total =
     values
     |> list.iter()
-    |> iter.fold(0) <| fn(sum, value) do
+    |> iter.fold(0) <| fn(sum: integer, value: integer) -> integer noraise do
         sum + value
     end
 
-let even_count = iter.count(list.iter(values), fn(value) do
+let even_count = iter.count(list.iter(values), fn(value: integer) -> boolean noraise do
     value % 2 == 0
 end)
 

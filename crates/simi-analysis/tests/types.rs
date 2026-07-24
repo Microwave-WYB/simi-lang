@@ -109,23 +109,23 @@ let record = { name = "Simi", age = 1 }
     );
     assert_eq!(
         type_of(&inference, &resolution, "process").display(),
-        "(integer | float) -> integer | float"
+        "(n: integer | float) -> integer | float"
     );
     assert_eq!(
         type_of(&inference, &resolution, "increment").display(),
-        "integer -> integer"
+        "(n: integer) -> integer"
     );
     assert_eq!(
         type_of(&inference, &resolution, "identity").display(),
-        "'a -> 'a"
+        "(value: 'a) -> 'a"
     );
     assert_eq!(
         type_of(&inference, &resolution, "mixed_generics").display(),
-        "('a, 'b) -> 'b"
+        "(explicit: 'a, inferred: 'b) -> 'b"
     );
     assert_eq!(
         type_of(&inference, &resolution, "choose").display(),
-        "(boolean, 'a) -> 'a | nil"
+        "(flag: boolean, value: 'a) -> 'a | nil"
     );
     assert_eq!(
         type_of(&inference, &resolution, "selected").display(),
@@ -173,7 +173,7 @@ let result = fib(5)
     );
     assert_eq!(
         type_of(&inference, &resolution, "fib").display(),
-        "integer -> integer"
+        "(n: integer) -> integer"
     );
     assert_eq!(
         type_of(&inference, &resolution, "result").display(),
@@ -275,7 +275,7 @@ let forever = loop state = 0 do state + 1 end
     );
     assert_eq!(
         type_of(&inference, &resolution, "nested").display(),
-        "boolean -> [..any]"
+        "(flag: boolean) -> [..any]"
     );
 }
 
@@ -351,7 +351,7 @@ fn malformed_post_state_parameters_remain_recoverable_during_inference() {
 #[test]
 fn declared_post_types_update_all_aliases_after_normal_calls() {
     let source = r#"
-fn widen(xs: [..integer] => [..(integer | string)]) -> nil do
+fn widen(xs: [..integer] => [..(integer | string)]) -> nil noraise do
     host.widen(xs)
 end
 let values = [1]
@@ -373,7 +373,10 @@ widen(values)
         "[..(integer | string)]"
     );
     let widen = type_of(&inference, &resolution, "widen");
-    assert_eq!(widen.display(), "[..integer] -> nil");
+    assert_eq!(
+        widen.display(),
+        "(xs: [..integer] => [..(integer | string)]) -> nil noraise"
+    );
 }
 
 #[test]
@@ -418,12 +421,12 @@ let piped = [1] |> tap append_alias(2) |> tap append_alias(3)
         .expect("append symbol");
     assert_eq!(
         inference.symbol_types[&append].display(),
-        "([..'a], 'b) -> nil"
+        "(xs: [..'a] => [..('a | 'b)], value: 'b) -> nil"
     );
     assert_eq!(inference.symbol_posts[&append].len(), 1);
     assert_eq!(
         type_of(&inference, &resolution, "append_alias").display(),
-        "([..'a], 'b) -> nil"
+        "(xs: [..'a] => [..('a | 'b)], value: 'b) -> nil"
     );
     assert_eq!(inference.symbol_posts[&append][0].parameter_name, "xs");
     assert_eq!(
@@ -637,7 +640,7 @@ fn annotated_generic_stdlib_calls_infer_through_nested_type_variables() {
         type_of(&inference, &resolution, "mapped").display(),
         "[..any]"
     );
-    assert_eq!(type_of(&inference, &resolution, "found").display(), "'a");
+    assert_eq!(type_of(&inference, &resolution, "found").display(), "any");
 }
 
 #[test]
@@ -876,15 +879,15 @@ end
     );
     assert_eq!(
         type_of(&inference, &resolution, "named").display(),
-        "(integer | nil) -> integer | nil"
+        "(value: integer | nil) -> integer | nil"
     );
     assert_eq!(
         type_of(&inference, &resolution, "anonymous").display(),
-        "(integer | nil) -> integer | nil"
+        "(value: integer | nil) -> integer | nil"
     );
     assert_eq!(
         type_of(&inference, &resolution, "boundaries").display(),
-        "(integer | nil) -> \"continued\""
+        "(value: integer | nil) -> \"continued\""
     );
 }
 
@@ -918,7 +921,7 @@ end
     );
     assert_eq!(
         type_of(&inference, &resolution, "evolve").display(),
-        "(integer | nil) -> nil"
+        "(maybe: integer | nil) -> nil"
     );
 }
 
@@ -954,7 +957,7 @@ end
     );
     assert_eq!(
         type_of(&inference, &resolution, "unwrap").display(),
-        "(string | nil) -> string | nil"
+        "(value: string | nil) -> string | nil"
     );
 }
 
@@ -1119,7 +1122,7 @@ callback_values
     assert_eq!(type_at(source, &inference, &resolution, "hidden", 1), "any");
     assert_eq!(
         type_at(source, &inference, &resolution, "callback_values", 2),
-        "[..any]"
+        "[integer, integer]"
     );
 }
 
@@ -1279,15 +1282,15 @@ end
         assert_eq!(
             type_of(&inference, &resolution, name).display(),
             match name {
-                "maybe" => "(string | nil) -> \"present\" | \"absent\"",
-                "indexed" => "{ [string]: integer } -> \"present\" | \"absent\"",
-                _ => "{ .. } -> \"present\" | \"absent\"",
+                "maybe" => "(value: string | nil) -> \"present\" | \"absent\"",
+                "indexed" => "(record: { [string]: integer }) -> \"present\" | \"absent\"",
+                _ => "(record: { .. }) -> \"present\" | \"absent\"",
             }
         );
     }
     assert_eq!(
         type_of(&inference, &resolution, "multiple").display(),
-        "{ first: \"yes\", second: \"ok\" | \"no\" } -> \"matched\" | \"fallback\""
+        "(record: { first: \"yes\", second: \"ok\" | \"no\" }) -> \"matched\" | \"fallback\""
     );
 }
 
@@ -1505,7 +1508,7 @@ fn callable_metadata_joins_and_invoked_assignments_are_conservative() {
     )]);
     let source = r#"
 let list = require("std/list")
-fn widen(xs: [..integer] => [..(integer | string)]) -> nil do
+fn widen(xs: [..integer] => [..(integer | string)]) -> nil noraise do
     host.widen(xs)
 end
 fn plain(xs: [..integer]) do nil end
@@ -1624,11 +1627,11 @@ end
     );
     assert_eq!(
         type_of(&inference, &resolution, "first_or_nil").display(),
-        "[..'a] -> 'a | nil"
+        "(values: [..'a]) -> 'a | nil"
     );
     assert_eq!(
         type_of(&inference, &resolution, "read_value").display(),
-        "{ value: 'a, .. } -> 'a"
+        "(record: { value: 'a, .. }) -> 'a"
     );
 }
 
@@ -1653,7 +1656,7 @@ fn nested() do [nested()] end
     );
     assert_eq!(
         type_of(&inference, &resolution, "eventually").display(),
-        "boolean -> integer"
+        "(flag: boolean) -> integer"
     );
     assert_eq!(
         type_of(&inference, &resolution, "left").display(),
@@ -1706,19 +1709,19 @@ end
     );
     assert_eq!(
         type_of(&inference, &resolution, "list_or_nil").display(),
-        "'a -> integer | nil"
+        "(value: 'a) -> integer | nil"
     );
     assert_eq!(
         type_of(&inference, &resolution, "map_or_nil").display(),
-        "'a -> integer | nil"
+        "(value: 'a) -> integer | nil"
     );
     assert_eq!(
         type_of(&inference, &resolution, "literal_list_or_nil").display(),
-        "'a -> integer | \"text\" | nil"
+        "(value: 'a) -> integer | \"text\" | nil"
     );
     assert_eq!(
         type_of(&inference, &resolution, "alternative_maps").display(),
-        "({ left: 'a, .. } | { right: 'b, .. }) -> integer | \"right\""
+        "(value: { left: 'a, .. } | { right: 'b, .. }) -> integer | \"right\""
     );
 }
 
@@ -1767,7 +1770,7 @@ end
     );
     assert_eq!(
         type_of(&inference, &resolution, "quicksort").display(),
-        "[..(integer | float)] -> [..(integer | float)]"
+        "(values: [..(integer | float)]) -> [..(integer | float)]"
     );
 }
 
@@ -1913,6 +1916,227 @@ let short = false and ("bad" + true)
         type_of(&inference, &resolution, "short").display(),
         "boolean"
     );
+}
+
+#[test]
+fn bounded_callable_generics_validate_calls_and_support_bounded_operators() {
+    let source = r#"
+fn negate<'a: integer | float>(value: 'a) -> 'a noraise do
+    -value
+end
+let integer_result = negate(1)
+let float_result = negate(1.5)
+let invalid_result = negate("wrong")
+"#;
+    let (inference, resolution) = inferred(source);
+    assert_eq!(
+        type_of(&inference, &resolution, "integer_result"),
+        Type::Int
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "float_result"),
+        Type::Float
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "invalid_result"),
+        Type::LiteralString("wrong".to_owned())
+    );
+    assert_eq!(
+        inference.diagnostics.len(),
+        1,
+        "{:?}",
+        inference.diagnostics
+    );
+    assert!(inference.diagnostics[0].detail.contains("integer | float"));
+    assert_eq!(
+        type_of(&inference, &resolution, "negate").display(),
+        "<'a: integer | float> (value: 'a) -> 'a noraise"
+    );
+}
+
+#[test]
+fn nested_callable_generic_headers_shadow_outer_binders_and_preserve_unbounded_entries() {
+    let source = r#"
+fn use<'a: any>(
+    value: 'a,
+    callback: <'a: integer> 'a -> 'a noraise,
+) -> 'a noraise do
+    callback(1)
+    value
+end
+fn marker<'a>() -> integer noraise do 1 end
+"#;
+    let (inference, resolution) = inferred(source);
+    assert!(
+        inference.diagnostics.is_empty(),
+        "{:?}",
+        inference.diagnostics
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "use").display(),
+        "<'a: any> (value: 'a, callback: <'b: integer> 'b -> 'b noraise) -> 'a noraise"
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "marker").display(),
+        "<'a> () -> integer noraise"
+    );
+
+    let invalid = r#"
+fn invalid(callback: <'a: integer> 'a -> 'a noraise) -> nil noraise do
+    callback("wrong")
+    nil
+end
+"#;
+    let (invalid_inference, _) = inferred(invalid);
+    assert_eq!(invalid_inference.diagnostics.len(), 1);
+    assert!(invalid_inference.diagnostics[0].detail.contains("integer"));
+}
+
+#[test]
+fn aliases_with_nested_callable_headers_do_not_capture_outer_generics() {
+    let source = r#"
+alias handler<'value> = <'item> ('value, 'item) -> 'item noraise
+fn hold<'a, 'b>(callback: handler<'a>, other: 'b) -> 'b noraise do other end
+"#;
+    let (inference, resolution) = inferred(source);
+    assert!(
+        inference.diagnostics.is_empty(),
+        "{:?}",
+        inference.diagnostics
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "hold").display(),
+        "<'a, 'b> (callback: <'c> ('a, 'c) -> 'c noraise, other: 'b) -> 'b noraise"
+    );
+}
+
+#[test]
+fn callable_labels_are_metadata_and_calls_remain_positional() {
+    let source = r#"
+fn add(left: integer, right: integer) -> integer noraise do
+    left + right
+end
+let result = add(1, 2)
+"#;
+    let (inference, resolution) = inferred(source);
+    assert!(
+        inference.diagnostics.is_empty(),
+        "{:?}",
+        inference.diagnostics
+    );
+    assert_eq!(type_of(&inference, &resolution, "result"), Type::Int);
+    assert_eq!(
+        type_of(&inference, &resolution, "add").display(),
+        "(left: integer, right: integer) -> integer noraise"
+    );
+}
+
+#[test]
+fn callable_posts_are_authoritative_for_anonymous_and_higher_order_calls() {
+    let invalid = r#"
+let fake = fn(xs: [] => [integer]) -> nil noraise do nil end
+"#;
+    let (invalid_inference, _) = inferred(invalid);
+    assert_eq!(invalid_inference.diagnostics.len(), 1);
+    assert!(invalid_inference.diagnostics[0].title.contains("Post-type"));
+
+    let missing = r#"
+fn run(callback: ([] => [integer]) -> nil noraise, xs: [] => [integer]) -> nil noraise do
+    callback(xs)
+end
+fn noop(xs: []) -> nil noraise do nil end
+let values = []
+run(noop, values)
+"#;
+    let (missing_inference, _) = inferred(missing);
+    assert!(
+        missing_inference
+            .diagnostics
+            .iter()
+            .any(|diagnostic| { diagnostic.detail.contains("no post-state guarantee") })
+    );
+}
+
+#[test]
+fn require_and_raised_callbacks_propagate_effects_with_raised_path_mutation() {
+    let source = r#"
+fn load(name: string) do require(name) end
+let values = {}
+let callback = fn() do
+    values.item = 1
+    raise "bad"
+end
+let observed = try
+    callback()
+catch "bad" do
+    values
+end
+"#;
+    let (inference, resolution) = inferred(source);
+    assert_eq!(
+        type_of(&inference, &resolution, "load").display(),
+        "(name: string) -> any raises any"
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "observed").display(),
+        "{ .. }"
+    );
+}
+
+#[test]
+fn raised_effects_infer_propagate_and_are_removed_by_definite_catches() {
+    let source = r#"
+fn fail(value: 'e) do
+    raise value
+end
+fn choose(flag: boolean) do
+    if flag then raise "bad" else 1 end
+end
+fn invoke(callback: () -> integer raises 'e) do
+    callback()
+end
+fn recovered() do
+    try
+        fail("bad")
+    catch "bad" do
+        1
+    end
+end
+fn pure() -> integer noraise do
+    1
+end
+fn invalid() -> integer noraise do
+    raise "forbidden"
+end
+"#;
+    let (inference, resolution) = inferred(source);
+    assert_eq!(
+        type_of(&inference, &resolution, "fail").display(),
+        "(value: 'a) -> never raises 'a"
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "choose").display(),
+        "(flag: boolean) -> integer raises \"bad\""
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "invoke").display(),
+        "(callback: () -> integer raises 'a) -> integer raises 'a"
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "recovered").display(),
+        "() -> integer"
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "pure").display(),
+        "() -> integer noraise"
+    );
+    assert_eq!(
+        inference.diagnostics.len(),
+        1,
+        "{:?}",
+        inference.diagnostics
+    );
+    assert!(inference.diagnostics[0].detail.contains("never"));
 }
 
 #[test]

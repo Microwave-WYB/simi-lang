@@ -1,37 +1,37 @@
 ---- Unicode-aware string inspection, transformation, and conversion.
 
 --- Parse a complete decimal number, or return nil.
-let to_number: string -> integer | float | nil = host.to_number
+let to_number: (text: string) -> integer | float | nil noraise = host.to_number
 
 --- Concatenate two strings.
-let concat: (string, string) -> string = host.concat
+let concat: (left: string, right: string) -> string noraise = host.concat
 
 --- Return the number of Unicode scalar values in a string.
-let length: string -> integer = host.length
+let length: (text: string) -> integer noraise = host.length
 
 --- Return a substring over a scalar-value range.
-let slice: (string, integer, integer) -> string = host.slice
+let slice: (text: string, start: integer, stop: integer) -> string noraise = host.slice
 
 --- Return whether text contains a substring.
-let contains: (string, string) -> boolean = host.contains
+let contains: (text: string, needle: string) -> boolean noraise = host.contains
 
 --- Return whether text starts with a prefix.
-let starts_with: (string, string) -> boolean = host.starts_with
+let starts_with: (text: string, prefix: string) -> boolean noraise = host.starts_with
 
 --- Return whether text ends with a suffix.
-let ends_with: (string, string) -> boolean = host.ends_with
+let ends_with: (text: string, suffix: string) -> boolean noraise = host.ends_with
 
 --- Split text around a separator.
-let split: (string, string) -> [..string] = host.split
+let split: (text: string, separator: string) -> [..string] noraise = host.split
 
 --- Remove surrounding whitespace.
-let trim: string -> string = host.trim
+let trim: (text: string) -> string noraise = host.trim
 
 --- Convert text to lowercase.
-let lower: string -> string = host.lower
+let lower: (text: string) -> string noraise = host.lower
 
 --- Convert text to uppercase.
-let upper: string -> string = host.upper
+let upper: (text: string) -> string noraise = host.upper
 
 {
     to_number = to_number,

@@ -5,9 +5,12 @@ alias pair<'a, 'b> = ['a, 'b]
 let typed_value: option<string> = nil
 let typed_record: { name: string, .. } = { name = "Simi" }
 
-fn typed_identity(value: 'a) -> 'a do
+fn typed_identity<'a: | integer | string>(value: 'a) -> 'a noraise do
     value
 end
+
+let typed_callback: <'a: any> (input: | integer | string) -> 'a raises string = nil
+let typed_lambda = fn<'a: any>(value: 'a => 'a) -> 'a raises string do value end
 
 fn declared_effect(
     xs: [..integer] => [..(integer | string)],

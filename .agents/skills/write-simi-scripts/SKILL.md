@@ -30,6 +30,8 @@ Read the relevant topic in the [language tour](../../../docs/language-tour.md) b
 - `|>` inserts the input as the first call argument. `?>` skips only that stage for `nil`. `|> tap` and `?> tap` preserve the incoming value identity.
 - `<|` appends exactly one trailing argument to a call. `<>` is strict string concatenation.
 - Return `nil` for expected absence, `raise` recoverable values, and leave programmer contract violations as hard diagnostics.
+- Callable labels document positional parameters; they do not enable named arguments. Optional generic headers use ordinary Simi type bounds.
+- Omit a callable effect to infer it, use `raises E` for an upper bound, and use `noraise` for `raises never`. Effects and parameter-local `before => after` post-states are erased; posts apply only after normal return.
 
 ## Standard modules
 
