@@ -137,6 +137,7 @@ pub fn module_shape(db: &dyn salsa::Database, file: FileId) -> ModuleShape {
     );
     ModuleShape {
         documentation: module_documentation(&source_text(db, file)),
+        ty: inference.result_type.clone(),
         fields: final_fields,
     }
 }
@@ -318,7 +319,7 @@ fn known_value(
     }
 }
 
-fn required_module(call: &syntax::CallExpr, resolution: &Resolution) -> Option<String> {
+pub(crate) fn required_module(call: &syntax::CallExpr, resolution: &Resolution) -> Option<String> {
     let syntax::Expr::Name(callee) = call.syntax().children().find_map(syntax::Expr::cast)? else {
         return None;
     };

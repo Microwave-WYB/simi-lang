@@ -108,8 +108,8 @@ pub fn infer_types(
     let root = syntax::Root::cast(root).expect("parser produces root");
     context.predeclare(root.statements());
     let root = syntax::Root::cast(parsed.syntax()).expect("parser produces root");
-    context.statements(root.statements());
-    context.finish()
+    let result = context.statements(root.statements());
+    context.finish(result)
 }
 
 pub fn symbol_type_at(
@@ -278,7 +278,8 @@ struct Context<'a> {
 }
 
 impl Context<'_> {
-    fn finish(mut self) -> TypeInference {
+    fn finish(mut self, result: Type) -> TypeInference {
+        let result_type = Some(public_type(self.generalize(result)));
         let symbols = std::mem::take(&mut self.symbol_types);
         let symbol_types = symbols
             .into_iter()
@@ -307,6 +308,7 @@ impl Context<'_> {
             })
             .collect();
         TypeInference {
+            result_type,
             symbol_types,
             symbol_posts,
             expression_types,

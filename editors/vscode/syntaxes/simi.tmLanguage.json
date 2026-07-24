@@ -139,7 +139,7 @@
         },
         {
           "name": "support.type.primitive.simi",
-          "match": "\\b(?:any|never|boolean|integer|float|string)\\b"
+          "match": "\\b(?:any|never|boolean|integer|float|string)\\b(?!\\s*\\.)"
         }
       ]
     },

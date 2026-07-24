@@ -807,7 +807,7 @@ fn println(value) do nil end
         (
             "stdout",
             1,
-            "stdout : any\n\nStandard output operations.\nValues are flushed automatically.",
+            "stdout : { println: (value: 'a) -> nil }\n\nStandard output operations.\nValues are flushed automatically.",
         ),
     ] {
         let mut backend = Backend::with_module_sources([("std/io", module)]);
@@ -1179,6 +1179,32 @@ fn empty_record_hover_uses_compact_delimiters() {
         panic!("expected markup")
     };
     assert_eq!(markup.value, "data : {}");
+}
+
+#[test]
+fn literal_require_call_hover_uses_the_evaluated_module_type() {
+    let module = "let exports = { answer = 42, empty = {} } exports";
+    let source = "let data = require(\"known\")\ndata";
+    let mut backend = Backend::with_module_sources([("known", module)]);
+    let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
+    assert!(diagnostics.diagnostics.is_empty());
+
+    let hover: Option<Hover> = serde_json::from_value(
+        request(
+            &mut backend,
+            HoverRequest::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": text_position(source, ")", 0),
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let HoverContents::Markup(markup) = hover.expect("require call hover").contents else {
+        panic!("expected markup")
+    };
+    assert_eq!(markup.value, "{ answer: integer, empty: {} }");
 }
 
 #[test]

@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 
-use simi_analysis::{AnalysisDatabase, Type, infer_types, parse, resolve, symbol_type_at};
+use simi_analysis::{
+    AnalysisDatabase, Type, expression_type_at, infer_types, module_shape, parse, resolve,
+    symbol_type_at,
+};
 
 fn inferred(
     source: &str,
@@ -152,6 +155,41 @@ let record = { name = "Simi", age = 1 }
     assert_eq!(
         type_of(&inference, &resolution, "record").display(),
         "{ name: \"Simi\", age: integer }"
+    );
+}
+
+#[test]
+fn literal_require_calls_use_the_evaluated_module_result_type() {
+    let db = AnalysisDatabase::default();
+    let module_file = db.add_file("let exports = { answer = 42, empty = {} } exports");
+    let shape = module_shape(&db, module_file);
+    assert_eq!(
+        shape.ty.as_ref().map(Type::display).as_deref(),
+        Some("{ answer: integer, empty: {} }")
+    );
+
+    let source = "let data = require(\"known\")\ndata";
+    let file = db.add_file(source);
+    let modules = HashMap::from([("known".to_owned(), shape)]);
+    let resolution = resolve(&db, file);
+    let inference = infer_types(&db, file, &modules);
+    assert!(
+        inference.diagnostics.is_empty(),
+        "{:?}",
+        inference.diagnostics
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "data").display(),
+        "{ answer: integer, empty: {} }"
+    );
+    assert_eq!(
+        expression_type_at(
+            &inference,
+            source.find(')').expect("require closing delimiter")
+        )
+        .map(|(_, ty)| ty.display())
+        .as_deref(),
+        Some("{ answer: integer, empty: {} }")
     );
 }
 

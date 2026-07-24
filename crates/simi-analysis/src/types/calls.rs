@@ -218,6 +218,9 @@ impl Context<'_> {
         let Some(callee_node) = child_expr(node.syntax(), 0) else {
             return Type::Unknown;
         };
+        let required_type = crate::modules::required_module(&node, self.resolution)
+            .and_then(|module| self.modules.get(&module))
+            .and_then(|shape| shape.ty.clone());
         let member = self.call_member(&callee_node);
         let callee = self.expression(callee_node.clone());
         let callee = self.instantiate_callee(&callee_node, callee);
@@ -233,7 +236,11 @@ impl Context<'_> {
             .cloned()
             .map(|argument| self.expression(argument))
             .collect::<Vec<_>>();
-        let (result, raised) = self.apply_call_type(callee, &argument_types, span(node.syntax()));
+        let (mut result, raised) =
+            self.apply_call_type(callee, &argument_types, span(node.syntax()));
+        if let Some(required_type) = required_type {
+            result = required_type;
+        }
         let raised_entry = self.flow_state();
         if result != Type::Never {
             if let Some((parameters, posts)) = &post_scheme {

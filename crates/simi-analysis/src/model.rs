@@ -172,6 +172,7 @@ pub struct ExportField {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ModuleShape {
     pub documentation: Option<String>,
+    pub ty: Option<Type>,
     pub fields: Vec<ExportField>,
 }
 
@@ -497,6 +498,7 @@ pub struct ParameterPostType {
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct TypeInference {
+    pub result_type: Option<Type>,
     pub symbol_types: HashMap<SymbolId, Type>,
     pub symbol_posts: HashMap<SymbolId, Vec<ParameterPostType>>,
     pub expression_types: Vec<(Span, Type)>,
