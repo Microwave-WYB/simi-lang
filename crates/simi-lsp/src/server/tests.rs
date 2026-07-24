@@ -332,6 +332,20 @@ fn symbols_navigation_references_hover_and_completion_use_fresh_analysis() {
             .as_deref(),
         Some("result : integer | float")
     );
+    let loop_keyword = items
+        .iter()
+        .find(|item| item.label == "loop")
+        .expect("loop keyword completion");
+    assert_eq!(loop_keyword.kind, Some(CompletionItemKind::KEYWORD));
+    assert_eq!(
+        loop_keyword.detail.as_deref(),
+        Some("loop state = initial do … end")
+    );
+    assert!(matches!(
+        loop_keyword.documentation.as_ref(),
+        Some(Documentation::String(documentation))
+            if documentation.contains("functional loop")
+    ));
     assert_eq!(
         labels
             .iter()
@@ -339,6 +353,85 @@ fn symbols_navigation_references_hover_and_completion_use_fresh_analysis() {
             .len(),
         labels.len()
     );
+}
+
+#[test]
+fn keyword_hover_explains_lexical_and_contextual_keywords() {
+    let source = r#"fn classify(value: string) -> string noraise do
+    loop state = value do
+        if true then break state else continue state end
+    end
+end"#;
+    let mut backend = Backend::new();
+    let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
+    assert!(diagnostics.diagnostics.is_empty());
+
+    for (needle, occurrence, expected) in [
+        ("fn", 0, "keyword `fn`\n\nDeclares a named function."),
+        (
+            "string",
+            0,
+            "keyword `string`\n\nThe static type of string values.",
+        ),
+        (
+            "noraise",
+            0,
+            "keyword `noraise`\n\nDeclares that a callable does not raise",
+        ),
+        (
+            "loop",
+            0,
+            "keyword `loop`\n\nBegins an expression-valued functional loop",
+        ),
+        ("break", 0, "keyword `break`\n\nStops the nearest loop"),
+    ] {
+        let hover: Option<Hover> = serde_json::from_value(
+            request(
+                &mut backend,
+                HoverRequest::METHOD,
+                json!({
+                    "textDocument": { "uri": uri() },
+                    "position": text_position(source, needle, occurrence),
+                }),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let HoverContents::Markup(markup) = hover.expect("keyword hover").contents else {
+            panic!("expected markup")
+        };
+        assert!(
+            markup.value.starts_with(expected),
+            "unexpected hover for {needle}: {}",
+            markup.value
+        );
+        assert!(markup.value.contains("\n\nSyntax: "));
+    }
+}
+
+#[test]
+fn contextual_keyword_hover_does_not_capture_ordinary_identifiers() {
+    let source = "let string = 1\nstring";
+    let mut backend = Backend::new();
+    let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
+    assert!(diagnostics.diagnostics.is_empty());
+
+    let hover: Option<Hover> = serde_json::from_value(
+        request(
+            &mut backend,
+            HoverRequest::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": text_position(source, "string", 1),
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let HoverContents::Markup(markup) = hover.expect("identifier hover").contents else {
+        panic!("expected markup")
+    };
+    assert_eq!(markup.value, "string : integer");
 }
 
 #[test]
@@ -1151,7 +1244,18 @@ let repeated = loop state = 0 do break state end"#;
         let HoverContents::Markup(markup) = hover.expect("expression hover").contents else {
             panic!("expected markup")
         };
-        assert_eq!(markup.value, expected);
+        if needle == "(1)" {
+            assert_eq!(markup.value, expected);
+        } else {
+            assert!(markup.value.starts_with("keyword `"), "{}", markup.value);
+            assert!(
+                markup
+                    .value
+                    .ends_with(&format!("Expression type: {expected}")),
+                "{}",
+                markup.value
+            );
+        }
         assert!(!markup.value.starts_with("expression :"));
     }
 }

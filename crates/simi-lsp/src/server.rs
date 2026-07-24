@@ -41,6 +41,8 @@ mod hover;
 
 mod completion;
 
+mod keywords;
+
 #[derive(Clone)]
 struct Document {
     file: FileId,

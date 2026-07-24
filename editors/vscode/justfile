@@ -16,13 +16,33 @@ generate:
 test: dependencies
     cd "{{component}}" && npm test
 
+# Source-development packages use an external server and must not retain a staged release binary.
 package: dependencies
+    rm -rf "{{component}}/bin"
     cd "{{component}}" && npm run package
 
-install-local: package
+# Release automation stages the matching native server before invoking this recipe.
+package-bundled: dependencies
+    test -f "{{component}}/bin/simi" || test -f "{{component}}/bin/simi.exe"
+    cd "{{component}}" && npm run package
+
+# Build, bundle, and install the language server from the current checkout.
+install-local: dependencies
     #!/usr/bin/env bash
     set -euo pipefail
-    cd "{{component}}"
+    component="{{component}}"
+    repository="$(cd "$component/../.." && pwd)"
+    executable=simi
+    case "$(uname -s)" in
+      MINGW*|MSYS*|CYGWIN*) executable=simi.exe ;;
+    esac
+    CARGO_TARGET_DIR="$repository/target" cargo build --manifest-path "$repository/Cargo.toml" --bin simi
+    rm -rf "$component/bin"
+    mkdir -p "$component/bin"
+    cp "$repository/target/debug/$executable" "$component/bin/$executable"
+    chmod +x "$component/bin/$executable"
+    cd "$component"
+    npm run package
     version="$(node -p 'require("./package.json").version')"
     vsix="simi-language-${version}.vsix"
     test -f "$vsix"

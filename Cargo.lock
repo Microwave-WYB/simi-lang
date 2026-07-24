@@ -780,6 +780,7 @@ dependencies = [
  "serde",
  "serde_json",
  "simi-analysis",
+ "simi-syntax",
 ]
 
 [[package]]

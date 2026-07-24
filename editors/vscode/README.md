@@ -41,7 +41,7 @@ No separate CLI installation is required unless you choose to override the bundl
 
 ## Local installation
 
-Requirements: Node.js/npm, Visual Studio Code's `code` command, an installed `simi` executable, and optionally [`just`](https://just.systems/).
+Requirements: Node.js/npm, Rust 1.88 or newer, Visual Studio Code's `code` command, and optionally [`just`](https://just.systems/). The `install-local` recipe builds and bundles the language server from the current checkout, so no prior `simi` installation is required.
 
 From this directory:
 
@@ -64,9 +64,9 @@ Reload any open Simi editor after installing or updating the VSIX. To develop in
 
 ## Packaging and publication
 
-`npm run package` (or `just package`) validates the grammar and creates `simi-language-<version>.vsix`. Generated VSIX files and `node_modules` are ignored.
+`npm run package` validates the grammar and creates `simi-language-<version>.vsix`. The component `just package` recipe first removes any staged native binary so source-development packages use an external server. Generated VSIX files and `node_modules` are ignored.
 
-The root `just release-vscode TARGET PLATFORM` recipe stages a platform-specific release VSIX by copying the already-built native server into `bin/` before packaging. The generated `bin/` directory is ignored and must never be committed.
+The root `just release-vscode TARGET PLATFORM` recipe stages a platform-specific release VSIX by copying the already-built native server into `bin/` and invoking `package-bundled`. The generated `bin/` directory is ignored and must never be committed.
 
 Marketplace publication is intentionally explicit and is not a dependency of any other task. After configuring the `simi` publisher and a Marketplace token:
 

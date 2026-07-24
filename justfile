@@ -39,7 +39,7 @@ release-vscode target platform:
     mkdir -p editors/vscode/bin release-input
     cp "$source" "editors/vscode/bin/$executable"
     chmod +x "editors/vscode/bin/$executable"
-    just editors vscode package
+    just editors vscode package-bundled
     cp editors/vscode/simi-language-*.vsix release-input/simi-vscode.vsix
 
 # Package separate CLI and self-contained VSIX assets with checksums.

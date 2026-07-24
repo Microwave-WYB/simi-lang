@@ -5,6 +5,21 @@ impl Backend {
         let uri = params.text_document_position_params.text_document.uri;
         let (document, text, resolution, offset) =
             self.analysis_at(&uri, params.text_document_position_params.position)?;
+        if let Some((keyword, span)) = keywords::at(&self.db, document.file, offset) {
+            let mut value = keywords::hover_text(keyword);
+            let inference = infer_types(&self.db, document.file, &self.module_shapes);
+            if let Some((_, ty)) = expression_type_at(&inference, offset) {
+                value.push_str("\n\nExpression type: ");
+                value.push_str(&ty.display());
+            }
+            return Ok(Some(Hover {
+                contents: HoverContents::Markup(MarkupContent {
+                    kind: MarkupKind::PlainText,
+                    value,
+                }),
+                range: Some(self.range(&text, span)?),
+            }));
+        }
         if let Some(module) = module_at(&self.db, document.file, &self.module_shapes, offset) {
             let mut value = resolution.hover(offset).map_or_else(
                 || module.module,

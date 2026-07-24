@@ -99,6 +99,23 @@ impl Backend {
                 });
             }
         }
+        for keyword in keywords::completions(prefix) {
+            if names.insert(keyword.word.to_owned()) {
+                let prefix_rank = if prefix.is_empty() || keyword.word.starts_with(prefix) {
+                    0
+                } else {
+                    1
+                };
+                items.push(CompletionItem {
+                    label: keyword.word.to_owned(),
+                    kind: Some(CompletionItemKind::KEYWORD),
+                    detail: Some(keyword.syntax.to_owned()),
+                    documentation: Some(Documentation::String(keyword.documentation.to_owned())),
+                    sort_text: Some(format!("1{prefix_rank}:{}", keyword.word)),
+                    ..CompletionItem::default()
+                });
+            }
+        }
         items.sort_by(|left, right| left.sort_text.cmp(&right.sort_text));
         Ok(Some(CompletionResponse::Array(items)))
     }
