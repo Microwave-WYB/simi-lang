@@ -2,6 +2,16 @@
 
 This file is the shared guide for coding agents working on Simi. Keep changes consistent with the language described here. If implementation, tests, and this document disagree, investigate the conflict rather than silently choosing a new semantic rule.
 
+## Repository Skills
+
+Load the matching repository skill before specialized work:
+
+- [`write-simi-scripts`](.agents/skills/write-simi-scripts/SKILL.md) when authoring, explaining, migrating, or debugging Simi programs;
+- [`embed-simi-in-rust`](.agents/skills/embed-simi-in-rust/SKILL.md) when integrating the Rust host API or building modules and native capabilities;
+- [`develop-simi-language`](.agents/skills/develop-simi-language/SKILL.md) when changing syntax, runtime semantics, erased analysis, LSP behavior, standard-library facades, documentation, or editor grammars.
+
+These skills provide task-specific procedures and link back to the authoritative repository documentation. Do not duplicate their contents here.
+
 ## Project Purpose
 
 Simi is a small, embeddable scripting language implemented in Rust. It combines a Lua-inspired dynamic runtime with expression-oriented control flow, pipelines, functional loops, structural pattern matching, and value-based errors.
