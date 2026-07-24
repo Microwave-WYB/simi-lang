@@ -1157,6 +1157,31 @@ let repeated = loop state = 0 do break state end"#;
 }
 
 #[test]
+fn empty_record_hover_uses_compact_delimiters() {
+    let source = "let data = {}\ndata";
+    let mut backend = Backend::default();
+    let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
+    assert!(diagnostics.diagnostics.is_empty());
+
+    let hover: Option<Hover> = serde_json::from_value(
+        request(
+            &mut backend,
+            HoverRequest::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": text_position(source, "data", 1),
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let HoverContents::Markup(markup) = hover.expect("data hover").contents else {
+        panic!("expected markup")
+    };
+    assert_eq!(markup.value, "data : {}");
+}
+
+#[test]
 fn hover_reports_branch_narrowed_symbol_types() {
     let source = r#"fn classify(value: integer | string) do
     if type(value) == "integer" then value else value end

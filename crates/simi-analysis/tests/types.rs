@@ -99,6 +99,7 @@ let integer = 1 + 2
 let mixed = 1 + 2.0
 let quotient = 1 / 2
 let values = [1, "two"]
+let empty_record = {}
 let record = { name = "Simi", age = 1 }
 "#;
     let (inference, resolution) = inferred(source);
@@ -143,6 +144,10 @@ let record = { name = "Simi", age = 1 }
     assert_eq!(
         type_of(&inference, &resolution, "values").display(),
         "[integer, \"two\"]"
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "empty_record").display(),
+        "{}"
     );
     assert_eq!(
         type_of(&inference, &resolution, "record").display(),

@@ -346,7 +346,11 @@ fn display_type(ty: &Type, nested: bool) -> String {
             if *open {
                 parts.push("..".to_owned());
             }
-            format!("{{ {} }}", parts.join(", "))
+            if parts.is_empty() {
+                "{}".to_owned()
+            } else {
+                format!("{{ {} }}", parts.join(", "))
+            }
         }
         Type::Function(callable) => {
             let constraints = if callable.constraints.is_empty() {
