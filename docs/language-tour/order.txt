@@ -1,6 +1,6 @@
 hello-world.md|Hello, world!
 values.md|Values
-optional-types.md|Optional types
+types-and-analysis.md|Types and analysis
 expressions.md|Expressions
 functions-and-bindings.md|Functions and bindings
 control-flow-and-patterns.md|Control flow and patterns

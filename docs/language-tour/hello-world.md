@@ -7,7 +7,7 @@
   - [Inspecting a result](#inspecting-a-result)
   - [Comments](#comments)
 - [Values](values.md)
-- [Optional types](optional-types.md)
+- [Types and analysis](types-and-analysis.md)
 - [Expressions](expressions.md)
 - [Functions and bindings](functions-and-bindings.md)
 - [Control flow and patterns](control-flow-and-patterns.md)

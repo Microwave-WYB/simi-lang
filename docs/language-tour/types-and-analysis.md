@@ -1,11 +1,11 @@
-# Optional types
+# Types and analysis
 
 <!-- tour:contents:start -->
 ## Tour contents
 
 - [Hello, world!](hello-world.md)
 - [Values](values.md)
-- Optional types
+- Types and analysis
   - [The erasure contract](#the-erasure-contract)
   - [Primitive types and unions](#primitive-types-and-unions)
   - [Function types and generics](#function-types-and-generics)
@@ -13,7 +13,6 @@
   - [Structural map types](#structural-map-types)
   - [Flow analysis and narrowing](#flow-analysis-and-narrowing)
   - [Mutation, aliases, and postconditions](#mutation-aliases-and-postconditions)
-  - [What the initial type system does not do](#what-the-initial-type-system-does-not-do)
 - [Expressions](expressions.md)
 - [Functions and bindings](functions-and-bindings.md)
 - [Control flow and patterns](control-flow-and-patterns.md)
@@ -260,23 +259,7 @@ Postconditions apply only after normal return. Raised and nonreturning paths do 
 
 Missing mutable-parameter post-types may also be inferred from modeled operations and already-known postconditions in the body. Normal-return paths are joined conservatively. An explicit post-state annotation takes precedence and is checked when an ordinary Simi body makes the final state provable; a direct call to a native function on a facade's private `host` value is treated as a trusted native contract.
 
-## What the initial type system does not do
-
-The initial optional analysis deliberately omits:
-
-- fixed repetition types such as `[T; N]`;
-- symbolic dimensions, shape variables, and rectangularity proofs;
-- type-level values, arithmetic, or compile-time execution;
-- traits, `where` constraints, operator overloading, and collection protocols;
-- user-defined narrowing predicates such as `TypeIs`;
-- explicit generic function application;
-- annotations inside nested patterns;
-- runtime tuples or multiple returns;
-- module type interfaces, imports, or exports.
-
-Inference is local and body-based. It uses operators, literals, calls, annotations, and return paths as evidence; unconstrained relationships may be generalized, while stable non-generic signatures are not specialized per call.
-
-For the authoritative design and full precision rules, see the [erased type-system reference](../type-system.md).
+For complete inference rules and scope boundaries, see the [erased type-system reference](../type-system.md).
 
 <!-- tour:navigation:start -->
 ---

@@ -7,7 +7,7 @@ This tour introduces Simi through focused, independently runnable scripts. Start
 
 - [Hello, world!](language-tour/hello-world.md)
 - [Values](language-tour/values.md)
-- [Optional types](language-tour/optional-types.md)
+- [Types and analysis](language-tour/types-and-analysis.md)
 - [Expressions](language-tour/expressions.md)
 - [Functions and bindings](language-tour/functions-and-bindings.md)
 - [Control flow and patterns](language-tour/control-flow-and-patterns.md)

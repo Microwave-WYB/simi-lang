@@ -5,7 +5,7 @@
 
 - [Hello, world!](hello-world.md)
 - [Values](values.md)
-- [Optional types](optional-types.md)
+- [Types and analysis](types-and-analysis.md)
 - [Expressions](expressions.md)
 - Functions and bindings
   - [Let bindings](#let-bindings)

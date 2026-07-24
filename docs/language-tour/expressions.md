@@ -5,7 +5,7 @@
 
 - [Hello, world!](hello-world.md)
 - [Values](values.md)
-- [Optional types](optional-types.md)
+- [Types and analysis](types-and-analysis.md)
 - Expressions
   - [Basic expressions](#basic-expressions)
   - [Operators](#operators)
@@ -282,7 +282,7 @@ The left side of `<|` must be a call. The operator is right-associative and is n
 <!-- tour:navigation:start -->
 ---
 
-[Previous: Optional types](optional-types.md)
+[Previous: Types and analysis](types-and-analysis.md)
 
 [Next: Functions and bindings](functions-and-bindings.md)
 <!-- tour:navigation:end -->

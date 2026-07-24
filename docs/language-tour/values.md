@@ -11,7 +11,7 @@
   - [Lists](#lists)
   - [Maps](#maps)
   - [Functions are values](#functions-are-values)
-- [Optional types](optional-types.md)
+- [Types and analysis](types-and-analysis.md)
 - [Expressions](expressions.md)
 - [Functions and bindings](functions-and-bindings.md)
 - [Control flow and patterns](control-flow-and-patterns.md)
@@ -178,5 +178,5 @@ The next page introduces optional erased type annotations for describing these r
 
 [Previous: Hello, world!](hello-world.md)
 
-[Next: Optional types](optional-types.md)
+[Next: Types and analysis](types-and-analysis.md)
 <!-- tour:navigation:end -->
