@@ -7,17 +7,34 @@ Simi is a small scripting language designed to be easy to run and embed.
 ```simi
 let io = require("std/io")
 
-fn greet(name) do
-    "Hello, " <> name <> "!"
+--- Finds two numbers whose sum equals the target.
+--- Returns the matching values, or nil when no pair exists.
+fn two_sum(numbers: [..integer], target: integer) -> {first: integer, second: integer} | nil do
+    loop state = {seen = {}, numbers = numbers} do
+        case state.numbers
+        of [] do
+            break nil
+        of [number, ..rest] do
+            let complement = target - number
+            if state.seen[complement] != nil then
+                break {first = complement, second = number}
+            else
+                state.seen[number] = true
+                {seen = state.seen, numbers = rest}
+            end
+        end
+    end
 end
 
-io.println(greet("Simi"))
+two_sum([2, 7, 11, 15], 9)
+|> inspect()
+|> io.println()
 ```
 
-Save this as `hello.simi`, install Simi using one of the options below, and run:
+Save this as `two_sum.simi`, install Simi using one of the options below, and run:
 
 ```sh
-simi run hello.simi
+simi run two_sum.simi
 ```
 
 ## Language tour
