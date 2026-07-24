@@ -20,7 +20,13 @@ package: dependencies
     cd "{{component}}" && npm run package
 
 install-local: package
-    cd "{{component}}" && code --install-extension --force "simi-language-$(node -p 'require(\"./package.json\").version').vsix"
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd "{{component}}"
+    version="$(node -p 'require("./package.json").version')"
+    vsix="simi-language-${version}.vsix"
+    test -f "$vsix"
+    code --install-extension "$vsix" --force
 
 # Marketplace publication is intentionally guarded and is never part of another recipe.
 publish: test
