@@ -4,6 +4,20 @@ Simi is a small scripting language designed to be easy to run and embed.
 
 ## Try the language
 
+### Hello, name!
+
+```simi
+let io = require("std/io")
+
+fn greet(name) do
+    io.println("Hello, " <> name <> "!")
+end
+
+greet("Simi")
+```
+
+### Functional loop
+
 ```simi
 let io = require("std/io")
 
