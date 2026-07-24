@@ -1,68 +1,70 @@
 ==================
-Exact/rest types and repeated postconditions
+Exact/rest types and inline post-states
 ==================
 
-fn mutate(xs: [..integer], ys: [integer, string]) -> nil
-    after xs becomes [..integer | string]
-    after ys becomes [..integer | string]
-do nil end
+fn mutate(
+    xs: [..integer] => [..(integer | string)],
+    ys: [integer, string] => [..(integer | string)],
+) -> nil do nil end
 
 ---
 
 (program
   (function_declaration
     (identifier)
-    (parameters
-      (parameter
+    (declared_parameters
+      (declared_parameter
         (identifier)
         (type_annotation
-          (function_type
+          (union_type
+            (list_type
+              (function_type
+                (union_type
+                  (named_type
+                    (identifier))))))
+          (post_type
             (union_type
               (list_type
                 (function_type
                   (union_type
-                    (named_type
-                      (identifier)))))))))
-      (parameter
+                    (parenthesized_type
+                      (function_type_parameter
+                        (function_type
+                          (union_type
+                            (named_type
+                              (identifier))
+                            (named_type
+                              (identifier)))))))))))))
+      (declared_parameter
         (identifier)
         (type_annotation
-          (function_type
+          (union_type
+            (list_type
+              (function_type
+                (union_type
+                  (named_type
+                    (identifier))))
+              (function_type
+                (union_type
+                  (named_type
+                    (identifier))))))
+          (post_type
             (union_type
               (list_type
                 (function_type
                   (union_type
-                    (named_type
-                      (identifier))))
-                (function_type
-                  (union_type
-                    (named_type
-                      (identifier))))))))))
+                    (parenthesized_type
+                      (function_type_parameter
+                        (function_type
+                          (union_type
+                            (named_type
+                              (identifier))
+                            (named_type
+                              (identifier))))))))))))))
     (return_annotation
       (function_type
         (union_type
           (literal_type
             (nil)))))
-    (post_condition
-      (identifier)
-      (function_type
-        (union_type
-          (list_type
-            (function_type
-              (union_type
-                (named_type
-                  (identifier))
-                (named_type
-                  (identifier))))))))
-    (post_condition
-      (identifier)
-      (function_type
-        (union_type
-          (list_type
-            (function_type
-              (union_type
-                (named_type
-                  (identifier))
-                (named_type
-                  (identifier))))))))
     (block
       (nil))))

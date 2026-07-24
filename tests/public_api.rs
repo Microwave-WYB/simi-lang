@@ -22,7 +22,7 @@ use simi::{
 };
 
 #[test]
-fn existing_public_paths_remain_available() {
+fn current_public_paths_compile() {
     let _ = lex as fn(&str) -> Result<Vec<Token>, LexError>;
     let _ = parse as fn(Vec<Token>) -> Result<simi::ast::Program, ParseError>;
     let _ = Parser::new;
@@ -31,7 +31,19 @@ fn existing_public_paths_remain_available() {
     let _ = Engine::builder;
     let _ = EngineBuilder::new;
     let _: ModuleBuilder = Module::builder("example");
-    let _: SourceModuleBuilder = Module::source("source", "{}");
+    let _: Value = Module::builder("host-value")
+        .value("answer", Value::Int(42))
+        .build_value();
+    let _: SourceModuleBuilder = Module::source("source", "{}").host(Value::Nil);
+    let _: Value = simi::host_value! {
+        name: "macro-module",
+        functions: {
+            "length" => (1, list_length),
+        },
+        values: {
+            "answer" => Value::Int(42),
+        },
+    };
     let _: Module = simi::stdlib::map();
     let _: Option<&NativeCallback> = None;
     let _ = [

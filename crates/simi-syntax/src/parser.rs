@@ -233,14 +233,6 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn bump_as(&mut self, kind: SyntaxKind) {
-        self.eat_trivia();
-        if self.position < self.lexemes.len() {
-            self.events.push(Event::TokenAs(self.position, kind));
-            self.position += 1;
-        }
-    }
-
     fn bump_if(&mut self, kind: SyntaxKind) -> bool {
         if self.at(kind) {
             self.bump();
@@ -311,12 +303,10 @@ fn token_name(kind: SyntaxKind, eof: bool) -> &'static str {
         SyntaxKind::END_KW => "end",
         SyntaxKind::IF_KW => "if",
         SyntaxKind::THEN_KW => "then",
-        SyntaxKind::AFTER_KW => "after",
         SyntaxKind::ELSEIF_KW => "elseif",
         SyntaxKind::ELSE_KW => "else",
         SyntaxKind::LET_KW => "let",
         SyntaxKind::ALIAS_KW => "alias",
-        SyntaxKind::BECOMES_KW => "becomes",
         SyntaxKind::TAP_KW => "tap",
         SyntaxKind::NIL_KW => "nil",
         SyntaxKind::TRUE_KW => "true",
@@ -343,6 +333,7 @@ fn token_name(kind: SyntaxKind, eof: bool) -> &'static str {
         SyntaxKind::COLON => ":",
         SyntaxKind::APOSTROPHE => "'",
         SyntaxKind::ARROW => "->",
+        SyntaxKind::FAT_ARROW => "=>",
         SyntaxKind::PIPE => "|",
         SyntaxKind::DOT => ".",
         SyntaxKind::DOT_DOT => "..",
@@ -445,6 +436,7 @@ fn token_lexeme(kind: TokenKind) -> (SyntaxKind, String) {
         TokenKind::Colon => (SyntaxKind::COLON, ":"),
         TokenKind::Apostrophe => (SyntaxKind::APOSTROPHE, "'"),
         TokenKind::Arrow => (SyntaxKind::ARROW, "->"),
+        TokenKind::FatArrow => (SyntaxKind::FAT_ARROW, "=>"),
         TokenKind::Pipe => (SyntaxKind::PIPE, "|"),
         TokenKind::Dot => (SyntaxKind::DOT, "."),
         TokenKind::DotDot => (SyntaxKind::DOT_DOT, ".."),

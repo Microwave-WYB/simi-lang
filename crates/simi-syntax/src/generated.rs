@@ -19,12 +19,10 @@ pub enum SyntaxKind {
     END_KW,
     IF_KW,
     THEN_KW,
-    AFTER_KW,
     ELSEIF_KW,
     ELSE_KW,
     LET_KW,
     ALIAS_KW,
-    BECOMES_KW,
     TAP_KW,
     NIL_KW,
     TRUE_KW,
@@ -51,6 +49,7 @@ pub enum SyntaxKind {
     COLON,
     APOSTROPHE,
     ARROW,
+    FAT_ARROW,
     PIPE,
     DOT,
     DOT_DOT,
@@ -79,12 +78,12 @@ pub enum SyntaxKind {
     EXPR_STMT,
     PARAM_LIST,
     RETURN_ANNOTATION,
-    POST_CONDITION,
     BLOCK,
     TYPE_PARAM_LIST,
     TYPE_EXPR,
     TYPE_ANNOTATION,
     PARAM,
+    POST_TYPE,
     TYPE_VARIABLE,
     TYPE_FUNCTION,
     TYPE_UNION,
@@ -95,6 +94,7 @@ pub enum SyntaxKind {
     TYPE_LIST,
     TYPE_MAP,
     TYPE_ARGUMENT_LIST,
+    TYPE_FUNCTION_PARAM,
     TYPE_LIST_REST,
     TYPE_MAP_ENTRY,
     TYPE_MAP_REST,
@@ -171,12 +171,12 @@ ast_node!(LetStmt, LET_STMT);
 ast_node!(ExprStmt, EXPR_STMT);
 ast_node!(ParamList, PARAM_LIST);
 ast_node!(ReturnAnnotation, RETURN_ANNOTATION);
-ast_node!(PostCondition, POST_CONDITION);
 ast_node!(Block, BLOCK);
 ast_node!(TypeParamList, TYPE_PARAM_LIST);
 ast_node!(TypeExpr, TYPE_EXPR);
 ast_node!(TypeAnnotation, TYPE_ANNOTATION);
 ast_node!(Param, PARAM);
+ast_node!(PostType, POST_TYPE);
 ast_node!(TypeVariable, TYPE_VARIABLE);
 ast_node!(TypeFunction, TYPE_FUNCTION);
 ast_node!(TypeUnion, TYPE_UNION);
@@ -187,6 +187,7 @@ ast_node!(TypeParen, TYPE_PAREN);
 ast_node!(TypeList, TYPE_LIST);
 ast_node!(TypeMap, TYPE_MAP);
 ast_node!(TypeArgumentList, TYPE_ARGUMENT_LIST);
+ast_node!(TypeFunctionParam, TYPE_FUNCTION_PARAM);
 ast_node!(TypeListRest, TYPE_LIST_REST);
 ast_node!(TypeMapEntry, TYPE_MAP_ENTRY);
 ast_node!(TypeMapRest, TYPE_MAP_REST);

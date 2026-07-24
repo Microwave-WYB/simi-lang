@@ -4,27 +4,6 @@ use super::{EvaluationError, EvaluationResult, Interpreter, pattern::match_patte
 use crate::ast::{BinaryOp, Block, Expr, ExprKind, Stmt, StmtKind};
 use crate::runtime::{Environment, List, MapKey, Raised, RuntimeError, UserFunction, Value};
 
-fn is_host_wrapper(body: &Block) -> bool {
-    let [
-        Stmt {
-            kind: StmtKind::Expr(expression),
-            ..
-        },
-    ] = body.items.as_slice()
-    else {
-        return false;
-    };
-    let ExprKind::Call { callee, .. } = &expression.kind else {
-        return false;
-    };
-    matches!(
-        &callee.kind,
-        ExprKind::Field { object, name }
-            if name == "call"
-                && matches!(&object.kind, ExprKind::Variable(name) if name == "host")
-    )
-}
-
 impl Interpreter {
     pub(super) fn evaluate_items(
         &mut self,
@@ -82,7 +61,7 @@ impl Interpreter {
                     params: params.clone(),
                     body: body.clone(),
                     closure: binding_env.clone(),
-                    trace_calls: self.trace_function_calls || !is_host_wrapper(body),
+                    source_domain: self.source_domain,
                     module: self.module_name.clone(),
                 };
                 let function = Value::Function(Gc::new(function));
@@ -177,7 +156,7 @@ impl Interpreter {
                 params: params.clone(),
                 body: body.clone(),
                 closure: env.clone(),
-                trace_calls: self.trace_function_calls || !is_host_wrapper(body),
+                source_domain: self.source_domain,
                 module: self.module_name.clone(),
             }))),
             ExprKind::Assign { target, value } => {

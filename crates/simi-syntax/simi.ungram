@@ -1,14 +1,14 @@
 Root = Stmt*
 Stmt = FunctionDecl | AliasDecl | LetStmt | ExprStmt
-FunctionDecl = 'fn' 'ident' ParamList ReturnAnnotation? PostCondition* 'do' Block 'end'
+FunctionDecl = 'fn' 'ident' ParamList ReturnAnnotation? 'do' Block 'end'
 AliasDecl = 'alias' 'ident' TypeParamList? '=' TypeExpr
 LetStmt = 'let' Pattern TypeAnnotation? '=' Expr
 ExprStmt = Expr
 ParamList = '(' (Param (',' Param)* ','?)? ')'
-Param = 'ident' TypeAnnotation?
+Param = 'ident' TypeAnnotation? PostType?
 TypeAnnotation = ':' TypeExpr
 ReturnAnnotation = '->' TypeExpr
-PostCondition = 'after' 'ident' 'becomes' TypeExpr
+PostType = '=>' TypeExpr
 TypeParamList = '<' (TypeVariable (',' TypeVariable)* ','?)? '>'
 TypeExpr = TypeFunction
 TypeFunction = TypeUnion ('->' TypeFunction)?
@@ -18,7 +18,8 @@ TypeName = 'ident' TypeArgumentList?
 TypeArgumentList = '<' (TypeExpr (',' TypeExpr)* ','?)? '>'
 TypeVariable = 'apostrophe' 'ident'
 TypeLiteral = 'string' | 'nil'
-TypeParen = '(' (TypeExpr (',' TypeExpr)* ','?)? ')'
+TypeParen = '(' (TypeFunctionParam (',' TypeFunctionParam)* ','?)? ')'
+TypeFunctionParam = TypeExpr PostType?
 TypeList = '[' (TypeListRest | TypeExpr (',' TypeExpr)* ','?)? ']'
 TypeListRest = '..' TypeExpr
 TypeMap = '{' (TypeMapEntry (',' TypeMapEntry)* (',' TypeMapRest)? ','? | TypeMapRest ','?)? '}'

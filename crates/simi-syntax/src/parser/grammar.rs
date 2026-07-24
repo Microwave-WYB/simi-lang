@@ -92,8 +92,23 @@ fn function_parts(p: &mut Parser<'_>, open: &str, allow_posts: bool) {
             if p.expect(K::IDENT, "parameter name") && !seen.insert(name.clone()) {
                 p.error_at(span, format!("duplicate parameter `{name}`"));
             }
-            if p.at(K::COLON) {
-                type_annotation(p);
+            let annotated = if p.at(K::COLON) {
+                parameter_type_annotation(p);
+                true
+            } else {
+                false
+            };
+            if p.at(K::FAT_ARROW) {
+                if !annotated {
+                    p.error("post-state annotation requires an input type".to_owned());
+                }
+                if !allow_posts {
+                    p.error(
+                        "post-state annotations are not supported on anonymous functions"
+                            .to_owned(),
+                    );
+                }
+                post_type(p);
             }
             param.complete(&mut p.events, K::PARAM);
             if !p.bump_if(K::COMMA) || p.at(K::R_PAREN) {
@@ -108,26 +123,6 @@ fn function_parts(p: &mut Parser<'_>, open: &str, allow_posts: bool) {
         p.bump();
         type_expr(p);
         result.complete(&mut p.events, K::RETURN_ANNOTATION);
-    }
-    while allow_posts
-        && (p.at(K::AFTER_KW) || (p.at(K::IDENT) && p.current_text() == Some("after")))
-    {
-        let post = p.start();
-        if p.at(K::AFTER_KW) {
-            p.bump();
-        } else {
-            p.bump_as(K::AFTER_KW);
-        }
-        p.expect(K::IDENT, "postcondition parameter name");
-        if p.at(K::BECOMES_KW) {
-            p.bump();
-        } else if p.at(K::IDENT) && p.current_text() == Some("becomes") {
-            p.bump_as(K::BECOMES_KW);
-        } else {
-            p.expect(K::BECOMES_KW, "`becomes` in postcondition");
-        }
-        type_expr(p);
-        post.complete(&mut p.events, K::POST_CONDITION);
     }
     p.expect(K::DO_KW, "`do` before function body");
     let old_loop = std::mem::replace(&mut p.loop_depth, 0);
@@ -193,17 +188,49 @@ fn type_annotation(p: &mut Parser<'_>) {
     marker.complete(&mut p.events, K::TYPE_ANNOTATION);
 }
 
-fn type_expr(p: &mut Parser<'_>) {
+fn parameter_type_annotation(p: &mut Parser<'_>) {
     let marker = p.start();
-    type_function(p);
+    p.bump();
+    type_expr_before_post(p);
+    marker.complete(&mut p.events, K::TYPE_ANNOTATION);
+}
+
+fn post_type(p: &mut Parser<'_>) {
+    let marker = p.start();
+    p.bump();
+    let ty = p.start();
+    type_union(p);
+    ty.complete(&mut p.events, K::TYPE_EXPR);
+    marker.complete(&mut p.events, K::POST_TYPE);
+}
+
+fn type_expr(p: &mut Parser<'_>) {
+    type_expr_with_post_boundary(p, false);
+}
+
+fn type_expr_before_post(p: &mut Parser<'_>) {
+    type_expr_with_post_boundary(p, true);
+}
+
+fn type_expr_with_post_boundary(p: &mut Parser<'_>, allow_post_boundary: bool) {
+    let marker = p.start();
+    type_function(p, allow_post_boundary);
     marker.complete(&mut p.events, K::TYPE_EXPR);
 }
 
-fn type_function(p: &mut Parser<'_>) {
+fn type_function(p: &mut Parser<'_>, allow_post_boundary: bool) {
     let marker = p.start();
     type_union(p);
     if p.bump_if(K::ARROW) {
-        type_function(p);
+        type_function(p, false);
+    } else if p.at(K::FAT_ARROW) && !allow_post_boundary {
+        let at = p.current_span();
+        p.error_at(
+            at,
+            "ambiguous post-state annotation; put `before => after` inside a parenthesized function parameter list".to_owned(),
+        );
+        p.bump();
+        type_function(p, false);
     }
     marker.complete(&mut p.events, K::TYPE_FUNCTION);
 }
@@ -234,15 +261,31 @@ fn type_primary(p: &mut Parser<'_>) {
     } else if p.at(K::L_PAREN) {
         let marker = p.start();
         p.bump();
+        let mut post_spans = Vec::new();
         if !p.at(K::R_PAREN) {
             loop {
-                type_expr(p);
+                let parameter = p.start();
+                type_expr_before_post(p);
+                if p.at(K::FAT_ARROW) {
+                    post_spans.push(p.current_span());
+                    post_type(p);
+                }
+                parameter.complete(&mut p.events, K::TYPE_FUNCTION_PARAM);
                 if !p.bump_if(K::COMMA) || p.at(K::R_PAREN) {
                     break;
                 }
             }
         }
         p.expect(K::R_PAREN, "`)` after type");
+        if !post_spans.is_empty() && !p.at(K::ARROW) {
+            for at in post_spans {
+                p.error_at(
+                    at,
+                    "a post-state parameter list must be followed by `->` and a result type"
+                        .to_owned(),
+                );
+            }
+        }
         marker.complete(&mut p.events, K::TYPE_PAREN);
     } else if p.at(K::L_BRACKET) {
         type_list(p);

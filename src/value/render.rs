@@ -79,8 +79,7 @@ impl Value {
                 active.remove(&id);
                 format!("{{{rendered}}}")
             }
-            Self::Function(function) if function.trace_calls => format!("<fn {}>", function.name),
-            Self::Function(function) => format!("<native {}>", function.name),
+            Self::Function(function) => format!("<fn {}>", function.name),
             Self::NativeFunction(function) => format!("<native {}>", function.name()),
         }
     }

@@ -82,10 +82,10 @@ test("TextMate grammar assigns semantic scopes to representative Simi syntax", a
   assertScope(lines, 13, "of", "keyword.control.case.simi");
   assertScope(lines, 13, "do", "keyword.control.block.simi");
   assertScope(lines, 14, "end", "keyword.control.block.simi");
-  assertScope(lines, 18, "integer", "support.type.primitive.simi");
-  assertScope(lines, 19, "after", "keyword.control.conditional.simi");
-  assertScope(lines, 19, "becomes", "keyword.control.conditional.simi");
+  assertScope(lines, 19, "integer", "support.type.primitive.simi");
+  assertScope(lines, 19, "=>", "keyword.operator.type.simi");
   assertScope(lines, 19, "..", "keyword.operator.rest.simi");
+  assertScope(lines, 20, "=>", "keyword.operator.type.simi");
   assertScope(lines, 23, "item", "variable.parameter.simi");
   assertScope(lines, 24, "require", "support.function.builtin.simi");
   assertScope(lines, 25, ".map", "punctuation.accessor.simi");

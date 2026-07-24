@@ -391,11 +391,16 @@ impl Context<'_> {
                 .unwrap_or_default();
             let parameter_names = parameter_nodes
                 .iter()
-                .filter_map(|parameter| direct_token(parameter.syntax(), K::IDENT))
-                .map(|token| token.text().to_owned())
+                .enumerate()
+                .map(|(index, parameter)| {
+                    direct_token(parameter.syntax(), K::IDENT).map_or_else(
+                        || format!("parameter {}", index + 1),
+                        |token| token.text().to_owned(),
+                    )
+                })
                 .collect::<Vec<_>>();
             let parameters = parameter_nodes
-                .into_iter()
+                .iter()
                 .map(|parameter| {
                     support::child::<syntax::TypeAnnotation>(parameter.syntax())
                         .and_then(|annotation| {
@@ -409,46 +414,20 @@ impl Context<'_> {
                 .and_then(|annotation| support::child::<syntax::TypeExpr>(annotation.syntax()))
                 .map(|ty| self.parse_type(ty.syntax(), &mut generics))
                 .unwrap_or_else(|| self.fresh());
-            let mut posts = Vec::new();
-            let mut post_parameters = HashSet::new();
-            for post in support::children::<syntax::PostCondition>(function.syntax()) {
-                let Some(name) =
-                    direct_token(post.syntax(), K::IDENT).map(|token| token.text().to_owned())
-                else {
-                    continue;
-                };
-                let Some(parameter_index) = parameter_names
-                    .iter()
-                    .position(|candidate| candidate == &name)
-                else {
-                    self.diagnostic(
-                        AnalysisDiagnosticCode::InvalidType,
-                        "Unknown post-type parameter",
-                        format!("Function parameter `{name}` does not exist."),
-                        span(post.syntax()),
-                    );
-                    continue;
-                };
-                if !post_parameters.insert(parameter_index) {
-                    self.diagnostic(
-                        AnalysisDiagnosticCode::InvalidType,
-                        "Duplicate post-type",
-                        format!("Parameter `{name}` already has a post-type."),
-                        span(post.syntax()),
-                    );
-                    continue;
-                }
-                let Some(becomes) = support::child::<syntax::TypeExpr>(post.syntax())
-                    .map(|ty| self.parse_type(ty.syntax(), &mut generics))
-                else {
-                    continue;
-                };
-                posts.push(ParameterPostType {
-                    parameter_index,
-                    parameter_name: name,
-                    becomes,
-                });
-            }
+            let posts = parameter_nodes
+                .iter()
+                .enumerate()
+                .filter_map(|(parameter_index, parameter)| {
+                    let post = support::child::<syntax::PostType>(parameter.syntax())?;
+                    let becomes = support::child::<syntax::TypeExpr>(post.syntax())
+                        .map(|ty| self.parse_type(ty.syntax(), &mut generics))?;
+                    Some(ParameterPostType {
+                        parameter_index,
+                        parameter_name: parameter_names[parameter_index].clone(),
+                        becomes,
+                    })
+                })
+                .collect::<Vec<_>>();
             let function_ty = Type::Function(parameters, Box::new(result));
             self.symbol_types.insert(symbol, function_ty.clone());
             self.symbol_bounds.insert(symbol, function_ty);
@@ -502,9 +481,15 @@ impl Context<'_> {
                         .map(|expression| self.expression(expression))
                         .unwrap_or(Type::Unknown)
                 };
-                let annotation = support::child::<syntax::TypeAnnotation>(statement.syntax())
-                    .and_then(|annotation| support::child::<syntax::TypeExpr>(annotation.syntax()))
-                    .map(|ty| self.parse_type(ty.syntax(), &mut HashMap::new()));
+                let annotation_node = support::child::<syntax::TypeAnnotation>(statement.syntax())
+                    .and_then(|annotation| support::child::<syntax::TypeExpr>(annotation.syntax()));
+                let mut annotation_generics = HashMap::new();
+                let annotation_posts = annotation_node
+                    .as_ref()
+                    .map(|ty| self.parse_function_type_posts(ty.syntax(), &mut annotation_generics))
+                    .unwrap_or_default();
+                let annotation = annotation_node
+                    .map(|ty| self.parse_type(ty.syntax(), &mut annotation_generics));
                 let explicitly_annotated = annotation.is_some();
                 let final_ty = if let Some(expected) = annotation {
                     self.require_subtype(&value, &expected, span(statement.syntax()));
@@ -531,7 +516,16 @@ impl Context<'_> {
                                 self.conservative_regions.insert(region);
                             }
                         }
-                        if let Some(posts) = inherited_posts {
+                        let posts = if annotation_posts.is_empty() {
+                            inherited_posts
+                        } else {
+                            self.validate_annotated_posts(
+                                &final_ty,
+                                annotation_posts,
+                                span(statement.syntax()),
+                            )
+                        };
+                        if let Some(posts) = posts {
                             self.symbol_posts.insert(symbol, posts);
                         }
                         if let Some(effects) = inherited_capture_effects {
@@ -625,7 +619,9 @@ impl Context<'_> {
             }
         }
         let body = support::child::<syntax::Block>(function.syntax());
-        let trusted_host_wrapper = body.as_ref().is_some_and(is_host_wrapper);
+        let trusted_host_wrapper = body
+            .as_ref()
+            .is_some_and(|body| is_host_wrapper(body, self.resolution));
         let actual = body
             .as_ref()
             .map(|body| self.infer_block(body))
@@ -653,8 +649,13 @@ impl Context<'_> {
         }
 
         let mut posts = self.symbol_posts.get(&symbol).cloned().unwrap_or_default();
-        let post_nodes =
-            support::children::<syntax::PostCondition>(function.syntax()).collect::<Vec<_>>();
+        let post_nodes = support::child::<syntax::ParamList>(function.syntax())
+            .map(|list| {
+                support::children::<syntax::Param>(list.syntax())
+                    .filter_map(|parameter| support::child::<syntax::PostType>(parameter.syntax()))
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
         for (index, post) in posts.iter().enumerate() {
             let Some(pre) = parameters.get(post.parameter_index) else {
                 continue;
@@ -2698,6 +2699,111 @@ impl Context<'_> {
         }
     }
 
+    fn parse_function_type_posts(
+        &mut self,
+        node: &SyntaxNode,
+        generics: &mut HashMap<String, u32>,
+    ) -> Vec<ParameterPostType> {
+        let Some(function) = support::child::<syntax::TypeFunction>(node) else {
+            return Vec::new();
+        };
+        if direct_token(function.syntax(), K::ARROW).is_none() {
+            let Some(name_node) = transparent_type_name(function.syntax()) else {
+                return Vec::new();
+            };
+            let name = direct_token(name_node.syntax(), K::IDENT)
+                .map(|token| token.text().to_owned())
+                .unwrap_or_default();
+            let arguments = support::child::<syntax::TypeArgumentList>(name_node.syntax())
+                .map(|list| {
+                    support::children::<syntax::TypeExpr>(list.syntax())
+                        .map(|ty| self.parse_type(ty.syntax(), generics))
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+            let Some(alias) = self.aliases.get(&name).cloned() else {
+                return Vec::new();
+            };
+            if arguments.len() != alias.parameters.len() || !self.alias_stack.insert(name.clone()) {
+                return Vec::new();
+            }
+            let mut alias_generics = alias
+                .parameters
+                .iter()
+                .enumerate()
+                .map(|(index, parameter)| (parameter.clone(), index as u32))
+                .collect::<HashMap<_, _>>();
+            let mut posts = self.parse_function_type_posts(&alias.body, &mut alias_generics);
+            let replacements = arguments
+                .into_iter()
+                .enumerate()
+                .map(|(index, ty)| (index as u32, ty))
+                .collect::<HashMap<_, _>>();
+            for post in &mut posts {
+                post.becomes = substitute_generics(post.becomes.clone(), &replacements);
+            }
+            self.alias_stack.remove(&name);
+            return posts;
+        }
+        let Some(arguments) = support::child::<syntax::TypeUnion>(function.syntax())
+            .and_then(|union| support::child::<syntax::TypeParen>(union.syntax()))
+        else {
+            return Vec::new();
+        };
+        support::children::<syntax::TypeFunctionParam>(arguments.syntax())
+            .enumerate()
+            .filter_map(|(parameter_index, parameter)| {
+                let post = support::child::<syntax::PostType>(parameter.syntax())?;
+                let becomes = support::child::<syntax::TypeExpr>(post.syntax())
+                    .map(|ty| self.parse_type(ty.syntax(), generics))?;
+                Some(ParameterPostType {
+                    parameter_index,
+                    parameter_name: format!("argument {}", parameter_index + 1),
+                    becomes,
+                })
+            })
+            .collect()
+    }
+
+    fn validate_annotated_posts(
+        &mut self,
+        function_ty: &Type,
+        posts: Vec<ParameterPostType>,
+        at: Span,
+    ) -> Option<Vec<ParameterPostType>> {
+        let Type::Function(parameters, _) = function_ty else {
+            self.diagnostic(
+                AnalysisDiagnosticCode::InvalidType,
+                "Post-state outside function type",
+                "Post-state annotations require a function type.".to_owned(),
+                at,
+            );
+            return None;
+        };
+        let mut valid = Vec::new();
+        for post in posts {
+            let Some(pre) = parameters.get(post.parameter_index) else {
+                continue;
+            };
+            if valid_post_transition(pre, &post.becomes) {
+                valid.push(post);
+            } else {
+                self.diagnostic(
+                    AnalysisDiagnosticCode::InvalidType,
+                    "Invalid post-type",
+                    format!(
+                        "Post-type `{}` is not a valid transition from {} of type `{}`.",
+                        post.becomes.display(),
+                        post.parameter_name,
+                        pre.display()
+                    ),
+                    at,
+                );
+            }
+        }
+        Some(valid)
+    }
+
     fn parse_type(&mut self, node: &SyntaxNode, generics: &mut HashMap<String, u32>) -> Type {
         match node.kind() {
             K::TYPE_EXPR => child_node(node)
@@ -2764,7 +2870,8 @@ impl Context<'_> {
             }
             K::TYPE_LITERAL => literal_type(node),
             K::TYPE_PAREN => {
-                let items = support::children::<syntax::TypeExpr>(node)
+                let items = support::children::<syntax::TypeFunctionParam>(node)
+                    .filter_map(|parameter| support::child::<syntax::TypeExpr>(parameter.syntax()))
                     .map(|ty| self.parse_type(ty.syntax(), generics))
                     .collect::<Vec<_>>();
                 match items.as_slice() {
@@ -3696,7 +3803,20 @@ fn block_ends_in_direct_call(body: &syntax::Block) -> bool {
     })
 }
 
-fn is_host_wrapper(body: &syntax::Block) -> bool {
+fn is_host_wrapper(body: &syntax::Block, resolution: &Resolution) -> bool {
+    if resolution
+        .hir
+        .occurrences
+        .iter()
+        .zip(&resolution.occurrence_symbols)
+        .any(|(occurrence, symbol)| {
+            occurrence.name == "host"
+                && occurrence.kind == crate::model::OccurrenceKind::Assignment
+                && symbol.is_none()
+        })
+    {
+        return false;
+    }
     let mut statements = body.statements();
     let Some(syntax::Stmt::ExprStmt(statement)) = statements.next() else {
         return false;
@@ -3710,14 +3830,12 @@ fn is_host_wrapper(body: &syntax::Block) -> bool {
     let Some(syntax::Expr::Field(field)) = child_expr(call.syntax(), 0) else {
         return false;
     };
-    let Some(name) = direct_token(field.syntax(), K::IDENT) else {
-        return false;
-    };
     let Some(syntax::Expr::Name(object)) = child_expr(field.syntax(), 0) else {
         return false;
     };
-    name.text() == "call"
-        && direct_token(object.syntax(), K::IDENT).is_some_and(|token| token.text() == "host")
+    direct_token(object.syntax(), K::IDENT).is_some_and(|token| {
+        token.text() == "host" && resolution.symbol_at(token_span(&token).start).is_none()
+    })
 }
 
 fn binary_operator(node: &SyntaxNode) -> Option<K> {
@@ -4262,6 +4380,29 @@ fn child_node(node: &SyntaxNode) -> Option<SyntaxNode> {
     node.children().next()
 }
 
+fn transparent_type_name(node: &SyntaxNode) -> Option<syntax::TypeName> {
+    if let Some(name) = syntax::TypeName::cast(node.clone()) {
+        return Some(name);
+    }
+    if node.kind() == K::TYPE_PAREN {
+        let mut parameters = support::children::<syntax::TypeFunctionParam>(node);
+        let parameter = parameters.next()?;
+        if parameters.next().is_some()
+            || support::child::<syntax::PostType>(parameter.syntax()).is_some()
+        {
+            return None;
+        }
+        let ty = support::child::<syntax::TypeExpr>(parameter.syntax())?;
+        return transparent_type_name(ty.syntax());
+    }
+    let mut children = node.children();
+    let child = children.next()?;
+    if children.next().is_some() {
+        return None;
+    }
+    transparent_type_name(&child)
+}
+
 fn direct_token(node: &SyntaxNode, kind: K) -> Option<SyntaxToken> {
     support::token(node, kind)
 }
@@ -4280,4 +4421,33 @@ fn token_span(token: &SyntaxToken) -> Span {
         u32::from(range.start()) as usize,
         u32::from(range.end()) as usize,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db::AnalysisDatabase;
+
+    #[test]
+    fn assigned_private_host_bindings_are_not_trusted_wrappers() {
+        for source in [
+            "host = replacement fn mutate(xs: [..integer] => [integer]) -> nil do host.mutate(xs) end",
+            "fn mutate(xs: [..integer] => [integer]) -> nil do host.mutate(xs) end host = replacement",
+        ] {
+            let db = AnalysisDatabase::default();
+            let file = db.add_file(source);
+            let parsed = parse(&db, file);
+            let resolution = resolve(&db, file);
+            let root = syntax::Root::cast(parsed.syntax()).unwrap();
+            let function = root
+                .statements()
+                .find_map(|statement| match statement {
+                    syntax::Stmt::FunctionDecl(function) => Some(function),
+                    _ => None,
+                })
+                .unwrap();
+            let body = support::child::<syntax::Block>(function.syntax()).unwrap();
+            assert!(!is_host_wrapper(&body, &resolution));
+        }
+    }
 }

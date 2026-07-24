@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use crate::error::SimiError;
 use crate::interpreter::Interpreter;
-use crate::module::{HostOperation, Module, ModuleContents, direct_value};
+use crate::module::{Module, ModuleContents, direct_value};
 use crate::runtime::{ScriptResult, Value};
 use crate::{parser, stdlib};
 
@@ -18,7 +18,7 @@ pub(crate) enum ModuleEntry {
     Direct(Value),
     Source {
         source: Arc<str>,
-        host_operations: Arc<HashMap<String, HostOperation>>,
+        host: Value,
         state: SourceModuleState,
     },
 }
@@ -33,10 +33,7 @@ pub(crate) enum ModuleLookup {
     Missing,
     Loading,
     Loaded(Value),
-    Source {
-        source: Arc<str>,
-        host_operations: Arc<HashMap<String, HostOperation>>,
-    },
+    Source { source: Arc<str>, host: Value },
 }
 
 impl ModuleRegistry {
@@ -59,14 +56,14 @@ impl ModuleRegistry {
             ModuleEntry::Direct(value) => ModuleLookup::Loaded(value.clone()),
             ModuleEntry::Source {
                 source,
-                host_operations,
+                host,
                 state,
             } => match state {
                 SourceModuleState::Unloaded => {
                     *state = SourceModuleState::Loading;
                     ModuleLookup::Source {
                         source: source.clone(),
-                        host_operations: host_operations.clone(),
+                        host: host.clone(),
                     }
                 }
                 SourceModuleState::Loading => ModuleLookup::Loading,
@@ -180,12 +177,9 @@ impl EngineBuilder {
             .map(|(name, contents)| {
                 let entry = match contents {
                     ModuleContents::Direct(exports) => ModuleEntry::Direct(direct_value(exports)),
-                    ModuleContents::Source {
+                    ModuleContents::Source { source, host } => ModuleEntry::Source {
                         source,
-                        host_operations,
-                    } => ModuleEntry::Source {
-                        source,
-                        host_operations: Arc::new(host_operations),
+                        host,
                         state: SourceModuleState::Unloaded,
                     },
                 };

@@ -361,22 +361,323 @@ fn root_eval_uses_fresh_standard_module_instances() {
 }
 
 #[test]
-fn source_modules_cache_exports_and_capture_private_host_dispatch() {
+fn source_facades_evaluate_with_generated_functions_and_data_in_private_host() {
+    let host = simi::host_value! {
+        name: "generated",
+        functions: {
+            "add" => (2, |arguments: &[Value], _| {
+                let [Value::Int(left), Value::Int(right)] = arguments else {
+                    panic!("generated host function should receive two integers")
+                };
+                Ok(Ok(Value::Int(left + right)))
+            }),
+        },
+        values: {
+            "answer" => Value::Int(21),
+        },
+    };
+    let module = Module::source(
+        "generated",
+        r#"
+            let add: (integer, integer) -> integer = host.add
+            let answer: integer = host.answer
+            fn doubled_answer() do add(answer, answer) end
+            {add = add, answer = answer, doubled_answer = doubled_answer}
+        "#,
+    )
+    .host(host)
+    .build();
+    let engine = Engine::builder().module(module).build();
+    let result = engine
+        .eval(
+            r#"
+            let generated = require("generated")
+            [generated.add(20, 22), generated.answer, generated.doubled_answer()]
+            "#,
+        )
+        .unwrap()
+        .unwrap();
+    assert_eq!(result.render(), "[42, 21, 42]");
+}
+
+#[test]
+fn requiring_a_facade_does_not_inspect_or_borrow_its_private_host() {
+    let host = simi::host_value! {
+        name: "borrowed-host",
+        values: {
+            "marker" => Value::Int(1),
+        },
+    };
+    let Value::Map(entries) = host.clone() else {
+        panic!("host_value should construct a map")
+    };
+    let _borrow = entries.borrow_mut();
+    let engine = Engine::builder()
+        .module(Module::source("borrowed-host", "42").host(host).build())
+        .build();
+    assert_eq!(
+        engine
+            .eval("require(\"borrowed-host\")")
+            .unwrap()
+            .unwrap()
+            .render(),
+        "42"
+    );
+}
+
+#[test]
+fn direct_native_aliases_avoid_facade_function_wrappers() {
+    let engine = Engine::with_stdlib();
+    for (source, expected) in [
+        (
+            "require(\"std/string\").length",
+            "<native std/string.length>",
+        ),
+        ("require(\"std/list\").append", "<native std/list.append>"),
+    ] {
+        assert_eq!(engine.eval(source).unwrap().unwrap().render(), expected);
+    }
+}
+
+#[test]
+fn shadowed_host_names_remain_ordinary_simi_functions() {
+    let module = Module::source("shadowed-host", "fn invoke(host) do host.fail() end invoke")
+        .host(simi::host_value! {
+            name: "shadowed-host",
+            values: { "label" => Value::String("private".to_owned()) },
+        })
+        .build();
+    let engine = Engine::builder().module(module).build();
+    assert_eq!(
+        engine
+            .eval("require(\"shadowed-host\")")
+            .unwrap()
+            .unwrap()
+            .render(),
+        "<fn shadowed-host.invoke>"
+    );
+
+    let raised = match engine
+        .eval("let invoke = require(\"shadowed-host\") invoke({fail = fn() do raise \"boom\" end})")
+        .unwrap()
+    {
+        Err(raised) => raised,
+        Ok(value) => panic!("caller raise should propagate, got {}", value.render()),
+    };
+    assert_eq!(raised.frames.len(), 2);
+    assert_eq!(raised.frames[0].function, "<anonymous>");
+    assert_eq!(raised.frames[1].function, "shadowed-host.invoke");
+}
+
+#[test]
+fn reassigned_and_arbitrary_host_functions_keep_public_trace_boundaries() {
+    for (name, source) in [
+        (
+            "assigned-before",
+            "let replacement = {fail = fn() do raise \"boom\" end} host = replacement fn invoke() do host.fail() end invoke",
+        ),
+        (
+            "assigned-after",
+            "fn invoke() do host.fail() end let replacement = {fail = fn() do raise \"boom\" end} host = replacement invoke",
+        ),
+    ] {
+        let engine = Engine::builder()
+            .module(
+                Module::source(name, source)
+                    .host(simi::host_value! {
+                        name: name,
+                        values: { "unused" => Value::Nil },
+                    })
+                    .build(),
+            )
+            .build();
+        let call = format!("let invoke = require(\"{name}\") invoke()");
+        let boundary = Span::new(call.rfind("invoke()").unwrap(), call.len());
+        let raised = match engine.eval(&call).unwrap() {
+            Err(raised) => raised,
+            Ok(value) => panic!("caller raise should propagate, got {}", value.render()),
+        };
+        assert_eq!(raised.origin, boundary);
+        assert_eq!(raised.frames.len(), 2);
+        assert!(
+            raised
+                .frames
+                .iter()
+                .all(|frame| frame.call_span == boundary)
+        );
+        assert_eq!(raised.frames[1].function, format!("{name}.invoke"));
+    }
+
+    let producer = Engine::new();
+    let user_function = producer
+        .eval("fn fail() do raise \"host boom\" end fail")
+        .unwrap()
+        .unwrap();
+    let direct_user_function = user_function.clone();
+    let require_value = producer.eval("require").unwrap().unwrap();
+    let engine = Engine::builder()
+        .module(
+            Module::source("direct-function", "host.fail")
+                .host(simi::host_value! {
+                    name: "direct-function",
+                    values: { "fail" => direct_user_function },
+                })
+                .build(),
+        )
+        .module(
+            Module::source(
+                "arbitrary-functions",
+                "fn invoke() do host.fail() end fn load() do host.load(\"absent\") end {invoke = invoke, load = load}",
+            )
+            .host(simi::host_value! {
+                name: "arbitrary-functions",
+                values: {
+                    "fail" => user_function,
+                    "load" => require_value,
+                },
+            })
+            .build(),
+        )
+        .build();
+    let direct_call = "let fail = require(\"direct-function\") fail()";
+    let direct_boundary = Span::new(direct_call.rfind("fail()").unwrap(), direct_call.len());
+    let direct_raised = match engine.eval(direct_call).unwrap() {
+        Err(raised) => raised,
+        Ok(value) => panic!("caller raise should propagate, got {}", value.render()),
+    };
+    assert_eq!(direct_raised.origin, direct_boundary);
+    assert!(
+        direct_raised
+            .frames
+            .iter()
+            .all(|frame| frame.call_span == direct_boundary)
+    );
+
+    for function in ["invoke", "load"] {
+        let call = format!("let module = require(\"arbitrary-functions\") module.{function}()");
+        let start = call.rfind(&format!("module.{function}()")).unwrap();
+        let boundary = Span::new(start, call.len());
+        let raised = match engine.eval(&call).unwrap() {
+            Err(raised) => raised,
+            Ok(value) => panic!("caller raise should propagate, got {}", value.render()),
+        };
+        assert_eq!(raised.origin, boundary);
+        assert!(
+            raised
+                .frames
+                .iter()
+                .all(|frame| frame.call_span == boundary)
+        );
+        assert_eq!(
+            raised.frames.last().unwrap().function,
+            format!("arbitrary-functions.{function}")
+        );
+    }
+}
+
+#[test]
+fn nested_source_module_frames_collapse_to_the_public_boundary() {
+    let engine = Engine::builder()
+        .module(
+            Module::source(
+                "nested-frames",
+                "fn inner() do raise \"boom\" end fn outer() do inner() end outer",
+            )
+            .build(),
+        )
+        .build();
+    let source = "let outer = require(\"nested-frames\") outer()";
+    let boundary = Span::new(source.rfind("outer()").unwrap(), source.len());
+    let raised = match engine.eval(source).unwrap() {
+        Err(raised) => raised,
+        Ok(value) => panic!("caller raise should propagate, got {}", value.render()),
+    };
+    assert_eq!(raised.origin, boundary);
+    assert_eq!(raised.frames.len(), 2);
+    assert_eq!(raised.frames[0].function, "nested-frames.inner");
+    assert_eq!(raised.frames[1].function, "nested-frames.outer");
+    assert!(
+        raised
+            .frames
+            .iter()
+            .all(|frame| frame.call_span == boundary)
+    );
+}
+
+#[test]
+fn explicitly_shared_private_host_values_keep_alias_identity_across_engines() {
+    let host = simi::host_value! {
+        name: "shared-host",
+        values: {
+            "count" => Value::Int(1),
+        },
+    };
+    let first = Engine::builder()
+        .module(
+            Module::source("shared-host", "host")
+                .host(host.clone())
+                .build(),
+        )
+        .build();
+    let second = Engine::builder()
+        .module(Module::source("shared-host", "host").host(host).build())
+        .build();
+    first
+        .eval("let shared = require(\"shared-host\") shared.count = 2")
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        second
+            .eval("require(\"shared-host\").count")
+            .unwrap()
+            .unwrap()
+            .render(),
+        "2"
+    );
+}
+
+#[test]
+fn source_facades_can_expose_an_arbitrary_private_host_value() {
+    let engine = Engine::builder()
+        .module(
+            Module::source("host-value", "host")
+                .host(Value::String("native data".to_owned()))
+                .build(),
+        )
+        .build();
+    assert_eq!(
+        engine
+            .eval("require(\"host-value\")")
+            .unwrap()
+            .unwrap()
+            .render(),
+        "\"native data\""
+    );
+}
+
+#[test]
+fn source_modules_cache_exports_and_capture_private_host_values() {
     let calls = Arc::new(AtomicUsize::new(0));
+    let host = simi::host_value! {
+        name: "source",
+        functions: {
+            "next" => (0, {
+                let calls = calls.clone();
+                move |_: &[Value], _| {
+                    let value = calls.fetch_add(1, Ordering::SeqCst) + 1;
+                    Ok(Ok(Value::Int(i64::try_from(value).unwrap())))
+                }
+            }),
+        },
+    };
     let module = Module::source(
         "source",
         r#"
-        fn next() do host.call("com.example/next") end
-        { next = next }
+        let next: () -> integer = host.next
+        {next = next}
         "#,
     )
-    .host_function("com.example/next", 0, {
-        let calls = calls.clone();
-        move |_, _| {
-            let value = calls.fetch_add(1, Ordering::SeqCst) + 1;
-            Ok(Ok(Value::Int(i64::try_from(value).unwrap())))
-        }
-    })
+    .host(host)
     .build();
     assert!(module.is_source_backed());
     let engine = Engine::builder().module(module).build();
@@ -388,20 +689,16 @@ fn source_modules_cache_exports_and_capture_private_host_dispatch() {
             .render(),
         "[1, 2]"
     );
-    assert!(
-        Engine::new()
-            .eval("host.call(\"com.example/next\")")
-            .is_err()
-    );
+    assert!(Engine::new().eval("host.next()").is_err());
 }
 
 #[test]
-fn source_modules_raise_for_missing_hosts_and_cycles() {
+fn source_modules_reject_missing_host_values_and_raise_for_cycles() {
     let missing = Module::source(
         "missing-host",
         r#"
-        fn call() do host.call("com.example/missing") end
-        { call = call }
+        fn call() do host.missing() end
+        {call = call}
         "#,
     )
     .build();
@@ -410,20 +707,19 @@ fn source_modules_raise_for_missing_hosts_and_cycles() {
         .module(Module::source("left", "require(\"right\")").build())
         .module(Module::source("right", "require(\"left\")").build())
         .build();
-    let caught = engine
-        .eval(
-            r#"
-            let module = require("missing-host")
-            try module.call()
-            catch error do error
-            end
-            "#,
-        )
-        .unwrap()
-        .unwrap();
+    let missing_source = "let module = require(\"missing-host\") module.call()";
+    let missing = match engine.eval(missing_source) {
+        Err(error) => error,
+        Ok(_) => panic!("calling a missing private host field should be a hard diagnostic"),
+    };
+    assert!(
+        missing
+            .to_string()
+            .contains("cannot call value of type nil")
+    );
     assert_eq!(
-        caught.render(),
-        "{error=\"host_function_not_found\", function=\"com.example/missing\"}"
+        missing.span().start,
+        missing_source.rfind("module.call").unwrap()
     );
     let cycle = match engine.eval("require(\"left\")").unwrap() {
         Err(raised) => raised,
@@ -439,18 +735,38 @@ fn source_modules_raise_for_missing_hosts_and_cycles() {
 #[test]
 fn source_modules_cache_nil_and_validate_host_contracts() {
     let calls = Arc::new(AtomicUsize::new(0));
-    let nil_module = Module::source("nil-module", "host.call(\"com.example/load\") nil")
-        .host_function("com.example/load", 0, {
-            let calls = calls.clone();
-            move |_, _| {
-                calls.fetch_add(1, Ordering::SeqCst);
-                Ok(Ok(Value::Nil))
-            }
-        })
+    let nil_host = simi::host_value! {
+        name: "nil-module",
+        functions: {
+            "load" => (0, {
+                let calls = calls.clone();
+                move |_: &[Value], _| {
+                    calls.fetch_add(1, Ordering::SeqCst);
+                    Ok(Ok(Value::Nil))
+                }
+            }),
+        },
+    };
+    let nil_module = Module::source("nil-module", "host.load() nil")
+        .host(nil_host)
         .build();
-    let bad_type = Module::source("bad-type", "host.call(1)").build();
-    let wrong_arity = Module::source("wrong-arity", "host.call(\"com.example/one\")")
-        .host_function("com.example/one", 1, |_, _| Ok(Ok(Value::Nil)))
+    let bad_host = simi::host_value! {
+        name: "bad-type",
+        values: {
+            "value" => Value::Int(1),
+        },
+    };
+    let bad_type = Module::source("bad-type", "host.value()")
+        .host(bad_host)
+        .build();
+    let wrong_host = simi::host_value! {
+        name: "wrong-arity",
+        functions: {
+            "one" => (1, |_: &[Value], _| Ok(Ok(Value::Nil))),
+        },
+    };
+    let wrong_arity = Module::source("wrong-arity", "host.one()")
+        .host(wrong_host)
         .build();
     let engine = Engine::builder()
         .module(nil_module)
@@ -464,9 +780,13 @@ fn source_modules_cache_nil_and_validate_host_contracts() {
     assert_eq!(calls.load(Ordering::SeqCst), 1);
     let bad_type = match engine.eval("require(\"bad-type\")") {
         Err(error) => error,
-        Ok(_) => panic!("expected host ID type diagnostic"),
+        Ok(_) => panic!("expected non-function host value diagnostic"),
     };
-    assert!(bad_type.to_string().contains("string function ID"));
+    assert!(
+        bad_type
+            .to_string()
+            .contains("cannot call value of type integer")
+    );
     let wrong_arity = match engine.eval("require(\"wrong-arity\")") {
         Err(error) => error,
         Ok(_) => panic!("expected host arity diagnostic"),
@@ -481,17 +801,23 @@ fn source_modules_cache_nil_and_validate_host_contracts() {
 #[test]
 fn source_module_nested_loads_retry_failures_and_isolate_cached_mutation() {
     let attempts = Arc::new(AtomicUsize::new(0));
-    let flaky = Module::source("flaky", "host.call(\"com.example/flaky\") { value = 1 }")
-        .host_function("com.example/flaky", 0, {
-            let attempts = attempts.clone();
-            move |_, span| {
-                if attempts.fetch_add(1, Ordering::SeqCst) == 0 {
-                    Err(RuntimeError::new(span, "temporary load failure"))
-                } else {
-                    Ok(Ok(Value::Nil))
+    let flaky_host = simi::host_value! {
+        name: "flaky",
+        functions: {
+            "flaky" => (0, {
+                let attempts = attempts.clone();
+                move |_: &[Value], span| {
+                    if attempts.fetch_add(1, Ordering::SeqCst) == 0 {
+                        Err(RuntimeError::new(span, "temporary load failure"))
+                    } else {
+                        Ok(Ok(Value::Nil))
+                    }
                 }
-            }
-        })
+            }),
+        },
+    };
+    let flaky = Module::source("flaky", "host.flaky() {value = 1}")
+        .host(flaky_host)
         .build();
     let engine = Engine::builder()
         .module(flaky)

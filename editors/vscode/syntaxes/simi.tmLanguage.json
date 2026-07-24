@@ -74,6 +74,7 @@
           },
           "patterns": [
             { "include": "#types" },
+            { "include": "#operators" },
             {
               "name": "variable.parameter.simi",
               "match": "\\b[A-Za-z_][A-Za-z0-9_]*\\b"
@@ -99,6 +100,7 @@
           },
           "patterns": [
             { "include": "#types" },
+            { "include": "#operators" },
             {
               "name": "variable.parameter.simi",
               "match": "\\b[A-Za-z_][A-Za-z0-9_]*\\b"
@@ -179,7 +181,7 @@
       "patterns": [
         {
           "name": "keyword.control.conditional.simi",
-          "match": "\\b(?:if|then|elseif|else|after|becomes)\\b"
+          "match": "\\b(?:if|then|elseif|else)\\b"
         },
         {
           "name": "keyword.control.loop.simi",
@@ -250,7 +252,7 @@
         },
         {
           "name": "keyword.operator.type.simi",
-          "match": "->|\\|(?!>)"
+          "match": "=>|->|\\|(?!>)"
         },
         {
           "name": "keyword.operator.concatenation.simi",

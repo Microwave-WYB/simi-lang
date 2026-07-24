@@ -15,10 +15,10 @@ fn classify(value, limit) do
     end
 end
 
-fn declared_effect(xs: [..integer], pair: [integer, string]) -> nil
-    after xs becomes [..integer | string]
-    after pair becomes [..integer | string]
-do nil end
+fn declared_effect(
+    xs: [..integer] => [..(integer | string)],
+    pair: [integer, string] => [..(integer | string)],
+) -> nil do nil end
 
 let mapper = fn(item) do item * 2 end
 let iter = require("std/iter")

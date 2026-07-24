@@ -187,7 +187,7 @@ define an equivalent transparent alias later.
 
 Lists and maps remain mutable and aliased. The analyzer must update facts for
 known mutations and conservatively widen them when mutation through an alias,
-unknown host function, or unresolved call prevents a safe proof.
+unknown native function, or unresolved call prevents a safe proof.
 
 Examples of widening include losing an exact list shape after uncertain list
 mutation or losing required-field presence after uncertain map mutation. A
@@ -198,17 +198,15 @@ Known operations retain the strongest representable fact. Appending to an exact
 list therefore extends its exact shape, while insertion at an unknown position
 widens it to a homogeneous rest list.
 
-A named function may declare normal-return parameter post-types after its signature:
+A named function may declare normal-return parameter post-types directly beside each input type:
 
 ```simi
-fn append(xs: [..'a], value: 'b) -> nil
-    after xs becomes [..'a | 'b]
-do
-    host.call("org.simi-lang/std/list/append", xs, value)
+fn append(xs: [..'a] => [..('a | 'b)], value: 'b) -> nil do
+    host.append(xs, value)
 end
 ```
 
-Multiple parameters use repeated `after` clauses in source order. A post-type is
+Multiple affected parameters each use `before => after` in their own parameter slot. Inline function types use the same notation inside an explicit parameter list, for example `([..'a] => [..('a | 'b)], 'b) -> nil`. A post-type is
 a guaranteed upper bound after normal return; it does not discard a stronger
 fact inferred for a known operation. List and map post-types may transform their
 internal structure while preserving runtime category and alias identity. Other
@@ -219,10 +217,11 @@ post-state.
 Named functions also infer missing mutable-parameter post-types from modeled
 operations and already-known postconditions in their bodies. Normal-return paths
 are joined conservatively, inferred posts share generic identities with the
-function signature, and function aliases inherit them. An explicit `after`
-clause takes precedence for its parameter and is checked against an ordinary
-Simi body when the final state is provable. A direct `host.call` facade remains
-a trusted native contract. Unknown calls may widen state but cannot establish a
+function signature, and function aliases inherit them. An explicit post-state
+annotation takes precedence for its parameter and is checked against an ordinary
+Simi body when the final state is provable. A direct call to an ordinary native
+function on the private `host` value remains a trusted native contract. Unknown
+calls may widen state but cannot establish a
 stronger inferred guarantee.
 
 ## Narrowing

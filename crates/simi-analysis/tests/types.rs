@@ -341,11 +341,19 @@ fn known_list_append_refines_empty_lists_and_all_aliases() {
 }
 
 #[test]
+fn malformed_post_state_parameters_remain_recoverable_during_inference() {
+    let db = AnalysisDatabase::default();
+    let file = db.add_file("fn bad(: integer => string) do nil end\n");
+    let modules = HashMap::new();
+    let _ = infer_types(&db, file, &modules);
+}
+
+#[test]
 fn declared_post_types_update_all_aliases_after_normal_calls() {
     let source = r#"
-fn widen(xs: [..integer]) -> nil
-    after xs becomes [..integer | string]
-do host.call("opaque/widen", xs) end
+fn widen(xs: [..integer] => [..(integer | string)]) -> nil do
+    host.widen(xs)
+end
 let values = [1]
 let alias = values
 widen(values)
@@ -358,11 +366,11 @@ widen(values)
     );
     assert_eq!(
         type_of(&inference, &resolution, "values").display(),
-        "[..integer | string]"
+        "[..(integer | string)]"
     );
     assert_eq!(
         type_of(&inference, &resolution, "alias").display(),
-        "[..integer | string]"
+        "[..(integer | string)]"
     );
     let widen = type_of(&inference, &resolution, "widen");
     assert_eq!(widen.display(), "[..integer] -> nil");
@@ -420,7 +428,7 @@ let piped = [1] |> tap append_alias(2) |> tap append_alias(3)
     assert_eq!(inference.symbol_posts[&append][0].parameter_name, "xs");
     assert_eq!(
         inference.symbol_posts[&append][0].becomes.display(),
-        "[..'a | 'b]"
+        "[..('a | 'b)]"
     );
     assert_eq!(
         type_of(&inference, &resolution, "values").display(),
@@ -499,18 +507,13 @@ ns
 #[test]
 fn source_posts_are_verified_and_host_facades_are_trusted() {
     let source = r#"
-fn wrong(xs: [..integer]) -> nil
-    after xs becomes [..string]
-do nil end
-fn trusted(xs: [..integer]) -> nil
-    after xs becomes [..string]
-do host.call("opaque", xs) end
-fn invalid(value: integer) -> nil
-    after value becomes string
-do nil end
-fn unknown(value: integer) -> nil
-    after missing becomes integer
-do nil end
+fn wrong(xs: [..integer] => [..string]) -> nil do nil end
+fn trusted(xs: [..integer] => [..string]) -> nil do host.opaque(xs) end
+fn invalid(value: integer => string) -> nil do nil end
+fn shadowed(
+    host: {opaque: [..integer] -> nil},
+    xs: [..integer] => [integer],
+) -> nil do host.opaque(xs) end
 "#;
     let (inference, _) = inferred(source);
     let titles = inference
@@ -521,9 +524,9 @@ do nil end
     assert_eq!(
         titles,
         vec![
-            "Unknown post-type parameter",
             "Post-type is not established",
             "Invalid post-type",
+            "Post-type is not established",
         ]
     );
 }
@@ -1164,7 +1167,7 @@ dynamic
 #[test]
 fn structural_patterns_keep_heterogeneous_rest_and_require_closed_map_fields() {
     let source = r#"
-let values: [..integer | string] = [1, "two"]
+let values: [..(integer | string)] = [1, "two"]
 let tail = case values
 of [1, ..rest] do rest
 of _ do []
@@ -1192,11 +1195,11 @@ end
     );
     assert_eq!(
         type_of(&inference, &resolution, "rest").display(),
-        "[..integer | string]"
+        "[..(integer | string)]"
     );
     assert_eq!(
         type_of(&inference, &resolution, "tail").display(),
-        "[..integer | string]"
+        "[..(integer | string)]"
     );
     assert_eq!(
         type_of(&inference, &resolution, "result").display(),
@@ -1502,9 +1505,9 @@ fn callable_metadata_joins_and_invoked_assignments_are_conservative() {
     )]);
     let source = r#"
 let list = require("std/list")
-fn widen(xs: [..integer]) -> nil
-    after xs becomes [..integer | string]
-do host.call("test/widen", xs) end
+fn widen(xs: [..integer] => [..(integer | string)]) -> nil do
+    host.widen(xs)
+end
 fn plain(xs: [..integer]) do nil end
 let flag: boolean = true
 let selected = widen
@@ -1764,7 +1767,7 @@ end
     );
     assert_eq!(
         type_of(&inference, &resolution, "quicksort").display(),
-        "[..integer | float] -> [..integer | float]"
+        "[..(integer | float)] -> [..(integer | float)]"
     );
 }
 

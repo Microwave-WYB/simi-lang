@@ -14,6 +14,7 @@
   (map_pattern)
   (arguments)
   (parameters)
+  (declared_parameters)
 ] @indent.begin
 
 [

@@ -19,10 +19,10 @@ let add_one = fn(value) do value + 1 end
   (comment)
   (function_declaration
     (identifier)
-    (parameters
-      (parameter
+    (declared_parameters
+      (declared_parameter
         (identifier))
-      (parameter
+      (declared_parameter
         (identifier)))
     (block
       (let_statement

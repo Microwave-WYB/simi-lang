@@ -58,22 +58,6 @@ impl Raised {
         )
     }
 
-    pub(crate) fn host_function_not_found(function: &str, origin: Span) -> Self {
-        Self::new(
-            Value::Map(Gc::new(GcCell::new(vec![
-                (
-                    MapKey::String("error".to_owned()),
-                    Value::String("host_function_not_found".to_owned()),
-                ),
-                (
-                    MapKey::String("function".to_owned()),
-                    Value::String(function.to_owned()),
-                ),
-            ]))),
-            origin,
-        )
-    }
-
     pub(crate) fn io_error(operation: &str, message: String, origin: Span) -> Self {
         Self::new(
             Value::Map(Gc::new(GcCell::new(vec![
@@ -113,6 +97,16 @@ impl Raised {
 
     pub(crate) fn push_frame(&mut self, frame: TraceFrame) {
         self.frames.push(frame);
+    }
+
+    pub(crate) fn remap_to_boundary(&mut self, boundary: Span) {
+        self.origin = boundary;
+        for frame in &mut self.frames {
+            frame.call_span = boundary;
+        }
+        if let Some(cause) = &mut self.cause {
+            cause.remap_to_boundary(boundary);
+        }
     }
 
     pub(crate) fn append_cause(&mut self, cause: Raised) {

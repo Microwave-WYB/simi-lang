@@ -236,14 +236,15 @@ A nil-abort directly from a loop body contributes `nil` as the next state, equiv
 
 ## Mutation, aliases, and postconditions
 
-Runtime lists and maps remain mutable and aliased. An erased annotation cannot freeze a container or restrict later values. Analysis updates facts after known mutation and widens them after mutation through an alias, unresolved call, or unknown host operation when a stronger claim is unsafe.
+Runtime lists and maps remain mutable and aliased. An erased annotation cannot freeze a container or restrict later values. Analysis updates facts after known mutation and widens them after mutation through an alias, unresolved call, or unknown native function when a stronger claim is unsafe.
 
-A named function may document the guaranteed parameter state after **normal return**:
+A named function may document the guaranteed parameter state after **normal return** with `before => after`:
 
 ```simi
-fn append_text(values: [..integer], value: string) -> nil
-    after values becomes [..integer | string]
-do
+fn append_text(
+    values: [..integer] => [..(integer | string)],
+    value: string,
+) -> nil do
     require("std/list").append(values, value)
 end
 
@@ -253,11 +254,11 @@ append_text(values, "three")
 [values, alias]
 ```
 
-Use one `after` clause per affected parameter, in source order. A post-type is a guaranteed upper bound, not permission to discard a stronger fact known at a particular call. List and map post-types may change internal structure while preserving runtime category and alias identity; all aliases to the same mutable region receive the post-state. Other runtime categories may only narrow.
+Place `=>` directly after each affected parameter's input type. In an inline function type, post-state parameters require the explicit parameter-list form, such as `([..integer] => [..(integer | string)], string) -> nil`; an unparenthesized `integer => string -> nil` is rejected as ambiguous. A post-type is a guaranteed upper bound, not permission to discard a stronger fact known at a particular call. List and map post-types may change internal structure while preserving runtime category and alias identity; all aliases to the same mutable region receive the post-state. Other runtime categories may only narrow.
 
 Postconditions apply only after normal return. Raised and nonreturning paths do not establish caller-visible post-state.
 
-Missing mutable-parameter post-types may also be inferred from modeled operations and already-known postconditions in the body. Normal-return paths are joined conservatively. An explicit clause takes precedence and is checked when an ordinary Simi body makes the final state provable; a direct private `host.call` facade is treated as a trusted native contract.
+Missing mutable-parameter post-types may also be inferred from modeled operations and already-known postconditions in the body. Normal-return paths are joined conservatively. An explicit post-state annotation takes precedence and is checked when an ordinary Simi body makes the final state provable; a direct call to a native function on a facade's private `host` value is treated as a trusted native contract.
 
 ## What the initial type system does not do
 

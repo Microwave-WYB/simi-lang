@@ -9,14 +9,15 @@ let option = 40
 let deliberately_wrong: integer = "still dynamic"
 fn identity(value: 'a) -> 'a do value end
 let add: (integer, integer) -> integer = fn(left: integer, right: integer) -> integer do left + right end
+let mutator: ([..integer] => [..(integer | string)], string) -> nil = fn(values, value) do nil end
 let exact: pair<integer, string> = [1, "one"]
 let many: [..integer] = [2, 3]
 let record: { name: string, .. } = { name = "Simi", enabled = true }
 let indexed: { [string | integer]: boolean } = { ready = true, [1] = false }
-fn declared_effect(left: [..integer], right: [..string]) -> nil
-    after left becomes [..integer | string]
-    after right becomes [..string]
-do nil end
+fn declared_effect(
+    left: [..integer] => [..(integer | string)],
+    right: [..string] => [..string],
+) -> nil do nil end
 declared_effect(exact, many)
 [option + exact[0], type(deliberately_wrong), identity(exact[1]), add(exact[0], many[0]), record.name, indexed[1]]
 alias trailing = option<string>

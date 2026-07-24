@@ -1,6 +1,6 @@
 ---- Explicit numeric rendering conversions.
 
 --- Render a number using canonical Simi notation.
-fn to_string(number: integer | float) -> string do host.call("org.simi-lang/std/number/to_string", number) end
+let to_string: (integer | float) -> string = host.to_string
 
-{ to_string = to_string }
+{to_string = to_string}

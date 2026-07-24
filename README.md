@@ -84,7 +84,7 @@ The editor extensions are currently installed from this repository rather than a
 - mutable zero-based lists and insertion-ordered maps;
 - structural list/map patterns and catchable raised values;
 - tracing garbage collection with cycle-safe inspection;
-- explicit source-backed modules and host operations;
+- explicit source-backed modules with private native host values;
 - lazy, single-pass iterators in `std/iter`;
 - opt-in text IO through `std/io`;
 - Rowan syntax, Salsa-backed analysis, LSP support, and VS Code, Zed, and Tree-sitter integrations.
@@ -115,7 +115,7 @@ Standard IO is deliberately opt-in:
 let mut engine = Engine::builder().stdlib().stdio().build();
 ```
 
-Hosts can register direct value modules or source-backed modules whose public facade is written in Simi.
+Hosts can register direct value modules or use `host_value!` to generate a private host map for a source-backed Simi facade; `.host(value)` also accepts any other Simi value. The facade adds erased types and documentation, may define additional Simi behavior, and evaluates to the public module value.
 
 ## Standard modules
 

@@ -215,9 +215,10 @@ fn field_from_value(
             if let Some(token) = support::token(node.syntax(), K::IDENT) {
                 if let Some(symbol) = resolution.symbol_at(token_span(&token).start)
                     && let Some(data) = resolution.symbol_data(symbol)
-                    && matches!(data.kind, SymbolKind::Function | SymbolKind::Builtin)
                 {
-                    field.parameters = data.parameters.clone();
+                    if matches!(data.kind, SymbolKind::Function | SymbolKind::Builtin) {
+                        field.parameters = data.parameters.clone();
+                    }
                     field.documentation = data.documentation.clone();
                     field.span = data.declaration.unwrap_or(field.span);
                 } else if let Some(fields) = maps.get(token.text()) {

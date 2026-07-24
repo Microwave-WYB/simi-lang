@@ -46,7 +46,7 @@ fn to_list(iterator) do
         let step = iterator()
         if step.done then break result
         else
-            host.call("org.simi-lang/std/iter/append", result, step.value)
+            host.append(result, step.value)
             continue
         end
     end

@@ -833,7 +833,9 @@ fn direct_module_fields_and_aliases_keep_signatures_and_docs() {
     let module = r#"
 --- Print one value.
 fn println(value) do nil end
-{ println = println, identity = fn(value) do value end }
+--- Inspect text through a native alias.
+let inspect: string -> string = host.inspect
+{ println = println, identity = fn(value) do value end, inspect = inspect }
 "#;
 
     for (source, needle, occurrence, expected) in [
@@ -854,6 +856,12 @@ fn println(value) do nil end
             "identity",
             0,
             "identity : 'a -> 'a",
+        ),
+        (
+            "require(\"std/io\").inspect",
+            "inspect",
+            0,
+            "inspect : string -> string\n\nInspect text through a native alias.",
         ),
     ] {
         let mut backend = Backend::with_module_sources([("std/io", module)]);
@@ -903,6 +911,69 @@ fn println(value) do nil end
     assert_eq!(
         print.documentation,
         Some(Documentation::String("Print one value.".to_owned()))
+    );
+
+    let typed_source = concat!(
+        "let inspect = require(\"std/io\").inspect\n",
+        "let callback: integer -> integer = fn(value) do value end\n",
+    );
+    let mut backend = Backend::with_module_sources([("std/io", module)]);
+    open(&mut backend, typed_source);
+    let completion: Option<CompletionResponse> = serde_json::from_value(
+        request(
+            &mut backend,
+            Completion::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": position::position(typed_source, typed_source.len()).unwrap(),
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let CompletionResponse::Array(items) = completion.unwrap() else {
+        panic!("expected completion array")
+    };
+    for name in ["inspect", "callback"] {
+        let item = items
+            .iter()
+            .find(|item| item.label == name)
+            .expect("typed function completion");
+        assert_eq!(item.kind, Some(CompletionItemKind::FUNCTION));
+    }
+
+    let member_source = "let io = require(\"std/io\") io.";
+    let mut backend = Backend::with_module_sources([("std/io", module)]);
+    open(&mut backend, member_source);
+    let completion: Option<CompletionResponse> = serde_json::from_value(
+        request(
+            &mut backend,
+            Completion::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": position::position(member_source, member_source.len()).unwrap(),
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let CompletionResponse::Array(items) = completion.unwrap() else {
+        panic!("expected completion array")
+    };
+    let inspect = items
+        .iter()
+        .find(|item| item.label == "inspect")
+        .expect("inspect completion");
+    assert_eq!(inspect.kind, Some(CompletionItemKind::FUNCTION));
+    assert_eq!(
+        inspect.detail.as_deref(),
+        Some("inspect : string -> string")
+    );
+    assert_eq!(
+        inspect.documentation,
+        Some(Documentation::String(
+            "Inspect text through a native alias.".to_owned()
+        ))
     );
 }
 
@@ -1035,7 +1106,7 @@ nums[3]"#;
     };
     assert_eq!(
         markup.value,
-        "append : ([..'a], 'b) -> nil\n    after xs becomes [..'a | 'b]\n\nAppend a value to a list."
+        "append : ([..'a] => [..('a | 'b)], 'b) -> nil\n\nAppend a value to a list."
     );
 }
 
@@ -1309,13 +1380,10 @@ let piped = [1] |> tap append_alias(2) |> tap append_alias(3)
     let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
     assert!(diagnostics.diagnostics.is_empty());
     for (name, expected) in [
-        (
-            "append",
-            "append : ([..'a], 'b) -> nil\n    after xs becomes [..'a | 'b]",
-        ),
+        ("append", "append : ([..'a] => [..('a | 'b)], 'b) -> nil"),
         (
             "append_alias",
-            "append_alias : ([..'a], 'b) -> nil\n    after xs becomes [..'a | 'b]",
+            "append_alias : ([..'a] => [..('a | 'b)], 'b) -> nil",
         ),
         ("piped", "piped : [..integer]"),
     ] {
@@ -1389,7 +1457,7 @@ end
     };
     assert_eq!(
         markup.value,
-        "quicksort : [..integer | float] -> [..integer | float]"
+        "quicksort : [..(integer | float)] -> [..(integer | float)]"
     );
 }
 
@@ -1473,6 +1541,30 @@ fib(5)
         };
         assert_eq!(markup.value, expected);
     }
+}
+
+#[test]
+fn ambiguous_post_state_annotations_publish_targeted_syntax_diagnostics() {
+    let mut backend = Backend::new();
+    let diagnostics =
+        diagnostics_from(open(&mut backend, "let bad: 'a | 'b => 'b -> 'b = nil\n").remove(0));
+    assert!(
+        diagnostics.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == Some(NumberOrString::String("syntax_error".to_owned()))
+                && diagnostic
+                    .message
+                    .contains("Ambiguous post-state annotation")
+        }),
+        "{:?}",
+        diagnostics.diagnostics
+    );
+
+    let mut backend = Backend::new();
+    let malformed =
+        diagnostics_from(open(&mut backend, "fn bad(: integer => string) do nil end\n").remove(0));
+    assert!(malformed.diagnostics.iter().any(
+        |diagnostic| diagnostic.code == Some(NumberOrString::String("syntax_error".to_owned()))
+    ));
 }
 
 #[test]

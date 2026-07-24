@@ -25,9 +25,10 @@ use serde::de::DeserializeOwned;
 use serde_json::Value;
 use simi_analysis::{
     AnalysisDatabase, AnalysisDiagnosticSeverity, FileId, ModuleShape, ParameterPostType,
-    RenameError, Resolution, Span, SymbolKind, diagnostics, document_symbols, expression_type_at,
-    field_type_at, imported_members, infer_types, member_at, member_completions, module_at,
-    module_shape, references, resolve, source_text, symbol_type_at, wildcard_type_at,
+    RenameError, Resolution, Span, SymbolKind, Type, diagnostics, document_symbols,
+    expression_type_at, field_type_at, imported_members, infer_types, member_at,
+    member_completions, module_at, module_shape, references, resolve, source_text, symbol_type_at,
+    wildcard_type_at,
 };
 
 use crate::position;
@@ -547,7 +548,8 @@ impl Backend {
                 member_completions(&self.db, document.file, &self.module_shapes, &text, offset)
                     .into_iter()
                     .map(|field| {
-                        let is_function = field.parameters.is_some();
+                        let is_function = field.parameters.is_some()
+                            || matches!(field.ty.as_ref(), Some(Type::Function(_, _)));
                         CompletionItem {
                             label: field.name.clone(),
                             kind: Some(if is_function {
@@ -594,28 +596,30 @@ impl Backend {
                 let imported = imported.get(&symbol);
                 let imported_parameters =
                     imported.and_then(|member| member.field.parameters.as_deref());
-                let kind = if imported_parameters.is_some() {
+                let effective_ty = inference
+                    .symbol_types
+                    .get(&symbol)
+                    .cloned()
+                    .or_else(|| imported.and_then(|member| member.field.ty.clone()));
+                let kind = if imported_parameters.is_some()
+                    || matches!(effective_ty.as_ref(), Some(Type::Function(_, _)))
+                {
                     CompletionItemKind::FUNCTION
                 } else {
                     completion_kind(data.kind)
                 };
-                let detail = inference
-                    .symbol_types
-                    .get(&symbol)
-                    .cloned()
-                    .or_else(|| imported.and_then(|member| member.field.ty.clone()))
-                    .map_or_else(
-                        || completion_detail(data.kind, &data.name, data.parameters.as_deref()),
-                        |ty| {
-                            let posts = inference
-                                .symbol_posts
-                                .get(&symbol)
-                                .map(Vec::as_slice)
-                                .or_else(|| imported.map(|member| member.field.posts.as_slice()))
-                                .unwrap_or(&[]);
-                            typed_detail(&data.name, Some(&ty), posts)
-                        },
-                    );
+                let detail = effective_ty.map_or_else(
+                    || completion_detail(data.kind, &data.name, data.parameters.as_deref()),
+                    |ty| {
+                        let posts = inference
+                            .symbol_posts
+                            .get(&symbol)
+                            .map(Vec::as_slice)
+                            .or_else(|| imported.map(|member| member.field.posts.as_slice()))
+                            .unwrap_or(&[]);
+                        typed_detail(&data.name, Some(&ty), posts)
+                    },
+                );
                 items.push(CompletionItem {
                     label: data.name.clone(),
                     kind: Some(kind),
@@ -788,17 +792,28 @@ fn typed_detail(
     ty: Option<&simi_analysis::Type>,
     posts: &[ParameterPostType],
 ) -> String {
-    let mut detail = format!(
-        "{name} : {}",
-        ty.map_or_else(|| "any".to_owned(), |ty| ty.display())
-    );
-    for post in posts {
-        detail.push_str("\n    after ");
-        detail.push_str(&post.parameter_name);
-        detail.push_str(" becomes ");
-        detail.push_str(&post.becomes.display());
-    }
-    detail
+    let displayed = match ty {
+        Some(Type::Function(parameters, result)) if !posts.is_empty() => {
+            let parameters = parameters
+                .iter()
+                .enumerate()
+                .map(|(index, parameter)| {
+                    posts
+                        .iter()
+                        .find(|post| post.parameter_index == index)
+                        .map_or_else(
+                            || parameter.display(),
+                            |post| format!("{} => {}", parameter.display(), post.becomes.display()),
+                        )
+                })
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("({parameters}) -> {}", result.display())
+        }
+        Some(ty) => ty.display(),
+        None => "any".to_owned(),
+    };
+    format!("{name} : {displayed}")
 }
 
 fn completion_detail(_kind: SymbolKind, name: &str, _parameters: Option<&[String]>) -> String {

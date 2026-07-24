@@ -16,8 +16,6 @@
   "alias"
   "if"
   "then"
-  "after"
-  "becomes"
   "elseif"
   "else"
   "loop"
@@ -59,6 +57,7 @@
   "<|"
   ".."
   "->"
+  "=>"
   "|"
 ] @operator
 
@@ -74,6 +73,9 @@
 (type_variable) @type.parameter
 
 (parameter
+  (identifier) @variable.parameter)
+
+(declared_parameter
   (identifier) @variable.parameter)
 
 (call_expression

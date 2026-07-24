@@ -1,8 +1,7 @@
 use super::{EvaluationError, EvaluationResult, Interpreter};
 use crate::ast::{Expr, PipelineStage};
 use crate::engine::ModuleLookup;
-use crate::module::HostOperation;
-use crate::runtime::{Environment, MapKey, NativeResult, Raised, RuntimeError, TraceFrame, Value};
+use crate::runtime::{Environment, NativeResult, Raised, RuntimeError, TraceFrame, Value};
 use crate::span::Span;
 use crate::value::NativeImplementation;
 
@@ -54,7 +53,7 @@ impl Interpreter {
             )
             .into());
         };
-        let (source, host_operations) = match self.modules.begin_load(name) {
+        let (source, host) = match self.modules.begin_load(name) {
             ModuleLookup::Missing => {
                 return Err(EvaluationError::Raised(Raised::module_not_found(
                     name, span,
@@ -66,10 +65,7 @@ impl Interpreter {
                 )));
             }
             ModuleLookup::Loaded(value) => return Ok(value),
-            ModuleLookup::Source {
-                source,
-                host_operations,
-            } => (source, host_operations),
+            ModuleLookup::Source { source, host } => (source, host),
         };
 
         let program = match crate::parser::parse_source(&source) {
@@ -82,18 +78,13 @@ impl Interpreter {
                 )));
             }
         };
-        let trace_module_functions = host_operations.is_empty();
         let environment = self.prelude.child();
-        let host = Value::Map(gc::Gc::new(gc::GcCell::new(vec![(
-            MapKey::String("call".to_owned()),
-            Value::NativeFunction(crate::runtime::NativeFunction::host_call(host_operations)),
-        )])));
         environment.define("host", host);
-        let previous_trace_setting = self.trace_function_calls;
         let previous_module_name = self.module_name.replace(name.clone());
-        self.trace_function_calls = trace_module_functions;
+        let previous_source_domain =
+            std::mem::replace(&mut self.source_domain, super::next_source_domain());
         let result = self.evaluate_items(&program.items, &environment);
-        self.trace_function_calls = previous_trace_setting;
+        self.source_domain = previous_source_domain;
         self.module_name = previous_module_name;
         match result {
             Ok(value) => {
@@ -108,51 +99,12 @@ impl Interpreter {
             }
             Err(EvaluationError::Raised(mut raised)) => {
                 self.modules.fail_load(name);
-                raised.origin = span;
+                raised.remap_to_boundary(span);
                 Err(EvaluationError::Raised(raised))
             }
             Err(error) => {
                 self.modules.fail_load(name);
                 Err(error)
-            }
-        }
-    }
-
-    fn call_host(
-        &mut self,
-        operations: &std::collections::HashMap<String, HostOperation>,
-        arguments: &[Value],
-        span: Span,
-    ) -> EvaluationResult<Value> {
-        let span = self.host_call_span.unwrap_or(span);
-        let Some(Value::String(id)) = arguments.first() else {
-            let actual = arguments.first().map_or("no value", Value::type_name);
-            return Err(RuntimeError::new(
-                span,
-                format!("host.call expects a string function ID, got {actual}"),
-            )
-            .into());
-        };
-        let Some(operation) = operations.get(id) else {
-            return Err(EvaluationError::Raised(Raised::host_function_not_found(
-                id, span,
-            )));
-        };
-        let host_arguments = &arguments[1..];
-        if host_arguments.len() != operation.arity() {
-            return Err(RuntimeError::new(
-                span,
-                format!(
-                    "host function `{id}` expects {} arguments, got {}",
-                    operation.arity(),
-                    host_arguments.len()
-                ),
-            )
-            .into());
-        }
-        match operation {
-            HostOperation::Callback { callback, .. } => {
-                evaluation_from_native(callback(host_arguments, span))
             }
         }
     }
@@ -166,15 +118,10 @@ impl Interpreter {
         match callee {
             Value::Function(function) => {
                 if arguments.len() != function.params.len() {
-                    let category = if function.trace_calls {
-                        "function"
-                    } else {
-                        "native function"
-                    };
                     return Err(EvaluationError::Runtime(RuntimeError {
                         span,
                         message: format!(
-                            "{category} `{}` expects {} arguments, got {}",
+                            "function `{}` expects {} arguments, got {}",
                             function.name,
                             function.params.len(),
                             arguments.len()
@@ -186,33 +133,28 @@ impl Interpreter {
                 for (parameter, argument) in function.params.iter().zip(arguments) {
                     call_env.define(parameter.clone(), argument);
                 }
-                let previous_host_span = self.host_call_span;
-                if function.trace_calls {
-                    self.host_call_span = None;
-                } else if self.host_call_span.is_none() {
-                    self.host_call_span = Some(span);
-                }
+                let caller_source_domain = self.source_domain;
+                let crosses_source = function.source_domain != caller_source_domain;
+                self.source_domain = function.source_domain;
                 let result = self.evaluate_block(&function.body, &call_env);
-                self.host_call_span = previous_host_span;
+                self.source_domain = caller_source_domain;
                 match result {
                     Ok(value) => Ok(value),
                     Err(EvaluationError::Raised(mut raised)) => {
-                        if function.trace_calls {
-                            if function.module.is_some() {
-                                raised.origin = span;
-                            }
-                            raised.push_frame(TraceFrame {
-                                function: function.name.clone(),
-                                call_span: span,
-                            });
+                        if crosses_source {
+                            raised.remap_to_boundary(span);
                         }
+                        raised.push_frame(TraceFrame {
+                            function: function.name.clone(),
+                            call_span: span,
+                        });
                         Err(EvaluationError::Raised(raised))
                     }
                     Err(EvaluationError::Runtime(mut error)) => {
-                        if function.trace_calls
-                            && let Some(module) = &function.module
-                        {
+                        if crosses_source {
                             error.span = span;
+                        }
+                        if let Some(module) = &function.module {
                             error.message = format!("module `{module}`: {}", error.message);
                         }
                         Err(EvaluationError::Runtime(error))
@@ -226,9 +168,7 @@ impl Interpreter {
                 }
             }
             Value::NativeFunction(function) => {
-                if !matches!(function.implementation(), NativeImplementation::HostCall(_))
-                    && arguments.len() != function.arity()
-                {
+                if arguments.len() != function.arity() {
                     return Err(EvaluationError::Runtime(RuntimeError {
                         span,
                         message: format!(
@@ -244,9 +184,6 @@ impl Interpreter {
                         evaluation_from_native(callback(&arguments, span))
                     }
                     NativeImplementation::Require => self.require_module(&arguments[0], span),
-                    NativeImplementation::HostCall(operations) => {
-                        self.call_host(operations, &arguments, span)
-                    }
                 }
             }
             value => Err(EvaluationError::Runtime(RuntimeError {

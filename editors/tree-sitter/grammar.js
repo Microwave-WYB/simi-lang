@@ -46,9 +46,8 @@ module.exports = grammar({
     function_declaration: ($) => seq(
       "fn",
       field("name", $.identifier),
-      field("parameters", $.parameters),
+      field("parameters", $.declared_parameters),
       optional(field("return_type", $.return_annotation)),
-      repeat($.post_condition),
       "do",
       optional(field("body", $.block)),
       "end",
@@ -226,6 +225,18 @@ module.exports = grammar({
       ")",
     ),
 
+    declared_parameters: ($) => seq(
+      "(",
+      optional(commaSep1($.declared_parameter)),
+      optional(","),
+      ")",
+    ),
+
+    declared_parameter: ($) => seq(
+      field("name", $.identifier),
+      optional(field("type", $.type_annotation)),
+    ),
+
     parameters: ($) => seq(
       "(",
       optional(commaSep1($.parameter)),
@@ -235,17 +246,18 @@ module.exports = grammar({
 
     parameter: ($) => seq(
       field("name", $.identifier),
-      optional(field("type", $.type_annotation)),
+      optional(field("type", seq(":", $._type))),
     ),
 
-    type_annotation: ($) => seq(":", $._type),
-    return_annotation: ($) => seq("->", $._type),
-    post_condition: ($) => seq(
-      "after",
-      field("parameter", $.identifier),
-      "becomes",
-      field("type", $._type),
+    type_annotation: ($) => seq(
+      ":",
+      choice(
+        seq(field("before", $.union_type), field("post", $.post_type)),
+        $._type,
+      ),
     ),
+    return_annotation: ($) => seq("->", $._type),
+    post_type: ($) => seq("=>", field("type", $.union_type)),
 
     type_parameters: ($) => seq(
       "<",
@@ -293,9 +305,14 @@ module.exports = grammar({
 
     parenthesized_type: ($) => seq(
       "(",
-      optional(commaSep1($._type)),
+      optional(commaSep1($.function_type_parameter)),
       optional(","),
       ")",
+    ),
+
+    function_type_parameter: ($) => choice(
+      seq(field("before", $.union_type), field("post", $.post_type)),
+      $._type,
     ),
 
     list_type: ($) => seq(

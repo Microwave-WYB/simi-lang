@@ -9,10 +9,10 @@ fn typed_identity(value: 'a) -> 'a do
     value
 end
 
-fn declared_effect(xs: [..integer], pair: [integer, string]) -> nil
-    after xs becomes [..integer | string]
-    after pair becomes [..integer | string]
-do nil end
+fn declared_effect(
+    xs: [..integer] => [..(integer | string)],
+    pair: [integer, string] => [..(integer | string)],
+) -> nil do nil end
 
 let list = require("std/list")
 let iter = require("std/iter")

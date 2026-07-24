@@ -14,7 +14,7 @@ fn lexes_every_keyword_operator_and_delimiter() {
     assert_eq!(
         kinds(
             "fn do end if then elseif else let tap nil true false and or not loop break continue \
-             case of when raise try catch ( ) [ ] { } , . .. = == != + - * / // % < <= > >= ? ?> |> <|"
+             case of when raise try catch ( ) [ ] { } , . .. = => == != + - * / // % < <= > >= ? ?> |> <|"
         ),
         vec![
             TokenKind::Fn,
@@ -51,6 +51,7 @@ fn lexes_every_keyword_operator_and_delimiter() {
             TokenKind::Dot,
             TokenKind::DotDot,
             TokenKind::Equal,
+            TokenKind::FatArrow,
             TokenKind::EqualEqual,
             TokenKind::BangEqual,
             TokenKind::Plus,

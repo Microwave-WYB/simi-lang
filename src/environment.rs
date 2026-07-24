@@ -244,7 +244,7 @@ mod tests {
                 span: Span::new(0, 0),
             },
             closure: environment.clone(),
-            trace_calls: true,
+            source_domain: 0,
             module: None,
         }));
         environment.define_fresh("self", function);

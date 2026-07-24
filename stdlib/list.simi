@@ -1,60 +1,52 @@
 ---- Mutable list operations and higher-order queries.
 
 --- Return the number of visible elements in a list.
-fn length(xs: [..'a]) -> integer do host.call("org.simi-lang/std/list/length", xs) end
+let length: [..'a] -> integer = host.length
 
 --- Create an independent shallow copy of a list.
-fn copy(xs: [..'a]) -> [..'a] do host.call("org.simi-lang/std/list/copy", xs) end
+let copy: [..'a] -> [..'a] = host.copy
 
 --- Return the value at an index, or nil when it is out of range.
-fn get(xs: [..'a], index: integer) -> 'a | nil do host.call("org.simi-lang/std/list/get", xs, index) end
+let get: ([..'a], integer) -> 'a | nil = host.get
 
 --- Append a value to a list.
-fn append(xs: [..'a], x: 'b) -> nil
-    after xs becomes [..'a | 'b]
-do host.call("org.simi-lang/std/list/append", xs, x) end
+let append: ([..'a] => [..('a | 'b)], 'b) -> nil = host.append
 
 --- Append every value from one list to another.
-fn extend(xs: [..'a], other: [..'b]) -> nil
-    after xs becomes [..'a | 'b]
-do host.call("org.simi-lang/std/list/extend", xs, other) end
+let extend: ([..'a] => [..('a | 'b)], [..'b]) -> nil = host.extend
 
 --- Replace the value at an existing index.
-fn set(xs: [..'a], index: integer, x: 'b) -> nil
-    after xs becomes [..'a | 'b]
-do host.call("org.simi-lang/std/list/set", xs, index, x) end
+let set: ([..'a] => [..('a | 'b)], integer, 'b) -> nil = host.set
 
 --- Insert a value at an existing position.
-fn insert(xs: [..'a], index: integer, x: 'b) -> nil
-    after xs becomes [..'a | 'b]
-do host.call("org.simi-lang/std/list/insert", xs, index, x) end
+let insert: ([..'a] => [..('a | 'b)], integer, 'b) -> nil = host.insert
 
 --- Remove and return the value at an index.
-fn remove(xs: [..'a], index: integer) -> 'a do host.call("org.simi-lang/std/list/remove", xs, index) end
+let remove: ([..'a], integer) -> 'a = host.remove
 
 --- Remove and return the final value.
-fn pop(xs: [..'a]) -> 'a | nil do host.call("org.simi-lang/std/list/pop", xs) end
+let pop: [..'a] -> 'a | nil = host.pop
 
 --- Create a shallow copy of a visible range.
-fn slice(xs: [..'a], start: integer, stop: integer) -> [..'a] do host.call("org.simi-lang/std/list/slice", xs, start, stop) end
+let slice: ([..'a], integer, integer) -> [..'a] = host.slice
 
 --- Return whether a list contains a value.
-fn contains(xs: [..'a], x: 'a) -> boolean do host.call("org.simi-lang/std/list/contains", xs, x) end
+let contains: ([..'a], 'a) -> boolean = host.contains
 
 --- Reverse a list in place.
-fn reverse(xs: [..'a]) -> nil do host.call("org.simi-lang/std/list/reverse", xs) end
+let reverse: [..'a] -> nil = host.reverse
 
 --- Create a lazy iterator over an O(1) copy-on-write snapshot.
 fn iter(xs: [..'a]) do
-    let snapshot = host.call("org.simi-lang/std/list/iter", xs)
-    let length = host.call("org.simi-lang/std/list/length", snapshot)
+    let snapshot = host.iter(xs)
+    let length = host.length(snapshot)
     let index = 0
     fn() do
-        if index >= length then { done = true }
+        if index >= length then {done = true}
         else
             let value = snapshot[index]
             index = index + 1
-            { done = false, value = value }
+            {done = false, value = value}
         end
     end
 end

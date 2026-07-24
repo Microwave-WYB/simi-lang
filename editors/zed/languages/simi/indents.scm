@@ -31,6 +31,9 @@
 (parameters
   ")" @end) @indent
 
+(declared_parameters
+  ")" @end) @indent
+
 (arguments
   ")" @end) @indent
 

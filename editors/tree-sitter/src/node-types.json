@@ -844,6 +844,47 @@
     }
   },
   {
+    "type": "declared_parameter",
+    "named": true,
+    "fields": {
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      },
+      "type": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "type_annotation",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "declared_parameters",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "declared_parameter",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "else_clause",
     "named": true,
     "fields": {
@@ -1024,7 +1065,7 @@
         "required": true,
         "types": [
           {
-            "type": "parameters",
+            "type": "declared_parameters",
             "named": true
           }
         ]
@@ -1039,16 +1080,6 @@
           }
         ]
       }
-    },
-    "children": {
-      "multiple": true,
-      "required": false,
-      "types": [
-        {
-          "type": "post_condition",
-          "named": true
-        }
-      ]
     }
   },
   {
@@ -1101,6 +1132,42 @@
         },
         {
           "type": "union_type",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "function_type_parameter",
+    "named": true,
+    "fields": {
+      "before": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "union_type",
+            "named": true
+          }
+        ]
+      },
+      "post": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "post_type",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": false,
+      "required": false,
+      "types": [
+        {
+          "type": "function_type",
           "named": true
         }
       ]
@@ -1747,11 +1814,15 @@
         ]
       },
       "type": {
-        "multiple": false,
+        "multiple": true,
         "required": false,
         "types": [
           {
-            "type": "type_annotation",
+            "type": ":",
+            "named": false
+          },
+          {
+            "type": "function_type",
             "named": true
           }
         ]
@@ -1831,7 +1902,7 @@
       "required": false,
       "types": [
         {
-          "type": "function_type",
+          "type": "function_type_parameter",
           "named": true
         }
       ]
@@ -2107,25 +2178,15 @@
     }
   },
   {
-    "type": "post_condition",
+    "type": "post_type",
     "named": true,
     "fields": {
-      "parameter": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "identifier",
-            "named": true
-          }
-        ]
-      },
       "type": {
         "multiple": false,
         "required": true,
         "types": [
           {
-            "type": "function_type",
+            "type": "union_type",
             "named": true
           }
         ]
@@ -2373,10 +2434,31 @@
   {
     "type": "type_annotation",
     "named": true,
-    "fields": {},
+    "fields": {
+      "before": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "union_type",
+            "named": true
+          }
+        ]
+      },
+      "post": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "post_type",
+            "named": true
+          }
+        ]
+      }
+    },
     "children": {
       "multiple": false,
-      "required": true,
+      "required": false,
       "types": [
         {
           "type": "function_type",
@@ -2653,6 +2735,10 @@
     "named": false
   },
   {
+    "type": "=>",
+    "named": false
+  },
+  {
     "type": ">",
     "named": false
   },
@@ -2677,19 +2763,11 @@
     "named": false
   },
   {
-    "type": "after",
-    "named": false
-  },
-  {
     "type": "alias",
     "named": false
   },
   {
     "type": "and",
-    "named": false
-  },
-  {
-    "type": "becomes",
     "named": false
   },
   {

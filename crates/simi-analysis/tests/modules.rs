@@ -1,9 +1,75 @@
 use std::collections::HashMap;
 
 use simi_analysis::{
-    AnalysisDatabase, imported_members, imported_modules, member_at, member_completions, module_at,
-    module_shape,
+    AnalysisDatabase, Type, imported_members, imported_modules, member_at, member_completions,
+    module_at, module_shape,
 };
+
+#[test]
+fn documented_typed_native_aliases_keep_callable_module_metadata() {
+    let source = r#"
+--- Return the text length.
+let length: string -> integer = host.length
+--- Append a value.
+let append: ([..'a] => [..('a | 'b)], 'b) -> nil = host.append
+{length = length, append = append}
+"#;
+    let db = AnalysisDatabase::default();
+    let file = db.add_file(source);
+    let shape = module_shape(&db, file);
+    let length = &shape.fields[0];
+    assert_eq!(length.name, "length");
+    assert_eq!(
+        length.documentation.as_deref(),
+        Some("Return the text length.")
+    );
+    assert_eq!(
+        length.ty,
+        Some(Type::Function(vec![Type::String], Box::new(Type::Int),))
+    );
+    assert!(length.parameters.is_none());
+
+    let append = &shape.fields[1];
+    assert_eq!(append.name, "append");
+    assert_eq!(append.posts.len(), 1);
+    assert_eq!(append.posts[0].parameter_index, 0);
+    assert_eq!(append.posts[0].becomes.display(), "[..('a | 'b)]");
+}
+
+#[test]
+fn function_type_aliases_preserve_post_state_metadata() {
+    let source = r#"
+alias appender<'a, 'b> = ([..'a] => [..('a | 'b)], 'b) -> nil
+let append: appender<integer, string> = host.append
+let wrapped: ((appender<integer, string>)) = host.append
+{append = append, wrapped = wrapped}
+"#;
+    let db = AnalysisDatabase::default();
+    let file = db.add_file(source);
+    let shape = module_shape(&db, file);
+    for field in &shape.fields {
+        assert_eq!(field.posts.len(), 1);
+        assert_eq!(field.posts[0].becomes.display(), "[..(integer | string)]");
+    }
+}
+
+#[test]
+fn documented_discard_bindings_do_not_overwrite_prior_symbol_docs() {
+    let source = r#"
+--- Prior documentation.
+let prior = 1
+--- Discard documentation.
+let _ignored = 2
+{prior = prior}
+"#;
+    let db = AnalysisDatabase::default();
+    let file = db.add_file(source);
+    let shape = module_shape(&db, file);
+    assert_eq!(
+        shape.fields[0].documentation.as_deref(),
+        Some("Prior documentation.")
+    );
+}
 
 #[test]
 fn infers_exported_functions_parameters_docs_and_nested_maps() {

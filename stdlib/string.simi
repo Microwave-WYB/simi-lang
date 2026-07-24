@@ -1,37 +1,37 @@
 ---- Unicode-aware string inspection, transformation, and conversion.
 
 --- Parse a complete decimal number, or return nil.
-fn to_number(text: string) -> integer | float | nil do host.call("org.simi-lang/std/string/to_number", text) end
+let to_number: string -> integer | float | nil = host.to_number
 
 --- Concatenate two strings.
-fn concat(left: string, right: string) -> string do host.call("org.simi-lang/std/string/concat", left, right) end
+let concat: (string, string) -> string = host.concat
 
 --- Return the number of Unicode scalar values in a string.
-fn length(text: string) -> integer do host.call("org.simi-lang/std/string/length", text) end
+let length: string -> integer = host.length
 
 --- Return a substring over a scalar-value range.
-fn slice(text: string, start: integer, stop: integer) -> string do host.call("org.simi-lang/std/string/slice", text, start, stop) end
+let slice: (string, integer, integer) -> string = host.slice
 
 --- Return whether text contains a substring.
-fn contains(text: string, search: string) -> boolean do host.call("org.simi-lang/std/string/contains", text, search) end
+let contains: (string, string) -> boolean = host.contains
 
 --- Return whether text starts with a prefix.
-fn starts_with(text: string, prefix: string) -> boolean do host.call("org.simi-lang/std/string/starts_with", text, prefix) end
+let starts_with: (string, string) -> boolean = host.starts_with
 
 --- Return whether text ends with a suffix.
-fn ends_with(text: string, suffix: string) -> boolean do host.call("org.simi-lang/std/string/ends_with", text, suffix) end
+let ends_with: (string, string) -> boolean = host.ends_with
 
 --- Split text around a separator.
-fn split(text: string, separator: string) -> [..string] do host.call("org.simi-lang/std/string/split", text, separator) end
+let split: (string, string) -> [..string] = host.split
 
 --- Remove surrounding whitespace.
-fn trim(text: string) -> string do host.call("org.simi-lang/std/string/trim", text) end
+let trim: string -> string = host.trim
 
 --- Convert text to lowercase.
-fn lower(text: string) -> string do host.call("org.simi-lang/std/string/lower", text) end
+let lower: string -> string = host.lower
 
 --- Convert text to uppercase.
-fn upper(text: string) -> string do host.call("org.simi-lang/std/string/upper", text) end
+let upper: string -> string = host.upper
 
 {
     to_number = to_number,

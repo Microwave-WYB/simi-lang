@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use gc::{Gc, GcCell};
@@ -9,28 +8,9 @@ use crate::value::NativeFunction;
 
 pub type NativeCallback = dyn Fn(&[Value], Span) -> NativeResult + Send + Sync + 'static;
 
-#[derive(Clone)]
-pub(crate) enum HostOperation {
-    Callback {
-        arity: usize,
-        callback: Arc<NativeCallback>,
-    },
-}
-
-impl HostOperation {
-    pub(crate) fn arity(&self) -> usize {
-        match self {
-            Self::Callback { arity, .. } => *arity,
-        }
-    }
-}
-
 pub(crate) enum ModuleContents {
     Direct(Vec<(String, Value)>),
-    Source {
-        source: Arc<str>,
-        host_operations: HashMap<String, HostOperation>,
-    },
+    Source { source: Arc<str>, host: Value },
 }
 
 pub struct Module {
@@ -50,7 +30,7 @@ impl Module {
         SourceModuleBuilder {
             name: name.into(),
             source: source.into(),
-            host_operations: HashMap::new(),
+            host: direct_value(Vec::new()),
         }
     }
 
@@ -96,6 +76,11 @@ impl ModuleBuilder {
         }
     }
 
+    /// Build the configured fields as an ordinary Simi map value.
+    pub fn build_value(self) -> Value {
+        direct_value(self.exports)
+    }
+
     fn insert(&mut self, name: String, value: Value) {
         if matches!(value, Value::Nil) {
             if let Some(position) = self
@@ -120,21 +105,13 @@ impl ModuleBuilder {
 pub struct SourceModuleBuilder {
     name: String,
     source: Arc<str>,
-    host_operations: HashMap<String, HostOperation>,
+    host: Value,
 }
 
 impl SourceModuleBuilder {
-    pub fn host_function<F>(mut self, id: impl Into<String>, arity: usize, callback: F) -> Self
-    where
-        F: Fn(&[Value], Span) -> NativeResult + Send + Sync + 'static,
-    {
-        self.host_operations.insert(
-            id.into(),
-            HostOperation::Callback {
-                arity,
-                callback: Arc::new(callback),
-            },
-        );
+    /// Replace the private `host` value installed before evaluating the facade source.
+    pub fn host(mut self, host: Value) -> Self {
+        self.host = host;
         self
     }
 
@@ -143,7 +120,7 @@ impl SourceModuleBuilder {
             name: self.name,
             contents: ModuleContents::Source {
                 source: self.source,
-                host_operations: self.host_operations,
+                host: self.host,
             },
         }
     }
@@ -155,4 +132,28 @@ pub(crate) fn direct_value(exports: Vec<(String, Value)>) -> Value {
         .map(|(name, value)| (MapKey::String(name), value))
         .collect();
     Value::Map(Gc::new(GcCell::new(entries)))
+}
+
+/// Build the common map-shaped private host value for a source-backed module.
+///
+/// Functions are ordinary fixed-arity native values. The required `name` prefixes their rendered
+/// names and runtime diagnostics; it does not add a map field. Values use normal Simi map insertion
+/// rules: duplicate fields are last-wins and `nil` removes a field. An arbitrary non-map private
+/// host can instead be passed directly to [`SourceModuleBuilder::host`].
+#[macro_export]
+macro_rules! host_value {
+    (
+        name: $name:expr,
+        $(functions: { $($function:expr => ($arity:expr, $callback:expr)),* $(,)? },)?
+        $(values: { $($value:expr => $expression:expr),* $(,)? },)?
+    ) => {{
+        let builder = $crate::Module::builder($name);
+        $(
+            $(let builder = builder.function($function, $arity, $callback);)*
+        )?
+        $(
+            $(let builder = builder.value($value, $expression);)*
+        )?
+        builder.build_value()
+    }};
 }

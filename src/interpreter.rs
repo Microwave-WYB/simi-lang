@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::ast::Program;
 use crate::engine::ModuleRegistry;
@@ -14,12 +15,17 @@ mod execution;
 pub(crate) mod operations;
 mod pattern;
 
+static NEXT_SOURCE_DOMAIN: AtomicU64 = AtomicU64::new(1);
+
+fn next_source_domain() -> u64 {
+    NEXT_SOURCE_DOMAIN.fetch_add(1, Ordering::Relaxed)
+}
+
 pub struct Interpreter {
     pub globals: Environment,
     prelude: Environment,
     modules: ModuleRegistry,
-    trace_function_calls: bool,
-    host_call_span: Option<Span>,
+    source_domain: u64,
     module_name: Option<String>,
 }
 
@@ -76,8 +82,7 @@ impl Interpreter {
             prelude: globals.clone(),
             globals,
             modules: ModuleRegistry::new_for_interpreter(HashMap::new()),
-            trace_function_calls: true,
-            host_call_span: None,
+            source_domain: next_source_domain(),
             module_name: None,
         }
     }
@@ -98,8 +103,7 @@ impl Interpreter {
             globals,
             prelude,
             modules,
-            trace_function_calls: true,
-            host_call_span: None,
+            source_domain: next_source_domain(),
             module_name: None,
         }
     }

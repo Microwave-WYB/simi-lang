@@ -5,14 +5,13 @@ mod render;
 
 pub use list::List;
 
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use gc::{Finalize, Gc, GcCell, Trace, custom_trace};
 
 use crate::ast::Block;
 use crate::environment::Environment;
-use crate::module::{HostOperation, NativeCallback};
+use crate::module::NativeCallback;
 use crate::span::Span;
 
 pub type RuntimeResult<T> = Result<T, RuntimeError>;
@@ -115,7 +114,7 @@ pub struct UserFunction {
     pub params: Vec<String>,
     pub body: Block,
     pub closure: Environment,
-    pub(crate) trace_calls: bool,
+    pub(crate) source_domain: u64,
     pub(crate) module: Option<String>,
 }
 
@@ -138,7 +137,6 @@ pub struct NativeFunction {
 pub(crate) enum NativeImplementation {
     Callback(Arc<NativeCallback>),
     Require,
-    HostCall(Arc<HashMap<String, HostOperation>>),
 }
 
 impl NativeFunction {
@@ -158,14 +156,6 @@ impl NativeFunction {
         self.arity
     }
 
-    pub(crate) fn host_call(operations: Arc<HashMap<String, HostOperation>>) -> Self {
-        Self {
-            name: "host.call".to_owned(),
-            arity: 1,
-            implementation: NativeImplementation::HostCall(operations),
-        }
-    }
-
     pub(crate) fn require() -> Self {
         Self {
             name: "require".to_owned(),
@@ -182,7 +172,7 @@ impl NativeFunction {
 impl Finalize for NativeFunction {}
 unsafe impl Trace for NativeFunction {
     // Callback closures are Send + Sync, which prevents safe captures of Simi's
-    // non-Send managed values. Every privileged intrinsic variant is data-free.
+    // non-Send managed values. The remaining require intrinsic is data-free.
     gc::unsafe_empty_trace!();
 }
 

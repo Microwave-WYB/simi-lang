@@ -135,9 +135,8 @@ fn erased_type_surface_is_lossless_and_alias_is_contextual() {
         "let alias = 1\n",
         "alias option<'a> = 'a | nil\n",
         "let value: option<string> = nil\n",
-        "fn apply(values: [integer, string], output: [..string]) -> nil ",
-        "after values becomes [..integer | string] ",
-        "after output becomes [..string] do nil end\n",
+        "fn apply(values: [integer, string] => [..(integer | string)], ",
+        "output: [..string] => [..string]) -> nil do nil end\n",
         "let record: { name: string, [string | integer]: boolean, .. } = {}\n",
     );
     let parse = parse_source(source);
@@ -161,7 +160,7 @@ fn erased_type_surface_is_lossless_and_alias_is_contextual() {
         parse
             .syntax()
             .descendants()
-            .filter(|node| node.kind() == SyntaxKind::POST_CONDITION)
+            .filter(|node| node.kind() == SyntaxKind::POST_TYPE)
             .count(),
         2
     );
@@ -171,6 +170,34 @@ fn erased_type_surface_is_lossless_and_alias_is_contextual() {
             .descendants()
             .any(|node| node.kind() == SyntaxKind::TYPE_LIST_REST)
     );
+}
+
+#[test]
+fn post_state_types_require_unambiguous_parameter_boundaries() {
+    let valid = parse_source("let append: ([..'a] => [..('a | 'b)], 'b) -> nil = host.append\n");
+    assert!(valid.diagnostics().is_empty(), "{:?}", valid.diagnostics());
+    assert_eq!(
+        valid
+            .syntax()
+            .descendants()
+            .filter(|node| node.kind() == SyntaxKind::POST_TYPE)
+            .count(),
+        1
+    );
+
+    let ambiguous = parse_source("let bad: 'a | 'b => 'b -> 'b = nil\n");
+    assert!(ambiguous.diagnostics().iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("ambiguous post-state annotation")
+    }));
+
+    let missing_result = parse_source("let bad: ('a => 'b) = nil\n");
+    assert!(missing_result.diagnostics().iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("must be followed by `->` and a result type")
+    }));
 }
 
 #[test]

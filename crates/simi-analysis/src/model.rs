@@ -240,7 +240,7 @@ fn display_type(ty: &Type, nested: bool) -> String {
                 .collect::<Vec<_>>()
                 .join(", ")
         ),
-        Type::ListRest(item) => format!("[..{}]", display_type(item, false)),
+        Type::ListRest(item) => format!("[..{}]", display_type(item, true)),
         Type::Map {
             fields,
             index,

@@ -154,8 +154,15 @@ impl Builder {
                 }
                 if let Some(pattern) = support::child::<syntax::Pattern>(node.syntax()) {
                     let simple = matches!(pattern, syntax::Pattern::Binding(_));
+                    let symbol_count = self.scopes[scope].symbols.len();
                     let activation = u32::from(node.syntax().text_range().end()) as usize;
                     self.pattern(pattern, scope, activation, simple);
+                    if simple
+                        && self.scopes[scope].symbols.len() > symbol_count
+                        && let Some(symbol) = self.scopes[scope].symbols.last().copied()
+                    {
+                        self.symbols[symbol].documentation = documentation(node.syntax());
+                    }
                 }
             }
             syntax::Stmt::ExprStmt(node) => {

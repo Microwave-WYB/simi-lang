@@ -120,10 +120,28 @@ fn unreachable_recursive_closure_environment_cycle_is_collected() {
                 span: Span::new(0, 0),
             },
             closure: environment.clone(),
-            trace_calls: true,
+            source_domain: 0,
             module: None,
         });
         environment.define("recursive", Value::Function(function));
+    });
+}
+
+#[test]
+fn dropped_source_module_releases_a_cyclic_private_host_value() {
+    collected_after(|| {
+        let host = Gc::new(GcCell::new(Vec::new()));
+        host.borrow_mut()
+            .push((MapKey::String("self".to_owned()), Value::Map(host.clone())));
+        let engine = crate::Engine::builder()
+            .module(
+                crate::Module::source("host-cycle", "host")
+                    .host(Value::Map(host))
+                    .build(),
+            )
+            .build();
+        let value = engine.eval("require(\"host-cycle\")").unwrap().unwrap();
+        assert!(matches!(value, Value::Map(_)));
     });
 }
 
