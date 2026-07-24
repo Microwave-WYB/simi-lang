@@ -1,99 +1,82 @@
 # Simi
 
-Simi is a small, Lua-like embeddable scripting language implemented in Rust. It is dynamically typed at runtime, with optional erased static type inference and checking for earlier feedback and editor tooling. Simi is expression-first, with value-producing control flow, pipelines, closures, mutable lists and maps, structural pattern matching, value-based errors, and lazy iterators.
+Simi is a small scripting language designed to be easy to run and embed.
 
-> **Status:** development. Builds are identified only by their full Git commit hash; compatibility is not guaranteed.
-
-## A small example
+## Try the language
 
 ```simi
 let io = require("std/io")
 
---- Finds two numbers whose sum equals the target.
---- Returns the matching values, or nil when no pair exists.
-fn two_sum(numbers: [..integer], target: integer) -> {first: integer, second: integer} | nil do
-    loop state = {seen = {}, numbers = numbers} do
-        case state.numbers
-        of [] do
-            break nil
-        of [number, ..rest] do
-            let complement = target - number
-            if state.seen[complement] != nil then
-                break {first = complement, second = number}
-            else
-                state.seen[number] = true
-                {seen = state.seen, numbers = rest}
-            end
-        end
-    end
+fn greet(name) do
+    "Hello, " <> name <> "!"
 end
 
-two_sum([2, 7, 11, 15], 9)
-|> inspect()
-|> io.println()
+io.println(greet("Simi"))
 ```
 
-Simi is expression-oriented: blocks, conditionals, loops, cases, and error handlers all produce values. Lists and maps are mutable and preserve alias identity, while explicit copy operations provide shallow copy-on-write views where documented.
+Save this as `hello.simi`, install Simi using one of the options below, and run:
+
+```sh
+simi run hello.simi
+```
 
 ## Language tour
 
-Start with [Hello, world!](docs/language-tour/hello-world.md), follow the complete [language tour](docs/language-tour.md), then run the [explicit-state Fibonacci example](examples/fibonacci.simi).
+Start with [Hello, world!](docs/language-tour/hello-world.md), continue through the complete [language tour](docs/language-tour.md), and explore the runnable programs in [`examples/`](examples/).
 
-## Installation
+## Install the latest release
 
-### Cargo
+The easiest way to try Simi is the [latest release](https://github.com/Microwave-WYB/simi-lang/releases/tag/latest). Choose the CLI download for your system:
 
-Simi currently requires Rust 1.88 or newer. First [install the Rust toolchain with rustup](https://rustup.rs/), then install the `simi` executable directly from the public repository:
-
-```sh
-cargo install --git https://github.com/Microwave-WYB/simi-lang --bin simi
-```
-
-### Latest development build
-
-Every validated `main` commit produces temporary downloads. Open the [CI workflow](https://github.com/Microwave-WYB/simi-lang/actions/workflows/ci.yml), select the newest successful `main` run, and download the artifact for your target:
-
-| System | Target |
+| System | Download name ends with |
 | --- | --- |
-| Linux x86-64 | `x86_64-unknown-linux-gnu` |
-| macOS Intel | `x86_64-apple-darwin` |
-| Windows x86-64 | `x86_64-pc-windows-msvc` |
+| Linux x86-64 | `x86_64-unknown-linux-gnu.tar.gz` |
+| macOS Intel | `x86_64-apple-darwin.tar.gz` |
+| Windows x86-64 | `x86_64-pc-windows-msvc.zip` |
 
-The downloaded Actions artifact contains a CLI archive, a self-contained platform VSIX, and a SHA-256 checksum for each. These development artifacts expire according to GitHub's artifact-retention policy.
+Extract the download, then copy `simi` or `simi.exe` to a directory on your `PATH`. The included `README.md` has platform-specific steps.
 
-### Published build
+### VS Code
 
-Selected milestones are promoted manually to the single moving [latest release](https://github.com/Microwave-WYB/simi-lang/releases/tag/latest). Download either the CLI archive for your target or its separate `simi-vscode-<full-sha>-<target>.vsix`, together with the corresponding `.sha256` file. Verify downloads on Linux with:
-
-```sh
-sha256sum -c <downloaded-file>.sha256
-```
-
-CLI archives contain `simi` or `simi.exe`, an installation README, and the MIT license. Asset names retain the complete 40-character source commit hash; Simi does not use versions yet.
-
-### VS Code extension
-
-The platform-specific VSIX includes its matching `simi` language server, so a separate CLI installation is not required for editor features. Install it and reload VS Code:
+Download the `simi-vscode-...vsix` file for the same system from the release, then install it and reload VS Code:
 
 ```sh
 code --install-extension ./simi-vscode-<full-sha>-<target>.vsix
 ```
 
-For rapid development, `simi.languageServer.path` or `SIMI_PATH` can override the bundled server with another build.
+The extension includes its matching language server, so it works without a separate CLI installation. Each release download also has a matching `.sha256` checksum file.
 
-Run a script with:
+> **Status:** Simi is under active development. It does not use version numbers yet; download names include the exact source commit instead.
+
+## Install the latest development build
+
+To try changes newer than the published release, open the [CI workflow](https://github.com/Microwave-WYB/simi-lang/actions/workflows/ci.yml), select the newest successful `main` run, and download the artifact for your system. After unzipping the Actions artifact, you will find both the CLI download and the self-contained VS Code extension, with checksums for each.
+
+Development artifacts are produced for Linux x86-64, Intel macOS, and Windows x86-64. They are temporary and expire according to GitHub's artifact-retention policy.
+
+## Install with Cargo
+
+To build the newest source directly, first [install Rust with rustup](https://rustup.rs/). Simi currently requires Rust 1.88 or newer. Then run:
 
 ```sh
-simi run examples/fibonacci.simi
+cargo install --git https://github.com/Microwave-WYB/simi-lang --bin simi
 ```
 
-Scripts control their own output. To also render the final value, including `nil`:
+## Use Simi
+
+Run a script:
 
 ```sh
-simi run --inspect examples/fibonacci.simi
+simi run hello.simi
 ```
 
-The language server runs over standard input and output:
+Scripts control their own output. To also display the script's final value, including `nil`:
+
+```sh
+simi run --inspect hello.simi
+```
+
+Start the language server over standard input and output:
 
 ```sh
 simi lsp
@@ -101,13 +84,11 @@ simi lsp
 
 ## Editor plugins
 
-Simi includes editor integrations for its `simi lsp` server:
-
-- [Visual Studio Code](editors/vscode/README.md): TextMate highlighting, language configuration, and LSP features;
-- [Zed](editors/zed/README.md): Tree-sitter editing support and LSP features;
+- [Visual Studio Code](editors/vscode/README.md): self-contained release downloads, TextMate highlighting, and language-server features;
+- [Zed](editors/zed/README.md): Tree-sitter editing support and language-server features;
 - [Tree-sitter](editors/tree-sitter/README.md): the shared structural grammar for compatible editors.
 
-The VS Code extension is available as a self-contained platform VSIX in CI artifacts and the latest release. Other editor integrations are currently installed from this repository rather than an extension marketplace. Follow each linked guide for setup.
+The VS Code extension is available from both CI artifacts and the latest release. Zed and other editor integrations are currently installed from this repository.
 
 ## Language highlights
 
