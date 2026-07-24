@@ -66,13 +66,30 @@ test("language configuration covers comments, pairs, indentation, and folding", 
     "catch _ do",
     "else",
     "let result = try",
+    "case n",
+    "    case n -- comment",
+    'case "x of y"',
   ]) {
     assert.match(line, increase);
   }
   for (const line of ["end", "elseif ready then", "else", "of _ do", "catch _ do"]) {
     assert.match(line, decrease);
   }
-  assert.doesNotMatch("of _ do value end", increase, "one-line clauses must not indent the following line");
+  for (const oneLine of [
+    "of _ do value end",
+    "case n of _ do n end",
+    'case "x of y" of _ do 1 end',
+  ]) {
+    assert.doesNotMatch(oneLine, increase, "one-line forms must not indent the following line");
+  }
+
+  const indentWidth = 4;
+  const caseIndent = 4;
+  const provisionalIndent = caseIndent + (increase.test("    case n") ? indentWidth : 0);
+  const alignedOfIndent = provisionalIndent - (decrease.test("of") ? indentWidth : 0);
+  assert.equal(provisionalIndent, 8, "an incomplete case should provisionally indent one level");
+  assert.equal(alignedOfIndent, caseIndent, "of should realign exactly with its case");
+
   for (const legacyLine of ["match value with", "case value ->"]) {
     assert.doesNotMatch(legacyLine, increase);
     assert.doesNotMatch(legacyLine, decrease);
