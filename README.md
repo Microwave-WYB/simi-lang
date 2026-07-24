@@ -41,7 +41,7 @@ Start with [Hello, world!](docs/language-tour/hello-world.md), follow the comple
 
 ## Install with Cargo
 
-Simi currently requires Rust 1.85 or newer. First [install the Rust toolchain with rustup](https://rustup.rs/), then install the `simi` executable directly from the public repository:
+Simi currently requires Rust 1.88 or newer. First [install the Rust toolchain with rustup](https://rustup.rs/), then install the `simi` executable directly from the public repository:
 
 ```sh
 cargo install --git https://github.com/Microwave-WYB/simi-lang --bin simi

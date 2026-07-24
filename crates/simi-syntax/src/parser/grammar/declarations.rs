@@ -83,7 +83,7 @@ pub(super) fn type_param_list(p: &mut Parser<'_>, allow_constraints: bool, kind:
             let span = p.current_span();
             let name = p.current_text().unwrap_or_default().to_owned();
             if p.expect(K::IDENT, "type variable name") && !seen.insert(name.clone()) {
-                p.error_at(span, format!("duplicate type parameter `'{}'", name));
+                p.error_at(span, format!("duplicate type parameter `'{name}'"));
             }
             variable.complete(&mut p.events, K::TYPE_VARIABLE);
             if allow_constraints && p.at(K::COLON) {
