@@ -1,10 +1,10 @@
-name: Git hash release
+name: Nightly release
 
 on:
   workflow_dispatch:
     inputs:
       ref:
-        description: Git ref to validate and release
+        description: Git ref to validate and promote as nightly
         required: true
         default: main
         type: string
@@ -91,20 +91,19 @@ jobs:
           pattern: release-*
           path: dist
           merge-multiple: true
-      - name: Create immutable hash release
+      - name: Replace the moving nightly release
         env:
           GH_TOKEN: ${{ github.token }}
           SHA: ${{ needs.validate.outputs.sha }}
         shell: bash
         run: |
           set -euo pipefail
-          TAG="git-$SHA"
-          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "Release $SHA already exists; refusing to replace it." >&2
-            exit 1
+          if gh release view nightly --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release delete nightly --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes
           fi
-          gh release create "$TAG" dist/* \
+          gh release create nightly dist/* \
             --repo "$GITHUB_REPOSITORY" \
             --target "$SHA" \
-            --title "$SHA" \
-            --notes "Development build for Git commit $SHA. No compatibility guarantee is implied."
+            --title "nightly — $SHA" \
+            --prerelease \
+            --notes "Nightly development build for Git commit $SHA. Archive names retain the complete commit hash. No compatibility guarantee is implied."

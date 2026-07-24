@@ -27,3 +27,44 @@ jobs:
       - uses: taiki-e/install-action@just
       - uses: Swatinem/rust-cache@v2
       - run: just ci
+
+  bundle:
+    needs: validate
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            platform: linux
+          - runner: macos-15-intel
+            target: x86_64-apple-darwin
+            platform: macos
+          - runner: windows-latest
+            target: x86_64-pc-windows-msvc
+            platform: windows
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@1.88.0
+        with:
+          targets: ${{ matrix.target }}
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: editors/vscode/package-lock.json
+      - uses: taiki-e/install-action@just
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+      - run: just release-build "${{ matrix.target }}"
+      - run: just release-vscode "${{ matrix.target }}" "${{ matrix.platform }}"
+        shell: bash
+      - run: just release-package "${{ matrix.target }}" "${{ matrix.platform }}" "${{ github.sha }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: simi-${{ github.sha }}-${{ matrix.target }}
+          path: dist/*
+          if-no-files-found: error

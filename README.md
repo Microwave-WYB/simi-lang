@@ -47,7 +47,7 @@ Simi currently requires Rust 1.88 or newer. First [install the Rust toolchain wi
 cargo install --git https://github.com/Microwave-WYB/simi-lang --bin simi
 ```
 
-Manually published development archives are available from [GitHub Releases](https://github.com/Microwave-WYB/simi-lang/releases). Each platform archive contains the native `simi` executable, a platform-specific `simi-vscode.vsix` with the matching language server bundled inside it, an installation README, and the MIT license. Each immutable release title and archive is named with the complete 40-character Git commit hash that produced it; Simi does not use alpha or nightly version aliases. GitHub forbids all-hexadecimal tag names of that length, so the underlying tag uses the required `git-<full-hash>` form.
+Every validated `main` commit produces downloadable Linux, macOS, and Windows bundles on the [CI workflow run](https://github.com/Microwave-WYB/simi-lang/actions/workflows/ci.yml). These development artifacts follow GitHub's normal artifact-retention policy. A selected commit may also be promoted manually to the moving [nightly release](https://github.com/Microwave-WYB/simi-lang/releases/tag/nightly). Each platform archive contains the native `simi` executable, a platform-specific `simi-vscode.vsix` with the matching language server bundled inside it, an installation README, and the MIT license. Archive names retain the complete 40-character Git commit hash; no alpha version aliases are used.
 
 Run a script with:
 
