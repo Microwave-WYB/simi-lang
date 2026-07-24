@@ -1,5 +1,6 @@
 /target/
 /dist/
+/release-input/
 /demo/
 /.pi-subagents/
 __pycache__/

@@ -10,7 +10,7 @@ Visual Studio Code language support for Simi, including:
 - indentation rules for standalone `do` blocks and one-final-`end` repeated `of`/`catch` branches;
 - indentation-based folding plus `-- region` / `-- endregion` folding markers.
 
-The extension is a workspace extension. It launches an external `simi lsp` server; no platform-specific server binary is bundled in the VSIX.
+The extension is a workspace extension. Platform-specific VSIX files shipped inside Simi Git-hash release archives bundle the matching `simi` language server. Ordinary source-development packages created with `just package` contain no native binary and fall back to an externally installed server.
 
 ## Language server
 
@@ -18,7 +18,8 @@ The executable is resolved in this strict order:
 
 1. the `simi.languageServer.path` VS Code setting;
 2. the `SIMI_PATH` environment variable;
-3. `simi` on the extension host's `PATH`.
+3. the platform-specific server bundled in the extension, when present;
+4. `simi` on the extension host's `PATH`.
 
 For development from this repository, install the server into a directory already on `PATH`:
 
@@ -54,6 +55,8 @@ Reload any open Simi editor after installing or updating the VSIX. To develop in
 ## Packaging and publication
 
 `npm run package` (or `just package`) validates the grammar and creates `simi-language-<version>.vsix`. Generated VSIX files and `node_modules` are ignored.
+
+The root `just release-vscode TARGET PLATFORM` recipe stages a platform-specific release VSIX by copying the already-built native server into `bin/` before packaging. The generated `bin/` directory is ignored and must never be committed.
 
 Marketplace publication is intentionally explicit and is not a dependency of any other task. After configuring the `simi` publisher and a Marketplace token:
 

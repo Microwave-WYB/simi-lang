@@ -4,7 +4,12 @@
   "description": "Syntax highlighting and language-server support for the Simi scripting language.",
   "version": "0.1.0",
   "publisher": "simi",
-  "license": "UNLICENSED",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Microwave-WYB/simi-lang.git",
+    "directory": "editors/vscode"
+  },
   "main": "./src/extension.js",
   "engines": {
     "vscode": "^1.85.0"
@@ -52,7 +57,7 @@
           "type": "string",
           "default": "",
           "scope": "machine-overridable",
-          "description": "Path to the simi executable. When empty, SIMI_PATH and then simi on PATH are used; the extension launches it with the lsp subcommand."
+          "description": "Optional path to the simi executable. When empty, the extension uses SIMI_PATH, then its bundled server when present, and finally simi on PATH; it launches the selected executable with the lsp subcommand."
         }
       }
     },

@@ -61,15 +61,22 @@ jobs:
       - uses: dtolnay/rust-toolchain@1.88.0
         with:
           targets: ${{ matrix.target }}
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: editors/vscode/package-lock.json
       - uses: taiki-e/install-action@just
       - uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.target }}
       - run: just release-build "${{ matrix.target }}"
+      - run: just release-vscode "${{ matrix.target }}" "${{ matrix.platform }}"
+        shell: bash
       - run: just release-package "${{ matrix.target }}" "${{ matrix.platform }}" "${{ needs.validate.outputs.sha }}"
       - uses: actions/upload-artifact@v4
         with:
-          name: simi-${{ matrix.target }}
+          name: release-${{ matrix.target }}
           path: dist/*
           if-no-files-found: error
 
@@ -81,7 +88,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v5
         with:
-          pattern: simi-*
+          pattern: release-*
           path: dist
           merge-multiple: true
       - name: Create immutable hash release

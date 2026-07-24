@@ -26,6 +26,22 @@ ci:
 release-build target:
     cargo build --locked --release --bin simi --target "{{ target }}"
 
-# Package one native binary and its checksum under dist/.
-release-package target platform sha:
-    python3 scripts/package-release.py "{{ target }}" "{{ platform }}" "{{ sha }}"
+# Build and stage a platform-specific VS Code extension with its bundled server.
+release-vscode target platform:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    executable=simi
+    if [[ "{{ platform }}" == windows ]]; then executable=simi.exe; fi
+    source="target/{{ target }}/release/$executable"
+    test -f "$source"
+    rm -rf editors/vscode/bin
+    rm -f editors/vscode/*.vsix
+    mkdir -p editors/vscode/bin release-input
+    cp "$source" "editors/vscode/bin/$executable"
+    chmod +x "editors/vscode/bin/$executable"
+    just editors vscode package
+    cp editors/vscode/simi-language-*.vsix release-input/simi-vscode.vsix
+
+# Package one native binary, the VS Code extension, instructions, and a checksum.
+release-package target platform sha vsix="release-input/simi-vscode.vsix":
+    python3 scripts/package-release.py "{{ target }}" "{{ platform }}" "{{ sha }}" "{{ vsix }}"

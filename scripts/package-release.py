@@ -11,17 +11,31 @@ from pathlib import Path
 
 
 def main() -> None:
-    if len(sys.argv) != 4:
-        raise SystemExit("usage: package-release.py TARGET PLATFORM SHA")
+    if len(sys.argv) != 5:
+        raise SystemExit("usage: package-release.py TARGET PLATFORM SHA VSCODE_VSIX")
 
-    target, platform, sha = sys.argv[1:]
+    target, platform, sha, vsix_argument = sys.argv[1:]
     if len(sha) != 40 or any(character not in "0123456789abcdef" for character in sha):
         raise SystemExit("SHA must be a full lowercase 40-character Git commit hash")
 
+    if platform not in {"linux", "macos", "windows"}:
+        raise SystemExit(f"unsupported platform: {platform}")
+
     executable = "simi.exe" if platform == "windows" else "simi"
     source = Path("target") / target / "release" / executable
-    if not source.is_file():
-        raise SystemExit(f"built binary does not exist: {source}")
+    vsix = Path(vsix_argument)
+    readme = Path("release/README.md")
+    license_file = Path("LICENSE")
+    for required in (source, vsix, readme, license_file):
+        if not required.is_file():
+            raise SystemExit(f"release input does not exist: {required}")
+
+    bundled_files = (
+        (source, executable),
+        (vsix, "simi-vscode.vsix"),
+        (readme, "README.md"),
+        (license_file, "LICENSE"),
+    )
 
     output = Path("dist")
     output.mkdir(exist_ok=True)
@@ -30,11 +44,13 @@ def main() -> None:
     if platform == "windows":
         archive = output / f"{stem}.zip"
         with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as bundle:
-            bundle.write(source, executable)
+            for path, archived_name in bundled_files:
+                bundle.write(path, archived_name)
     else:
         archive = output / f"{stem}.tar.gz"
         with tarfile.open(archive, "w:gz") as bundle:
-            bundle.add(source, arcname=executable)
+            for path, archived_name in bundled_files:
+                bundle.add(path, arcname=archived_name)
 
     digest = hashlib.sha256(archive.read_bytes()).hexdigest()
     checksum = archive.with_name(f"{archive.name}.sha256")

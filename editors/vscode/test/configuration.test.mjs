@@ -20,6 +20,9 @@ test("extension manifest associates .simi files with the TextMate grammar", asyn
   assert.equal(grammar.scopeName, "source.simi");
   assert.equal(grammar.path, "./syntaxes/simi.tmLanguage.json");
   assert.equal(manifest.main, "./src/extension.js");
+  assert.equal(manifest.license, "MIT");
+  assert.equal(manifest.repository.url, "https://github.com/Microwave-WYB/simi-lang.git");
+  assert.equal(manifest.repository.directory, "editors/vscode");
   assert.deepEqual(manifest.activationEvents, ["onLanguage:simi"]);
   assert.deepEqual(manifest.extensionKind, ["workspace"]);
   assert.equal(

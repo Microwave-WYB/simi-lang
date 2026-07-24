@@ -98,7 +98,7 @@ function harness(plans) {
     resolveServerCommand,
     environment: { SIMI_PATH: "/env/simi" },
   });
-  const context = { subscriptions: [] };
+  const context = { extensionPath: "/extension", subscriptions: [] };
 
   return {
     ...runtime,

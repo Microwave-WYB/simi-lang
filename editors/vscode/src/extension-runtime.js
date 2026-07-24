@@ -5,6 +5,7 @@ function createExtensionRuntime({ vscode, LanguageClient, resolveServerCommand, 
   let starting;
   let restartQueue = Promise.resolve();
   let deactivated = false;
+  let extensionPath;
 
   function reportFailure(action, command, error) {
     const detail = error instanceof Error ? error.message : String(error);
@@ -17,7 +18,7 @@ function createExtensionRuntime({ vscode, LanguageClient, resolveServerCommand, 
       .getConfiguration("simi")
       .get("languageServer.path");
     return {
-      command: resolveServerCommand(configuredPath, environment),
+      command: resolveServerCommand(configuredPath, environment, extensionPath),
       args: ["lsp"],
       options: { env: environment },
     };
@@ -132,6 +133,7 @@ function createExtensionRuntime({ vscode, LanguageClient, resolveServerCommand, 
 
   async function activate(context) {
     deactivated = false;
+    extensionPath = context.extensionPath;
     context.subscriptions.push(
       vscode.commands.registerCommand("simi.restartLanguageServer", queueRestart),
       vscode.workspace.onDidChangeConfiguration((event) => {
