@@ -147,6 +147,12 @@ Editor integration checks are available through:
 just editors test
 ```
 
+Repository-aware coding agents can load the portable skills in [`.agents/skills/`](.agents/skills/):
+
+- [`write-simi-scripts`](.agents/skills/write-simi-scripts/SKILL.md) for authoring and debugging Simi programs;
+- [`embed-simi-in-rust`](.agents/skills/embed-simi-in-rust/SKILL.md) for Rust host integration;
+- [`develop-simi-language`](.agents/skills/develop-simi-language/SKILL.md) for cross-layer implementation and validation.
+
 ## License
 
 Simi is available under the [MIT License](LICENSE).
