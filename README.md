@@ -24,8 +24,7 @@ greet("Simi")
 let io = require("std/io")
 
 --- Finds two numbers whose sum equals the target.
-fn two_sum(numbers: [..integer], target: integer) -> [integer, integer] | nil noraise
-do
+fn two_sum(numbers: [..integer], target: integer) -> [integer, integer] | nil noraise do
     loop state = {seen = {}, numbers = numbers} do
         case state.numbers
         of [] do
