@@ -11,7 +11,7 @@
   "Named function": {
     "prefix": "fn",
     "body": [
-      "fn ${1:name}(${2:parameters}) do",
+      "fn $1($2) do",
       "    $0",
       "end"
     ],
@@ -20,7 +20,7 @@
   "Anonymous function": {
     "prefix": "fnexpr",
     "body": [
-      "fn(${1:parameters}) do",
+      "fn($1) do",
       "    $0",
       "end"
     ],
@@ -29,7 +29,7 @@
   "If expression": {
     "prefix": "if",
     "body": [
-      "if ${1:condition} then",
+      "if $1 then",
       "    $0",
       "end"
     ],
@@ -38,8 +38,8 @@
   "If else expression": {
     "prefix": "ifelse",
     "body": [
-      "if ${1:condition} then",
-      "    ${2:value}",
+      "if $1 then",
+      "    $2",
       "else",
       "    $0",
       "end"
@@ -49,7 +49,7 @@
   "Functional loop": {
     "prefix": "loop",
     "body": [
-      "loop ${1:state} = ${2:initial} do",
+      "loop $1 = $2 do",
       "    $0",
       "end"
     ],
@@ -58,9 +58,9 @@
   "Case expression": {
     "prefix": "case",
     "body": [
-      "case ${1:value}",
-      "of ${2:pattern} do",
-      "    ${3:value}",
+      "case $1",
+      "of $2 do",
+      "    $3",
       "of _ do",
       "    $0",
       "end"
@@ -71,8 +71,8 @@
     "prefix": "try",
     "body": [
       "try",
-      "    ${1:value}",
-      "catch ${2:error} do",
+      "    $1",
+      "catch $2 do",
       "    $0",
       "end"
     ],

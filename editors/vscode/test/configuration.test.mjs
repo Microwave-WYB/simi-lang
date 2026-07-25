@@ -130,9 +130,9 @@ test("control-flow snippets use construct-specific final ends", async () => {
     "case", "do", "fn", "fnexpr", "if", "ifelse", "loop", "try",
   ]);
   assert.deepEqual(byPrefix.case.body, [
-    "case ${1:value}",
-    "of ${2:pattern} do",
-    "    ${3:value}",
+    "case $1",
+    "of $2 do",
+    "    $3",
     "of _ do",
     "    $0",
     "end",
@@ -140,8 +140,8 @@ test("control-flow snippets use construct-specific final ends", async () => {
   assert.equal(byPrefix.case.body.filter((line) => line === "end").length, 1);
   assert.deepEqual(byPrefix.try.body, [
     "try",
-    "    ${1:value}",
-    "catch ${2:error} do",
+    "    $1",
+    "catch $2 do",
     "    $0",
     "end",
   ]);
@@ -150,6 +150,10 @@ test("control-flow snippets use construct-specific final ends", async () => {
   assert.ok(!byPrefix.catch, "catch clauses must not insert their own end");
   for (const snippet of Object.values(snippets)) {
     assert.equal(snippet.body.at(-1), "end", `${snippet.prefix} must own one final end`);
+    assert.ok(
+      snippet.body.every((line) => !/\$\{\d+:[^}]+\}/.test(line)),
+      `${snippet.prefix} must use blank tab stops rather than visible placeholder defaults`,
+    );
     assert.equal(typeof snippet.description, "string");
   }
 });
