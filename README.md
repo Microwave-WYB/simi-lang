@@ -36,7 +36,7 @@ do
                 break [complement, number]
             else
                 state.seen[number] = true
-                {seen = state.seen, numbers = rest}
+                continue {seen = state.seen, numbers = rest}
             end
         end
     end
