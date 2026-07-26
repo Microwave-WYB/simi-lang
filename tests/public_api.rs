@@ -17,7 +17,7 @@ use simi::runtime::{
 };
 use simi::{
     Engine, EngineBuilder, Module, ModuleBuilder, NativeCallback, PackageManifest,
-    Raised as RootRaised, ScriptResult as RootScriptResult, SourceModuleBuilder,
+    Raised as RootRaised, RequirementSource, ScriptResult as RootScriptResult, SourceModuleBuilder,
     TraceFrame as RootTraceFrame, Value as RootValue,
 };
 
@@ -38,6 +38,14 @@ fn current_public_paths_compile() {
     let _: PackageManifest =
         PackageManifest::parse(r#"{name = "example", simi = "0.1.0", modules = ["example"]}"#)
             .unwrap();
+    let requirements = simi::parse_requires(r#"requires {example = {path = "dev/example"}}"#)
+        .unwrap()
+        .expect("requires metadata");
+    assert_eq!(requirements.entries[0].alias, "example");
+    assert!(matches!(
+        requirements.entries[0].source,
+        RequirementSource::Path { .. }
+    ));
     let _: Value = simi::host_value! {
         name: "macro-module",
         functions: {

@@ -73,7 +73,10 @@ metadata.
 ## Requirements and documentation
 
 Requirements belong to a leading static `requires` declaration in source files, not to executable
-package code. The package resolver reads those declarations transitively before evaluation.
+package code. The shared `parse_requires` API parses and validates this header without evaluating
+any Simi expression. It returns only static metadata and source spans; it does not resolve aliases,
+read paths, access Git or the network, create lockfiles, or grant `Engine::eval` any new authority.
+A later package resolver may consume the validated metadata transitively before evaluation.
 
 A module-level `----` documentation block comes first, followed by the `requires` declaration:
 
@@ -93,6 +96,21 @@ Leading blank lines are allowed. The module documentation comments must remain c
 immediately precede `requires`; no declaration or expression may separate them. Without module
 documentation, `requires` is the first non-comment source form. The parser preserves this ordering
 for diagnostics, editor recovery, and module hover documentation.
+
+Each alias is a unique lowercase Simi identifier. Its value is restricted to exactly one of these
+static maps:
+
+```simi
+requires {
+    remote = {git = "https://example.invalid/remote.git", rev = "v1.2.3"},
+    development = {path = "dev/development"},
+}
+```
+
+`git`, `rev`, and `path` values must be string literals. Unknown, duplicate, mixed, and missing
+fields are invalid. Development paths are non-empty package-root-relative slash-separated paths:
+absolute paths, backslashes, empty segments, `.`, and `..` are rejected. These checks are static;
+they do not establish that a path or Git revision exists.
 
 ## Local source imports
 
