@@ -58,7 +58,7 @@ Start with [Hello, world!](docs/language-tour/hello-world.md), continue through 
 
 ## Installation
 
-> **Status:** Simi is under active development. It does not use version numbers yet; download names include the exact source commit instead.
+> **Status:** Simi is under active development. Versioned prereleases and the moving `latest` development release include the exact source commit in every download name.
 
 ### Latest release
 
