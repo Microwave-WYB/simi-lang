@@ -23,6 +23,29 @@ fn inferred(
 }
 
 #[test]
+fn radix_and_separator_literals_have_numeric_static_categories() {
+    let source = r#"
+let binary = 0b_1010
+let hexadecimal = 0x_ff
+let integer = 1_000
+let decimal = 1_000.25
+let exponent = 1.5_0e1_0
+"#;
+    let (inference, resolution) = inferred(source);
+    assert!(
+        inference.diagnostics.is_empty(),
+        "{:?}",
+        inference.diagnostics
+    );
+    for name in ["binary", "hexadecimal", "integer"] {
+        assert_eq!(type_of(&inference, &resolution, name).display(), "integer");
+    }
+    for name in ["decimal", "exponent"] {
+        assert_eq!(type_of(&inference, &resolution, name).display(), "float");
+    }
+}
+
+#[test]
 fn fibonacci_example_is_syntax_and_type_clean() {
     let db = AnalysisDatabase::default();
     let modules = [

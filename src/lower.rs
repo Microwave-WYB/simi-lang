@@ -374,8 +374,8 @@ fn lower_rest(node: syntax::RestPattern) -> ast::PatternRest {
 fn literal_expr(node: &SyntaxNode) -> ast::ExprKind {
     let token = first_direct_token(node).expect("literal token");
     match token.kind() {
-        K::INT => ast::ExprKind::Int(i64::from_str(token.text()).expect("validated integer")),
-        K::FLOAT => ast::ExprKind::Float(f64::from_str(token.text()).expect("validated float")),
+        K::INT => ast::ExprKind::Int(parse_int_literal(token.text())),
+        K::FLOAT => ast::ExprKind::Float(parse_float_literal(token.text())),
         K::STRING => ast::ExprKind::String(decode_string(token.text())),
         K::NIL_KW => ast::ExprKind::Nil,
         K::TRUE_KW => ast::ExprKind::Bool(true),
@@ -386,14 +386,35 @@ fn literal_expr(node: &SyntaxNode) -> ast::ExprKind {
 fn literal_pattern(node: &SyntaxNode) -> ast::PatternKind {
     let token = first_direct_token(node).expect("literal token");
     match token.kind() {
-        K::INT => ast::PatternKind::Int(i64::from_str(token.text()).expect("validated integer")),
-        K::FLOAT => ast::PatternKind::Float(f64::from_str(token.text()).expect("validated float")),
+        K::INT => ast::PatternKind::Int(parse_int_literal(token.text())),
+        K::FLOAT => ast::PatternKind::Float(parse_float_literal(token.text())),
         K::STRING => ast::PatternKind::String(decode_string(token.text())),
         K::NIL_KW => ast::PatternKind::Nil,
         K::TRUE_KW => ast::PatternKind::Bool(true),
         K::FALSE_KW => ast::PatternKind::Bool(false),
         _ => unreachable!("literal token kind"),
     }
+}
+
+fn parse_int_literal(text: &str) -> i64 {
+    let normalized = text.replace('_', "");
+    if let Some(digits) = normalized
+        .strip_prefix("0b")
+        .or_else(|| normalized.strip_prefix("0B"))
+    {
+        i64::from_str_radix(digits, 2).expect("validated binary integer")
+    } else if let Some(digits) = normalized
+        .strip_prefix("0x")
+        .or_else(|| normalized.strip_prefix("0X"))
+    {
+        i64::from_str_radix(digits, 16).expect("validated hexadecimal integer")
+    } else {
+        i64::from_str(&normalized).expect("validated integer")
+    }
+}
+
+fn parse_float_literal(text: &str) -> f64 {
+    f64::from_str(&text.replace('_', "")).expect("validated float")
 }
 
 fn decode_string(text: &str) -> String {

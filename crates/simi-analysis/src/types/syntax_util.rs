@@ -1,12 +1,8 @@
 use super::*;
 
 pub(super) fn literal_type(node: &SyntaxNode) -> Type {
-    if let Some(token) = direct_token(node, K::INT) {
-        return token
-            .text()
-            .parse::<i64>()
-            .map(|_| Type::Int)
-            .unwrap_or(Type::Int);
+    if direct_token(node, K::INT).is_some() {
+        return Type::Int;
     }
     if direct_token(node, K::FLOAT).is_some() {
         return Type::Float;

@@ -467,3 +467,45 @@ fn is_identifier_uses_its_exact_utf8_byte_span() {
     assert_eq!(tokens[1].kind, TokenKind::Ident("is".to_owned()));
     assert_eq!(tokens[1].span, Span::new(5, 7));
 }
+
+#[test]
+fn lexes_radix_integers_and_python_inspired_numeric_separators() {
+    assert_eq!(
+        kinds("0b1010_0110 0b_1010 0x7f 0x_ff 0XCA_FE 1_000 1_000.25 1.5_0e1_0"),
+        vec![
+            TokenKind::Int(166),
+            TokenKind::Int(10),
+            TokenKind::Int(127),
+            TokenKind::Int(255),
+            TokenKind::Int(0xcafe),
+            TokenKind::Int(1_000),
+            TokenKind::Float(1_000.25),
+            TokenKind::Float(15_000_000_000.0),
+            TokenKind::Eof,
+        ]
+    );
+}
+
+#[test]
+fn rejects_invalid_numeric_separator_and_radix_forms() {
+    for source in [
+        "_100", "100_", "1__000", "0x_", "0x__ff", "0b2", "0xg", "1_.0", "1._0", "1e_10", "1e+_10",
+    ] {
+        assert!(lex(source).is_err(), "{source} should be rejected");
+    }
+}
+
+#[test]
+fn rejects_radix_integer_overflow() {
+    for source in [
+        "0x8000_0000_0000_0000",
+        "0b1_000000000000000000000000000000000000000000000000000000000000000",
+    ] {
+        let error = lex(source).expect_err("radix integer should overflow");
+        assert!(
+            error.message.contains("too large"),
+            "{source}: {}",
+            error.message
+        );
+    }
+}

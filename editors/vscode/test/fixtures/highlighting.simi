@@ -1,6 +1,6 @@
 -- Classify values and exercise Simi's editing grammar.
 fn classify(value, limit) do
-    let threshold = 1.5e+2
+    let threshold = 0x_ff + 0b_1010 + 1_000.25 + 1.5_0e+2
     let message = "line\nvalue"
     if value >= threshold and not false then
         "large"
