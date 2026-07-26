@@ -106,6 +106,18 @@ impl PreludeRegistry {
             .expect("configured prelude global should exist");
         *state = SourceModuleState::Unloaded;
     }
+
+    fn sources(&self) -> Vec<(String, String)> {
+        self.entries
+            .borrow()
+            .values()
+            .map(|entry| match entry {
+                PreludeEntry::Source { name, source, .. } => {
+                    (name.clone(), source.as_ref().to_owned())
+                }
+            })
+            .collect()
+    }
 }
 
 impl ModuleRegistry {
@@ -190,7 +202,9 @@ impl Engine {
     }
 
     pub fn module_sources(&self) -> Vec<(String, String)> {
-        self.modules.sources()
+        let mut sources = self.modules.sources();
+        sources.extend(self.prelude.sources());
+        sources
     }
 
     pub fn eval(&self, source: &str) -> Result<ScriptResult, SimiError> {

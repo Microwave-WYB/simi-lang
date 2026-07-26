@@ -919,7 +919,7 @@ fn source_module_nested_loads_retry_failures_and_isolate_cached_mutation() {
 }
 
 #[test]
-fn every_bundled_module_is_source_backed() {
+fn engine_lsp_catalog_includes_bundled_prelude_facades() {
     for module in [
         simi::stdlib::list(),
         simi::stdlib::map(),
@@ -934,14 +934,34 @@ fn every_bundled_module_is_source_backed() {
             module.name()
         );
     }
-    let engine = Engine::builder().stdlib().stdio().build();
-    let mut names = engine
-        .module_sources()
-        .into_iter()
-        .map(|(name, _)| name)
-        .collect::<Vec<_>>();
-    names.sort();
-    assert_eq!(names, ["std/io", "std/iter", "std/number", "std/string"]);
+
+    let mut sources = Engine::builder().stdlib().stdio().build().module_sources();
+    sources.sort_by(|left, right| left.0.cmp(&right.0));
+    assert_eq!(
+        sources.iter().map(|(name, _)| name).collect::<Vec<_>>(),
+        [
+            "std/io",
+            "std/iter",
+            "std/list",
+            "std/map",
+            "std/number",
+            "std/string",
+        ]
+    );
+    assert_eq!(
+        sources
+            .iter()
+            .find(|(name, _)| name == "std/list")
+            .map(|(_, source)| source.as_str()),
+        Some(include_str!("../stdlib/list.simi"))
+    );
+    assert_eq!(
+        sources
+            .iter()
+            .find(|(name, _)| name == "std/map")
+            .map(|(_, source)| source.as_str()),
+        Some(include_str!("../stdlib/map.simi"))
+    );
 }
 
 #[test]
