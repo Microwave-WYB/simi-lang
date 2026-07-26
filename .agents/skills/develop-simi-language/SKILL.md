@@ -23,7 +23,7 @@ Before changing behavior, write down:
 1. Add the lowest-layer regression that demonstrates the intended semantic boundary.
 2. Update canonical Rowan syntax and parser recovery under `crates/simi-syntax/`; regenerate typed syntax rather than hand-editing generated Rust.
 3. Update erased runtime lowering and interpretation under `src/`. Preserve lexical block boundaries, alias identity, two-layer errors, and GC tracing for every new managed edge.
-4. Update Salsa lowering/resolution/inference under `crates/simi-analysis/`. Keep public `any` distinct from internal uncertainty and preserve flow-sensitive mutation, callable post-states, capture effects, and shadowing.
+4. Update Salsa lowering/resolution/inference under `crates/simi-analysis/`. Keep public `any` distinct from internal uncertainty and preserve flow-sensitive mutation, capture effects, and shadowing.
 5. Update `simi-lsp` diagnostics, hover, completion, navigation, and UTF-16 protocol tests when behavior is user-visible.
 6. Update standard-library Simi facades and their native implementations together. Prefer typed direct native aliases; use wrappers only for intentional Simi behavior.
 7. Update the shared Tree-sitter grammar, generated artifacts, highlight/indent queries, TextMate grammar, and Zed fixtures as applicable. Rowan remains authoritative; Tree-sitter may be permissive only for documented editor recovery.
@@ -32,10 +32,9 @@ Before changing behavior, write down:
 
 ## High-risk invariants
 
-- Static annotations, aliases, generic bounds, callable labels, raised contracts, and post-states are erased and never alter runtime behavior.
-- `=>` is parameter-local post-state metadata, not a general type operator. Ambiguous unparenthesized forms must receive the canonical targeted diagnostic.
+- Static annotations, aliases, generic bounds, callable labels, and raised contracts are erased and never alter runtime behavior.
 - Callable labels are presentation-only and calls remain positional. Nested generic headers own distinct binders; bounds are ordinary Simi types, never traits or protocols.
-- Omitted callable effects infer, `raises E` checks an upper bound, and `noraise` means `raises never`. Hard diagnostics and postfix `?` stay outside the raised channel; post-states apply only on normal completion.
+- Omitted callable effects infer, `raises E` checks an upper bound, and `noraise` means `raises never`. Hard diagnostics and postfix `?` stay outside the raised channel.
 - Same-scope repeated `let` creates a new binding version; earlier closures retain earlier versions.
 - Map patterns are closed unless they contain `..` or `..rest`.
 - Postfix `?` stops the nearest lexical block. In a loop body its `nil` value supplies the next state.

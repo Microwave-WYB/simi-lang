@@ -5,10 +5,9 @@ AliasDecl = 'alias' 'ident' TypeParamList? '=' TypeExpr
 LetStmt = 'let' Pattern TypeAnnotation? '=' Expr
 ExprStmt = Expr
 ParamList = '(' (Param (',' Param)* ','?)? ')'
-Param = 'ident' TypeAnnotation? PostType?
+Param = 'ident' TypeAnnotation?
 TypeAnnotation = ':' TypeExpr
 ReturnAnnotation = '->' TypeExpr
-PostType = '=>' TypeExpr
 TypeParamList = '<' (TypeVariable (',' TypeVariable)* ','?)? '>'
 CallableTypeParamList = '<' ((TypeVariable TypeConstraint?) (',' (TypeVariable TypeConstraint?))* ','?)? '>'
 TypeConstraint = ':' TypeExpr
@@ -22,7 +21,7 @@ TypeArgumentList = '<' (TypeExpr (',' TypeExpr)* ','?)? '>'
 TypeVariable = 'apostrophe' 'ident'
 TypeLiteral = 'string' | 'nil'
 TypeParen = '(' (TypeFunctionParam (',' TypeFunctionParam)* ','?)? ')'
-TypeFunctionParam = ('ident' ':')? TypeExpr PostType?
+TypeFunctionParam = ('ident' ':')? TypeExpr
 TypeList = '[' (TypeListRest | TypeExpr (',' TypeExpr)* ','?)? ']'
 TypeListRest = '..' TypeExpr
 TypeMap = '{' (TypeMapEntry (',' TypeMapEntry)* (',' TypeMapRest)? ','? | TypeMapRest ','?)? '}'

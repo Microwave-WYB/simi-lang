@@ -50,21 +50,6 @@ impl Context<'_> {
                     } else if !is_subtype(&expected.ty, &actual.ty) {
                         self.require_subtype(&expected.ty, &actual.ty, at);
                     }
-                    if let Some(expected_post) = &expected.post {
-                        if let Some(actual_post) = &actual.post {
-                            self.constrain(expected_post, actual_post, at);
-                        } else {
-                            self.diagnostic(
-                                AnalysisDiagnosticCode::TypeMismatch,
-                                "Type mismatch",
-                                format!(
-                                    "Expected a callback post-state of `{}`, but the provided callback has no post-state guarantee.",
-                                    expected_post.display()
-                                ),
-                                at,
-                            );
-                        }
-                    }
                 }
                 self.constrain(&expected.result, &actual.result, at);
                 self.constrain(&expected.raised, &actual.raised, at);
@@ -182,10 +167,6 @@ impl Context<'_> {
                 }
                 for parameter in &mut callable.parameters {
                     parameter.ty = self.resolve_type_inner(parameter.ty.clone(), resolving);
-                    parameter.post = parameter
-                        .post
-                        .take()
-                        .map(|post| self.resolve_type_inner(post, resolving));
                 }
                 callable.result = Box::new(self.resolve_type_inner(*callable.result, resolving));
                 callable.raised = Box::new(self.resolve_type_inner(*callable.raised, resolving));
@@ -194,10 +175,6 @@ impl Context<'_> {
             Type::FunctionArgs(mut items) => {
                 for item in &mut items {
                     item.ty = self.resolve_type_inner(item.ty.clone(), resolving);
-                    item.post = item
-                        .post
-                        .take()
-                        .map(|post| self.resolve_type_inner(post, resolving));
                 }
                 Type::FunctionArgs(items)
             }

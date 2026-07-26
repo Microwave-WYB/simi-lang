@@ -24,11 +24,7 @@ impl Backend {
                             } else {
                                 CompletionItemKind::FIELD
                             }),
-                            detail: Some(typed_detail(
-                                &field.name,
-                                field.ty.as_ref(),
-                                &field.posts,
-                            )),
+                            detail: Some(typed_detail(&field.name, field.ty.as_ref())),
                             documentation: field.documentation.map(Documentation::String),
                             ..CompletionItem::default()
                         }
@@ -77,15 +73,7 @@ impl Backend {
                 };
                 let detail = effective_ty.map_or_else(
                     || completion_detail(data.kind, &data.name, data.parameters.as_deref()),
-                    |ty| {
-                        let posts = inference
-                            .symbol_posts
-                            .get(&symbol)
-                            .map(Vec::as_slice)
-                            .or_else(|| imported.map(|member| member.field.posts.as_slice()))
-                            .unwrap_or(&[]);
-                        typed_detail(&data.name, Some(&ty), posts)
-                    },
+                    |ty| typed_detail(&data.name, Some(&ty)),
                 );
                 items.push(CompletionItem {
                     label: data.name.clone(),

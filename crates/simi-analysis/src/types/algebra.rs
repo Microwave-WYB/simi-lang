@@ -24,16 +24,7 @@ pub(super) fn max_generic(ty: &Type) -> Option<u32> {
     match ty {
         Type::Generic(id) => Some(*id),
         Type::ListExact(items) | Type::Union(items) => items.iter().filter_map(max_generic).max(),
-        Type::FunctionArgs(items) => items
-            .iter()
-            .flat_map(|item| {
-                [
-                    max_generic(&item.ty),
-                    item.post.as_ref().and_then(max_generic),
-                ]
-            })
-            .flatten()
-            .max(),
+        Type::FunctionArgs(items) => items.iter().filter_map(|item| max_generic(&item.ty)).max(),
         Type::ListRest(item) => max_generic(item),
         Type::Map { fields, index, .. } => fields
             .iter()
@@ -55,14 +46,12 @@ pub(super) fn max_generic(ty: &Type) -> Option<u32> {
                     .iter()
                     .filter_map(|constraint| constraint.bound.as_ref().and_then(max_generic)),
             )
-            .chain(callable.parameters.iter().flat_map(|parameter| {
-                [
-                    max_generic(&parameter.ty),
-                    parameter.post.as_ref().and_then(max_generic),
-                ]
-                .into_iter()
-                .flatten()
-            }))
+            .chain(
+                callable
+                    .parameters
+                    .iter()
+                    .filter_map(|parameter| max_generic(&parameter.ty)),
+            )
             .chain(max_generic(&callable.result))
             .chain(max_generic(&callable.raised))
             .max(),
@@ -101,9 +90,6 @@ pub(super) fn collect_instantiable_generics(
         Type::FunctionArgs(parameters) => {
             for parameter in parameters {
                 collect_instantiable_generics(&parameter.ty, protected, false, targets);
-                if let Some(post) = &parameter.post {
-                    collect_instantiable_generics(post, protected, false, targets);
-                }
             }
         }
         Type::ListRest(item) => {
@@ -140,9 +126,6 @@ pub(super) fn collect_instantiable_generics(
             }
             for parameter in &callable.parameters {
                 collect_instantiable_generics(&parameter.ty, &nested_protected, false, targets);
-                if let Some(post) = &parameter.post {
-                    collect_instantiable_generics(post, &nested_protected, false, targets);
-                }
             }
             collect_instantiable_generics(&callable.result, &nested_protected, false, targets);
             collect_instantiable_generics(&callable.raised, &nested_protected, false, targets);
@@ -150,54 +133,9 @@ pub(super) fn collect_instantiable_generics(
         _ => {}
     }
 }
-pub(super) fn collect_generic_replacements(
-    parameter: &Type,
-    actual: &Type,
-    replacements: &mut HashMap<u32, Type>,
-) {
-    match (parameter, actual) {
-        (Type::Generic(id), actual) => {
-            replacements
-                .entry(*id)
-                .and_modify(|existing| *existing = union(vec![existing.clone(), actual.clone()]))
-                .or_insert_with(|| actual.clone());
-        }
-        (Type::ListRest(parameter), Type::ListExact(actuals)) => {
-            for actual in actuals {
-                collect_generic_replacements(parameter, actual, replacements);
-            }
-        }
-        (Type::ListRest(_), Type::ListRest(actual)) if **actual == Type::Never => {}
-        (Type::ListRest(parameter), Type::ListRest(actual)) => {
-            collect_generic_replacements(parameter, actual, replacements);
-        }
-        (Type::ListExact(parameters), Type::ListExact(actuals)) => {
-            for (parameter, actual) in parameters.iter().zip(actuals) {
-                collect_generic_replacements(parameter, actual, replacements);
-            }
-        }
-        (Type::Function(parameter), Type::Function(actual)) => {
-            for (parameter, actual) in parameter.parameters.iter().zip(&actual.parameters) {
-                collect_generic_replacements(&parameter.ty, &actual.ty, replacements);
-                if let (Some(parameter), Some(actual)) = (&parameter.post, &actual.post) {
-                    collect_generic_replacements(parameter, actual, replacements);
-                }
-            }
-            collect_generic_replacements(&parameter.result, &actual.result, replacements);
-            collect_generic_replacements(&parameter.raised, &actual.raised, replacements);
-        }
-        _ => {}
-    }
-}
 pub(super) fn substitute_generics(ty: Type, replacements: &HashMap<u32, Type>) -> Type {
     map_type(ty, &mut |ty| match ty {
         Type::Generic(id) => replacements.get(&id).cloned().unwrap_or(Type::Generic(id)),
-        other => other,
-    })
-}
-pub(super) fn substitute_post_generics(ty: Type, replacements: &HashMap<u32, Type>) -> Type {
-    map_type(ty, &mut |ty| match ty {
-        Type::Generic(id) => replacements.get(&id).cloned().unwrap_or(Type::Never),
         other => other,
     })
 }
@@ -234,7 +172,6 @@ pub(super) fn map_type(ty: Type, mapper: &mut impl FnMut(Type) -> Type) -> Type 
             }
             for parameter in &mut callable.parameters {
                 parameter.ty = map_type(parameter.ty.clone(), mapper);
-                parameter.post = parameter.post.take().map(|post| map_type(post, mapper));
             }
             callable.result = Box::new(map_type(*callable.result, mapper));
             callable.raised = Box::new(map_type(*callable.raised, mapper));
@@ -243,7 +180,6 @@ pub(super) fn map_type(ty: Type, mapper: &mut impl FnMut(Type) -> Type) -> Type 
         Type::FunctionArgs(mut items) => {
             for item in &mut items {
                 item.ty = map_type(item.ty.clone(), mapper);
-                item.post = item.post.take().map(|post| map_type(post, mapper));
             }
             Type::FunctionArgs(items)
         }
@@ -263,13 +199,9 @@ pub(super) fn contains_specific_infer(ty: &Type, target: u32) -> bool {
         Type::ListExact(items) | Type::Union(items) => items
             .iter()
             .any(|item| contains_specific_infer(item, target)),
-        Type::FunctionArgs(items) => items.iter().any(|item| {
-            contains_specific_infer(&item.ty, target)
-                || item
-                    .post
-                    .as_ref()
-                    .is_some_and(|post| contains_specific_infer(post, target))
-        }),
+        Type::FunctionArgs(items) => items
+            .iter()
+            .any(|item| contains_specific_infer(&item.ty, target)),
         Type::ListRest(item) => contains_specific_infer(item, target),
         Type::Map { fields, index, .. } => {
             fields
@@ -286,13 +218,11 @@ pub(super) fn contains_specific_infer(ty: &Type, target: u32) -> bool {
                         .bound
                         .as_ref()
                         .is_some_and(|bound| contains_specific_infer(bound, target))
-            }) || callable.parameters.iter().any(|parameter| {
-                contains_specific_infer(&parameter.ty, target)
-                    || parameter
-                        .post
-                        .as_ref()
-                        .is_some_and(|post| contains_specific_infer(post, target))
-            }) || contains_specific_infer(&callable.result, target)
+            }) || callable
+                .parameters
+                .iter()
+                .any(|parameter| contains_specific_infer(&parameter.ty, target))
+                || contains_specific_infer(&callable.result, target)
                 || contains_specific_infer(&callable.raised, target)
         }
         _ => false,
@@ -320,9 +250,7 @@ pub(super) fn contains_infer(ty: &Type) -> bool {
     match ty {
         Type::Infer(_) => true,
         Type::ListExact(items) | Type::Union(items) => items.iter().any(contains_infer),
-        Type::FunctionArgs(items) => items
-            .iter()
-            .any(|item| contains_infer(&item.ty) || item.post.as_ref().is_some_and(contains_infer)),
+        Type::FunctionArgs(items) => items.iter().any(|item| contains_infer(&item.ty)),
         Type::ListRest(item) => contains_infer(item),
         Type::Map { fields, index, .. } => {
             fields.iter().any(|(_, ty)| contains_infer(ty))
@@ -334,9 +262,11 @@ pub(super) fn contains_infer(ty: &Type) -> bool {
             callable.constraints.iter().any(|constraint| {
                 contains_infer(&constraint.variable)
                     || constraint.bound.as_ref().is_some_and(contains_infer)
-            }) || callable.parameters.iter().any(|parameter| {
-                contains_infer(&parameter.ty) || parameter.post.as_ref().is_some_and(contains_infer)
-            }) || contains_infer(&callable.result)
+            }) || callable
+                .parameters
+                .iter()
+                .any(|parameter| contains_infer(&parameter.ty))
+                || contains_infer(&callable.result)
                 || contains_infer(&callable.raised)
         }
         _ => false,
@@ -352,9 +282,6 @@ pub(super) fn collect_constraint_bounds(ty: &Type, bounds: &mut Vec<(u32, Type)>
             }
             for parameter in &callable.parameters {
                 collect_constraint_bounds(&parameter.ty, bounds);
-                if let Some(post) = &parameter.post {
-                    collect_constraint_bounds(post, bounds);
-                }
             }
             collect_constraint_bounds(&callable.result, bounds);
             collect_constraint_bounds(&callable.raised, bounds);
@@ -367,9 +294,6 @@ pub(super) fn collect_constraint_bounds(ty: &Type, bounds: &mut Vec<(u32, Type)>
         Type::FunctionArgs(parameters) => {
             for parameter in parameters {
                 collect_constraint_bounds(&parameter.ty, bounds);
-                if let Some(post) = &parameter.post {
-                    collect_constraint_bounds(post, bounds);
-                }
             }
         }
         Type::ListRest(item) => collect_constraint_bounds(item, bounds),
@@ -507,9 +431,6 @@ pub(super) fn merge_callable(left: &CallableType, right: &CallableType) -> Optio
                     .then(|| left.name.clone())
                     .flatten(),
                 ty: left.ty.clone(),
-                post: (left.post == right.post)
-                    .then(|| left.post.clone())
-                    .flatten(),
             })
             .collect(),
         result: left.result.clone(),
@@ -652,6 +573,7 @@ pub(super) fn is_subtype(actual: &Type, expected: &Type) -> bool {
                     .iter()
                     .find(|(field, _)| field == name)
                     .is_some_and(|(_, actual)| is_subtype(actual, expected))
+                    || type_may_be_nil(expected)
             });
             let index_matches = expected_index.as_ref().is_none_or(|(key, value)| {
                 actual
@@ -667,7 +589,11 @@ pub(super) fn is_subtype(actual: &Type, expected: &Type) -> bool {
                 && index_matches
                 && (*open
                     || expected_index.is_some()
-                    || (!*actual_open && actual.len() == expected.len()))
+                    || (!*actual_open
+                        && actual.len() <= expected.len()
+                        && actual
+                            .iter()
+                            .all(|(name, _)| expected.iter().any(|(field, _)| field == name))))
         }
         (Type::Function(actual), Type::Function(expected)) => {
             actual.constraints.len() == expected.constraints.len()
@@ -687,47 +613,10 @@ pub(super) fn is_subtype(actual: &Type, expected: &Type) -> bool {
                     .parameters
                     .iter()
                     .zip(&expected.parameters)
-                    .all(|(actual, expected)| {
-                        is_subtype(&expected.ty, &actual.ty)
-                            && expected.post.as_ref().is_none_or(|expected_post| {
-                                actual.post.as_ref().is_some_and(|actual_post| {
-                                    is_subtype(actual_post, expected_post)
-                                })
-                            })
-                    })
+                    .all(|(actual, expected)| is_subtype(&expected.ty, &actual.ty))
                 && is_subtype(&actual.result, &expected.result)
                 && is_subtype(&actual.raised, &expected.raised)
         }
         _ => false,
     }
-}
-pub(super) fn callable_post_scheme(ty: &Type) -> Option<(Vec<Type>, Vec<ParameterPostType>)> {
-    let Type::Function(callable) = ty else {
-        return None;
-    };
-    let posts = callable
-        .parameters
-        .iter()
-        .enumerate()
-        .filter_map(|(parameter_index, parameter)| {
-            parameter.post.clone().map(|becomes| ParameterPostType {
-                parameter_index,
-                parameter_name: parameter
-                    .name
-                    .clone()
-                    .unwrap_or_else(|| format!("argument {}", parameter_index + 1)),
-                becomes,
-            })
-        })
-        .collect::<Vec<_>>();
-    (!posts.is_empty()).then(|| {
-        (
-            callable
-                .parameters
-                .iter()
-                .map(|parameter| parameter.ty.clone())
-                .collect(),
-            posts,
-        )
-    })
 }

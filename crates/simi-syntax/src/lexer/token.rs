@@ -46,7 +46,6 @@ pub enum TokenKind {
     Apostrophe,
     At,
     Arrow,
-    FatArrow,
     Pipe,
     Dot,
     DotDot,

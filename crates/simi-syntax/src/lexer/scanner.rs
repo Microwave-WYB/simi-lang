@@ -176,10 +176,6 @@ impl<'a> Scanner<'a> {
                 self.simple(start, SyntaxKind::PERCENT, TokenKind::Percent);
                 Ok(())
             }
-            b'=' if self.peek(1) == Some(b'>') => {
-                self.double(start, SyntaxKind::FAT_ARROW, TokenKind::FatArrow);
-                Ok(())
-            }
             b'=' => {
                 self.one_or_two(
                     start,

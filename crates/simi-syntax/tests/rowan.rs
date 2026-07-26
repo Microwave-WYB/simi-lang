@@ -135,8 +135,7 @@ fn erased_type_surface_is_lossless_and_alias_is_contextual() {
         "let alias = 1\n",
         "alias option<'a> = 'a | nil\n",
         "let value: option<string> = nil\n",
-        "fn apply(values: [integer, string] => [..(integer | string)], ",
-        "output: [..string] => [..string]) -> nil do nil end\n",
+        "fn apply(values: [integer, string], output: [..string]) -> nil do nil end\n",
         "let record: { name: string, [string | integer]: boolean, .. } = {}\n",
     );
     let parse = parse_source(source);
@@ -156,14 +155,6 @@ fn erased_type_surface_is_lossless_and_alias_is_contextual() {
             .descendants()
             .any(|node| node.kind() == SyntaxKind::TYPE_MAP)
     );
-    assert_eq!(
-        parse
-            .syntax()
-            .descendants()
-            .filter(|node| node.kind() == SyntaxKind::POST_TYPE)
-            .count(),
-        2
-    );
     assert!(
         parse
             .syntax()
@@ -173,39 +164,11 @@ fn erased_type_surface_is_lossless_and_alias_is_contextual() {
 }
 
 #[test]
-fn post_state_types_require_unambiguous_parameter_boundaries() {
-    let valid = parse_source("let append: ([..'a] => [..('a | 'b)], 'b) -> nil = host.append\n");
-    assert!(valid.diagnostics().is_empty(), "{:?}", valid.diagnostics());
-    assert_eq!(
-        valid
-            .syntax()
-            .descendants()
-            .filter(|node| node.kind() == SyntaxKind::POST_TYPE)
-            .count(),
-        1
-    );
-
-    let ambiguous = parse_source("let bad: 'a | 'b => 'b -> 'b = nil\n");
-    assert!(ambiguous.diagnostics().iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("ambiguous post-state annotation")
-    }));
-
-    let missing_result = parse_source("let bad: ('a => 'b) = nil\n");
-    assert!(missing_result.diagnostics().iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("must be followed by `->` and a result type")
-    }));
-}
-
-#[test]
 fn callable_generics_labels_effects_and_leading_unions_are_lossless() {
     let source = concat!(
         "fn identity<'a: | integer | string>(value: 'a) -> 'a noraise do value end\n",
         "let mapper: <'a, 'error: { error: string, .. }> (value: 'a) -> 'a raises 'error = nil\n",
-        "let callback: (input: | integer | string, state: [..integer] => [..integer]) -> nil = nil\n",
+        "let callback: (input: | integer | string, state: [..integer]) -> nil = nil\n",
         "let anonymous = fn<'a: any>(value: 'a) -> 'a raises string do value end\n",
     );
     let parse = parse_source(source);
@@ -352,4 +315,12 @@ fn map_local_binding_shorthand_is_a_map_entry_without_pattern_changes() {
             .children()
             .all(|child| child.kind() != SyntaxKind::NAME_EXPR)
     );
+}
+
+#[test]
+fn callable_post_state_syntax_is_rejected() {
+    let parse = parse_source("fn append(xs: [..integer] => [..integer]) -> nil do nil end\n");
+    assert!(parse.diagnostics().iter().any(|diagnostic| {
+        diagnostic.message.contains("found `=>`") || diagnostic.message.contains("expected `)`")
+    }));
 }

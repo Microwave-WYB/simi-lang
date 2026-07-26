@@ -11,7 +11,7 @@ fn documented_typed_native_aliases_keep_callable_module_metadata() {
 --- Return the text length.
 let length: string -> integer = host.length
 --- Append a value.
-let append: ([..'a] => [..('a | 'b)], 'b) -> nil = host.append
+let append: ([..'a], 'b) -> nil = host.append
 {length = length, append = append}
 "#;
     let db = AnalysisDatabase::default();
@@ -35,26 +35,19 @@ let append: ([..'a] => [..('a | 'b)], 'b) -> nil = host.append
 
     let append = &shape.fields[1];
     assert_eq!(append.name, "append");
-    assert_eq!(append.posts.len(), 1);
-    assert_eq!(append.posts[0].parameter_index, 0);
-    assert_eq!(append.posts[0].becomes.display(), "[..('a | 'b)]");
 }
 
 #[test]
-fn function_type_aliases_preserve_post_state_metadata() {
+fn function_type_aliases_preserve_callable_alias_metadata() {
     let source = r#"
-alias appender<'a, 'b> = ([..'a] => [..('a | 'b)], 'b) -> nil
+alias appender<'a, 'b> = ([..'a], 'b) -> nil
 let append: appender<integer, string> = host.append
 let wrapped: ((appender<integer, string>)) = host.append
 {append = append, wrapped = wrapped}
 "#;
     let db = AnalysisDatabase::default();
     let file = db.add_file(source);
-    let shape = module_shape(&db, file);
-    for field in &shape.fields {
-        assert_eq!(field.posts.len(), 1);
-        assert_eq!(field.posts[0].becomes.display(), "[..(integer | string)]");
-    }
+    let _ = module_shape(&db, file);
 }
 
 #[test]

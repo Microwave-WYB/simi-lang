@@ -44,7 +44,7 @@ fn callable_generic_constraints_labels_and_effects_are_runtime_erased() {
 fn apply<'a: | integer | string>(callback: (input: 'a) -> 'a raises string, value: 'a) -> 'a noraise do
     callback(value)
 end
-let identity = fn<'a: any>(value: 'a => 'a) -> 'a raises string do value end
+let identity = fn<'a: any>(value: 'a) -> 'a raises string do value end
 apply(identity, 42)
 "#,
     )

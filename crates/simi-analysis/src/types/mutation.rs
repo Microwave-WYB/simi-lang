@@ -88,9 +88,6 @@ impl Context<'_> {
         let value_region = value_node
             .as_ref()
             .and_then(|expression| self.expression_region(expression));
-        let value_posts = value_node
-            .as_ref()
-            .and_then(|expression| self.call_post_scheme(expression).map(|(_, posts)| posts));
         let value_trusted_builtin = value_node
             .as_ref()
             .and_then(|expression| expression_symbol(expression, self.resolution))
@@ -131,11 +128,6 @@ impl Context<'_> {
                     } else {
                         self.symbol_regions.remove(&symbol);
                     }
-                    if let Some(posts) = value_posts {
-                        self.symbol_posts.insert(symbol, posts);
-                    } else {
-                        self.symbol_posts.remove(&symbol);
-                    }
                     if let Some(effects) = value_capture_effects {
                         self.callable_capture_effects.insert(symbol, effects);
                     } else {
@@ -170,6 +162,37 @@ impl Context<'_> {
         }
         value
     }
+
+    pub(super) fn capture_mutation_is_compatible(
+        &mut self,
+        symbol: SymbolId,
+        updated: &Type,
+        at: Span,
+    ) -> bool {
+        let captured = self
+            .assignment_effect_frames
+            .last()
+            .is_some_and(|(captures, _)| captures.contains(&symbol));
+        if !captured {
+            return true;
+        }
+        let bound = self
+            .symbol_bounds
+            .get(&symbol)
+            .cloned()
+            .map(|ty| self.resolve_type(ty))
+            .unwrap_or(Type::Unknown);
+        if is_subtype(updated, &bound) {
+            return true;
+        }
+        self.diagnostic(
+            AnalysisDiagnosticCode::TypeMismatch,
+            "Captured mutation exceeds declared type",
+            "Structural widening is inferred only in a binding's defining scope; annotate the captured binding with a type that admits this mutation.".to_owned(),
+            at,
+        );
+        false
+    }
     pub(super) fn apply_field_assignment(&mut self, field: &syntax::FieldExpr, value: &Type) {
         let Some(owner) = child_expr(field.syntax(), 0) else {
             return;
@@ -196,6 +219,9 @@ impl Context<'_> {
             .map(|ty| self.resolve_type(ty))
             .unwrap_or(Type::Unknown);
         let updated = update_map_field(current, name.text(), value.clone());
+        if !self.capture_mutation_is_compatible(symbol, &updated, span(field.syntax())) {
+            return;
+        }
         self.record_mutation(symbol);
         self.update_region_or_symbol(symbol, updated);
     }
@@ -247,18 +273,19 @@ impl Context<'_> {
             }
             Type::ListRest(item) => Type::ListRest(Box::new(union(vec![*item, value.clone()]))),
             map @ Type::Map { .. } => {
-                let updated = if let Some(syntax::Expr::Literal(literal)) = key.as_ref()
+                if let Some(syntax::Expr::Literal(literal)) = key.as_ref()
                     && let Some(token) = direct_token(literal.syntax(), K::STRING)
                 {
                     update_map_field(map, &unquote(token.text()), value.clone())
                 } else {
                     widen_mutable_type(map)
-                };
-                self.update_region_or_symbol(symbol, updated);
-                return;
+                }
             }
             _ => return,
         };
+        if !self.capture_mutation_is_compatible(symbol, &updated, span(index.syntax())) {
+            return;
+        }
         self.record_mutation(symbol);
         self.update_region_or_symbol(symbol, updated);
     }

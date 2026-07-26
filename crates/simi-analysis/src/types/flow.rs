@@ -5,7 +5,6 @@ impl Context<'_> {
         FlowState {
             symbol_types: self.symbol_types.clone(),
             symbol_bounds: self.symbol_bounds.clone(),
-            symbol_posts: self.symbol_posts.clone(),
             symbol_regions: self.symbol_regions.clone(),
             callable_capture_effects: self.callable_capture_effects.clone(),
             callable_assignment_effects: self.callable_assignment_effects.clone(),
@@ -15,7 +14,6 @@ impl Context<'_> {
     pub(super) fn restore_flow(&mut self, state: &FlowState) {
         self.symbol_types.clone_from(&state.symbol_types);
         self.symbol_bounds.clone_from(&state.symbol_bounds);
-        self.symbol_posts.clone_from(&state.symbol_posts);
         self.symbol_regions.clone_from(&state.symbol_regions);
         self.callable_capture_effects
             .clone_from(&state.callable_capture_effects);
@@ -29,7 +27,6 @@ impl Context<'_> {
             .symbol_types
             .keys()
             .chain(state.symbol_bounds.keys())
-            .chain(state.symbol_posts.keys())
             .chain(state.symbol_regions.keys())
             .chain(state.callable_capture_effects.keys())
             .chain(state.callable_assignment_effects.keys())
@@ -40,7 +37,6 @@ impl Context<'_> {
         for symbol in outer_symbols {
             restore_map_entry(&mut self.symbol_types, &state.symbol_types, symbol);
             restore_map_entry(&mut self.symbol_bounds, &state.symbol_bounds, symbol);
-            restore_map_entry(&mut self.symbol_posts, &state.symbol_posts, symbol);
             restore_map_entry(&mut self.symbol_regions, &state.symbol_regions, symbol);
             restore_map_entry(
                 &mut self.callable_capture_effects,
@@ -59,7 +55,6 @@ impl Context<'_> {
         let first = states.next()?;
         let mut symbol_types = first.symbol_types;
         let mut symbol_bounds = first.symbol_bounds;
-        let mut common_posts = first.symbol_posts;
         let mut common_regions = first.symbol_regions;
         let mut common_capture_effects = first.callable_capture_effects;
         let mut common_assignment_effects = first.callable_assignment_effects;
@@ -77,7 +72,6 @@ impl Context<'_> {
                     .and_modify(|current| *current = union(vec![current.clone(), ty.clone()]))
                     .or_insert(ty);
             }
-            common_posts.retain(|symbol, posts| state.symbol_posts.get(symbol) == Some(posts));
             common_regions.retain(|symbol, region| {
                 state
                     .symbol_regions
@@ -94,7 +88,6 @@ impl Context<'_> {
         Some(FlowState {
             symbol_types,
             symbol_bounds,
-            symbol_posts: common_posts,
             symbol_regions: common_regions,
             callable_capture_effects: common_capture_effects,
             callable_assignment_effects: common_assignment_effects,

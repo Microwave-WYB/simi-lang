@@ -66,113 +66,6 @@ impl Context<'_> {
             _ => {}
         }
     }
-    pub(super) fn parse_function_type_posts(
-        &mut self,
-        node: &SyntaxNode,
-        generics: &mut HashMap<String, u32>,
-    ) -> Vec<ParameterPostType> {
-        let Some(function) = support::child::<syntax::TypeFunction>(node) else {
-            return Vec::new();
-        };
-        if direct_token(function.syntax(), K::ARROW).is_none() {
-            let Some(name_node) = transparent_type_name(function.syntax()) else {
-                return Vec::new();
-            };
-            let name = direct_token(name_node.syntax(), K::IDENT)
-                .map(|token| token.text().to_owned())
-                .unwrap_or_default();
-            let arguments = support::child::<syntax::TypeArgumentList>(name_node.syntax())
-                .map(|list| {
-                    support::children::<syntax::TypeExpr>(list.syntax())
-                        .map(|ty| self.parse_type(ty.syntax(), generics))
-                        .collect::<Vec<_>>()
-                })
-                .unwrap_or_default();
-            let Some(alias) = self.aliases.get(&name).cloned() else {
-                return Vec::new();
-            };
-            if arguments.len() != alias.parameters.len() || !self.alias_stack.insert(name.clone()) {
-                return Vec::new();
-            }
-            let mut alias_generics = alias
-                .parameters
-                .iter()
-                .enumerate()
-                .map(|(index, parameter)| (parameter.clone(), index as u32))
-                .collect::<HashMap<_, _>>();
-            let mut posts = self.parse_function_type_posts(&alias.body, &mut alias_generics);
-            let replacements = arguments
-                .into_iter()
-                .enumerate()
-                .map(|(index, ty)| (index as u32, ty))
-                .collect::<HashMap<_, _>>();
-            for post in &mut posts {
-                post.becomes = substitute_generics(post.becomes.clone(), &replacements);
-            }
-            self.alias_stack.remove(&name);
-            return posts;
-        }
-        let Some(arguments) = support::child::<syntax::TypeUnion>(function.syntax())
-            .and_then(|union| support::child::<syntax::TypeParen>(union.syntax()))
-        else {
-            return Vec::new();
-        };
-        support::children::<syntax::TypeFunctionParam>(arguments.syntax())
-            .enumerate()
-            .filter_map(|(parameter_index, parameter)| {
-                let post = support::child::<syntax::PostType>(parameter.syntax())?;
-                let becomes = support::child::<syntax::TypeExpr>(post.syntax())
-                    .map(|ty| self.parse_type(ty.syntax(), generics))?;
-                Some(ParameterPostType {
-                    parameter_index,
-                    parameter_name: format!("argument {}", parameter_index + 1),
-                    becomes,
-                })
-            })
-            .collect()
-    }
-    pub(super) fn validate_annotated_posts(
-        &mut self,
-        function_ty: &Type,
-        posts: Vec<ParameterPostType>,
-        at: Span,
-    ) -> Option<Vec<ParameterPostType>> {
-        let Type::Function(callable) = function_ty else {
-            self.diagnostic(
-                AnalysisDiagnosticCode::InvalidType,
-                "Post-state outside function type",
-                "Post-state annotations require a function type.".to_owned(),
-                at,
-            );
-            return None;
-        };
-        let mut valid = Vec::new();
-        for post in posts {
-            let Some(pre) = callable
-                .parameters
-                .get(post.parameter_index)
-                .map(|parameter| &parameter.ty)
-            else {
-                continue;
-            };
-            if valid_post_transition(pre, &post.becomes) {
-                valid.push(post);
-            } else {
-                self.diagnostic(
-                    AnalysisDiagnosticCode::InvalidType,
-                    "Invalid post-type",
-                    format!(
-                        "Post-type `{}` is not a valid transition from {} of type `{}`.",
-                        post.becomes.display(),
-                        post.parameter_name,
-                        pre.display()
-                    ),
-                    at,
-                );
-            }
-        }
-        Some(valid)
-    }
     pub(super) fn parse_callable_constraints(
         &mut self,
         node: &SyntaxNode,
@@ -266,7 +159,6 @@ impl Context<'_> {
                         other => vec![CallableParameter {
                             name: None,
                             ty: other,
-                            post: None,
                         }],
                     };
                     let (raised, raised_annotation) =
@@ -326,19 +218,15 @@ impl Context<'_> {
                     .filter_map(|parameter| {
                         let ty = support::child::<syntax::TypeExpr>(parameter.syntax())
                             .map(|ty| self.parse_type(ty.syntax(), generics))?;
-                        let post = support::child::<syntax::PostType>(parameter.syntax())
-                            .and_then(|post| support::child::<syntax::TypeExpr>(post.syntax()))
-                            .map(|post| self.parse_type(post.syntax(), generics));
                         Some(CallableParameter {
                             name: direct_token(parameter.syntax(), K::IDENT)
                                 .map(|token| token.text().to_owned()),
                             ty,
-                            post,
                         })
                     })
                     .collect::<Vec<_>>();
                 match items.as_slice() {
-                    [one] if one.name.is_none() && one.post.is_none() => one.ty.clone(),
+                    [one] if one.name.is_none() => one.ty.clone(),
                     _ => Type::FunctionArgs(items),
                 }
             }

@@ -174,7 +174,6 @@ pub struct ExportField {
     pub parameters: Option<Vec<String>>,
     pub documentation: Option<String>,
     pub ty: Option<Type>,
-    pub posts: Vec<ParameterPostType>,
     pub fields: Vec<ExportField>,
 }
 
@@ -214,12 +213,11 @@ pub struct GenericConstraint {
 pub struct CallableParameter {
     pub name: Option<String>,
     pub ty: Type,
-    pub post: Option<Type>,
 }
 
 impl PartialEq for CallableParameter {
     fn eq(&self, other: &Self) -> bool {
-        self.ty == other.ty && self.post == other.post
+        self.ty == other.ty
     }
 }
 
@@ -228,7 +226,6 @@ impl Eq for CallableParameter {}
 impl Hash for CallableParameter {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.ty.hash(state);
-        self.post.hash(state);
     }
 }
 
@@ -247,11 +244,7 @@ impl CallableType {
             constraints: Vec::new(),
             parameters: parameters
                 .into_iter()
-                .map(|ty| CallableParameter {
-                    name: None,
-                    ty,
-                    post: None,
-                })
+                .map(|ty| CallableParameter { name: None, ty })
                 .collect(),
             result: Box::new(result),
             raised: Box::new(raised),
@@ -393,9 +386,6 @@ fn display_type(ty: &Type, nested: bool) -> String {
                 .iter()
                 .map(|parameter| {
                     let mut value = display_type(&parameter.ty, false);
-                    if let Some(post) = &parameter.post {
-                        value = format!("{value} => {}", display_type(post, false));
-                    }
                     if let Some(name) = &parameter.name {
                         value = format!("{name}: {value}");
                     }
@@ -403,9 +393,7 @@ fn display_type(ty: &Type, nested: bool) -> String {
                 })
                 .collect::<Vec<_>>();
             let left = match callable.parameters.as_slice() {
-                [parameter] if parameter.name.is_none() && parameter.post.is_none() => {
-                    display_type(&parameter.ty, true)
-                }
+                [parameter] if parameter.name.is_none() => display_type(&parameter.ty, true),
                 _ => format!("({})", rendered_parameters.join(", ")),
             };
             let mut value = format!(
@@ -414,13 +402,11 @@ fn display_type(ty: &Type, nested: bool) -> String {
             );
             let orphan_inferred_effect = match callable.raised.as_ref() {
                 Type::Generic(id) if callable.raised_annotation == RaisedAnnotation::Inferred => {
-                    !callable.parameters.iter().any(|parameter| {
-                        contains_generic(&parameter.ty, *id)
-                            || parameter
-                                .post
-                                .as_ref()
-                                .is_some_and(|post| contains_generic(post, *id))
-                    }) && !contains_generic(&callable.result, *id)
+                    !callable
+                        .parameters
+                        .iter()
+                        .any(|parameter| contains_generic(&parameter.ty, *id))
+                        && !contains_generic(&callable.result, *id)
                         && !callable.constraints.iter().any(|constraint| {
                             contains_generic(&constraint.variable, *id)
                                 || constraint
@@ -556,16 +542,12 @@ fn pretty_function(callable: &CallableType, continuation_indent: usize, width: u
                 .as_deref()
                 .map_or(String::new(), |name| format!("{name}: "));
             let type_column = indent + name.len();
-            let mut value = format!(
+            let value = format!(
                 "{}{}{}",
                 " ".repeat(indent),
                 name,
                 pretty_type(&parameter.ty, false, type_column, indent, width)
             );
-            if let Some(post) = &parameter.post {
-                value.push_str(" => ");
-                value.push_str(&pretty_type(post, false, type_column + 4, indent, width));
-            }
             format!("{value},")
         })
         .collect::<Vec<_>>();
@@ -685,13 +667,11 @@ fn contains_generic(ty: &Type, id: u32) -> bool {
                         .bound
                         .as_ref()
                         .is_some_and(|bound| contains_generic(bound, id))
-            }) || callable.parameters.iter().any(|parameter| {
-                contains_generic(&parameter.ty, id)
-                    || parameter
-                        .post
-                        .as_ref()
-                        .is_some_and(|post| contains_generic(post, id))
-            }) || contains_generic(&callable.result, id)
+            }) || callable
+                .parameters
+                .iter()
+                .any(|parameter| contains_generic(&parameter.ty, id))
+                || contains_generic(&callable.result, id)
                 || contains_generic(&callable.raised, id)
         }
         _ => false,
@@ -709,18 +689,10 @@ fn generic_name(mut index: u32) -> String {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ParameterPostType {
-    pub parameter_index: usize,
-    pub parameter_name: String,
-    pub becomes: Type,
-}
-
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct TypeInference {
     pub result_type: Option<Type>,
     pub symbol_types: HashMap<SymbolId, Type>,
-    pub symbol_posts: HashMap<SymbolId, Vec<ParameterPostType>>,
     pub expression_types: Vec<(Span, Type)>,
     pub pattern_types: Vec<(Span, Type)>,
     pub diagnostics: Vec<AnalysisDiagnostic>,
@@ -797,12 +769,10 @@ mod tests {
                             CallableParameter {
                                 name: Some("left".to_owned()),
                                 ty: Type::String,
-                                post: None,
                             },
                             CallableParameter {
                                 name: Some("right".to_owned()),
                                 ty: Type::String,
-                                post: None,
                             },
                         ],
                         result: Box::new(Type::String),
@@ -842,7 +812,7 @@ mod tests {
     }
 
     #[test]
-    fn pretty_display_preserves_generics_posts_and_raised_effects() {
+    fn pretty_display_preserves_generics_and_raised_effects() {
         let ty = Type::Function(Box::new(CallableType {
             constraints: vec![GenericConstraint {
                 variable: Type::Generic(0),
@@ -851,10 +821,6 @@ mod tests {
             parameters: vec![CallableParameter {
                 name: Some("value".to_owned()),
                 ty: Type::Generic(0),
-                post: Some(Type::ListRest(Box::new(Type::Union(vec![
-                    Type::Int,
-                    Type::String,
-                ])))),
             }],
             result: Box::new(Type::String),
             raised: Box::new(Type::Union(vec![Type::String, Type::Int])),
@@ -862,7 +828,6 @@ mod tests {
         }));
         let rendered = ty.pretty_display(40);
         assert!(rendered.contains("<"));
-        assert!(rendered.contains("=>"));
         assert!(rendered.contains("raises"));
         assert!(rendered.lines().all(|line| line.len() <= 40), "{rendered}");
     }

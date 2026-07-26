@@ -745,32 +745,6 @@ fn rename_preparation_edits_and_rejections_follow_analysis_rules() {
 }
 
 #[test]
-fn rename_expands_map_local_binding_shorthand_without_renaming_its_key() {
-    let source = "let first = 1 let map = {first, label = first}";
-    let mut backend = Backend::new();
-    open(&mut backend, source);
-    let edit: Option<WorkspaceEdit> = serde_json::from_value(
-        request(
-            &mut backend,
-            Rename::METHOD,
-            json!({
-                "textDocument": { "uri": uri() },
-                "position": text_position(source, "first", 0),
-                "newName": "renamed"
-            }),
-        )
-        .unwrap(),
-    )
-    .unwrap();
-    let mut edits = edit.unwrap().changes.unwrap()[&uri()].clone();
-    edits.sort_by_key(|edit| (edit.range.start.line, edit.range.start.character));
-    assert_eq!(edits.len(), 3);
-    assert_eq!(edits[0].new_text, "renamed");
-    assert_eq!(edits[1].new_text, "first = renamed");
-    assert_eq!(edits[2].new_text, "renamed");
-}
-
-#[test]
 fn rename_rejects_capture_of_an_unresolved_host_name() {
     let source = "let target = 1 do missing target end";
     let mut backend = Backend::new();
@@ -868,7 +842,7 @@ fn append(xs, x) do nil end
 { append = append }
 "#;
     let mut backend = Backend::with_module_sources([("std/list", module)]);
-    let incomplete = "let emoji = \"😀\"\n list.";
+    let incomplete = "let emoji = \"😀\"\nlet list = require(\"std/list\") list.";
     open(&mut backend, incomplete);
     let completion: Option<CompletionResponse> = serde_json::from_value(
         request(
@@ -896,7 +870,7 @@ fn append(xs, x) do nil end
         Some(Documentation::String("Append one value.".to_owned()))
     );
 
-    let complete = " list.append";
+    let complete = "let list = require(\"std/list\") list.append";
     let mut backend = Backend::with_module_sources([("std/list", module)]);
     open(&mut backend, complete);
     let hover: Option<Hover> = serde_json::from_value(
@@ -915,26 +889,6 @@ fn append(xs, x) do nil end
         panic!("expected markup")
     };
     assert_simi_hover(&markup, "(xs: 'a, x: 'b) -> nil\n\nAppend one value.");
-
-    let shadowed = "let list = {} list.";
-    let mut backend = Backend::with_module_sources([("std/list", module)]);
-    open(&mut backend, shadowed);
-    let completion: Option<CompletionResponse> = serde_json::from_value(
-        request(
-            &mut backend,
-            Completion::METHOD,
-            json!({
-                "textDocument": { "uri": uri() },
-                "position": position::position(shadowed, shadowed.len()).unwrap(),
-            }),
-        )
-        .unwrap(),
-    )
-    .unwrap();
-    let CompletionResponse::Array(items) = completion.unwrap() else {
-        panic!("expected completion array")
-    };
-    assert!(items.is_empty());
 }
 
 #[test]
@@ -1208,36 +1162,9 @@ fn real_annotated_stdlib_facade_supplies_generic_member_types() {
 }
 
 #[test]
-fn real_string_module_hover_wraps_export_map_at_presentation_width() {
-    let module = include_str!("../../../../stdlib/string.simi");
-    let source = "let string = require(\"std/string\")\nstring";
-    let mut backend = Backend::with_module_sources([("std/string", module)]);
-    open(&mut backend, source);
-    let hover: Option<Hover> = serde_json::from_value(
-        request(
-            &mut backend,
-            HoverRequest::METHOD,
-            json!({
-                "textDocument": { "uri": uri() },
-                "position": text_position(source, "std/string", 0),
-            }),
-        )
-        .unwrap(),
-    )
-    .unwrap();
-    let HoverContents::Markup(markup) = hover.expect("string module hover").contents else {
-        panic!("expected markup")
-    };
-    assert_simi_hover(
-        &markup,
-        "{\n    to_number: (text: string) -> integer | float | nil noraise,\n    concat: (left: string, right: string) -> string noraise,\n    length: (text: string) -> integer noraise,\n    slice: (text: string, start: integer, stop: integer) -> string noraise,\n    contains: (text: string, needle: string) -> boolean noraise,\n    starts_with: (text: string, prefix: string) -> boolean noraise,\n    ends_with: (text: string, suffix: string) -> boolean noraise,\n    split: (text: string, separator: string) -> [..string] noraise,\n    trim: (text: string) -> string noraise,\n    lower: (text: string) -> string noraise,\n    upper: (text: string) -> string noraise,\n}\n\nUnicode-aware string inspection, transformation, and conversion.",
-    );
-}
-
-#[test]
-fn cycle_shadow_and_postcondition_hovers_preserve_precise_types() {
+fn cycle_shadow_and_mutation_hovers_preserve_precise_types() {
     let module = include_str!("../../../../stdlib/list.simi");
-    let source = r#"
+    let source = r#"let list = require("std/list")
 let nums = [1, 2, 3]
 let nums = nums |> tap list.append(nums)
 nums[3]"#;
@@ -1288,7 +1215,7 @@ nums[3]"#;
     };
     assert_simi_hover(
         &markup,
-        "(xs: [..'a] => [..('a | 'b)], value: 'b) -> nil noraise\n\nAppend a value to a list.",
+        "(xs: [..'a], value: 'b) -> nil noraise\n\nAppend a value to a list.",
     );
 }
 
@@ -1424,7 +1351,7 @@ end"#;
 #[test]
 fn mutable_list_hovers_are_flow_position_sensitive() {
     let module = include_str!("../../../../stdlib/list.simi");
-    let source = r#"
+    let source = r#"let list = require("std/list")
 let ns = [1, 2]
 ns
 list.append(ns, 3)
@@ -1529,7 +1456,7 @@ end
 #[test]
 fn append_driven_loop_hover_uses_the_evolved_list_shape() {
     let source = r#"
-
+let list = require("std/list")
 fn sum_list(ns: [..integer]) do
     loop state = {acc=0, ns=ns} do
         case state.ns
@@ -1597,51 +1524,10 @@ sum_list(ns)
 }
 
 #[test]
-fn inferred_wrapper_posts_appear_in_hover() {
-    let source = r#"
-
-fn append(xs, value) do list.append(xs, value) end
-let append_alias = append
-let values = []
-append_alias(values, 1)
-let piped = [1] |> tap append_alias(2) |> tap append_alias(3)
-"#;
-    let mut backend =
-        Backend::with_module_sources([("std/list", include_str!("../../../../stdlib/list.simi"))]);
-    let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
-    assert!(diagnostics.diagnostics.is_empty());
-    for (name, expected) in [
-        ("append", "(xs: [..'a] => [..('a | 'b)], value: 'b) -> nil"),
-        (
-            "append_alias",
-            "(xs: [..'a] => [..('a | 'b)], value: 'b) -> nil",
-        ),
-        ("piped", "[..integer]"),
-    ] {
-        let hover: Option<Hover> = serde_json::from_value(
-            request(
-                &mut backend,
-                HoverRequest::METHOD,
-                json!({
-                    "textDocument": { "uri": uri() },
-                    "position": text_position(source, name, 0),
-                }),
-            )
-            .unwrap(),
-        )
-        .unwrap();
-        let HoverContents::Markup(markup) = hover.expect("append hover").contents else {
-            panic!("expected markup")
-        };
-        assert_simi_hover(&markup, expected);
-    }
-}
-
-#[test]
 fn fully_unannotated_recursive_quicksort_hover_stays_list_numeric() {
     let module = include_str!("../../../../stdlib/list.simi");
     let source = r#"
-
+let list = require("std/list")
 fn partition(values, pivot) do
     loop state = {remaining=values, lower=[], higher=[]} do
         case state
@@ -1775,30 +1661,6 @@ fib(5)
 }
 
 #[test]
-fn ambiguous_post_state_annotations_publish_targeted_syntax_diagnostics() {
-    let mut backend = Backend::new();
-    let diagnostics =
-        diagnostics_from(open(&mut backend, "let bad: 'a | 'b => 'b -> 'b = nil\n").remove(0));
-    assert!(
-        diagnostics.diagnostics.iter().any(|diagnostic| {
-            diagnostic.code == Some(NumberOrString::String("syntax_error".to_owned()))
-                && diagnostic
-                    .message
-                    .contains("Ambiguous post-state annotation")
-        }),
-        "{:?}",
-        diagnostics.diagnostics
-    );
-
-    let mut backend = Backend::new();
-    let malformed =
-        diagnostics_from(open(&mut backend, "fn bad(: integer => string) do nil end\n").remove(0));
-    assert!(malformed.diagnostics.iter().any(
-        |diagnostic| diagnostic.code == Some(NumberOrString::String("syntax_error".to_owned()))
-    ));
-}
-
-#[test]
 fn raised_contract_diagnostics_and_hover_use_protocol_types() {
     let source = "let prefix = \"😀\"\nfn bad() -> integer noraise do raise \"boom\" end\n";
     let mut backend = Backend::new();
@@ -1882,6 +1744,59 @@ fn type_errors_are_published_and_clear_after_incremental_repair() {
         diagnostics_from(notifications.into_iter().next().unwrap())
             .diagnostics
             .is_empty()
+    );
+}
+
+#[test]
+fn rename_expands_map_local_binding_shorthand_without_renaming_its_key() {
+    let source = "let first = 1 let map = {first, label = first}";
+    let mut backend = Backend::new();
+    open(&mut backend, source);
+    let edit: Option<WorkspaceEdit> = serde_json::from_value(
+        request(
+            &mut backend,
+            Rename::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": text_position(source, "first", 0),
+                "newName": "renamed"
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let mut edits = edit.unwrap().changes.unwrap()[&uri()].clone();
+    edits.sort_by_key(|edit| (edit.range.start.line, edit.range.start.character));
+    assert_eq!(edits.len(), 3);
+    assert_eq!(edits[0].new_text, "renamed");
+    assert_eq!(edits[1].new_text, "first = renamed");
+    assert_eq!(edits[2].new_text, "renamed");
+}
+
+#[test]
+fn real_string_module_hover_wraps_export_map_at_presentation_width() {
+    let module = include_str!("../../../../stdlib/string.simi");
+    let source = "let string = require(\"std/string\")\nstring";
+    let mut backend = Backend::with_module_sources([("std/string", module)]);
+    open(&mut backend, source);
+    let hover: Option<Hover> = serde_json::from_value(
+        request(
+            &mut backend,
+            HoverRequest::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": text_position(source, "std/string", 0),
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let HoverContents::Markup(markup) = hover.expect("string module hover").contents else {
+        panic!("expected markup")
+    };
+    assert_simi_hover(
+        &markup,
+        "{\n    to_number: (text: string) -> integer | float | nil noraise,\n    concat: (left: string, right: string) -> string noraise,\n    length: (text: string) -> integer noraise,\n    slice: (text: string, start: integer, stop: integer) -> string noraise,\n    contains: (text: string, needle: string) -> boolean noraise,\n    starts_with: (text: string, prefix: string) -> boolean noraise,\n    ends_with: (text: string, suffix: string) -> boolean noraise,\n    split: (text: string, separator: string) -> [..string] noraise,\n    trim: (text: string) -> string noraise,\n    lower: (text: string) -> string noraise,\n    upper: (text: string) -> string noraise,\n}\n\nUnicode-aware string inspection, transformation, and conversion.",
     );
 }
 

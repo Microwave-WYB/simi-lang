@@ -44,20 +44,6 @@ impl Context<'_> {
                 .and_then(|annotation| support::child::<syntax::TypeExpr>(annotation.syntax()))
                 .map(|ty| self.parse_type(ty.syntax(), &mut generics))
                 .unwrap_or_else(|| self.fresh());
-            let posts = parameter_nodes
-                .iter()
-                .enumerate()
-                .filter_map(|(parameter_index, parameter)| {
-                    let post = support::child::<syntax::PostType>(parameter.syntax())?;
-                    let becomes = support::child::<syntax::TypeExpr>(post.syntax())
-                        .map(|ty| self.parse_type(ty.syntax(), &mut generics))?;
-                    Some(ParameterPostType {
-                        parameter_index,
-                        parameter_name: parameter_names[parameter_index].clone(),
-                        becomes,
-                    })
-                })
-                .collect::<Vec<_>>();
             let (raised, raised_annotation) =
                 self.parse_effect_annotation(function.syntax(), &mut generics);
             let callable = CallableType {
@@ -67,10 +53,6 @@ impl Context<'_> {
                     .enumerate()
                     .map(|(index, ty)| CallableParameter {
                         name: parameter_names.get(index).cloned(),
-                        post: posts
-                            .iter()
-                            .find(|post| post.parameter_index == index)
-                            .map(|post| post.becomes.clone()),
                         ty,
                     })
                     .collect(),
@@ -81,7 +63,6 @@ impl Context<'_> {
             let function_ty = Type::Function(Box::new(callable));
             self.symbol_types.insert(symbol, function_ty.clone());
             self.symbol_bounds.insert(symbol, function_ty);
-            self.symbol_posts.insert(symbol, posts);
         }
     }
     pub(super) fn statements(&mut self, statements: impl Iterator<Item = syntax::Stmt>) -> Type {
@@ -106,36 +87,13 @@ impl Context<'_> {
                 let inherited_region = value_expression
                     .as_ref()
                     .and_then(|expression| self.expression_region(expression));
-                let inherited_callable = value_expression.as_ref().and_then(|expression| {
-                    let syntax::Expr::Name(name) = expression else {
-                        return None;
-                    };
-                    let token = direct_token(name.syntax(), K::IDENT)?;
-                    let symbol = self.resolution.symbol_at(token_span(&token).start)?;
-                    let posts = self.symbol_posts.get(&symbol)?.clone();
-                    let ty = self.symbol_types.get(&symbol)?.clone();
-                    Some((ty, posts))
-                });
-                let inherited_posts = inherited_callable.as_ref().map(|(_, posts)| posts.clone());
-                let value = if let Some((ty, _)) = &inherited_callable {
-                    if let Some(expression) = &value_expression {
-                        self.expression_types
-                            .push((span(expression.syntax()), ty.clone()));
-                    }
-                    ty.clone()
-                } else {
-                    value_expression
-                        .clone()
-                        .map(|expression| self.expression(expression))
-                        .unwrap_or(Type::Unknown)
-                };
+                let value = value_expression
+                    .clone()
+                    .map(|expression| self.expression(expression))
+                    .unwrap_or(Type::Unknown);
                 let annotation_node = support::child::<syntax::TypeAnnotation>(statement.syntax())
                     .and_then(|annotation| support::child::<syntax::TypeExpr>(annotation.syntax()));
                 let mut annotation_generics = HashMap::new();
-                let annotation_posts = annotation_node
-                    .as_ref()
-                    .map(|ty| self.parse_function_type_posts(ty.syntax(), &mut annotation_generics))
-                    .unwrap_or_default();
                 let annotation = annotation_node
                     .map(|ty| self.parse_type(ty.syntax(), &mut annotation_generics));
                 let explicitly_annotated = annotation.is_some();
@@ -185,18 +143,6 @@ impl Context<'_> {
                             if value_expression.as_ref().is_some_and(is_nested_read) {
                                 self.conservative_regions.insert(region);
                             }
-                        }
-                        let posts = if annotation_posts.is_empty() {
-                            inherited_posts
-                        } else {
-                            self.validate_annotated_posts(
-                                &final_ty,
-                                annotation_posts,
-                                span(statement.syntax()),
-                            )
-                        };
-                        if let Some(posts) = posts {
-                            self.symbol_posts.insert(symbol, posts);
                         }
                         if let Some(effects) = inherited_capture_effects {
                             self.callable_capture_effects.insert(symbol, effects);
@@ -321,7 +267,7 @@ impl Context<'_> {
             .pop()
             .map(|(_, assigned)| assigned)
             .unwrap_or_default();
-        let mutation_effects = self.mutation_effect_frames.pop().unwrap_or_default();
+        self.mutation_effect_frames.pop();
         let resolved_result = self.resolve_type((*expected_result).clone());
         let resolved_actual = self.resolve_type(actual.clone());
         if matches!(resolved_result, Type::Infer(_)) && resolved_actual == Type::Any {
@@ -339,102 +285,6 @@ impl Context<'_> {
                 self.bind_infer(resolved_actual, Type::Never);
             }
             self.constrain(&expected_result, &actual, span(function.syntax()));
-        }
-
-        let mut posts = self.symbol_posts.get(&symbol).cloned().unwrap_or_default();
-        let post_nodes = support::child::<syntax::ParamList>(function.syntax())
-            .map(|list| {
-                support::children::<syntax::Param>(list.syntax())
-                    .filter_map(|parameter| support::child::<syntax::PostType>(parameter.syntax()))
-                    .collect::<Vec<_>>()
-            })
-            .unwrap_or_default();
-        for (index, post) in posts.iter().enumerate() {
-            let Some(pre) = parameters.get(post.parameter_index) else {
-                continue;
-            };
-            let at = post_nodes
-                .get(index)
-                .map_or_else(|| span(function.syntax()), |node| span(node.syntax()));
-            if !valid_post_transition(pre, &post.becomes) {
-                self.diagnostic(
-                    AnalysisDiagnosticCode::InvalidType,
-                    "Invalid post-type",
-                    format!(
-                        "Post-type `{}` is not a valid transition from parameter `{}` of type `{}`.",
-                        post.becomes.display(),
-                        post.parameter_name,
-                        pre.display()
-                    ),
-                    at,
-                );
-                continue;
-            }
-            if actual != Type::Never
-                && !trusted_host_wrapper
-                && let Some(Some(parameter_symbol)) = parameter_symbols.get(post.parameter_index)
-            {
-                let inferred = self
-                    .symbol_types
-                    .get(parameter_symbol)
-                    .cloned()
-                    .unwrap_or(Type::Unknown);
-                let inferred = self.resolve_type(inferred);
-                let promised = self.resolve_type(post.becomes.clone());
-                if !is_subtype(&inferred, &promised) {
-                    self.diagnostic(
-                        AnalysisDiagnosticCode::TypeMismatch,
-                        "Post-type is not established",
-                        format!(
-                            "Parameter `{}` has type `{}` on normal return, which does not satisfy `{}`.",
-                            post.parameter_name,
-                            inferred.display(),
-                            promised.display()
-                        ),
-                        at,
-                    );
-                }
-            }
-        }
-
-        if actual != Type::Never && !trusted_host_wrapper {
-            let declared = posts
-                .iter()
-                .map(|post| post.parameter_index)
-                .collect::<HashSet<_>>();
-            for (parameter_index, ((parameter, parameter_symbol), parameter_name)) in parameters
-                .iter()
-                .zip(&parameter_symbols)
-                .zip(&parameter_names)
-                .enumerate()
-            {
-                if declared.contains(&parameter_index)
-                    || parameter_symbol.is_none_or(|symbol| !mutation_effects.contains(&symbol))
-                {
-                    continue;
-                }
-                let pre = self.resolve_type(parameter.clone());
-                let Some(parameter_symbol) = parameter_symbol else {
-                    continue;
-                };
-                let post = self
-                    .symbol_types
-                    .get(parameter_symbol)
-                    .cloned()
-                    .map(|ty| self.resolve_type(ty))
-                    .unwrap_or_else(|| pre.clone());
-                if pre != post
-                    && has_mutable_category(&pre)
-                    && has_mutable_category(&post)
-                    && valid_post_transition(&pre, &post)
-                {
-                    posts.push(ParameterPostType {
-                        parameter_index,
-                        parameter_name: parameter_name.clone(),
-                        becomes: post,
-                    });
-                }
-            }
         }
 
         let declared_raised = (*callable.raised).clone();
@@ -462,33 +312,14 @@ impl Context<'_> {
         };
         callable.result = Box::new(self.resolve_type(*expected_result));
         callable.raised = Box::new(final_raised);
-        for (index, parameter) in callable.parameters.iter_mut().enumerate() {
-            parameter.post = posts
-                .iter()
-                .find(|post| post.parameter_index == index)
-                .map(|post| post.becomes.clone());
-        }
         let resolved_function = self.resolve_type(Type::Function(callable));
         let mut next = max_generic(&resolved_function).map_or(0, |index| index + 1);
-        for post in &posts {
-            if let Some(index) = max_generic(&post.becomes) {
-                next = next.max(index + 1);
-            }
-        }
         let mut variables = HashMap::new();
         let function_ty = generalize_type(resolved_function, &mut variables, &mut next);
-        for post in &mut posts {
-            post.becomes = generalize_type(
-                self.resolve_type(post.becomes.clone()),
-                &mut variables,
-                &mut next,
-            );
-        }
         self.restore_outer_flow(&outer_flow);
         self.nil_abort_states = outer_nil_aborts;
         self.symbol_types.insert(symbol, function_ty.clone());
         self.symbol_bounds.insert(symbol, function_ty);
-        self.symbol_posts.insert(symbol, posts);
         self.callable_capture_effects
             .insert(symbol, capture_effects);
         self.callable_assignment_effects
@@ -546,14 +377,10 @@ impl Context<'_> {
                                 self.monomorphic_symbols.insert(symbol);
                             }
                         }
-                        let post = support::child::<syntax::PostType>(parameter.syntax())
-                            .and_then(|post| support::child::<syntax::TypeExpr>(post.syntax()))
-                            .map(|post| self.parse_type(post.syntax(), &mut generics));
                         CallableParameter {
                             name: direct_token(parameter.syntax(), K::IDENT)
                                 .map(|token| token.text().to_owned()),
                             ty,
-                            post,
                         }
                     })
                     .collect::<Vec<_>>()
@@ -592,49 +419,7 @@ impl Context<'_> {
         } else {
             actual.clone()
         };
-        if actual != Type::Never
-            && let Some(list) = support::child::<syntax::ParamList>(node.syntax())
-        {
-            for (parameter_node, parameter) in
-                support::children::<syntax::Param>(list.syntax()).zip(&parameters)
-            {
-                let Some(post) = &parameter.post else {
-                    continue;
-                };
-                if !valid_post_transition(&parameter.ty, post) {
-                    self.diagnostic(
-                        AnalysisDiagnosticCode::InvalidType,
-                        "Invalid post-type",
-                        format!(
-                            "Post-type `{}` is not a valid transition from parameter type `{}`.",
-                            post.display(),
-                            parameter.ty.display()
-                        ),
-                        span(parameter_node.syntax()),
-                    );
-                    continue;
-                }
-                if let Some(token) = direct_token(parameter_node.syntax(), K::IDENT)
-                    && let Some(symbol) = self.resolution.symbol_at(token_span(&token).start)
-                    && let Some(established) = self.symbol_types.get(&symbol).cloned()
-                {
-                    let established = self.resolve_type(established);
-                    let promised = self.resolve_type(post.clone());
-                    if !is_subtype(&established, &promised) {
-                        self.diagnostic(
-                            AnalysisDiagnosticCode::TypeMismatch,
-                            "Post-type is not established",
-                            format!(
-                                "Parameter has type `{}` on normal return, which does not satisfy `{}`.",
-                                established.display(),
-                                promised.display()
-                            ),
-                            span(parameter_node.syntax()),
-                        );
-                    }
-                }
-            }
-        }
+
         let raised = match raised_annotation {
             RaisedAnnotation::Inferred => actual_raised,
             RaisedAnnotation::Explicit | RaisedAnnotation::NoRaise => {

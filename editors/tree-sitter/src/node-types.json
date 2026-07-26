@@ -1309,16 +1309,6 @@
     "type": "function_type_parameter",
     "named": true,
     "fields": {
-      "before": {
-        "multiple": false,
-        "required": false,
-        "types": [
-          {
-            "type": "union_type",
-            "named": true
-          }
-        ]
-      },
       "label": {
         "multiple": false,
         "required": false,
@@ -1328,21 +1318,11 @@
             "named": true
           }
         ]
-      },
-      "post": {
-        "multiple": false,
-        "required": false,
-        "types": [
-          {
-            "type": "post_type",
-            "named": true
-          }
-        ]
       }
     },
     "children": {
       "multiple": false,
-      "required": false,
+      "required": true,
       "types": [
         {
           "type": "function_type",
@@ -2446,22 +2426,6 @@
     }
   },
   {
-    "type": "post_type",
-    "named": true,
-    "fields": {
-      "type": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "union_type",
-            "named": true
-          }
-        ]
-      }
-    }
-  },
-  {
     "type": "program",
     "named": true,
     "root": true,
@@ -2726,31 +2690,10 @@
   {
     "type": "type_annotation",
     "named": true,
-    "fields": {
-      "before": {
-        "multiple": false,
-        "required": false,
-        "types": [
-          {
-            "type": "union_type",
-            "named": true
-          }
-        ]
-      },
-      "post": {
-        "multiple": false,
-        "required": false,
-        "types": [
-          {
-            "type": "post_type",
-            "named": true
-          }
-        ]
-      }
-    },
+    "fields": {},
     "children": {
       "multiple": false,
-      "required": false,
+      "required": true,
       "types": [
         {
           "type": "function_type",
@@ -3058,10 +3001,6 @@
   },
   {
     "type": "==",
-    "named": false
-  },
-  {
-    "type": "=>",
     "named": false
   },
   {

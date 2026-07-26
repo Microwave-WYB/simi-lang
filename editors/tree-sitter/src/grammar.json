@@ -1520,34 +1520,8 @@
           "value": ":"
         },
         {
-          "type": "CHOICE",
-          "members": [
-            {
-              "type": "SEQ",
-              "members": [
-                {
-                  "type": "FIELD",
-                  "name": "before",
-                  "content": {
-                    "type": "SYMBOL",
-                    "name": "union_type"
-                  }
-                },
-                {
-                  "type": "FIELD",
-                  "name": "post",
-                  "content": {
-                    "type": "SYMBOL",
-                    "name": "post_type"
-                  }
-                }
-              ]
-            },
-            {
-              "type": "SYMBOL",
-              "name": "_type"
-            }
-          ]
+          "type": "SYMBOL",
+          "name": "_type"
         }
       ]
     },
@@ -1561,23 +1535,6 @@
         {
           "type": "SYMBOL",
           "name": "_type"
-        }
-      ]
-    },
-    "post_type": {
-      "type": "SEQ",
-      "members": [
-        {
-          "type": "STRING",
-          "value": "=>"
-        },
-        {
-          "type": "FIELD",
-          "name": "type",
-          "content": {
-            "type": "SYMBOL",
-            "name": "union_type"
-          }
         }
       ]
     },
@@ -2146,34 +2103,8 @@
           ]
         },
         {
-          "type": "CHOICE",
-          "members": [
-            {
-              "type": "SEQ",
-              "members": [
-                {
-                  "type": "FIELD",
-                  "name": "before",
-                  "content": {
-                    "type": "SYMBOL",
-                    "name": "union_type"
-                  }
-                },
-                {
-                  "type": "FIELD",
-                  "name": "post",
-                  "content": {
-                    "type": "SYMBOL",
-                    "name": "post_type"
-                  }
-                }
-              ]
-            },
-            {
-              "type": "SYMBOL",
-              "name": "_type"
-            }
-          ]
+          "type": "SYMBOL",
+          "name": "_type"
         }
       ]
     },
