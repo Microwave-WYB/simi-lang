@@ -113,6 +113,30 @@ test("language configuration covers comments, pairs, indentation, and folding", 
     "each sibling of and the final end must align with case",
   );
 
+  const tryLines = [
+    "try",
+    "    prepare()",
+    "catch first do",
+    "    recover_first()",
+    "catch second do",
+    "    recover_second()",
+    "end",
+  ];
+  const tryLevels = [0];
+  for (let index = 1; index < tryLines.length; index += 1) {
+    tryLevels.push(nextIndent(tryLevels[index - 1], tryLines[index - 1], tryLines[index]));
+  }
+  assert.deepEqual(
+    tryLevels,
+    [0, 1, 0, 1, 0, 1, 0],
+    "each sibling catch and the final end must align with try",
+  );
+
+  for (const oneLine of ["try operation() catch _ do value end", "catch _ do value end"]) {
+    assert.doesNotMatch(oneLine, increase, "one-line try/catch forms must not indent the following line");
+  }
+  assert.match("catch _ do value end", decrease, "catch forms must still realign their current line");
+
   for (const legacyLine of ["match value with", "case value ->"]) {
     assert.doesNotMatch(legacyLine, increase);
     assert.doesNotMatch(legacyLine, decrease);
