@@ -41,7 +41,6 @@ pub(super) enum EvaluationError {
         span: Span,
     },
     Continue {
-        value: Value,
         label: Option<String>,
         span: Span,
     },

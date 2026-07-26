@@ -277,7 +277,7 @@ end
 greeting(nil)
 ```
 
-A nil-abort directly from a loop body contributes `nil` as the next state, equivalent to `continue nil`; it does not determine the loop result, which only comes from `break`. A `?>` stage similarly splits its nil-skipped and active paths, applies call effects only on the active path, and rejoins before the next pipeline stage. A following ordinary `|>` therefore sees the complete result union.
+A nil-abort directly from a loop body ends that iteration and starts the next one; it does not determine the loop result, which only comes from `break value`. A `?>` stage similarly splits its nil-skipped and active paths, applies call effects only on the active path, and rejoins before the next pipeline stage. A following ordinary `|>` therefore sees the complete result union.
 
 ## Mutation, aliases, and analysis
 

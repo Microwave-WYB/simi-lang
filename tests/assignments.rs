@@ -20,8 +20,11 @@ fn variable_assignment_is_expression_valued_right_associative_and_lexical() {
         let matched = case [4]
             of [item] do item = item + 1
         end
-        let looped = loop state = 0 do
-            if state == 3 then break state else state = state + 1 end
+        let looped = do
+            let state = 0
+            loop
+                if state == 3 then break state else state = state + 1 end
+            end
         end
         [inside, outer, other, matched, looped]
         "#,

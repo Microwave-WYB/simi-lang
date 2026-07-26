@@ -218,7 +218,6 @@ fn builtin_types(resolution: &Resolution) -> HashMap<SymbolId, Type> {
 
 struct LoopContext {
     label: Option<String>,
-    transitions: Vec<Type>,
     breaks: Vec<(Type, FlowState)>,
 }
 

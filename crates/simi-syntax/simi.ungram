@@ -58,8 +58,8 @@ CaseClause = 'of' Pattern ('when' Expr)? 'do' Block
 IfExpr = 'if' IfBranch ('elseif' IfBranch)* ElseBranch? 'end'
 IfBranch = Expr 'then' Block
 ElseBranch = 'else' Block
-LoopExpr = ('@' 'ident')? 'loop' ('ident' '=' Expr)? 'do' Block 'end'
-ContinueExpr = 'continue' ('@' 'ident')? Expr?
+LoopExpr = ('@' 'ident')? 'loop' Block 'end'
+ContinueExpr = 'continue' ('@' 'ident')?
 BreakExpr = 'break' ('@' 'ident')? Expr
 Pattern = BindingPattern | WildcardPattern | LiteralPattern | ListPattern | MapPattern
 BindingPattern = 'ident'

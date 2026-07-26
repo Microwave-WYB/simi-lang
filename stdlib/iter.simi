@@ -36,7 +36,7 @@ fn filter<'a, 'e, 'f>(
     predicate: 'a -> boolean raises 'f,
 ) -> Iterator<'e | 'f> noraise do
     fn() do
-        loop do
+        loop
             let step = iterator()
             if step.done then break step
             elseif predicate(step.value) then break step
@@ -48,7 +48,7 @@ end
 
 fn to_list<'e>(iterator: Iterator<'e>) -> [..any] raises 'e do
     let result = []
-    loop do
+    loop
         let step = iterator()
         if step.done then break result
         else
@@ -64,7 +64,7 @@ fn fold<'state, 'a, 'e, 'f>(
     reducer: ('state, 'a) -> 'state raises 'f,
 ) -> 'state raises 'e | 'f do
     let state = initial
-    loop do
+    loop
         let step = iterator()
         if step.done then break state
         else
@@ -78,7 +78,7 @@ fn find<'a, 'e, 'f>(
     iterator: Iterator<'e>,
     predicate: 'a -> boolean raises 'f,
 ) -> any | nil raises 'e | 'f do
-    loop do
+    loop
         let step = iterator()
         if step.done then break nil
         elseif predicate(step.value) then break step.value
@@ -92,7 +92,7 @@ fn find_index<'a, 'e, 'f>(
     predicate: 'a -> boolean raises 'f,
 ) -> integer | nil raises 'e | 'f do
     let index = 0
-    loop do
+    loop
         let step = iterator()
         if step.done then break nil
         elseif predicate(step.value) then break index
@@ -104,7 +104,7 @@ fn find_index<'a, 'e, 'f>(
 end
 
 fn contains<'a, 'e>(iterator: Iterator<'e>, needle: 'a) -> boolean raises 'e do
-    loop do
+    loop
         let step = iterator()
         if step.done then break false
         elseif step.value == needle then break true
@@ -117,7 +117,7 @@ fn any<'a, 'e, 'f>(
     iterator: Iterator<'e>,
     predicate: 'a -> boolean raises 'f,
 ) -> boolean raises 'e | 'f do
-    loop do
+    loop
         let step = iterator()
         if step.done then break false
         elseif predicate(step.value) then break true
@@ -130,7 +130,7 @@ fn all<'a, 'e, 'f>(
     iterator: Iterator<'e>,
     predicate: 'a -> boolean raises 'f,
 ) -> boolean raises 'e | 'f do
-    loop do
+    loop
         let step = iterator()
         if step.done then break true
         elseif predicate(step.value) then continue
@@ -143,7 +143,7 @@ fn each<'a, 'e, 'f>(
     iterator: Iterator<'e>,
     callback: 'a -> any raises 'f,
 ) -> nil raises 'e | 'f do
-    loop do
+    loop
         let step = iterator()
         if step.done then break nil
         else
@@ -158,7 +158,7 @@ fn count<'a, 'e, 'f>(
     predicate: 'a -> boolean raises 'f,
 ) -> integer raises 'e | 'f do
     let total = 0
-    loop do
+    loop
         let step = iterator()
         if step.done then break total
         else

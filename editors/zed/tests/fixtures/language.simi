@@ -46,11 +46,15 @@ let optional = do result? end
 let concatenated = "Simi" <> " language"
 let has_runtime_label = type(result) == "list"
 let is = has_runtime_label
-let final = loop state = 0 do
-    if state < 2 or state <= -1 then
-        continue state + 1
-    else
-        break state
+let final = do
+    let state = 0
+    loop
+        if state < 2 or state <= -1 then
+            state = state + 1
+            continue
+        else
+            break state
+        end
     end
 end
 

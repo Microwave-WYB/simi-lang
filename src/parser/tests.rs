@@ -342,184 +342,10 @@ fn rejects_malformed_or_stray_terminators() {
 }
 
 #[test]
-fn parses_both_loop_spellings_into_the_canonical_shape() {
-    let explicit = parse_source("loop state = 0 do break state end").unwrap();
-    let StmtKind::Expr(Expr {
-        kind:
-            ExprKind::Loop {
-                state,
-                initial,
-                body,
-                ..
-            },
-        span,
-    }) = &explicit.items[0].kind
-    else {
-        panic!("expected canonical loop expression");
-    };
-    assert_eq!(state, "state");
-    assert!(matches!(initial.kind, ExprKind::Int(0)));
-    assert_eq!(initial.span, Span::new(13, 14));
-    assert_eq!(*span, Span::new(0, 33));
-    assert_eq!(body.span, Span::new(18, 29));
-    assert!(matches!(
-        body.items[0].kind,
-        StmtKind::Expr(Expr {
-            kind: ExprKind::Break { .. },
-            ..
-        })
-    ));
-
-    let shorthand = parse_source("loop do break _ end").unwrap();
-    let StmtKind::Expr(Expr {
-        kind:
-            ExprKind::Loop {
-                state,
-                initial,
-                body,
-                ..
-            },
-        span,
-    }) = &shorthand.items[0].kind
-    else {
-        panic!("expected canonical loop expression");
-    };
-    assert_eq!(state, "_");
-    assert!(matches!(initial.kind, ExprKind::Nil));
-    assert_eq!(initial.span, Span::new(4, 4));
-    assert_eq!(*span, Span::new(0, 19));
-    assert_eq!(body.span, Span::new(8, 15));
-}
-
-#[test]
-fn lowers_labeled_loop_control_into_the_canonical_ast() {
-    let program = parse_source("@outer loop state = 0 do break @outer state end").unwrap();
-    let StmtKind::Expr(Expr {
-        kind: ExprKind::Loop {
-            label, state, body, ..
-        },
-        ..
-    }) = &program.items[0].kind
-    else {
-        panic!("expected labeled loop");
-    };
-    assert_eq!(label.as_deref(), Some("outer"));
-    assert_eq!(state, "state");
-    let StmtKind::Expr(Expr {
-        kind: ExprKind::Break { label, value },
-        ..
-    }) = &body.items[0].kind
-    else {
-        panic!("expected labeled break");
-    };
-    assert_eq!(label.as_deref(), Some("outer"));
-    assert!(matches!(value.kind, ExprKind::Variable(ref name) if name == "state"));
-}
-
-#[test]
-fn parses_valued_and_bare_continue_with_contract_spans() {
-    let valued = parse_source("loop state = 0 do continue state + 1 end").unwrap();
-    let StmtKind::Expr(Expr {
-        kind: ExprKind::Loop { body, .. },
-        ..
-    }) = &valued.items[0].kind
-    else {
-        panic!("expected loop expression");
-    };
-    let StmtKind::Expr(Expr {
-        kind: ExprKind::Continue { value, .. },
-        span,
-    }) = &body.items[0].kind
-    else {
-        panic!("expected continue expression");
-    };
-    assert!(matches!(value.kind, ExprKind::Binary { .. }));
-    assert_eq!(value.span, Span::new(27, 36));
-    assert_eq!(*span, Span::new(18, 36));
-
-    let bare = parse_source("loop state = 0 do continue end").unwrap();
-    let StmtKind::Expr(Expr {
-        kind: ExprKind::Loop { body, .. },
-        ..
-    }) = &bare.items[0].kind
-    else {
-        panic!("expected loop expression");
-    };
-    let StmtKind::Expr(Expr {
-        kind: ExprKind::Continue { value, .. },
-        span,
-    }) = &body.items[0].kind
-    else {
-        panic!("expected continue expression");
-    };
-    assert!(matches!(value.kind, ExprKind::Nil));
-    assert_eq!(value.span, Span::new(26, 26));
-    assert_eq!(*span, Span::new(18, 26));
-}
-
-#[test]
-fn rejects_loop_control_outside_its_lexical_loop() {
-    for (source, message, span) in [
-        ("break 1", "`break` outside of a loop", Span::new(0, 5)),
-        (
-            "continue 1",
-            "`continue` outside of a loop",
-            Span::new(0, 8),
-        ),
-    ] {
-        let error = parse_source(source).unwrap_err();
-        assert_eq!(error.message, message);
-        assert_eq!(error.span, span);
-    }
-
-    let initializer = parse_source("loop state = break 1 do break state end").unwrap_err();
-    assert_eq!(initializer.message, "`break` outside of a loop");
-    assert_eq!(initializer.span, Span::new(13, 18));
-
-    let function_boundary = parse_source("loop do fn f() do break 1 end break 2 end").unwrap_err();
-    assert_eq!(function_boundary.message, "`break` outside of a loop");
-    assert_eq!(function_boundary.span, Span::new(18, 23));
-}
-
-#[test]
 fn handles_nested_loops_and_restores_function_loop_depth() {
-    parse_source("loop do loop do break 1 end continue end").unwrap();
-    parse_source("fn f() do loop do break 1 end end").unwrap();
-    parse_source("loop do fn f() do loop do continue end end break 1 end").unwrap();
-}
-
-#[test]
-fn reports_required_break_values_and_malformed_loop_headers() {
-    let missing_value = parse_source("loop do break end").unwrap_err();
-    assert_eq!(missing_value.message, "expected expression, found `end`");
-    assert_eq!(missing_value.span, Span::new(14, 17));
-
-    for (source, message, span) in [
-        (
-            "loop 0 do break 1 end",
-            "expected loop state name, found `integer`",
-            Span::new(5, 6),
-        ),
-        (
-            "loop state do break 1 end",
-            "expected `=` after loop state name, found `do`",
-            Span::new(11, 13),
-        ),
-        (
-            "loop state = 0 nil end",
-            "expected `do` before loop body, found `nil`",
-            Span::new(15, 18),
-        ),
-        (
-            "loop state = 0 do break state",
-            "expected `end` after loop body, found `end of file`",
-            Span::new(29, 29),
-        ),
-    ] {
-        let error = parse_source(source).unwrap_err();
-        assert_eq!(error.message, message);
-        assert_eq!(error.span, span);
-    }
+    parse_source("loop loop break 1 end continue end").unwrap();
+    parse_source("fn f() do loop break 1 end end").unwrap();
+    parse_source("loop fn f() do loop continue end end break 1 end").unwrap();
 }
 
 #[test]
@@ -580,11 +406,11 @@ fn parses_match_into_canonical_nested_patterns_and_spans() {
 #[test]
 fn case_is_a_primary_expression_and_preserves_nested_block_ownership() {
     let source = concat!(
-        "loop do ",
+        "loop ",
         "case 1 ",
         "of x do if true then case x of y do y end else nil end ",
         "fn f() do case x of y do y end end ",
-        "loop do break x end ",
+        "loop break x end ",
         "of _ do break 9 ",
         "end ",
         "end"

@@ -329,76 +329,7 @@ pub(super) fn list_append_result(list: Type, value: Type) -> Type {
         _ => Type::ListRest(Box::new(Type::Unknown)),
     }
 }
-pub(super) fn join_loop_state(current: Type, transition: Type) -> Type {
-    if current == transition {
-        return current;
-    }
-    match (current, transition) {
-        (Type::Never, other) | (other, Type::Never) => other,
-        (Type::ListExact(left), Type::ListExact(right)) if left.len() == right.len() => {
-            Type::ListExact(
-                left.into_iter()
-                    .zip(right)
-                    .map(|(left, right)| union(vec![left, right]))
-                    .collect(),
-            )
-        }
-        (Type::ListExact(left), Type::ListExact(right)) => {
-            Type::ListRest(Box::new(union(left.into_iter().chain(right).collect())))
-        }
-        (Type::ListRest(left), Type::ListRest(right)) => {
-            Type::ListRest(Box::new(union(vec![*left, *right])))
-        }
-        (Type::ListExact(items), Type::ListRest(item))
-        | (Type::ListRest(item), Type::ListExact(items)) => Type::ListRest(Box::new(union(
-            items.into_iter().chain(std::iter::once(*item)).collect(),
-        ))),
-        (
-            Type::Map {
-                fields: left_fields,
-                index: left_index,
-                open: left_open,
-            },
-            Type::Map {
-                fields: right_fields,
-                index: right_index,
-                open: right_open,
-            },
-        ) => {
-            let fields = left_fields
-                .iter()
-                .filter_map(|(name, left)| {
-                    right_fields
-                        .iter()
-                        .find(|(field, _)| field == name)
-                        .map(|(_, right)| {
-                            (name.clone(), join_loop_state(left.clone(), right.clone()))
-                        })
-                })
-                .collect();
-            let same_fields = left_fields
-                .iter()
-                .all(|(name, _)| right_fields.iter().any(|(field, _)| field == name))
-                && right_fields
-                    .iter()
-                    .all(|(name, _)| left_fields.iter().any(|(field, _)| field == name));
-            let index = match (left_index, right_index) {
-                (Some((left_key, left_value)), Some((right_key, right_value))) => Some((
-                    Box::new(union(vec![*left_key, *right_key])),
-                    Box::new(join_loop_state(*left_value, *right_value)),
-                )),
-                (Some(index), None) | (None, Some(index)) => Some(index),
-                (None, None) => None,
-            };
-            Type::Map {
-                fields,
-                index,
-                open: left_open || right_open || !same_fields,
-            }
-        }
-        (left, right) => union(vec![left, right]),
-    }
-}
+
 pub(super) fn merge_callable(left: &CallableType, right: &CallableType) -> Option<CallableType> {
     if left.constraints != right.constraints
         || left.parameters.len() != right.parameters.len()

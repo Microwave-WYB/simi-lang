@@ -160,26 +160,22 @@ fn nil_propagation_evaluates_each_kind_of_current_block_as_nil() {
 }
 
 #[test]
-fn nil_propagation_from_a_loop_body_is_a_nil_state_transition() {
+fn nil_propagation_from_a_loop_body_repeats_the_iteration() {
     let result = value(
         r#"
-        let direct = loop state = 0 do
-            if state == nil then break "continued with nil" end
-            nil?
-            "unreachable"
+        let direct = do
+            let remaining = 1
+            loop
+                if remaining == 0 then break "continued after nil" end
+                remaining = remaining - 1
+                nil?
+            end
         end
-        let before_break = loop state = 0 do
-            if state == nil then break "break was skipped" end
-            break nil?
-        end
-        let plain_break = loop do break nil end
-        [direct, before_break, plain_break]
+        let plain_break = loop break nil end
+        [direct, plain_break]
         "#,
     );
-    assert_eq!(
-        result.render(),
-        "[\"continued with nil\", \"break was skipped\", nil]"
-    );
+    assert_eq!(result.render(), "[\"continued after nil\", nil]");
 }
 
 #[test]

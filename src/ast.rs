@@ -133,13 +133,10 @@ pub enum ExprKind {
     },
     Loop {
         label: Option<String>,
-        state: String,
-        initial: Box<Expr>,
         body: Block,
     },
     Continue {
         label: Option<String>,
-        value: Box<Expr>,
     },
     Break {
         label: Option<String>,

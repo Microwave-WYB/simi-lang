@@ -471,12 +471,6 @@ module.exports = grammar({
     loop_expression: ($) => seq(
       optional(field("label", $.loop_label)),
       "loop",
-      optional(seq(
-        field("state", $.identifier),
-        "=",
-        field("initial", $._expression),
-      )),
-      "do",
       optional(field("body", $.block)),
       "end",
     ),
@@ -486,7 +480,6 @@ module.exports = grammar({
     continue_expression: ($) => prec.right(seq(
       "continue",
       optional(field("label", $.loop_label)),
-      optional(field("value", $._expression)),
     )),
 
     break_expression: ($) => seq(

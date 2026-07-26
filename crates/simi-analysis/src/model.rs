@@ -25,7 +25,6 @@ pub enum SymbolKind {
     Parameter,
     Let,
     Pattern,
-    LoopState,
     Builtin,
 }
 

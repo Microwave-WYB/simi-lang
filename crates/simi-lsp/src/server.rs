@@ -380,9 +380,7 @@ fn rename_error(error: RenameError) -> ProtocolError {
 fn lsp_symbol_kind(kind: SymbolKind) -> LspSymbolKind {
     match kind {
         SymbolKind::Function | SymbolKind::Builtin => LspSymbolKind::FUNCTION,
-        SymbolKind::Parameter | SymbolKind::Let | SymbolKind::Pattern | SymbolKind::LoopState => {
-            LspSymbolKind::VARIABLE
-        }
+        SymbolKind::Parameter | SymbolKind::Let | SymbolKind::Pattern => LspSymbolKind::VARIABLE,
     }
 }
 
@@ -401,9 +399,7 @@ fn completion_kind(kind: SymbolKind) -> CompletionItemKind {
     match kind {
         SymbolKind::Function | SymbolKind::Builtin => CompletionItemKind::FUNCTION,
         SymbolKind::Parameter => CompletionItemKind::VARIABLE,
-        SymbolKind::Let | SymbolKind::Pattern | SymbolKind::LoopState => {
-            CompletionItemKind::VARIABLE
-        }
+        SymbolKind::Let | SymbolKind::Pattern => CompletionItemKind::VARIABLE,
     }
 }
 
