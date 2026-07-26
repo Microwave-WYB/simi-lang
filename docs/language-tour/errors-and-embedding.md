@@ -131,7 +131,7 @@ catch {error = "not_found", key = key} do
 end
 ```
 
-An omitted clause is inferred. `raises E` checks an upper bound, and `noraise` means `raises never`. Generic effect variables can connect a callback's raised type to its caller. Catch patterns remove definitely handled variants from the protected effect; guarded matches remain possible, and handler effects escape. Post-states apply only on normal return, never on a raised path.
+An omitted clause is inferred. `raises E` checks an upper bound, and `noraise` means `raises never`. Generic effect variables can connect a callback's raised type to its caller. Catch patterns remove definitely handled variants from the protected effect; guarded matches remain possible, and handler effects escape. Structural mutation inference is analyzer-only within a binding's defining lexical scope; captured bindings require stable compatible contracts, and annotations remain erased.
 
 ## Minimal Rust embedding
 
