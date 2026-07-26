@@ -187,7 +187,7 @@ test("grammar keyword inventory follows the current Simi lexer", async () => {
   const keywordPatterns = grammar.repository.keywords.patterns.map(({ match }) => match).join("\n");
   const keywordInventory = keywordPatterns.replaceAll("\\b", "");
   const lexerKeywords = [
-    "fn", "do", "end", "if", "then", "elseif", "else", "let", "tap", "and", "or", "not",
+    "fn", "do", "end", "if", "then", "elseif", "else", "let", "requires", "tap", "and", "or", "not",
     "loop", "break", "continue", "case", "of", "when", "raise", "try", "catch",
   ];
 

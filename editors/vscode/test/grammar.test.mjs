@@ -128,4 +128,5 @@ test("TextMate grammar assigns semantic scopes to representative Simi syntax", a
   assertScope(lines, 52, "string", "variable.other.simi");
   assertNotScope(lines, 52, "string", "support.type.primitive.simi");
   assertScope(lines, 52, "to_number", "variable.other.property.simi");
+  assertScope(lines, 54, "requires", "keyword.declaration.simi");
 });

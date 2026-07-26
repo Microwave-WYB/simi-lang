@@ -142,7 +142,7 @@ def check_source_extension() -> None:
         check(decrease.search(legacy) is None, f"legacy syntax affects indentation: {legacy}")
 
     highlights = (language / "highlights.scm").read_text(encoding="utf-8")
-    for keyword in ('"case"', '"of"', '"when"'):
+    for keyword in ('"case"', '"of"', '"when"', '"requires"'):
         check(keyword in highlights, f"missing highlight keyword: {keyword}")
     for removed in ('"match"', '"with"'):
         check(removed not in highlights, f"legacy highlight token remains: {removed}")
@@ -157,6 +157,7 @@ def check_source_extension() -> None:
         check(removed_node not in indents, f"legacy indent node remains: {removed_node}")
 
     fixture = (COMPONENT / "tests" / "fixtures" / "language.simi").read_text(encoding="utf-8")
+    check("requires {" in fixture, "fixture does not exercise a requires declaration")
     check("case value" in fixture and fixture.count("\n    of ") >= 2, "fixture does not exercise repeated-of syntax")
     check("of _ do nil\n" in fixture, "fixture does not exercise final case clause")
     check(fixture.count("catch ") >= 2, "fixture does not exercise repeated catches")

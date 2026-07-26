@@ -14,6 +14,7 @@
   "end"
   "let"
   "alias"
+  "requires"
   "if"
   "then"
   "elseif"

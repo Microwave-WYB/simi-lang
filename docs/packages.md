@@ -114,14 +114,16 @@ they do not establish that a path or Git revision exists.
 
 ## Local source imports
 
-Package-local imports are literal `require("./...")` paths. They resolve relative to the importing
-source file, are confined to the package root, and are prepared as catalog modules before
-execution. They are not ambient filesystem access.
+Package-local imports will use literal `require("./...")` paths relative to the importing source
+file and confined to the package root. That Git/path resolution and catalog preparation are
+resolver work still deferred; `parse_requires` only validates static dependency metadata and a bare
+`Engine` does not read source paths.
 
-For example, `polars.simi` may use:
+For example, a future resolved `polars.simi` package may use:
 
 ```simi
 let schema = require("./src/schema.simi")
 ```
 
-A bare engine without an explicitly resolved catalog rejects such imports before evaluation.
+Until a resolver supplies such a module explicitly, this ordinary `require` call follows the
+existing registered-module behavior and raises `module_not_found`.
