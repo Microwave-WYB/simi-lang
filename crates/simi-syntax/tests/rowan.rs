@@ -135,8 +135,7 @@ fn erased_type_surface_is_lossless_and_alias_is_contextual() {
         "let alias = 1\n",
         "alias option<'a> = 'a | nil\n",
         "let value: option<string> = nil\n",
-        "fn apply(values: [integer, string] => [..(integer | string)], ",
-        "output: [..string] => [..string]) -> nil do nil end\n",
+        "fn apply(values: [integer, string], output: [..string]) -> nil do nil end\n",
         "let record: { name: string, [string | integer]: boolean, .. } = {}\n",
     );
     let parse = parse_source(source);
@@ -156,14 +155,6 @@ fn erased_type_surface_is_lossless_and_alias_is_contextual() {
             .descendants()
             .any(|node| node.kind() == SyntaxKind::TYPE_MAP)
     );
-    assert_eq!(
-        parse
-            .syntax()
-            .descendants()
-            .filter(|node| node.kind() == SyntaxKind::POST_TYPE)
-            .count(),
-        2
-    );
     assert!(
         parse
             .syntax()
@@ -172,13 +163,12 @@ fn erased_type_surface_is_lossless_and_alias_is_contextual() {
     );
 }
 
-
 #[test]
 fn callable_generics_labels_effects_and_leading_unions_are_lossless() {
     let source = concat!(
         "fn identity<'a: | integer | string>(value: 'a) -> 'a noraise do value end\n",
         "let mapper: <'a, 'error: { error: string, .. }> (value: 'a) -> 'a raises 'error = nil\n",
-        "let callback: (input: | integer | string, state: [..integer] => [..integer]) -> nil = nil\n",
+        "let callback: (input: | integer | string, state: [..integer]) -> nil = nil\n",
         "let anonymous = fn<'a: any>(value: 'a) -> 'a raises string do value end\n",
     );
     let parse = parse_source(source);

@@ -13,7 +13,7 @@
   - [Structural list types](#structural-list-types)
   - [Structural map types](#structural-map-types)
   - [Flow analysis and narrowing](#flow-analysis-and-narrowing)
-  - [Mutation, aliases, and postconditions](#mutation-aliases-and-postconditions)
+  - [Mutation, aliases, and analysis](#mutation-aliases-and-analysis)
 - [Expressions](expressions.md)
 - [Functions and bindings](functions-and-bindings.md)
 - [Control flow and patterns](control-flow-and-patterns.md)
@@ -279,13 +279,11 @@ greeting(nil)
 
 A nil-abort directly from a loop body contributes `nil` as the next state, equivalent to `continue nil`; it does not determine the loop result, which only comes from `break`. A `?>` stage similarly splits its nil-skipped and active paths, applies call effects only on the active path, and rejoins before the next pipeline stage. A following ordinary `|>` therefore sees the complete result union.
 
-## Mutation, aliases, and postconditions
+## Mutation, aliases, and analysis
 
 Runtime lists and maps remain mutable and aliased. An erased annotation cannot freeze a container or restrict later values. Analysis updates facts after known mutation and widens them after mutation through an alias, unresolved call, or unknown native function when a stronger claim is unsafe.
 
 Simi refines mutable list and map shapes only while a binding remains in its defining lexical scope. An explicit annotation or closure capture seals that binding's analyzer-visible contract. A closure may mutate a sealed capture only compatibly; it cannot implicitly widen a captured list element type or add a captured map field. Calls do not carry caller-visible mutation postconditions.
-
-Because maps delete `nil` values, `{count: integer | nil}` means that `count` may be absent or may hold an integer.
 
 Because maps delete `nil` values, `{count: integer | nil}` means that `count` may be absent or may hold an integer.
 

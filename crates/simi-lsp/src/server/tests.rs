@@ -1157,12 +1157,12 @@ fn real_annotated_stdlib_facade_supplies_generic_member_types() {
     };
     assert_simi_hover(
         &markup,
-        "<'a, 'b, 'c, 'd> (iterator: () -> { done: boolean, .. } raises 'c, transform: 'a -> 'b raises 'd) -> () -> { done: boolean, .. } raises 'c | 'd noraise",
+        "<'a, 'b, 'c, 'd> (\n    iterator: () -> { done: boolean, .. } raises 'c,\n    transform: 'a -> 'b raises 'd,\n) -> () -> { done: boolean, .. } raises 'c | 'd noraise",
     );
 }
 
 #[test]
-fn cycle_shadow_and_postcondition_hovers_preserve_precise_types() {
+fn cycle_shadow_and_mutation_hovers_preserve_precise_types() {
     let module = include_str!("../../../../stdlib/list.simi");
     let source = r#"let list = require("std/list")
 let nums = [1, 2, 3]
@@ -1745,4 +1745,137 @@ fn type_errors_are_published_and_clear_after_incremental_repair() {
             .diagnostics
             .is_empty()
     );
+}
+
+#[test]
+fn rename_expands_map_local_binding_shorthand_without_renaming_its_key() {
+    let source = "let first = 1 let map = {first, label = first}";
+    let mut backend = Backend::new();
+    open(&mut backend, source);
+    let edit: Option<WorkspaceEdit> = serde_json::from_value(
+        request(
+            &mut backend,
+            Rename::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": text_position(source, "first", 0),
+                "newName": "renamed"
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let mut edits = edit.unwrap().changes.unwrap()[&uri()].clone();
+    edits.sort_by_key(|edit| (edit.range.start.line, edit.range.start.character));
+    assert_eq!(edits.len(), 3);
+    assert_eq!(edits[0].new_text, "renamed");
+    assert_eq!(edits[1].new_text, "first = renamed");
+    assert_eq!(edits[2].new_text, "renamed");
+}
+
+#[test]
+fn real_string_module_hover_wraps_export_map_at_presentation_width() {
+    let module = include_str!("../../../../stdlib/string.simi");
+    let source = "let string = require(\"std/string\")\nstring";
+    let mut backend = Backend::with_module_sources([("std/string", module)]);
+    open(&mut backend, source);
+    let hover: Option<Hover> = serde_json::from_value(
+        request(
+            &mut backend,
+            HoverRequest::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": text_position(source, "std/string", 0),
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let HoverContents::Markup(markup) = hover.expect("string module hover").contents else {
+        panic!("expected markup")
+    };
+    assert_simi_hover(
+        &markup,
+        "{\n    to_number: (text: string) -> integer | float | nil noraise,\n    concat: (left: string, right: string) -> string noraise,\n    length: (text: string) -> integer noraise,\n    slice: (text: string, start: integer, stop: integer) -> string noraise,\n    contains: (text: string, needle: string) -> boolean noraise,\n    starts_with: (text: string, prefix: string) -> boolean noraise,\n    ends_with: (text: string, suffix: string) -> boolean noraise,\n    split: (text: string, separator: string) -> [..string] noraise,\n    trim: (text: string) -> string noraise,\n    lower: (text: string) -> string noraise,\n    upper: (text: string) -> string noraise,\n}\n\nUnicode-aware string inspection, transformation, and conversion.",
+    );
+}
+
+#[test]
+fn nested_unlabeled_loop_control_publishes_a_warning() {
+    let source = "loop outer = 0 do\n    loop inner = 0 do\n        break inner\n    end\n    break outer\nend\n";
+    let mut backend = Backend::new();
+    let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
+    let warnings = diagnostics
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| {
+            diagnostic.code
+                == Some(lsp_types::NumberOrString::String(
+                    "ambiguous_loop_control".to_owned(),
+                ))
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(warnings.len(), 1);
+    assert_eq!(
+        warnings[0].severity,
+        Some(lsp_types::DiagnosticSeverity::WARNING)
+    );
+    assert!(
+        warnings[0]
+            .message
+            .contains("Unlabeled `break` targets the nearest enclosing loop")
+    );
+}
+
+#[test]
+fn destructuring_let_certainty_diagnostics_publish_warnings_and_errors() {
+    let source = concat!(
+        "fn first(values: any) do\n",
+        "    let [first, ..rest] = values\n",
+        "    first\n",
+        "end\n",
+        "let [impossible, ..rest] = 42\n",
+    );
+    let mut backend = Backend::new();
+    let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
+    assert_eq!(diagnostics.diagnostics.len(), 2, "{diagnostics:?}");
+    assert_eq!(
+        diagnostics.diagnostics[0].code,
+        Some(lsp_types::NumberOrString::String(
+            "destructuring_let_may_fail".to_owned()
+        ))
+    );
+    assert_eq!(
+        diagnostics.diagnostics[0].severity,
+        Some(lsp_types::DiagnosticSeverity::WARNING)
+    );
+    assert!(diagnostics.diagnostics[0].message.contains("Use `case`"));
+    assert_eq!(
+        diagnostics.diagnostics[1].code,
+        Some(lsp_types::NumberOrString::String(
+            "destructuring_let_never_matches".to_owned()
+        ))
+    );
+    assert_eq!(
+        diagnostics.diagnostics[1].severity,
+        Some(lsp_types::DiagnosticSeverity::ERROR)
+    );
+    assert!(diagnostics.diagnostics[1].message.contains("incompatible"));
+
+    let hover: Option<Hover> = serde_json::from_value(
+        request(
+            &mut backend,
+            HoverRequest::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": text_position(source, "first", 1),
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let HoverContents::Markup(markup) = hover.expect("destructured binding hover").contents else {
+        panic!("expected markup")
+    };
+    assert_simi_hover(&markup, "any");
 }

@@ -38,7 +38,7 @@ let append: ([..'a], 'b) -> nil = host.append
 }
 
 #[test]
-fn function_type_aliases_preserve_post_state_metadata() {
+fn function_type_aliases_preserve_callable_alias_metadata() {
     let source = r#"
 alias appender<'a, 'b> = ([..'a], 'b) -> nil
 let append: appender<integer, string> = host.append

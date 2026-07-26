@@ -542,7 +542,7 @@ fn pretty_function(callable: &CallableType, continuation_indent: usize, width: u
                 .as_deref()
                 .map_or(String::new(), |name| format!("{name}: "));
             let type_column = indent + name.len();
-            let mut value = format!(
+            let value = format!(
                 "{}{}{}",
                 " ".repeat(indent),
                 name,
@@ -769,12 +769,10 @@ mod tests {
                             CallableParameter {
                                 name: Some("left".to_owned()),
                                 ty: Type::String,
-                                post: None,
                             },
                             CallableParameter {
                                 name: Some("right".to_owned()),
                                 ty: Type::String,
-                                post: None,
                             },
                         ],
                         result: Box::new(Type::String),

@@ -404,11 +404,6 @@ fn known_list_append_refines_empty_lists_and_all_aliases() {
     );
 }
 
-
-
-
-
-
 #[test]
 fn shadow_versions_keep_distinct_symbol_and_closure_types() {
     let source = r#"let value = 1
@@ -875,7 +870,6 @@ ns"#;
     );
 }
 
-
 #[test]
 fn analyzed_calls_preserve_arguments_while_unknown_calls_widen() {
     let db = AnalysisDatabase::default();
@@ -1135,11 +1129,6 @@ end
     );
 }
 
-
-
-
-
-
 #[test]
 fn unannotated_case_patterns_seed_body_stable_list_and_map_domains() {
     let source = r#"
@@ -1207,7 +1196,6 @@ fn nested() do [nested()] end
         "() -> never"
     );
 }
-
 
 #[test]
 fn fully_unannotated_recursive_quicksort_has_a_reachable_list_signature() {
@@ -1515,7 +1503,6 @@ let result = add(1, 2)
     );
 }
 
-
 #[test]
 fn require_and_raised_callbacks_propagate_effects_with_raised_path_mutation() {
     let source = r#"
@@ -1770,7 +1757,6 @@ state.count = 1
         "{ count: integer }"
     );
 }
-
 
 #[test]
 fn closure_capture_requires_a_stable_structural_contract() {

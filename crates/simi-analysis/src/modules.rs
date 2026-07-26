@@ -253,7 +253,6 @@ fn field_from_binding(
         parameters: None,
         documentation: None,
         ty: None,
-        posts: Vec::new(),
         fields: Vec::new(),
     };
     if let Some(symbol) = resolution.symbol_at(span.start)
