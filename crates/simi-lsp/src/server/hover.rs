@@ -1,5 +1,7 @@
 use super::*;
 
+const HOVER_TYPE_WIDTH: usize = 80;
+
 impl Backend {
     pub(super) fn hover(&self, params: HoverParams) -> Result<Option<Hover>, ProtocolError> {
         let uri = params.text_document_position_params.text_document.uri;
@@ -10,7 +12,7 @@ impl Backend {
             let inference = infer_types(&self.db, document.file, &self.module_shapes);
             if let Some((_, ty)) = expression_type_at(&inference, offset) {
                 value.push_str("\n\nExpression type:\n\n```simi\n");
-                value.push_str(&ty.display());
+                value.push_str(&ty.pretty_display(HOVER_TYPE_WIDTH));
                 value.push_str("\n```");
             }
             return Ok(Some(Hover {
@@ -124,7 +126,7 @@ fn hover_type(ty: Option<&Type>, posts: &[ParameterPostType]) -> Type {
 }
 
 fn type_hover(ty: &Type, documentation: Option<&str>) -> HoverContents {
-    let mut value = format!("```simi\n{}\n```", ty.display());
+    let mut value = format!("```simi\n{}\n```", ty.pretty_display(HOVER_TYPE_WIDTH));
     if let Some(documentation) = documentation {
         value.push_str("\n\n");
         value.push_str(documentation);

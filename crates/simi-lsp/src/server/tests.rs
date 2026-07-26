@@ -1203,7 +1203,34 @@ fn real_annotated_stdlib_facade_supplies_generic_member_types() {
     };
     assert_simi_hover(
         &markup,
-        "<'a, 'b, 'c, 'd> (iterator: () -> { done: boolean, .. } raises 'c, transform: 'a -> 'b raises 'd) -> () -> { done: boolean, .. } raises 'c | 'd noraise",
+        "<'a, 'b, 'c, 'd> (\n    iterator: () -> { done: boolean, .. } raises 'c,\n    transform: 'a -> 'b raises 'd,\n) -> () -> { done: boolean, .. } raises 'c | 'd noraise",
+    );
+}
+
+#[test]
+fn real_string_module_hover_wraps_export_map_at_presentation_width() {
+    let module = include_str!("../../../../stdlib/string.simi");
+    let source = "let string = require(\"std/string\")\nstring";
+    let mut backend = Backend::with_module_sources([("std/string", module)]);
+    open(&mut backend, source);
+    let hover: Option<Hover> = serde_json::from_value(
+        request(
+            &mut backend,
+            HoverRequest::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": text_position(source, "std/string", 0),
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let HoverContents::Markup(markup) = hover.expect("string module hover").contents else {
+        panic!("expected markup")
+    };
+    assert_simi_hover(
+        &markup,
+        "{\n    to_number: (text: string) -> integer | float | nil noraise,\n    concat: (left: string, right: string) -> string noraise,\n    length: (text: string) -> integer noraise,\n    slice: (text: string, start: integer, stop: integer) -> string noraise,\n    contains: (text: string, needle: string) -> boolean noraise,\n    starts_with: (text: string, prefix: string) -> boolean noraise,\n    ends_with: (text: string, suffix: string) -> boolean noraise,\n    split: (text: string, separator: string) -> [..string] noraise,\n    trim: (text: string) -> string noraise,\n    lower: (text: string) -> string noraise,\n    upper: (text: string) -> string noraise,\n}\n\nUnicode-aware string inspection, transformation, and conversion.",
     );
 }
 
