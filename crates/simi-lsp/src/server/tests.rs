@@ -889,6 +889,26 @@ fn append(xs, x) do nil end
         panic!("expected markup")
     };
     assert_simi_hover(&markup, "(xs: 'a, x: 'b) -> nil\n\nAppend one value.");
+
+    let shadowed = "let list = {} list.";
+    let mut backend = Backend::with_module_sources([("std/list", module)]);
+    open(&mut backend, shadowed);
+    let completion: Option<CompletionResponse> = serde_json::from_value(
+        request(
+            &mut backend,
+            Completion::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": position::position(shadowed, shadowed.len()).unwrap(),
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let CompletionResponse::Array(items) = completion.unwrap() else {
+        panic!("expected completion array")
+    };
+    assert!(items.is_empty());
 }
 
 #[test]
