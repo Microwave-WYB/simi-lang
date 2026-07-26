@@ -58,6 +58,7 @@ Hard diagnostics must not be converted to `nil` or a partially successful mutati
 `panic` and `todo` are terminal expressions for impossible and unfinished paths. Both are uncatchable hard diagnostics and have static type `never`; `todo` additionally produces an analyzer warning. Their optional notes must be strings:
 
 ```simi
+-- Expected type warning: `todo` marks unfinished code.
 if impossible then
     panic "invalid parser state"
 else
