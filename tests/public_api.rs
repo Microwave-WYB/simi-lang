@@ -16,9 +16,9 @@ use simi::runtime::{
     UserFunction, Value,
 };
 use simi::{
-    Engine, EngineBuilder, Module, ModuleBuilder, NativeCallback, Raised as RootRaised,
-    ScriptResult as RootScriptResult, SourceModuleBuilder, TraceFrame as RootTraceFrame,
-    Value as RootValue,
+    Engine, EngineBuilder, Module, ModuleBuilder, NativeCallback, PackageManifest,
+    Raised as RootRaised, ScriptResult as RootScriptResult, SourceModuleBuilder,
+    TraceFrame as RootTraceFrame, Value as RootValue,
 };
 
 #[test]
@@ -35,6 +35,9 @@ fn current_public_paths_compile() {
         .value("answer", Value::Int(42))
         .build_value();
     let _: SourceModuleBuilder = Module::source("source", "{}").host(Value::Nil);
+    let _: PackageManifest =
+        PackageManifest::parse(r#"{name = "example", simi = "0.1.0", modules = ["example"]}"#)
+            .unwrap();
     let _: Value = simi::host_value! {
         name: "macro-module",
         functions: {
