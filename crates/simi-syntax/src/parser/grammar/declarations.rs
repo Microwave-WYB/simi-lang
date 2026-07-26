@@ -54,7 +54,9 @@ pub(super) fn function_parts(p: &mut Parser<'_>, open: &str) {
     }
     p.expect(K::DO_KW, "`do` before function body");
     let old_loop = std::mem::replace(&mut p.loop_depth, 0);
+    let old_labels = std::mem::take(&mut p.loop_labels);
     block(p);
+    p.loop_labels = old_labels;
     p.loop_depth = old_loop;
     p.expect(K::END_KW, "`end` after function body");
 }

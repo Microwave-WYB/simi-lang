@@ -146,11 +146,12 @@
     "loop-state": {
       "patterns": [
         {
-          "match": "\\b(loop)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*(=)",
+          "match": "(?:@([A-Za-z_][A-Za-z0-9_]*)\\s+)?\\b(loop)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*(=)",
           "captures": {
-            "1": { "name": "keyword.control.loop.simi" },
-            "2": { "name": "variable.other.readwrite.simi" },
-            "3": { "name": "keyword.operator.assignment.simi" }
+            "1": { "name": "entity.name.label.simi" },
+            "2": { "name": "keyword.control.loop.simi" },
+            "3": { "name": "variable.other.readwrite.simi" },
+            "4": { "name": "keyword.operator.assignment.simi" }
           }
         }
       ]

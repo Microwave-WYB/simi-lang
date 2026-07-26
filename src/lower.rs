@@ -238,7 +238,10 @@ fn lower_expr(node: syntax::Expr) -> ast::Expr {
         }
         syntax::Expr::Loop(node) => {
             let loop_keyword = direct_token(node.syntax(), K::LOOP_KW).expect("loop token");
-            let state_token = direct_token(node.syntax(), K::IDENT);
+            let identifiers = direct_tokens(node.syntax(), K::IDENT).collect::<Vec<_>>();
+            let labeled = direct_token(node.syntax(), K::AT).is_some();
+            let label = labeled.then(|| identifiers[0].text().to_string());
+            let state_token = identifiers.get(usize::from(labeled));
             let (state, initial) = match state_token {
                 Some(token) => (
                     token.text().to_string(),
@@ -254,6 +257,7 @@ fn lower_expr(node: syntax::Expr) -> ast::Expr {
             };
             let body = lower_block(support::child(node.syntax()).expect("loop body"));
             ast::ExprKind::Loop {
+                label,
                 state,
                 initial: Box::new(initial),
                 body,
@@ -261,6 +265,9 @@ fn lower_expr(node: syntax::Expr) -> ast::Expr {
         }
         syntax::Expr::Continue(node) => {
             let keyword = direct_token(node.syntax(), K::CONTINUE_KW).expect("continue token");
+            let label = direct_token(node.syntax(), K::AT)
+                .and_then(|_| direct_token(node.syntax(), K::IDENT))
+                .map(|token| token.text().to_string());
             let value = support::child::<syntax::Expr>(node.syntax())
                 .map(lower_expr)
                 .unwrap_or(ast::Expr {
@@ -268,10 +275,14 @@ fn lower_expr(node: syntax::Expr) -> ast::Expr {
                     span: Span::new(end(&keyword), end(&keyword)),
                 });
             ast::ExprKind::Continue {
+                label,
                 value: Box::new(value),
             }
         }
         syntax::Expr::Break(node) => ast::ExprKind::Break {
+            label: direct_token(node.syntax(), K::AT)
+                .and_then(|_| direct_token(node.syntax(), K::IDENT))
+                .map(|token| token.text().to_string()),
             value: Box::new(lower_expr(child_expr(node.syntax(), 0))),
         },
     };
@@ -518,6 +529,12 @@ fn expr_children(node: &SyntaxNode) -> impl Iterator<Item = syntax::Expr> + '_ {
 fn pattern_children(node: &SyntaxNode) -> impl Iterator<Item = syntax::Pattern> + '_ {
     node.children().filter_map(syntax::Pattern::cast)
 }
+fn direct_tokens(node: &SyntaxNode, kind: K) -> impl Iterator<Item = SyntaxToken> + '_ {
+    node.children_with_tokens()
+        .filter_map(|element| element.into_token())
+        .filter(move |token| token.kind() == kind)
+}
+
 fn direct_token(node: &SyntaxNode, kind: K) -> Option<SyntaxToken> {
     support::token(node, kind)
 }

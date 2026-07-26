@@ -170,3 +170,48 @@ end
           (raise_expression
             (string
               (string_content))))))))
+
+==================
+Labeled loops and cross-loop control
+==================
+
+@outer loop state = 0 do
+  @inner loop do
+    if state < 1 then
+      continue @outer state + 1
+    else
+      break @outer state
+    end
+  end
+end
+
+---
+
+(program
+  (loop_expression
+    (loop_label
+      (identifier))
+    (identifier)
+    (integer)
+    (block
+      (loop_expression
+        (loop_label
+          (identifier))
+        (block
+          (if_expression
+            (binary_expression
+              (identifier)
+              (integer))
+            (block
+              (continue_expression
+                (loop_label
+                  (identifier))
+                (binary_expression
+                  (identifier)
+                  (integer))))
+            (else_clause
+              (block
+                (break_expression
+                  (loop_label
+                    (identifier))
+                  (identifier))))))))))

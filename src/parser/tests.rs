@@ -345,11 +345,13 @@ fn rejects_malformed_or_stray_terminators() {
 fn parses_both_loop_spellings_into_the_canonical_shape() {
     let explicit = parse_source("loop state = 0 do break state end").unwrap();
     let StmtKind::Expr(Expr {
-        kind: ExprKind::Loop {
-            state,
-            initial,
-            body,
-        },
+        kind:
+            ExprKind::Loop {
+                state,
+                initial,
+                body,
+                ..
+            },
         span,
     }) = &explicit.items[0].kind
     else {
@@ -370,11 +372,13 @@ fn parses_both_loop_spellings_into_the_canonical_shape() {
 
     let shorthand = parse_source("loop do break _ end").unwrap();
     let StmtKind::Expr(Expr {
-        kind: ExprKind::Loop {
-            state,
-            initial,
-            body,
-        },
+        kind:
+            ExprKind::Loop {
+                state,
+                initial,
+                body,
+                ..
+            },
         span,
     }) = &shorthand.items[0].kind
     else {
@@ -388,6 +392,31 @@ fn parses_both_loop_spellings_into_the_canonical_shape() {
 }
 
 #[test]
+fn lowers_labeled_loop_control_into_the_canonical_ast() {
+    let program = parse_source("@outer loop state = 0 do break @outer state end").unwrap();
+    let StmtKind::Expr(Expr {
+        kind: ExprKind::Loop {
+            label, state, body, ..
+        },
+        ..
+    }) = &program.items[0].kind
+    else {
+        panic!("expected labeled loop");
+    };
+    assert_eq!(label.as_deref(), Some("outer"));
+    assert_eq!(state, "state");
+    let StmtKind::Expr(Expr {
+        kind: ExprKind::Break { label, value },
+        ..
+    }) = &body.items[0].kind
+    else {
+        panic!("expected labeled break");
+    };
+    assert_eq!(label.as_deref(), Some("outer"));
+    assert!(matches!(value.kind, ExprKind::Variable(ref name) if name == "state"));
+}
+
+#[test]
 fn parses_valued_and_bare_continue_with_contract_spans() {
     let valued = parse_source("loop state = 0 do continue state + 1 end").unwrap();
     let StmtKind::Expr(Expr {
@@ -398,7 +427,7 @@ fn parses_valued_and_bare_continue_with_contract_spans() {
         panic!("expected loop expression");
     };
     let StmtKind::Expr(Expr {
-        kind: ExprKind::Continue { value },
+        kind: ExprKind::Continue { value, .. },
         span,
     }) = &body.items[0].kind
     else {
@@ -417,7 +446,7 @@ fn parses_valued_and_bare_continue_with_contract_spans() {
         panic!("expected loop expression");
     };
     let StmtKind::Expr(Expr {
-        kind: ExprKind::Continue { value },
+        kind: ExprKind::Continue { value, .. },
         span,
     }) = &body.items[0].kind
     else {

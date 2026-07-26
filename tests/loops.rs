@@ -241,3 +241,40 @@ fn reports_malformed_loop_headers_and_missing_delimiters() {
         "expected `end` after loop body, found `end of file`",
     );
 }
+
+#[test]
+fn labeled_control_targets_an_enclosing_loop() {
+    assert_eval(
+        r#"
+            @outer loop outer = 0 do
+                @inner loop inner = 0 do
+                    if outer < 3 then
+                        continue @outer outer + 1
+                    else
+                        break @outer outer
+                    end
+                end
+            end
+        "#,
+        "3",
+    );
+}
+
+#[test]
+fn rejects_non_enclosing_duplicate_and_function_boundary_labels() {
+    assert_parse_error(
+        "loop do break @missing 1 end",
+        (15, 22),
+        "`break` label `@missing` does not name an enclosing loop",
+    );
+    assert_parse_error(
+        "@outer loop do @outer loop do break 1 end break 2 end",
+        (16, 21),
+        "duplicate enclosing loop label `@outer`",
+    );
+    assert_parse_error(
+        "@outer loop do fn f() do break @outer 1 end break 2 end",
+        (32, 37),
+        "`break` label `@outer` does not name an enclosing loop",
+    );
+}

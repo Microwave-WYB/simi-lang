@@ -202,21 +202,24 @@ impl Interpreter {
             }
             ExprKind::Try { protected, clauses } => self.evaluate_try(protected, clauses, env),
             ExprKind::Loop {
+                label,
                 state,
                 initial,
                 body,
-            } => self.evaluate_loop(state, initial, body, env),
-            ExprKind::Continue { value } => {
+            } => self.evaluate_loop(label.as_deref(), state, initial, body, env),
+            ExprKind::Continue { label, value } => {
                 let value = self.evaluate_expression(value, env)?;
                 Err(EvaluationError::Continue {
                     value,
+                    label: label.clone(),
                     span: expression.span,
                 })
             }
-            ExprKind::Break { value } => {
+            ExprKind::Break { label, value } => {
                 let value = self.evaluate_expression(value, env)?;
                 Err(EvaluationError::Break {
                     value,
+                    label: label.clone(),
                     span: expression.span,
                 })
             }
@@ -336,6 +339,7 @@ impl Interpreter {
 
     fn evaluate_loop(
         &mut self,
+        label: Option<&str>,
         state: &str,
         initial: &Expr,
         body: &Block,
@@ -348,10 +352,26 @@ impl Interpreter {
             iteration_env.define(state.to_owned(), next_state);
 
             match self.evaluate_block(body, &iteration_env) {
-                Ok(value) | Err(EvaluationError::Continue { value, .. }) => {
+                Ok(value) => {
                     next_state = value;
                 }
-                Err(EvaluationError::Break { value, .. }) => return Ok(value),
+                Err(EvaluationError::Continue {
+                    value,
+                    label: target,
+                    ..
+                }) if target.as_deref().is_none_or(|target| Some(target) == label) => {
+                    next_state = value;
+                }
+                Err(EvaluationError::Break {
+                    value,
+                    label: target,
+                    ..
+                }) if target.as_deref().is_none_or(|target| Some(target) == label) => {
+                    return Ok(value);
+                }
+                Err(error @ (EvaluationError::Continue { .. } | EvaluationError::Break { .. })) => {
+                    return Err(error);
+                }
                 Err(error @ (EvaluationError::Runtime(_) | EvaluationError::Raised(_))) => {
                     return Err(error);
                 }

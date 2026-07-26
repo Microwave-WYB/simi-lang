@@ -165,7 +165,11 @@ impl Context<'_> {
                         self.symbol_types.insert(symbol, state.clone());
                     }
 
+                    let label = direct_token(node.syntax(), K::AT)
+                        .and_then(|_| direct_token(node.syntax(), K::IDENT))
+                        .map(|token| token.text().to_owned());
                     self.loops.push(LoopContext {
+                        label,
                         transitions: Vec::new(),
                         breaks: Vec::new(),
                     });
@@ -211,7 +215,26 @@ impl Context<'_> {
                 let value = child_expr(node.syntax(), 0)
                     .map(|child| self.expression(child))
                     .unwrap_or(Type::Nil);
-                if let Some(context) = self.loops.last_mut() {
+                let label = direct_token(node.syntax(), K::AT)
+                    .and_then(|_| direct_token(node.syntax(), K::IDENT))
+                    .map(|token| token.text().to_owned());
+                if label.is_none() && self.loops.len() > 1 {
+                    self.warning(
+                        AnalysisDiagnosticCode::AmbiguousLoopControl,
+                        "Ambiguous loop control",
+                        "Unlabeled `continue` targets the nearest enclosing loop. Add a loop label to make the target explicit.".to_owned(),
+                        expression_span,
+                    );
+                }
+                let index = label
+                    .as_ref()
+                    .and_then(|label| {
+                        self.loops
+                            .iter()
+                            .rposition(|context| context.label.as_ref() == Some(label))
+                    })
+                    .unwrap_or_else(|| self.loops.len().saturating_sub(1));
+                if let Some(context) = self.loops.get_mut(index) {
                     context.transitions.push(value);
                 }
                 Type::Never
@@ -220,8 +243,27 @@ impl Context<'_> {
                 let value = child_expr(node.syntax(), 0)
                     .map(|child| self.expression(child))
                     .unwrap_or(Type::Nil);
+                let label = direct_token(node.syntax(), K::AT)
+                    .and_then(|_| direct_token(node.syntax(), K::IDENT))
+                    .map(|token| token.text().to_owned());
+                if label.is_none() && self.loops.len() > 1 {
+                    self.warning(
+                        AnalysisDiagnosticCode::AmbiguousLoopControl,
+                        "Ambiguous loop control",
+                        "Unlabeled `break` targets the nearest enclosing loop. Add a loop label to make the target explicit.".to_owned(),
+                        expression_span,
+                    );
+                }
                 let exit = self.flow_state();
-                if let Some(context) = self.loops.last_mut() {
+                let index = label
+                    .as_ref()
+                    .and_then(|label| {
+                        self.loops
+                            .iter()
+                            .rposition(|context| context.label.as_ref() == Some(label))
+                    })
+                    .unwrap_or_else(|| self.loops.len().saturating_sub(1));
+                if let Some(context) = self.loops.get_mut(index) {
                     context.breaks.push((value, exit));
                 }
                 Type::Never

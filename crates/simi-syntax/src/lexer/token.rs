@@ -44,6 +44,7 @@ pub enum TokenKind {
     Comma,
     Colon,
     Apostrophe,
+    At,
     Arrow,
     FatArrow,
     Pipe,

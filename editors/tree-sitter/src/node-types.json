@@ -631,6 +631,16 @@
     "type": "break_expression",
     "named": true,
     "fields": {
+      "label": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "loop_label",
+            "named": true
+          }
+        ]
+      },
       "value": {
         "multiple": false,
         "required": true,
@@ -878,6 +888,16 @@
     "type": "continue_expression",
     "named": true,
     "fields": {
+      "label": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "loop_label",
+            "named": true
+          }
+        ]
+      },
       "value": {
         "multiple": false,
         "required": false,
@@ -1645,9 +1665,35 @@
           }
         ]
       },
+      "label": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "loop_label",
+            "named": true
+          }
+        ]
+      },
       "state": {
         "multiple": false,
         "required": false,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "loop_label",
+    "named": true,
+    "fields": {
+      "name": {
+        "multiple": false,
+        "required": true,
         "types": [
           {
             "type": "identifier",
@@ -3032,6 +3078,10 @@
   },
   {
     "type": "?>",
+    "named": false
+  },
+  {
+    "type": "@",
     "named": false
   },
   {

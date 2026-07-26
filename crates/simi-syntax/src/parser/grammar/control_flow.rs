@@ -131,7 +131,21 @@ pub(super) fn if_branch_after_marker(p: &mut Parser<'_>) {
 }
 pub(super) fn loop_expr(p: &mut Parser<'_>) -> Parsed {
     let marker = p.start();
-    p.bump();
+    let label = if p.bump_if(K::AT) {
+        let span = p.current_span();
+        let name = p.current_text().unwrap_or_default().to_owned();
+        if p.expect(K::IDENT, "loop label after `@`") {
+            if p.loop_labels.iter().any(|existing| existing == &name) {
+                p.error_at(span, format!("duplicate enclosing loop label `@{name}`"));
+            }
+            Some(name)
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+    p.expect(K::LOOP_KW, "`loop` after loop label");
     if p.at(K::DO_KW) {
         p.bump();
     } else {
@@ -141,7 +155,13 @@ pub(super) fn loop_expr(p: &mut Parser<'_>) -> Parsed {
         p.expect(K::DO_KW, "`do` before loop body");
     }
     p.loop_depth += 1;
+    if let Some(label) = &label {
+        p.loop_labels.push(label.clone());
+    }
     block(p);
+    if label.is_some() {
+        p.loop_labels.pop();
+    }
     p.loop_depth -= 1;
     p.expect(K::END_KW, "`end` after loop body");
     Parsed {
@@ -153,7 +173,8 @@ pub(super) fn continue_expr(p: &mut Parser<'_>) -> Parsed {
     let marker = p.start();
     let span = p.current_span();
     p.bump();
-    if p.loop_depth == 0 {
+    let _label = loop_control_label(p, "continue");
+    if p.loop_depth == 0 && _label.is_none() {
         p.error_at(span, "`continue` outside of a loop".to_owned());
     }
     if can_begin_expression(p.current()) {
@@ -168,12 +189,31 @@ pub(super) fn break_expr(p: &mut Parser<'_>) -> Parsed {
     let marker = p.start();
     let span = p.current_span();
     p.bump();
-    if p.loop_depth == 0 {
+    let _label = loop_control_label(p, "break");
+    if p.loop_depth == 0 && _label.is_none() {
         p.error_at(span, "`break` outside of a loop".to_owned());
     }
     expression(p);
     Parsed {
         marker: marker.complete(&mut p.events, K::BREAK_EXPR),
         flavor: Flavor::Other,
+    }
+}
+fn loop_control_label(p: &mut Parser<'_>, control: &str) -> Option<String> {
+    if !p.bump_if(K::AT) {
+        return None;
+    }
+    let span = p.current_span();
+    let label = p.current_text().unwrap_or_default().to_owned();
+    if p.expect(K::IDENT, "loop label after `@`") {
+        if !p.loop_labels.iter().any(|candidate| candidate == &label) {
+            p.error_at(
+                span,
+                format!("`{control}` label `@{label}` does not name an enclosing loop"),
+            );
+        }
+        Some(label)
+    } else {
+        None
     }
 }
