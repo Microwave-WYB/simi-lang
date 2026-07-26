@@ -31,6 +31,8 @@ pub enum TokenKind {
     Of,
     When,
     Raise,
+    Panic,
+    Todo,
     Try,
     Catch,
     LParen,

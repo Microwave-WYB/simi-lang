@@ -109,6 +109,12 @@ pub enum ExprKind {
     Raise {
         value: Box<Expr>,
     },
+    Panic {
+        reason: Option<String>,
+    },
+    Todo {
+        note: Option<String>,
+    },
     Block(Block),
     NilPropagate {
         value: Box<Expr>,

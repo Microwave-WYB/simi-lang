@@ -104,6 +104,7 @@ pub enum AnalysisDiagnosticCode {
     WrongTypeArity,
     CyclicTypeAlias,
     InvalidType,
+    Todo,
 }
 
 impl AnalysisDiagnosticCode {
@@ -119,6 +120,7 @@ impl AnalysisDiagnosticCode {
             Self::WrongTypeArity => "wrong_type_arity",
             Self::CyclicTypeAlias => "cyclic_type_alias",
             Self::InvalidType => "invalid_type",
+            Self::Todo => "todo",
         }
     }
 }
@@ -126,6 +128,7 @@ impl AnalysisDiagnosticCode {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AnalysisDiagnosticSeverity {
     Error,
+    Warning,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

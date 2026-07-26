@@ -391,6 +391,8 @@ module.exports = grammar({
       $.loop_expression,
       $.case_expression,
       $.raise_expression,
+      $.panic_expression,
+      $.todo_expression,
       $.try_expression,
       $.continue_expression,
       $.break_expression,
@@ -528,6 +530,10 @@ module.exports = grammar({
       "raise",
       field("value", $._expression),
     ),
+
+    panic_expression: ($) => prec.right(seq("panic", optional(field("reason", $.string)))),
+
+    todo_expression: ($) => prec.right(seq("todo", optional(field("note", $.string)))),
 
     _pattern: ($) => choice(
       $.wildcard_pattern,

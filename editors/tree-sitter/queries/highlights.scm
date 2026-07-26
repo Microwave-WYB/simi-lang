@@ -25,6 +25,8 @@
   "of"
   "when"
   "raise"
+  "panic"
+  "todo"
   "try"
   "catch"
   "tap"

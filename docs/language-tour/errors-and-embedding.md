@@ -55,6 +55,17 @@ A programmer mistake is instead a hard diagnostic. This complete script intentio
 
 Hard diagnostics must not be converted to `nil` or a partially successful mutation.
 
+`panic` and `todo` are terminal expressions for impossible and unfinished paths. Both are uncatchable hard diagnostics and have static type `never`; `todo` additionally produces an analyzer warning. Their optional notes must be strings:
+
+```simi
+-- Expected type warning: `todo` marks unfinished code.
+if impossible then
+    panic "invalid parser state"
+else
+    todo "implement this branch"
+end
+```
+
 ## Catching raised values
 
 A `try` expression evaluates one or more protected items. Its `catch` clauses use the same structural patterns and Boolean guards as `case`, in source order:

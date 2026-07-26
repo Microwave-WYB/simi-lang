@@ -36,6 +36,8 @@ const TOKENS: &[&str] = &[
     "OF_KW",
     "WHEN_KW",
     "RAISE_KW",
+    "PANIC_KW",
+    "TODO_KW",
     "TRY_KW",
     "CATCH_KW",
     "L_PAREN",

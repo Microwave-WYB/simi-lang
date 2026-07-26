@@ -564,6 +564,8 @@ fn keyword(text: &str) -> Option<(SyntaxKind, TokenKind)> {
         "of" => (SyntaxKind::OF_KW, TokenKind::Of),
         "when" => (SyntaxKind::WHEN_KW, TokenKind::When),
         "raise" => (SyntaxKind::RAISE_KW, TokenKind::Raise),
+        "panic" => (SyntaxKind::PANIC_KW, TokenKind::Panic),
+        "todo" => (SyntaxKind::TODO_KW, TokenKind::Todo),
         "try" => (SyntaxKind::TRY_KW, TokenKind::Try),
         "catch" => (SyntaxKind::CATCH_KW, TokenKind::Catch),
         _ => return None,

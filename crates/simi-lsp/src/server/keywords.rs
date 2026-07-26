@@ -150,6 +150,18 @@ const KEYWORDS: &[KeywordHelp] = &[
         contextual: false,
     },
     KeywordHelp {
+        word: "panic",
+        syntax: "panic \"reason\"",
+        documentation: "Stops evaluation with an uncatchable hard diagnostic. The optional reason must be a string.",
+        contextual: false,
+    },
+    KeywordHelp {
+        word: "todo",
+        syntax: "todo \"note\"",
+        documentation: "Marks unfinished code, reports an analyzer warning, and stops evaluation with an uncatchable hard diagnostic.",
+        contextual: false,
+    },
+    KeywordHelp {
         word: "try",
         syntax: "try … catch pattern do … end",
         documentation: "Evaluates a protected block and matches raised values against one or more catch handlers.",
@@ -280,8 +292,8 @@ mod tests {
         let expected = [
             "alias", "and", "any", "boolean", "break", "case", "catch", "continue", "do", "else",
             "elseif", "end", "false", "float", "fn", "if", "integer", "let", "loop", "nil",
-            "noraise", "not", "of", "or", "raise", "raises", "string", "tap", "then", "true",
-            "try", "when", "never",
+            "noraise", "not", "of", "or", "panic", "raise", "raises", "string", "tap", "then",
+            "todo", "true", "try", "when", "never",
         ]
         .into_iter()
         .collect::<BTreeSet<_>>();

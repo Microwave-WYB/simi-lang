@@ -389,6 +389,17 @@ impl Context<'_> {
         }
     }
 
+    fn warning(&mut self, code: AnalysisDiagnosticCode, title: &str, detail: String, span: Span) {
+        self.diagnostics.push(AnalysisDiagnostic {
+            span,
+            code,
+            title: title.to_owned(),
+            detail,
+            severity: AnalysisDiagnosticSeverity::Warning,
+            related: Vec::new(),
+        });
+    }
+
     fn diagnostic(
         &mut self,
         code: AnalysisDiagnosticCode,

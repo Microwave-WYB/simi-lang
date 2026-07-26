@@ -175,6 +175,17 @@ impl Interpreter {
                 let value = self.evaluate_expression(value, env)?;
                 Err(EvaluationError::Raised(Raised::new(value, expression.span)))
             }
+            ExprKind::Panic { reason } => Err(EvaluationError::Runtime(RuntimeError::new(
+                expression.span,
+                reason
+                    .as_ref()
+                    .map_or_else(|| "panic".to_owned(), |reason| format!("panic: {reason}")),
+            ))),
+            ExprKind::Todo { note } => Err(EvaluationError::Runtime(RuntimeError::new(
+                expression.span,
+                note.as_ref()
+                    .map_or_else(|| "todo".to_owned(), |note| format!("todo: {note}")),
+            ))),
             ExprKind::Block(block) => {
                 let block_env = env.child();
                 self.evaluate_block(block, &block_env)

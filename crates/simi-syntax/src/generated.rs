@@ -37,6 +37,8 @@ pub enum SyntaxKind {
     OF_KW,
     WHEN_KW,
     RAISE_KW,
+    PANIC_KW,
+    TODO_KW,
     TRY_KW,
     CATCH_KW,
     L_PAREN,
@@ -118,6 +120,8 @@ pub enum SyntaxKind {
     PIPELINE_EXPR,
     TRAILING_ARGUMENT_EXPR,
     RAISE_EXPR,
+    PANIC_EXPR,
+    TODO_EXPR,
     TRY_EXPR,
     CASE_EXPR,
     IF_EXPR,
@@ -214,6 +218,8 @@ ast_node!(AssignExpr, ASSIGN_EXPR);
 ast_node!(PipelineExpr, PIPELINE_EXPR);
 ast_node!(TrailingArgumentExpr, TRAILING_ARGUMENT_EXPR);
 ast_node!(RaiseExpr, RAISE_EXPR);
+ast_node!(PanicExpr, PANIC_EXPR);
+ast_node!(TodoExpr, TODO_EXPR);
 ast_node!(TryExpr, TRY_EXPR);
 ast_node!(CaseExpr, CASE_EXPR);
 ast_node!(IfExpr, IF_EXPR);
@@ -291,6 +297,8 @@ pub enum Expr {
     Pipeline(PipelineExpr),
     TrailingArgument(TrailingArgumentExpr),
     Raise(RaiseExpr),
+    Panic(PanicExpr),
+    Todo(TodoExpr),
     Try(TryExpr),
     Case(CaseExpr),
     If(IfExpr),
@@ -323,6 +331,8 @@ impl AstNode for Expr {
                 Self::TrailingArgument(TrailingArgumentExpr::cast(syntax)?)
             }
             SyntaxKind::RAISE_EXPR => Self::Raise(RaiseExpr::cast(syntax)?),
+            SyntaxKind::PANIC_EXPR => Self::Panic(PanicExpr::cast(syntax)?),
+            SyntaxKind::TODO_EXPR => Self::Todo(TodoExpr::cast(syntax)?),
             SyntaxKind::TRY_EXPR => Self::Try(TryExpr::cast(syntax)?),
             SyntaxKind::CASE_EXPR => Self::Case(CaseExpr::cast(syntax)?),
             SyntaxKind::IF_EXPR => Self::If(IfExpr::cast(syntax)?),
@@ -351,6 +361,8 @@ impl AstNode for Expr {
             Self::Pipeline(node) => node.syntax(),
             Self::TrailingArgument(node) => node.syntax(),
             Self::Raise(node) => node.syntax(),
+            Self::Panic(node) => node.syntax(),
+            Self::Todo(node) => node.syntax(),
             Self::Try(node) => node.syntax(),
             Self::Case(node) => node.syntax(),
             Self::If(node) => node.syntax(),
