@@ -550,6 +550,7 @@ fn keyword(text: &str) -> Option<(SyntaxKind, TokenKind)> {
         "elseif" => (SyntaxKind::ELSEIF_KW, TokenKind::ElseIf),
         "else" => (SyntaxKind::ELSE_KW, TokenKind::Else),
         "let" => (SyntaxKind::LET_KW, TokenKind::Let),
+        "requires" => (SyntaxKind::REQUIRES_KW, TokenKind::Requires),
         "tap" => (SyntaxKind::TAP_KW, TokenKind::Tap),
         "nil" => (SyntaxKind::NIL_KW, TokenKind::Nil),
         "true" => (SyntaxKind::TRUE_KW, TokenKind::True),

@@ -1,4 +1,4 @@
-use simi_syntax::generated::{AstNode, Root, Stmt};
+use simi_syntax::generated::{AstNode, RequiresDecl, Root, Stmt};
 use simi_syntax::{DiagnosticKind, SyntaxKind, parse_source};
 
 #[test]
@@ -276,6 +276,84 @@ fn malformed_callable_effects_recover_before_following_bodies_and_declarations()
             statement.syntax().to_string().contains("after")
         }));
     }
+}
+
+#[test]
+fn leading_requires_declaration_is_typed_before_executable_statements() {
+    let source = "requires {name = \"example\", version = 1}\nlet value = 40\nvalue + 2";
+    let parse = parse_source(source);
+    assert!(parse.diagnostics().is_empty(), "{:?}", parse.diagnostics());
+    assert_eq!(parse.syntax().to_string(), source);
+
+    let root = Root::cast(parse.syntax().clone()).expect("root");
+    let declaration = root
+        .syntax()
+        .children()
+        .find_map(RequiresDecl::cast)
+        .expect("typed requires declaration");
+    assert!(
+        declaration
+            .syntax()
+            .children()
+            .any(|child| child.kind() == SyntaxKind::MAP_EXPR)
+    );
+    assert_eq!(root.statements().count(), 2);
+}
+
+#[test]
+fn requires_declarations_diagnose_duplicate_and_later_placement() {
+    let duplicate = parse_source("requires {} requires {}");
+    assert_eq!(
+        duplicate
+            .diagnostics()
+            .iter()
+            .map(|diagnostic| diagnostic.message.as_str())
+            .collect::<Vec<_>>(),
+        ["a source unit may contain at most one `requires` declaration"]
+    );
+    assert_eq!(
+        duplicate
+            .syntax()
+            .descendants()
+            .filter(|node| node.kind() == SyntaxKind::REQUIRES_DECL)
+            .count(),
+        2
+    );
+
+    let later = parse_source("1 requires {}");
+    assert_eq!(
+        later
+            .diagnostics()
+            .iter()
+            .map(|diagnostic| diagnostic.message.as_str())
+            .collect::<Vec<_>>(),
+        ["`requires` must appear before executable items"]
+    );
+    let root = Root::cast(later.syntax().clone()).expect("root");
+    assert_eq!(root.statements().count(), 1);
+}
+
+#[test]
+fn malformed_requires_declaration_recovers_to_following_declaration() {
+    let source = "requires\nlet after = 2";
+    let parse = parse_source(source);
+    assert_eq!(parse.syntax().to_string(), source);
+    assert_eq!(
+        parse
+            .diagnostics()
+            .iter()
+            .map(|diagnostic| diagnostic.message.as_str())
+            .collect::<Vec<_>>(),
+        ["`requires` must be followed by a map"]
+    );
+
+    let root = Root::cast(parse.syntax().clone()).expect("root");
+    assert!(root.statements().any(|statement| {
+        let Stmt::LetStmt(statement) = statement else {
+            return false;
+        };
+        statement.syntax().to_string().contains("after")
+    }));
 }
 
 #[test]

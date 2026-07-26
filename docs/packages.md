@@ -73,7 +73,10 @@ metadata.
 ## Requirements and documentation
 
 Requirements belong to a leading static `requires` declaration in source files, not to executable
-package code. The package resolver reads those declarations transitively before evaluation.
+package code. The shared `parse_requires` API parses and validates this header without evaluating
+any Simi expression. It returns only static metadata and source spans; it does not resolve aliases,
+read paths, access Git or the network, create lockfiles, or grant `Engine::eval` any new authority.
+A later package resolver may consume the validated metadata transitively before evaluation.
 
 A module-level `----` documentation block comes first, followed by the `requires` declaration:
 
@@ -94,16 +97,33 @@ immediately precede `requires`; no declaration or expression may separate them. 
 documentation, `requires` is the first non-comment source form. The parser preserves this ordering
 for diagnostics, editor recovery, and module hover documentation.
 
+Each alias is a unique lowercase Simi identifier. Its value is restricted to exactly one of these
+static maps:
+
+```simi
+requires {
+    remote = {git = "https://example.invalid/remote.git", rev = "v1.2.3"},
+    development = {path = "dev/development"},
+}
+```
+
+`git`, `rev`, and `path` values must be string literals. Unknown, duplicate, mixed, and missing
+fields are invalid. Development paths are non-empty package-root-relative slash-separated paths:
+absolute paths, backslashes, empty segments, `.`, and `..` are rejected. These checks are static;
+they do not establish that a path or Git revision exists.
+
 ## Local source imports
 
-Package-local imports are literal `require("./...")` paths. They resolve relative to the importing
-source file, are confined to the package root, and are prepared as catalog modules before
-execution. They are not ambient filesystem access.
+Package-local imports will use literal `require("./...")` paths relative to the importing source
+file and confined to the package root. That Git/path resolution and catalog preparation are
+resolver work still deferred; `parse_requires` only validates static dependency metadata and a bare
+`Engine` does not read source paths.
 
-For example, `polars.simi` may use:
+For example, a future resolved `polars.simi` package may use:
 
 ```simi
 let schema = require("./src/schema.simi")
 ```
 
-A bare engine without an explicitly resolved catalog rejects such imports before evaluation.
+Until a resolver supplies such a module explicitly, this ordinary `require` call follows the
+existing registered-module behavior and raises `module_not_found`.

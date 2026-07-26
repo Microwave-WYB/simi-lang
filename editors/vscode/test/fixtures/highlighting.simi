@@ -50,3 +50,7 @@ fn nested<'a: wrapper<integer>>(value: 'a) -> 'a noraise do value end
 let typed_no_raise: () -> nil noraise = nil
 let literal_raise: () -> nil raises "oops" = nil
 let parsed = string.to_number("42")
+
+requires {
+    local = {path = "packages/local"}
+}

@@ -33,9 +33,20 @@ use types::*;
 
 pub(super) fn root(p: &mut Parser<'_>) {
     let root = p.start_root();
+    let mut saw_executable_item = false;
+    let mut saw_requires = false;
     while !p.at_end() {
         let before = p.position;
-        if is_block_terminator(p.current()) {
+        if p.at(K::REQUIRES_KW) {
+            if saw_executable_item {
+                p.error("`requires` must appear before executable items".to_owned());
+            }
+            if saw_requires {
+                p.error("a source unit may contain at most one `requires` declaration".to_owned());
+            }
+            requires_decl(p);
+            saw_requires = true;
+        } else if is_block_terminator(p.current()) {
             let name = super::token_name(p.current(), false);
             p.error(format!("unexpected `{name}` outside of a block"));
             let error = p.start();
@@ -43,6 +54,7 @@ pub(super) fn root(p: &mut Parser<'_>) {
             error.complete(&mut p.events, K::ERROR);
         } else {
             statement(p);
+            saw_executable_item = true;
         }
         if p.position == before {
             recover_statement(p);
@@ -77,6 +89,7 @@ fn recover_statement(p: &mut Parser<'_>) {
         || p.at(K::FN_KW)
         || p.at(K::ALIAS_KW)
         || p.at(K::LET_KW)
+        || p.at(K::REQUIRES_KW)
         || (p.at(K::IDENT) && p.current_text() == Some("alias") && p.nth(1) == K::IDENT))
     {
         p.bump();

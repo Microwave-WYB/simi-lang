@@ -1,4 +1,5 @@
-Root = Stmt*
+Root = RequiresDecl? Stmt*
+RequiresDecl = 'requires' MapExpr
 Stmt = FunctionDecl | AliasDecl | LetStmt | ExprStmt
 FunctionDecl = 'fn' 'ident' CallableTypeParamList? ParamList (ReturnAnnotation EffectAnnotation?)? 'do' Block 'end'
 AliasDecl = 'alias' 'ident' TypeParamList? '=' TypeExpr
