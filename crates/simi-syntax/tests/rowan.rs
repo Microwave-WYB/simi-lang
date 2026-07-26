@@ -317,7 +317,7 @@ fn malformed_callable_effects_recover_before_following_bodies_and_declarations()
 
 #[test]
 fn malformed_lexemes_are_preserved_as_error_tokens() {
-    let source = "let x = @\nlet y = 2";
+    let source = "let x = $\nlet y = 2";
     let parse = parse_source(source);
     assert_eq!(parse.syntax().to_string(), source);
     assert!(
