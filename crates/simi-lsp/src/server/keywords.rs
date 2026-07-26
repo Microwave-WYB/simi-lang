@@ -292,8 +292,8 @@ mod tests {
         let expected = [
             "alias", "and", "any", "boolean", "break", "case", "catch", "continue", "do", "else",
             "elseif", "end", "false", "float", "fn", "if", "integer", "let", "loop", "nil",
-            "noraise", "not", "of", "or", "raise", "raises", "string", "tap", "then", "true",
-            "try", "when", "never",
+            "noraise", "not", "of", "or", "panic", "raise", "raises", "string", "tap", "then",
+            "todo", "true", "try", "when", "never",
         ]
         .into_iter()
         .collect::<BTreeSet<_>>();
