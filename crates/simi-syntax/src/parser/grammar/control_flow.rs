@@ -9,6 +9,20 @@ pub(super) fn raise_expr(p: &mut Parser<'_>) -> Parsed {
         flavor: Flavor::Other,
     }
 }
+pub(super) fn terminal_expr(p: &mut Parser<'_>, kind: K) -> Parsed {
+    let marker = p.start();
+    let keyword = p.current_text().unwrap_or("terminal").to_owned();
+    p.bump();
+    if p.at(K::STRING) {
+        p.bump();
+    } else if p.at(K::INT) || p.at(K::FLOAT) || p.at(K::IDENT) {
+        p.error(format!("`{keyword}` note must be a string"));
+    }
+    Parsed {
+        marker: marker.complete(&mut p.events, kind),
+        flavor: Flavor::Other,
+    }
+}
 pub(super) fn try_expr(p: &mut Parser<'_>) -> Parsed {
     let marker = p.start();
     p.bump();

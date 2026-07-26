@@ -150,6 +150,18 @@ const KEYWORDS: &[KeywordHelp] = &[
         contextual: false,
     },
     KeywordHelp {
+        word: "panic",
+        syntax: "panic \"reason\"",
+        documentation: "Stops evaluation with an uncatchable hard diagnostic. The optional reason must be a string.",
+        contextual: false,
+    },
+    KeywordHelp {
+        word: "todo",
+        syntax: "todo \"note\"",
+        documentation: "Marks unfinished code, reports an analyzer warning, and stops evaluation with an uncatchable hard diagnostic.",
+        contextual: false,
+    },
+    KeywordHelp {
         word: "try",
         syntax: "try … catch pattern do … end",
         documentation: "Evaluates a protected block and matches raised values against one or more catch handlers.",

@@ -69,6 +69,16 @@ impl Context<'_> {
             syntax::Expr::If(node) => self.infer_if(node),
             syntax::Expr::Case(node) => self.infer_case(node),
             syntax::Expr::Try(node) => self.infer_try(node),
+            syntax::Expr::Panic(_) => Type::Never,
+            syntax::Expr::Todo(node) => {
+                self.warning(
+                    AnalysisDiagnosticCode::Todo,
+                    "unfinished code",
+                    "`todo` always stops evaluation with a hard diagnostic".to_owned(),
+                    span(node.syntax()),
+                );
+                Type::Never
+            }
             syntax::Expr::Raise(node) => {
                 if let Some(value) = support::child::<syntax::Expr>(node.syntax()) {
                     let raised = self.expression(value);

@@ -148,6 +148,8 @@ pub(super) fn rebase_expr(expression: &mut ast::Expr, origins: &simi_syntax::Tok
         | ast::ExprKind::String(_)
         | ast::ExprKind::Bool(_)
         | ast::ExprKind::Nil
+        | ast::ExprKind::Panic { .. }
+        | ast::ExprKind::Todo { .. }
         | ast::ExprKind::Variable(_) => {}
     }
     expression.span = origins.rebase(expression.span);

@@ -2238,3 +2238,32 @@ let mixed = nil ?> ignored("x" + true) |> kind()
         "string"
     );
 }
+
+#[test]
+fn panic_and_todo_are_never_and_todo_warns_without_a_raised_effect() {
+    let source = r#"
+fn panicked() -> never do panic end
+fn unfinished() -> never do todo "finish the decoder" end
+"#;
+    let (inference, resolution) = inferred(source);
+    assert_eq!(
+        type_of(&inference, &resolution, "panicked").display(),
+        "() -> never"
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "unfinished").display(),
+        "() -> never"
+    );
+    assert_eq!(
+        inference.diagnostics.len(),
+        1,
+        "{:?}",
+        inference.diagnostics
+    );
+    let diagnostic = &inference.diagnostics[0];
+    assert_eq!(diagnostic.code.as_str(), "todo");
+    assert_eq!(
+        diagnostic.severity,
+        simi_analysis::AnalysisDiagnosticSeverity::Warning
+    );
+}

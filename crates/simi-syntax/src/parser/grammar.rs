@@ -101,6 +101,8 @@ fn can_begin_expression(kind: K) -> bool {
             | K::L_BRACE
             | K::DO_KW
             | K::RAISE_KW
+            | K::PANIC_KW
+            | K::TODO_KW
             | K::TRY_KW
             | K::CATCH_KW
             | K::CASE_KW

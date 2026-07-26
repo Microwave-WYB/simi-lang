@@ -84,6 +84,10 @@
         "named": true
       },
       {
+        "type": "panic_expression",
+        "named": true
+      },
+      {
         "type": "parenthesized_expression",
         "named": true
       },
@@ -97,6 +101,10 @@
       },
       {
         "type": "string",
+        "named": true
+      },
+      {
+        "type": "todo_expression",
         "named": true
       },
       {
@@ -376,6 +384,10 @@
             "named": true
           },
           {
+            "type": "panic_expression",
+            "named": true
+          },
+          {
             "type": "parenthesized_expression",
             "named": true
           },
@@ -385,6 +397,10 @@
           },
           {
             "type": "string",
+            "named": true
+          },
+          {
+            "type": "todo_expression",
             "named": true
           },
           {
@@ -544,6 +560,10 @@
             "named": true
           },
           {
+            "type": "panic_expression",
+            "named": true
+          },
+          {
             "type": "parenthesized_expression",
             "named": true
           },
@@ -553,6 +573,10 @@
           },
           {
             "type": "string",
+            "named": true
+          },
+          {
+            "type": "todo_expression",
             "named": true
           },
           {
@@ -710,6 +734,10 @@
             "named": true
           },
           {
+            "type": "panic_expression",
+            "named": true
+          },
+          {
             "type": "parenthesized_expression",
             "named": true
           },
@@ -719,6 +747,10 @@
           },
           {
             "type": "string",
+            "named": true
+          },
+          {
+            "type": "todo_expression",
             "named": true
           },
           {
@@ -1048,6 +1080,10 @@
             "named": true
           },
           {
+            "type": "panic_expression",
+            "named": true
+          },
+          {
             "type": "parenthesized_expression",
             "named": true
           },
@@ -1057,6 +1093,10 @@
           },
           {
             "type": "string",
+            "named": true
+          },
+          {
+            "type": "todo_expression",
             "named": true
           },
           {
@@ -1422,6 +1462,10 @@
             "named": true
           },
           {
+            "type": "panic_expression",
+            "named": true
+          },
+          {
             "type": "parenthesized_expression",
             "named": true
           },
@@ -1431,6 +1475,10 @@
           },
           {
             "type": "string",
+            "named": true
+          },
+          {
+            "type": "todo_expression",
             "named": true
           },
           {
@@ -1898,6 +1946,10 @@
             "named": true
           },
           {
+            "type": "panic_expression",
+            "named": true
+          },
+          {
             "type": "parenthesized_expression",
             "named": true
           },
@@ -1910,7 +1962,27 @@
             "named": true
           },
           {
+            "type": "todo_expression",
+            "named": true
+          },
+          {
             "type": "try_expression",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "panic_expression",
+    "named": true,
+    "fields": {
+      "reason": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "string",
             "named": true
           }
         ]
@@ -2122,6 +2194,10 @@
             "named": true
           },
           {
+            "type": "panic_expression",
+            "named": true
+          },
+          {
             "type": "parenthesized_expression",
             "named": true
           },
@@ -2131,6 +2207,10 @@
           },
           {
             "type": "string",
+            "named": true
+          },
+          {
+            "type": "todo_expression",
             "named": true
           },
           {
@@ -2264,6 +2344,10 @@
             "named": true
           },
           {
+            "type": "panic_expression",
+            "named": true
+          },
+          {
             "type": "parenthesized_expression",
             "named": true
           },
@@ -2273,6 +2357,10 @@
           },
           {
             "type": "string",
+            "named": true
+          },
+          {
+            "type": "todo_expression",
             "named": true
           },
           {
@@ -2394,6 +2482,22 @@
     }
   },
   {
+    "type": "todo_expression",
+    "named": true,
+    "fields": {
+      "note": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "string",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
     "type": "trailing_argument_expression",
     "named": true,
     "fields": {
@@ -2478,6 +2582,10 @@
             "named": true
           },
           {
+            "type": "panic_expression",
+            "named": true
+          },
+          {
             "type": "parenthesized_expression",
             "named": true
           },
@@ -2487,6 +2595,10 @@
           },
           {
             "type": "string",
+            "named": true
+          },
+          {
+            "type": "todo_expression",
             "named": true
           },
           {
@@ -2718,6 +2830,10 @@
             "named": true
           },
           {
+            "type": "panic_expression",
+            "named": true
+          },
+          {
             "type": "parenthesized_expression",
             "named": true
           },
@@ -2727,6 +2843,10 @@
           },
           {
             "type": "string",
+            "named": true
+          },
+          {
+            "type": "todo_expression",
             "named": true
           },
           {
@@ -3004,6 +3124,10 @@
     "named": false
   },
   {
+    "type": "panic",
+    "named": false
+  },
+  {
     "type": "raise",
     "named": false
   },
@@ -3021,6 +3145,10 @@
   },
   {
     "type": "then",
+    "named": false
+  },
+  {
+    "type": "todo",
     "named": false
   },
   {

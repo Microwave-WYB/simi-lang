@@ -42,6 +42,7 @@ impl Backend {
                     range: position::range(&text, diagnostic.span).ok()?,
                     severity: Some(match diagnostic.severity {
                         AnalysisDiagnosticSeverity::Error => DiagnosticSeverity::ERROR,
+                        AnalysisDiagnosticSeverity::Warning => DiagnosticSeverity::WARNING,
                     }),
                     code: Some(NumberOrString::String(diagnostic.code.as_str().to_owned())),
                     source: Some("simi".to_owned()),

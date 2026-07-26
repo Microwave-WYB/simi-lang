@@ -239,6 +239,8 @@ pub(super) fn primary(p: &mut Parser<'_>) -> Parsed {
         K::L_BRACKET => list_expr(p),
         K::L_BRACE => map_expr(p),
         K::RAISE_KW => raise_expr(p),
+        K::PANIC_KW => terminal_expr(p, K::PANIC_EXPR),
+        K::TODO_KW => terminal_expr(p, K::TODO_EXPR),
         K::TRY_KW => try_expr(p),
         K::CASE_KW => case_expr(p),
         K::IF_KW => if_expr(p),

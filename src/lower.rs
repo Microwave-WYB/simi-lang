@@ -197,6 +197,14 @@ fn lower_expr(node: syntax::Expr) -> ast::Expr {
         syntax::Expr::Raise(node) => ast::ExprKind::Raise {
             value: Box::new(lower_expr(child_expr(node.syntax(), 0))),
         },
+        syntax::Expr::Panic(node) => ast::ExprKind::Panic {
+            reason: direct_token(node.syntax(), K::STRING)
+                .map(|token| token.text().trim_matches('"').to_owned()),
+        },
+        syntax::Expr::Todo(node) => ast::ExprKind::Todo {
+            note: direct_token(node.syntax(), K::STRING)
+                .map(|token| token.text().trim_matches('"').to_owned()),
+        },
         syntax::Expr::Try(node) => {
             let protected = lower_block(support::child(node.syntax()).expect("protected block"));
             let clauses = support::children::<syntax::CatchClause>(node.syntax())

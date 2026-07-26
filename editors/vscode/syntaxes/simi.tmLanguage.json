@@ -195,7 +195,7 @@
         },
         {
           "name": "keyword.control.exception.simi",
-          "match": "\\b(?:raise|try|catch)\\b"
+          "match": "\\b(?:raise|panic|todo|try|catch)\\b"
         },
         {
           "name": "keyword.control.block.simi",
