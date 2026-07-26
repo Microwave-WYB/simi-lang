@@ -363,9 +363,7 @@ fn known_list_append_refines_empty_lists_and_all_aliases() {
         "std/list".to_owned(),
         simi_analysis::module_shape(&db, module_file),
     )]);
-    let file = db.add_file(
-        "let list = require(\"std/list\") let values = [] let alias = values list.append(values, 1)",
-    );
+    let file = db.add_file(" let values = [] let alias = values list.append(values, 1)");
     let resolution = resolve(&db, file);
     let inference = infer_types(&db, file, &modules);
     assert!(
@@ -431,7 +429,7 @@ fn named_wrappers_infer_and_propagate_parameter_post_states() {
         simi_analysis::module_shape(&db, module_file),
     )]);
     let source = r#"
-let list = require("std/list")
+
 fn append(xs, value) do list.append(xs, value) end
 fn append_then_break(xs, value) do
     loop state = nil do
@@ -511,7 +509,7 @@ fn copied_list_mutation_does_not_infer_an_input_post_state() {
         simi_analysis::module_shape(&db, module_file),
     )]);
     let source = r#"
-let list = require("std/list")
+
 let ns = [1]
 fn immut_append(ns, n) do
     ns |> list.copy() |> tap list.append(n)
@@ -612,7 +610,7 @@ fn cycle_pipeline_preserves_precise_mutated_shape_across_same_scope_shadow() {
         "std/list".to_owned(),
         simi_analysis::module_shape(&db, module_file),
     )]);
-    let source = r#"let list = require("std/list")
+    let source = r#"
 let nums = [1, 2, 3]
 let nums = nums |> tap list.append(nums)
 nums[3]"#;
@@ -667,7 +665,7 @@ fn annotated_generic_stdlib_calls_infer_through_nested_type_variables() {
         ),
     ]);
     let file = db.add_file(concat!(
-        "let list = require(\"std/list\")\n",
+        "\n",
         "let iter = require(\"std/iter\")\n",
         "let mapped = iter.to_list(iter.map(list.iter([1, 2]), fn(value) do value + 1 end))\n",
         "let found = iter.find(list.iter([1, 2]), fn(value) do value > 1 end)\n",
@@ -1012,7 +1010,7 @@ fn mutation_hovers_use_the_type_at_each_source_occurrence() {
         "std/list".to_owned(),
         simi_analysis::module_shape(&db, module_file),
     )]);
-    let source = r#"let list = require("std/list")
+    let source = r#"
 let ns = [1, 2]
 ns
 list.append(ns, 3)
@@ -1052,7 +1050,7 @@ fn closure_bodies_do_not_mutate_declaration_time_outer_flow() {
         simi_analysis::module_shape(&db, module_file),
     )]);
     let source = r#"
-let list = require("std/list")
+
 let named = [1, 2]
 fn later() do list.append(named, 3) end
 named
@@ -1087,7 +1085,7 @@ fn analyzed_calls_preserve_arguments_while_unknown_calls_widen() {
         simi_analysis::module_shape(&db, module_file),
     )]);
     let source = r#"
-let list = require("std/list")
+
 fn opaque(value) do value end
 let first = [1, 2]
 opaque(first)
@@ -1138,7 +1136,7 @@ fn unmodeled_calls_follow_any_alias_regions_and_analyzed_callbacks() {
         ),
     ]);
     let source = r#"
-let list = require("std/list")
+
 let iter = require("std/iter")
 fn mutate(value: any) do value end
 let values = [1, 2]
@@ -1353,7 +1351,7 @@ fn closure_calls_and_callbacks_invalidate_captured_mutable_regions() {
         ),
     ]);
     let source = r#"
-let list = require("std/list")
+
 let iter = require("std/iter")
 let named_values = [1]
 fn mutate_named() do list.append(named_values, 2) end
@@ -1434,7 +1432,7 @@ fn unknown_callable_invocations_widen_all_mutable_regions_only_on_active_paths()
         simi_analysis::module_shape(&db, module_file),
     )]);
     let source = r#"
-let list = require("std/list")
+
 let values = [1]
 let handlers = {
     run = fn() do list.append(values, 2) end,
@@ -1499,7 +1497,7 @@ fn callable_reassignment_clears_posts_and_builtin_trust() {
         simi_analysis::module_shape(&db, module_file),
     )]);
     let source = r#"
-let list = require("std/list")
+
 let values = [1]
 let handlers = {
     run = fn() do list.append(values, 2) end,
@@ -1550,7 +1548,7 @@ fn callable_metadata_joins_and_invoked_assignments_are_conservative() {
         simi_analysis::module_shape(&db, module_file),
     )]);
     let source = r#"
-let list = require("std/list")
+
 fn widen(xs: [..integer] => [..(integer | string)]) -> nil noraise do
     host.widen(xs)
 end
@@ -1617,7 +1615,7 @@ fn callable_assignment_effects_propagate_through_multiple_wrappers() {
         simi_analysis::module_shape(&db, module_file),
     )]);
     let source = r#"
-let list = require("std/list")
+
 let values = [1]
 let handlers = { run = fn() do list.append(values, 2) end }
 fn replace() do type = handlers.run end
@@ -1777,7 +1775,7 @@ fn fully_unannotated_recursive_quicksort_has_a_reachable_list_signature() {
         simi_analysis::module_shape(&db, module_file),
     )]);
     let source = r#"
-let list = require("std/list")
+
 fn partition(values, pivot) do
     loop state = {remaining=values, lower=[], higher=[]} do
         case state
@@ -1826,7 +1824,7 @@ fn append_driven_loop_state_infers_an_integer_list_result() {
         simi_analysis::module_shape(&db, module_file),
     )]);
     let source = r#"
-let list = require("std/list")
+
 fn sum_list(ns: [..integer]) do
     loop state = {acc=0, ns=ns} do
         case state.ns
@@ -2191,7 +2189,7 @@ fn nil_aware_pipeline_splits_effects_and_bottom_is_normalized() {
         simi_analysis::module_shape(&db, module_file),
     )]);
     let source = r#"
-let list = require("std/list")
+
 fn append_if_present(values: [integer, integer] | nil) do
     values ?> tap list.append(3)
     values

@@ -57,6 +57,16 @@ impl Builder {
                 0,
             );
         }
+        for name in ["list", "map"] {
+            this.declare(
+                root_scope,
+                name.to_owned(),
+                SymbolKind::Builtin,
+                None,
+                None,
+                0,
+            );
+        }
         this
     }
 

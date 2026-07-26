@@ -22,7 +22,7 @@ fn declared_effect(
 
 let mapper = fn(item) do item * 2 end
 let iter = require("std/iter")
-let mapped = iter.map(require("std/list").iter([1, 2])) <| mapper
+let mapped = iter.map(list.iter([1, 2])) <| mapper
 let handled = try
     let attempted = { error = "bad" }
     raise attempted

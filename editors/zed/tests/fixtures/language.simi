@@ -17,7 +17,7 @@ fn declared_effect(
     pair: [integer, string] => [..(integer | string)],
 ) -> nil do nil end
 
-let list = require("std/list")
+
 let iter = require("std/iter")
 
 fn classify(value) do

@@ -14,8 +14,8 @@ Use the [embedding tour](../../../docs/language-tour/errors-and-embedding.md) as
 ## Choose the evaluation surface
 
 - Use `simi::eval(source)` for a fresh engine with the portable standard library.
-- Use `Engine::new()` for no registered modules.
-- Use `Engine::with_stdlib()` for portable `std/list`, `std/map`, `std/iter`, `std/number`, and `std/string` modules.
+- Use `Engine::new()` for built-in `list` and `map` prelude globals with no registered modules.
+- Use `Engine::with_stdlib()` to additionally register portable `std/iter`, `std/number`, and `std/string` modules. Built-in `require("std/list")` and `require("std/map")` raise `module_not_found`, but hosts may explicitly register modules at those paths.
 - Use `Engine::builder().stdlib().stdio().build()` only when text standard IO should be granted.
 - Reuse an `Engine` when registered module instances and their cached mutable state should persist across evaluations.
 

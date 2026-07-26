@@ -261,7 +261,7 @@ fn known_bindings(db: &dyn salsa::Database, file: FileId) -> HashMap<SymbolId, K
     let parsed = parse(db, file);
     let resolution = resolve(db, file);
     let root = syntax::Root::cast(parsed.syntax()).expect("parser produces a root");
-    let mut bindings = HashMap::new();
+    let mut bindings = prelude_bindings(&resolution);
     for node in root
         .syntax()
         .descendants()
@@ -286,6 +286,36 @@ fn known_bindings(db: &dyn salsa::Database, file: FileId) -> HashMap<SymbolId, K
         }
     }
     bindings
+}
+
+fn prelude_bindings(resolution: &Resolution) -> HashMap<SymbolId, KnownValue> {
+    resolution
+        .hir
+        .symbols
+        .iter()
+        .filter_map(|(symbol, data)| {
+            (data.builtin && resolution.symbol_references.contains_key(&symbol))
+                .then(|| prelude_module(&data.name))
+                .flatten()
+                .map(|module| {
+                    (
+                        symbol,
+                        KnownValue {
+                            module: module.to_owned(),
+                            path: Vec::new(),
+                        },
+                    )
+                })
+        })
+        .collect()
+}
+
+fn prelude_module(name: &str) -> Option<&'static str> {
+    match name {
+        "list" => Some("std/list"),
+        "map" => Some("std/map"),
+        _ => None,
+    }
 }
 
 fn known_value(

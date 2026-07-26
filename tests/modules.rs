@@ -3,7 +3,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use simi::runtime::RuntimeError;
 use simi::span::Span;
-use simi::{Engine, Module, NativeResult, SimiError, Value, eval};
+use simi::{Engine, Module, NativeResult, Value, eval};
 
 fn constant(_: &[Value], _: Span) -> NativeResult {
     Ok(Ok(Value::Int(7)))
@@ -202,23 +202,23 @@ fn require_type_errors_and_qualified_native_arity_errors_are_hard() {
 }
 
 #[test]
-fn standard_modules_are_explicit_capabilities_and_require_is_shadowable() {
-    let missing = match Engine::new()
-        .eval("require(\"std/list\")")
-        .expect("empty engine missing module should be a raise")
-    {
-        Err(raised) => raised,
-        Ok(value) => panic!(
-            "empty engine should not contain list, got {}",
-            value.render()
-        ),
-    };
-    assert_eq!(
-        missing.value.render(),
-        "{error=\"module_not_found\", module=\"std/list\"}"
-    );
+fn list_and_map_are_engine_prelude_modules_and_require_is_shadowable() {
+    let engine = Engine::new();
+    engine
+        .eval("list.marker = 1 map.marker = 2 nil")
+        .expect("engine prelude mutation should have no hard diagnostic")
+        .expect("engine prelude mutation should not raise");
+    let value = engine
+        .eval(
+            r#"
+            [list.length([1, 2, 3]), list.marker, map.marker]
+            "#,
+        )
+        .expect("engine prelude calls should have no hard diagnostic")
+        .expect("engine prelude calls should not raise");
+    assert_eq!(value.render(), "[3, 1, 2]");
 
-    let value = eval("let list = require(\"std/list\") list.length([1, 2, 3])")
+    let value = eval(" list.length([1, 2, 3])")
         .expect("root eval should provide standard modules")
         .expect("standard list call should not raise");
     assert_eq!(value.render(), "3");
@@ -233,7 +233,10 @@ fn standard_modules_are_explicit_capabilities_and_require_is_shadowable() {
         );
     }
 
-    assert!(matches!(eval("list"), Err(SimiError::Runtime(_))));
+    let value = eval("list.length([1])")
+        .expect("root list prelude should have no hard diagnostic")
+        .expect("root list prelude should not raise");
+    assert_eq!(value.render(), "1");
 
     let value = Engine::new()
         .eval("let require = 42 require")
@@ -246,6 +249,68 @@ fn standard_modules_are_explicit_capabilities_and_require_is_shadowable() {
         .expect("parameter-shadowed require should have no hard diagnostic")
         .expect("parameter-shadowed require should not raise");
     assert_eq!(value.render(), "43");
+}
+
+#[test]
+fn built_in_list_path_is_not_requireable_and_hosts_can_opt_in_to_legacy_paths() {
+    let source = "require(\"std/list\")";
+    let raised = match Engine::with_stdlib()
+        .eval(source)
+        .expect("missing built-in list path should not be a hard diagnostic")
+    {
+        Err(raised) => raised,
+        Ok(value) => panic!(
+            "built-in list path should raise module_not_found, got {}",
+            value.render()
+        ),
+    };
+    assert_eq!(
+        raised.value.render(),
+        "{error=\"module_not_found\", module=\"std/list\"}"
+    );
+    assert_eq!(raised.origin, Span::new(0, source.len()));
+
+    let engine = Engine::builder()
+        .module(
+            Module::builder("std/list")
+                .value("host_registered", Value::Int(1))
+                .build(),
+        )
+        .module(
+            Module::builder("std/map")
+                .value("host_registered", Value::Int(2))
+                .build(),
+        )
+        .build();
+    let value = engine
+        .eval(
+            r#"
+            [
+                require("std/list").host_registered,
+                require("std/map").host_registered,
+            ]
+            "#,
+        )
+        .expect("host legacy paths should not have hard diagnostics")
+        .expect("host legacy paths should not raise");
+    assert_eq!(value.render(), "[1, 2]");
+}
+
+#[test]
+fn remaining_standard_modules_are_requireable() {
+    let value = Engine::with_stdlib()
+        .eval(
+            r#"
+            [
+                type(require("std/iter")),
+                type(require("std/number")),
+                type(require("std/string")),
+            ]
+            "#,
+        )
+        .expect("remaining standard modules should not have hard diagnostics")
+        .expect("remaining standard modules should not raise");
+    assert_eq!(value.render(), "[\"map\", \"map\", \"map\"]");
 }
 
 #[test]
@@ -279,7 +344,7 @@ fn global_type_reports_every_runtime_value_category() {
 fn global_inspect_renders_cyclic_containers_and_builtins_are_shadowable() {
     let value = eval(
         r#"
-        let list = require("std/list")
+
         let values = []
         list.append(values, values)
         let object = {}
@@ -346,7 +411,7 @@ fn stdio_module_is_an_opt_in_capability() {
 fn root_eval_uses_fresh_standard_module_instances() {
     eval(
         r#"
-        let list = require("std/list")
+
         list.marker = 1
         nil
         "#,
@@ -354,7 +419,7 @@ fn root_eval_uses_fresh_standard_module_instances() {
     .expect("first root evaluation should have no hard diagnostic")
     .expect("first root evaluation should not raise");
 
-    let value = eval("let list = require(\"std/list\") list.marker")
+    let value = eval(" list.marker")
         .expect("second root evaluation should have no hard diagnostic")
         .expect("second root evaluation should not raise");
     assert_eq!(value.render(), "nil");
@@ -433,7 +498,7 @@ fn direct_native_aliases_avoid_facade_function_wrappers() {
             "require(\"std/string\").length",
             "<native std/string.length>",
         ),
-        ("require(\"std/list\").append", "<native std/list.append>"),
+        ("list.append", "<native std/list.append>"),
     ] {
         assert_eq!(engine.eval(source).unwrap().unwrap().render(), expected);
     }
@@ -854,7 +919,7 @@ fn source_module_nested_loads_retry_failures_and_isolate_cached_mutation() {
 }
 
 #[test]
-fn every_bundled_module_is_source_backed() {
+fn engine_lsp_catalog_includes_bundled_prelude_facades() {
     for module in [
         simi::stdlib::list(),
         simi::stdlib::map(),
@@ -869,15 +934,11 @@ fn every_bundled_module_is_source_backed() {
             module.name()
         );
     }
-    let engine = Engine::builder().stdlib().stdio().build();
-    let mut names = engine
-        .module_sources()
-        .into_iter()
-        .map(|(name, _)| name)
-        .collect::<Vec<_>>();
-    names.sort();
+
+    let mut sources = Engine::builder().stdlib().stdio().build().module_sources();
+    sources.sort_by(|left, right| left.0.cmp(&right.0));
     assert_eq!(
-        names,
+        sources.iter().map(|(name, _)| name).collect::<Vec<_>>(),
         [
             "std/io",
             "std/iter",
@@ -886,6 +947,20 @@ fn every_bundled_module_is_source_backed() {
             "std/number",
             "std/string",
         ]
+    );
+    assert_eq!(
+        sources
+            .iter()
+            .find(|(name, _)| name == "std/list")
+            .map(|(_, source)| source.as_str()),
+        Some(include_str!("../stdlib/list.simi"))
+    );
+    assert_eq!(
+        sources
+            .iter()
+            .find(|(name, _)| name == "std/map")
+            .map(|(_, source)| source.as_str()),
+        Some(include_str!("../stdlib/map.simi"))
     );
 }
 

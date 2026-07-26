@@ -73,7 +73,7 @@ let [old, fresh] = [2, 3]
 fn cycle_demo_shadows_with_the_same_mutated_list_alias() {
     let value = eval(
         r#"
-let list = require("std/list")
+
 let nums = [1, 2, 3]
 let nums = nums |> tap list.append(nums)
 nums[3]

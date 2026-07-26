@@ -107,7 +107,7 @@ A nonnegative out-of-range read returns `nil`. Negative and non-integer indices 
 
 Ordinary aliases observe the same mutations. List-rest pattern captures, `list.slice`, and `list.copy` create independent copy-on-write views in O(1), while nested values retain shallow alias identity. `list.copy` covers the source's full visible range; mutating either outer list detaches its backing as needed.
 
-The standard `std/list` module provides list-specific mutation, shallow copying, slicing, inspection, and an O(1) snapshot iterator. Generic lazy traversal belongs to `std/iter`; its adapters include `map` and `filter`, while consumers include `to_list`, `fold`, `find`, `find_index`, `contains`, `any`, `all`, `each`, and predicate-based `count`. Iterators are single-pass and sticky after exhaustion. Predicates must return booleans, searches short-circuit and leave later elements unconsumed, callback raises propagate, and `each` returns `nil`. `map.iter` snapshots insertion-ordered `{ key = key, value = value }` entries.
+The built-in `list` global provides list-specific mutation, shallow copying, slicing, inspection, and an O(1) snapshot iterator. Generic lazy traversal belongs to `std/iter`; its adapters include `map` and `filter`, while consumers include `to_list`, `fold`, `find`, `find_index`, `contains`, `any`, `all`, `each`, and predicate-based `count`. Iterators are single-pass and sticky after exhaustion. Predicates must return booleans, searches short-circuit and leave later elements unconsumed, callback raises propagate, and `each` returns `nil`. `map.iter` snapshots insertion-ordered `{ key = key, value = value }` entries.
 
 ### Maps
 
@@ -205,13 +205,12 @@ end
 Scripts acquire modules explicitly through the shadowable global `require` function:
 
 ```simi
-let list = require("std/list")
 list.length([ 1, 2, 3 ])
 ```
 
 Normal/default interpreters and all `Engine` evaluations provide the shadowable globals `type(value)` and `inspect(value)` alongside `require`. The low-level `Interpreter::with_globals` constructor intentionally treats its environment as complete and does not add a prelude. `type` returns the stable reflective labels listed above, including `"function"` for both user and native functions. Detailed runtime diagnostics may still distinguish native functions. `inspect` is cycle-safe human-readable rendering, not serialization.
 
-Modules are registered by the embedding host and cached per `Engine`. Repeated `require` calls return the same cached export value, and module state persists across evaluations performed by that engine. Separate engines have separate module registries. `Engine::new()` has no registered modules; `Engine::with_stdlib()` includes `std/list`, `std/map`, `std/iter`, `std/number`, and `std/string`. The root `eval` convenience function uses a fresh standard-library engine.
+Modules are registered by the embedding host and cached per `Engine`. Repeated `require` calls return the same cached export value, and module state persists across evaluations performed by that engine. Separate engines have separate module registries. `Engine::new()` provides built-in `list` and `map` globals but no registered modules; built-in `require("std/list")` and `require("std/map")` raise `module_not_found`, while hosts may explicitly register modules at those paths. `Engine::with_stdlib()` also includes `std/iter`, `std/number`, and `std/string`. The root `eval` convenience function uses a fresh standard-library engine.
 
 Text standard IO is one opt-in capability named `std/io`. The CLI registers it; `Engine::with_stdlib()` and root `eval` do not. Embedders can opt in with `Engine::builder().stdlib().stdio()`. It supplies `read_line`, `print`, `println`, `eprint`, and `eprintln`. Output functions accept strings only and flush automatically; other values require explicit `inspect`. EOF returns `nil`, and successful writes return `nil`. Failures from either the write or its automatic flush raise `{ error = "io_error", operation = operation, message = message }` using the originating operation name. Raw `read` and `write` remain deferred until Simi has bytes.
 
@@ -369,7 +368,7 @@ Add tests at the lowest useful layer and at the public language boundary when se
 
 ## Near-Term Direction
 
-The portable standard library currently includes `std/list`, `std/map`, `std/iter`, `std/number`, and `std/string`; `type` and `inspect` are globals. Anonymous functions, trailing callback application, and lazy single-pass iterators are implemented. The CLI additionally registers the opt-in `std/io` text module.
+The portable standard library provides built-in `list` and `map` globals plus require-able `std/iter`, `std/number`, and `std/string`; `type` and `inspect` are globals. Anonymous functions, trailing callback application, and lazy single-pass iterators are implemented. The CLI additionally registers the opt-in `std/io` text module.
 
 Rowan syntax, Salsa-backed lexical and type analysis, `simi-lsp`, and the VS Code/Zed adapters are implemented. The erased optional type system parses inline annotations and transparent aliases, infers stable body-based function and binding types, reports definite contradictions, and supplies typed hover/completion for source modules. Callable types carry erased parameter labels, optional bounded generic headers, normal-return post-states, and a distinct raised effect. Omission infers the effect, `raises E` checks an upper bound, and `noraise` means `raises never`; hard diagnostics and postfix `?` remain outside that channel.
 

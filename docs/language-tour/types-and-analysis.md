@@ -290,7 +290,7 @@ fn append_text(
     values: [..integer] => [..(integer | string)],
     value: string,
 ) -> nil do
-    require("std/list").append(values, value)
+    list.append(values, value)
 end
 
 let values: [..integer] = [1, 2]

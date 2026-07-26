@@ -206,7 +206,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-`Engine::new()` starts with no registered modules. `Engine::with_stdlib()` registers the portable modules `std/list`, `std/map`, `std/iter`, `std/number`, and `std/string`. Text IO is a separate capability:
+`Engine::new()` provides built-in `list` and `map` prelude globals, along with the core `type`, `inspect`, and `require` globals. Built-in `require("std/list")` and `require("std/map")` raise `module_not_found`; hosts may still explicitly register modules at those paths. `Engine::with_stdlib()` adds the portable modules `std/iter`, `std/number`, and `std/string`. Text IO is a separate capability:
 
 ```rust
 use simi::Engine;

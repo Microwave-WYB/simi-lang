@@ -108,26 +108,70 @@ fn hidden(value) do value end
 }
 
 #[test]
-fn literal_unshadowed_require_provides_members_but_shadowed_require_does_not() {
-    let module_source = "fn append(xs, x) do nil end { append = append }";
-    let source = "let list = require(\"std/list\") list.append";
+fn prelude_modules_provide_members_and_remain_shadowable() {
+    let list_source = "fn append(xs, x) do nil end { append = append }";
+    let map_source = "fn clear(entries) do nil end { clear = clear }";
+    let source = " list.append map.clear";
     let db = AnalysisDatabase::default();
-    let module_file = db.add_file(module_source);
+    let list_file = db.add_file(list_source);
+    let map_file = db.add_file(map_source);
     let file = db.add_file(source);
-    let modules = HashMap::from([("std/list".to_owned(), module_shape(&db, module_file))]);
-    let offset = source.len();
-    assert_eq!(imported_modules(&db, file).len(), 1);
-    let member = member_at(&db, file, &modules, source, offset - 1).expect("known member");
-    assert_eq!(member.field.name, "append");
-    assert_eq!(member.field.parameters.as_ref().unwrap(), &["xs", "x"]);
+    let modules = HashMap::from([
+        ("std/list".to_owned(), module_shape(&db, list_file)),
+        ("std/map".to_owned(), module_shape(&db, map_file)),
+    ]);
+    assert_eq!(imported_modules(&db, file).len(), 2);
 
-    let incomplete = "let list = require(\"std/list\") list.";
+    let append = member_at(
+        &db,
+        file,
+        &modules,
+        source,
+        source.find("append").expect("append") + 1,
+    )
+    .expect("known list member");
+    assert_eq!(append.field.name, "append");
+    assert_eq!(append.field.parameters.as_ref().unwrap(), &["xs", "x"]);
+
+    let clear = member_at(
+        &db,
+        file,
+        &modules,
+        source,
+        source.find("clear").expect("clear") + 1,
+    )
+    .expect("known map member");
+    assert_eq!(clear.field.name, "clear");
+
+    let incomplete = " list.";
     let incomplete_file = db.add_file(incomplete);
     let completions =
         member_completions(&db, incomplete_file, &modules, incomplete, incomplete.len());
     assert_eq!(completions.len(), 1);
+    assert_eq!(completions[0].name, "append");
 
-    let shadowed = "let require = fn(name) do nil end let list = require(\"std/list\") list.";
+    let shadowed = "let list = {} list.";
+    let shadowed_file = db.add_file(shadowed);
+    assert!(member_completions(&db, shadowed_file, &modules, shadowed, shadowed.len()).is_empty());
+}
+
+#[test]
+fn literal_unshadowed_require_provides_members_but_shadowed_require_does_not() {
+    let module_source = "fn append(xs, x) do nil end { append = append }";
+    let db = AnalysisDatabase::default();
+    let module_file = db.add_file(module_source);
+    let modules = HashMap::from([("std/list".to_owned(), module_shape(&db, module_file))]);
+
+    let source = "let imported = require(\"std/list\") imported.";
+    let file = db.add_file(source);
+    assert_eq!(imported_modules(&db, file).len(), 1);
+    assert_eq!(
+        member_completions(&db, file, &modules, source, source.len()).len(),
+        1
+    );
+
+    let shadowed =
+        "let require = fn(name) do nil end let imported = require(\"std/list\") imported.";
     let shadowed_file = db.add_file(shadowed);
     assert!(member_completions(&db, shadowed_file, &modules, shadowed, shadowed.len()).is_empty());
 }
