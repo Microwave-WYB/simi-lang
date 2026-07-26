@@ -1797,3 +1797,25 @@ let initialize = fn() do state.count = 1 end
         inference.diagnostics
     );
 }
+
+#[test]
+fn captured_map_index_mutations_require_a_stable_structural_contract() {
+    let source = r#"
+let literal_state = {}
+let set_literal = fn() do literal_state["count"] = 1 end
+let dynamic_state = {}
+let key = "count"
+let set_dynamic = fn() do dynamic_state[key] = 1 end
+"#;
+    let (inference, _) = inferred(source);
+    assert_eq!(
+        inference
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.title == "Captured mutation exceeds declared type")
+            .count(),
+        2,
+        "{:?}",
+        inference.diagnostics
+    );
+}

@@ -273,15 +273,13 @@ impl Context<'_> {
             }
             Type::ListRest(item) => Type::ListRest(Box::new(union(vec![*item, value.clone()]))),
             map @ Type::Map { .. } => {
-                let updated = if let Some(syntax::Expr::Literal(literal)) = key.as_ref()
+                if let Some(syntax::Expr::Literal(literal)) = key.as_ref()
                     && let Some(token) = direct_token(literal.syntax(), K::STRING)
                 {
                     update_map_field(map, &unquote(token.text()), value.clone())
                 } else {
                     widen_mutable_type(map)
-                };
-                self.update_region_or_symbol(symbol, updated);
-                return;
+                }
             }
             _ => return,
         };
