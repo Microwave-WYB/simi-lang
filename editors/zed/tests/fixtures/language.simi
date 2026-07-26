@@ -59,5 +59,6 @@ try
     raise error
 catch { error = message } when message != nil do
     classify([final])
-catch _ do nil
+catch _ do
+    nil
 end
