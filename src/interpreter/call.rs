@@ -42,6 +42,16 @@ impl Interpreter {
         Ok(value)
     }
 
+    pub(crate) fn install_prelude_modules(&mut self) -> Result<(), RuntimeError> {
+        for (name, alias) in [("std/list", "list"), ("std/map", "map")] {
+            let value = self
+                .require_module(&Value::String(name.to_owned()), Span::new(0, 0))
+                .map_err(EvaluationError::into_runtime_error)?;
+            self.prelude.define(alias, value);
+        }
+        Ok(())
+    }
+
     fn require_module(&mut self, name: &Value, span: Span) -> EvaluationResult<Value> {
         let Value::String(name) = name else {
             return Err(RuntimeError::new(

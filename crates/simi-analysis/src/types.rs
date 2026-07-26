@@ -209,6 +209,7 @@ fn builtin_types(resolution: &Resolution) -> HashMap<SymbolId, Type> {
             ))),
             "type" => callable_type(vec![Type::Any], Type::String),
             "inspect" => callable_type(vec![Type::Any], Type::String),
+            "list" | "map" => Type::Any,
             _ => Type::Unknown,
         };
         types.insert(id, ty);

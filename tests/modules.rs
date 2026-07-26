@@ -3,7 +3,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use simi::runtime::RuntimeError;
 use simi::span::Span;
-use simi::{Engine, Module, NativeResult, SimiError, Value, eval};
+use simi::{Engine, Module, NativeResult, Value, eval};
 
 fn constant(_: &[Value], _: Span) -> NativeResult {
     Ok(Ok(Value::Int(7)))
@@ -202,21 +202,21 @@ fn require_type_errors_and_qualified_native_arity_errors_are_hard() {
 }
 
 #[test]
-fn standard_modules_are_explicit_capabilities_and_require_is_shadowable() {
-    let missing = match Engine::new()
-        .eval("require(\"std/list\")")
-        .expect("empty engine missing module should be a raise")
-    {
-        Err(raised) => raised,
-        Ok(value) => panic!(
-            "empty engine should not contain list, got {}",
-            value.render()
-        ),
-    };
-    assert_eq!(
-        missing.value.render(),
-        "{error=\"module_not_found\", module=\"std/list\"}"
-    );
+fn list_and_map_are_engine_prelude_modules_and_require_is_shadowable() {
+    let engine = Engine::new();
+    engine
+        .eval("list.marker = 1 map.marker = 2 nil")
+        .expect("engine prelude mutation should have no hard diagnostic")
+        .expect("engine prelude mutation should not raise");
+    let value = engine
+        .eval(
+            r#"
+            [list.length([1, 2, 3]), require("std/list").marker, require("std/map").marker]
+            "#,
+        )
+        .expect("engine prelude calls should have no hard diagnostic")
+        .expect("engine prelude calls should not raise");
+    assert_eq!(value.render(), "[3, 1, 2]");
 
     let value = eval("let list = require(\"std/list\") list.length([1, 2, 3])")
         .expect("root eval should provide standard modules")
@@ -233,7 +233,10 @@ fn standard_modules_are_explicit_capabilities_and_require_is_shadowable() {
         );
     }
 
-    assert!(matches!(eval("list"), Err(SimiError::Runtime(_))));
+    let value = eval("list.length([1])")
+        .expect("root list prelude should have no hard diagnostic")
+        .expect("root list prelude should not raise");
+    assert_eq!(value.render(), "1");
 
     let value = Engine::new()
         .eval("let require = 42 require")

@@ -100,11 +100,12 @@ impl ModuleRegistry {
 
 pub struct Engine {
     modules: ModuleRegistry,
+    install_prelude: bool,
 }
 
 impl Engine {
     pub fn new() -> Self {
-        Self::builder().build()
+        Self::builder().prelude().build()
     }
 
     pub fn builder() -> EngineBuilder {
@@ -131,6 +132,11 @@ impl Engine {
             }),
         })?;
         let mut interpreter = Interpreter::with_modules(self.modules.clone());
+        if self.install_prelude {
+            interpreter
+                .install_prelude_modules()
+                .map_err(SimiError::Runtime)?;
+        }
         interpreter.evaluate(&program).map_err(SimiError::from)
     }
 }
@@ -143,13 +149,20 @@ impl Default for Engine {
 
 pub struct EngineBuilder {
     modules: HashMap<String, Module>,
+    install_prelude: bool,
 }
 
 impl EngineBuilder {
     pub fn new() -> Self {
         Self {
             modules: HashMap::new(),
+            install_prelude: false,
         }
+    }
+
+    fn prelude(mut self) -> Self {
+        self.install_prelude = true;
+        self.module(stdlib::list()).module(stdlib::map())
     }
 
     pub fn module(mut self, module: Module) -> Self {
@@ -158,8 +171,7 @@ impl EngineBuilder {
     }
 
     pub fn stdlib(self) -> Self {
-        self.module(stdlib::list())
-            .module(stdlib::map())
+        self.prelude()
             .module(stdlib::iter())
             .module(stdlib::number())
             .module(stdlib::string())
@@ -188,6 +200,7 @@ impl EngineBuilder {
             .collect();
         Engine {
             modules: ModuleRegistry::new(modules),
+            install_prelude: self.install_prelude,
         }
     }
 }
