@@ -11,8 +11,8 @@ fn assert_eval(source: &str, expected: &str) {
 fn list_and_map_producers_are_public_iterators() {
     assert_eval(
         r#"
-        let list = require("std/list")
-        let map = require("std/map")
+
+
         let iter = require("std/iter")
         [
             iter.to_list(list.iter([1, nil, 3])),
@@ -27,7 +27,7 @@ fn list_and_map_producers_are_public_iterators() {
 fn iterators_are_lazy_single_pass_and_sticky_after_exhaustion() {
     assert_eval(
         r#"
-        let list = require("std/list")
+
         let iter = require("std/iter")
         let calls = []
         let source = list.iter([1, 2])
@@ -50,7 +50,7 @@ fn iterators_are_lazy_single_pass_and_sticky_after_exhaustion() {
 fn custom_iterators_stay_exhausted_and_nil_queries_do_not_use_nil_as_a_sentinel() {
     assert_eval(
         r#"
-        let list = require("std/list")
+
         let iter = require("std/iter")
         let calls = 0
         let source = iter.from(fn() do
@@ -75,7 +75,7 @@ fn custom_iterators_stay_exhausted_and_nil_queries_do_not_use_nil_as_a_sentinel(
 fn map_and_filter_are_lazy_and_filter_predicates_are_strict() {
     assert_eval(
         r#"
-        let list = require("std/list")
+
         let iter = require("std/iter")
         let seen = []
         let filtered = iter.filter(list.iter([1, 2, 3]), fn(value) do
@@ -89,7 +89,7 @@ fn map_and_filter_are_lazy_and_filter_predicates_are_strict() {
     );
 
     let error = Engine::with_stdlib().eval(
-        r#"let list = require("std/list") let iter = require("std/iter") iter.to_list(iter.filter(list.iter([1]), fn(value) do value end))"#,
+        r#" let iter = require("std/iter") iter.to_list(iter.filter(list.iter([1]), fn(value) do value end))"#,
     );
     assert!(error.is_err());
 }
@@ -98,7 +98,7 @@ fn map_and_filter_are_lazy_and_filter_predicates_are_strict() {
 fn consumers_fold_search_queries_and_each_have_contracts() {
     assert_eval(
         r#"
-        let list = require("std/list")
+
         let iter = require("std/iter")
         let values = [1, 2, 3, 4]
         [
@@ -120,7 +120,7 @@ fn consumers_fold_search_queries_and_each_have_contracts() {
 fn consumers_short_circuit_and_leave_the_remainder_unconsumed() {
     assert_eval(
         r#"
-        let list = require("std/list")
+
         let iter = require("std/iter")
         let source = list.iter([1, 2, 3])
         let found = iter.find(source, fn(value) do value == 2 end)
@@ -131,7 +131,7 @@ fn consumers_short_circuit_and_leave_the_remainder_unconsumed() {
 
     assert_eval(
         r#"
-        let list = require("std/list")
+
         let iter = require("std/iter")
         let source = list.iter([1, 2, 3])
         let result = iter.all(source, fn(value) do value < 2 end)
@@ -145,7 +145,7 @@ fn consumers_short_circuit_and_leave_the_remainder_unconsumed() {
 fn list_iterator_snapshots_structural_mutation() {
     assert_eval(
         r#"
-        let list = require("std/list")
+
         let iter = require("std/iter")
         let values = [1, 2]
         let source = list.iter(values)
@@ -160,7 +160,7 @@ fn list_iterator_snapshots_structural_mutation() {
 fn raises_propagate_through_iterator_adapters_and_consumers() {
     let raised = match eval(
         r#"
-        let list = require("std/list")
+
         let iter = require("std/iter")
         iter.to_list(iter.map(list.iter([1]), fn(value) do
             raise { error = "callback_failed", value = value }
@@ -194,8 +194,8 @@ fn malformed_steps_are_hard_contract_diagnostics() {
 #[test]
 fn removed_collection_hofs_and_map_views_are_not_exports() {
     let source = r#"
-        let list = require("std/list")
-        let map = require("std/map")
+
+
         [type(list.map), type(list.filter), type(list.fold), type(map.keys), type(map.values), type(map.entries)]
     "#;
     assert_eval(

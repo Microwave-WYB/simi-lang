@@ -61,7 +61,7 @@ let assigned = values[1] = 99
 
 A write never grows a list. A nonnegative out-of-range read returns `nil`, but an out-of-range write raises a structural `index_out_of_bounds` value. Negative and non-integer indices are hard diagnostics.
 
-The `std/list` module supplies the rest of the list operations:
+The built-in `list` global supplies the rest of the list operations:
 
 ```text
 length  get  contains
@@ -72,7 +72,7 @@ set     append  extend  insert  remove  pop  reverse
 Mutation functions operate on the supplied list. For example:
 
 ```simi
-let list = require("std/list")
+
 let values = [2, 3]
 
 list.insert(values, 0, 1)
@@ -88,7 +88,7 @@ let popped = list.pop(values)
 When a mutating function returns `nil`, a tap pipeline can preserve the original list for the next stage:
 
 ```simi
-let list = require("std/list")
+
 let values = [1, 2, 3]
 
 let same_values =
@@ -106,7 +106,7 @@ let same_values =
 Use `list.copy` when the outer list must be independently mutable. It creates an O(1) copy-on-write view covering the source's full visible range. Mutating either outer list detaches backing storage as needed:
 
 ```simi
-let list = require("std/list")
+
 let source = [1, 2, 3]
 let copied = list.copy(source)
 
@@ -119,7 +119,7 @@ list.append(copied, 4)
 `list.slice` creates the same kind of independent shallow view over a visible range:
 
 ```simi
-let list = require("std/list")
+
 let source = [0, 1, 2, 3]
 let middle = list.slice(source, 1, 3)
 
@@ -134,7 +134,7 @@ Copy-on-write is an implementation strategy, not delayed aliasing: from the lang
 These copies are shallow. Nested mutable values retain their identity:
 
 ```simi
-let list = require("std/list")
+
 let nested = [1]
 let source = [nested, [2]]
 let copied = list.copy(source)
@@ -150,7 +150,7 @@ The outer replacement affects only `copied`, but the mutation inside the nested 
 List-rest patterns use the same O(1), independent, shallow copy-on-write behavior:
 
 ```simi
-let list = require("std/list")
+
 let source = [1, 2, 3]
 let [first, ..rest] = source
 
@@ -184,10 +184,10 @@ settings.temporary = nil
 [settings, settings.temporary]
 ```
 
-Because script-created maps cannot store a nil value, `map[key] != nil` is a valid existence check. The `std/map` module also provides `has` when the intent should be explicit.
+Because script-created maps cannot store a nil value, `map[key] != nil` is a valid existence check. The built-in `map` global also provides `has` when the intent should be explicit.
 
 ```simi
-let map = require("std/map")
+
 let settings = {theme = "dark"}
 
 [map.has(settings, "theme"), map.has(settings, "missing")]
@@ -196,7 +196,7 @@ let settings = {theme = "dark"}
 `map.clear` removes every entry in place and returns `nil`:
 
 ```simi
-let map = require("std/map")
+
 let settings = {theme = "dark", language = "simi"}
 let alias = settings
 
@@ -210,7 +210,7 @@ let result = map.clear(settings)
 `map.copy` creates an independent shallow map in O(n). It preserves normalized keys and insertion order:
 
 ```simi
-let map = require("std/map")
+
 let source = {name = "Ada", visits = 1}
 let copied = map.copy(source)
 
@@ -223,7 +223,7 @@ copied.name = "Grace"
 As with lists, shallow copying preserves aliases to nested values:
 
 ```simi
-let map = require("std/map")
+
 let roles = ["admin"]
 let source = {name = "Ada", roles = roles}
 let copied = map.copy(source)

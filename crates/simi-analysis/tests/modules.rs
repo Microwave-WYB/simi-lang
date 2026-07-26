@@ -110,7 +110,7 @@ fn hidden(value) do value end
 #[test]
 fn literal_unshadowed_require_provides_members_but_shadowed_require_does_not() {
     let module_source = "fn append(xs, x) do nil end { append = append }";
-    let source = "let list = require(\"std/list\") list.append";
+    let source = " list.append";
     let db = AnalysisDatabase::default();
     let module_file = db.add_file(module_source);
     let file = db.add_file(source);
@@ -121,13 +121,13 @@ fn literal_unshadowed_require_provides_members_but_shadowed_require_does_not() {
     assert_eq!(member.field.name, "append");
     assert_eq!(member.field.parameters.as_ref().unwrap(), &["xs", "x"]);
 
-    let incomplete = "let list = require(\"std/list\") list.";
+    let incomplete = " list.";
     let incomplete_file = db.add_file(incomplete);
     let completions =
         member_completions(&db, incomplete_file, &modules, incomplete, incomplete.len());
     assert_eq!(completions.len(), 1);
 
-    let shadowed = "let require = fn(name) do nil end let list = require(\"std/list\") list.";
+    let shadowed = "let require = fn(name) do nil end  list.";
     let shadowed_file = db.add_file(shadowed);
     assert!(member_completions(&db, shadowed_file, &modules, shadowed, shadowed.len()).is_empty());
 }

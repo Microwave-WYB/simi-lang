@@ -211,14 +211,14 @@ fn list_and_map_are_engine_prelude_modules_and_require_is_shadowable() {
     let value = engine
         .eval(
             r#"
-            [list.length([1, 2, 3]), require("std/list").marker, require("std/map").marker]
+            [list.length([1, 2, 3]), list.marker, map.marker]
             "#,
         )
         .expect("engine prelude calls should have no hard diagnostic")
         .expect("engine prelude calls should not raise");
     assert_eq!(value.render(), "[3, 1, 2]");
 
-    let value = eval("let list = require(\"std/list\") list.length([1, 2, 3])")
+    let value = eval(" list.length([1, 2, 3])")
         .expect("root eval should provide standard modules")
         .expect("standard list call should not raise");
     assert_eq!(value.render(), "3");
@@ -252,6 +252,68 @@ fn list_and_map_are_engine_prelude_modules_and_require_is_shadowable() {
 }
 
 #[test]
+fn built_in_list_path_is_not_requireable_and_hosts_can_opt_in_to_legacy_paths() {
+    let source = "require(\"std/list\")";
+    let raised = match Engine::with_stdlib()
+        .eval(source)
+        .expect("missing built-in list path should not be a hard diagnostic")
+    {
+        Err(raised) => raised,
+        Ok(value) => panic!(
+            "built-in list path should raise module_not_found, got {}",
+            value.render()
+        ),
+    };
+    assert_eq!(
+        raised.value.render(),
+        "{error=\"module_not_found\", module=\"std/list\"}"
+    );
+    assert_eq!(raised.origin, Span::new(0, source.len()));
+
+    let engine = Engine::builder()
+        .module(
+            Module::builder("std/list")
+                .value("host_registered", Value::Int(1))
+                .build(),
+        )
+        .module(
+            Module::builder("std/map")
+                .value("host_registered", Value::Int(2))
+                .build(),
+        )
+        .build();
+    let value = engine
+        .eval(
+            r#"
+            [
+                require("std/list").host_registered,
+                require("std/map").host_registered,
+            ]
+            "#,
+        )
+        .expect("host legacy paths should not have hard diagnostics")
+        .expect("host legacy paths should not raise");
+    assert_eq!(value.render(), "[1, 2]");
+}
+
+#[test]
+fn remaining_standard_modules_are_requireable() {
+    let value = Engine::with_stdlib()
+        .eval(
+            r#"
+            [
+                type(require("std/iter")),
+                type(require("std/number")),
+                type(require("std/string")),
+            ]
+            "#,
+        )
+        .expect("remaining standard modules should not have hard diagnostics")
+        .expect("remaining standard modules should not raise");
+    assert_eq!(value.render(), "[\"map\", \"map\", \"map\"]");
+}
+
+#[test]
 fn global_type_reports_every_runtime_value_category() {
     let value = eval(
         r#"
@@ -282,7 +344,7 @@ fn global_type_reports_every_runtime_value_category() {
 fn global_inspect_renders_cyclic_containers_and_builtins_are_shadowable() {
     let value = eval(
         r#"
-        let list = require("std/list")
+
         let values = []
         list.append(values, values)
         let object = {}
@@ -349,7 +411,7 @@ fn stdio_module_is_an_opt_in_capability() {
 fn root_eval_uses_fresh_standard_module_instances() {
     eval(
         r#"
-        let list = require("std/list")
+
         list.marker = 1
         nil
         "#,
@@ -357,7 +419,7 @@ fn root_eval_uses_fresh_standard_module_instances() {
     .expect("first root evaluation should have no hard diagnostic")
     .expect("first root evaluation should not raise");
 
-    let value = eval("let list = require(\"std/list\") list.marker")
+    let value = eval(" list.marker")
         .expect("second root evaluation should have no hard diagnostic")
         .expect("second root evaluation should not raise");
     assert_eq!(value.render(), "nil");
@@ -436,7 +498,7 @@ fn direct_native_aliases_avoid_facade_function_wrappers() {
             "require(\"std/string\").length",
             "<native std/string.length>",
         ),
-        ("require(\"std/list\").append", "<native std/list.append>"),
+        ("list.append", "<native std/list.append>"),
     ] {
         assert_eq!(engine.eval(source).unwrap().unwrap().render(), expected);
     }
@@ -879,17 +941,7 @@ fn every_bundled_module_is_source_backed() {
         .map(|(name, _)| name)
         .collect::<Vec<_>>();
     names.sort();
-    assert_eq!(
-        names,
-        [
-            "std/io",
-            "std/iter",
-            "std/list",
-            "std/map",
-            "std/number",
-            "std/string",
-        ]
-    );
+    assert_eq!(names, ["std/io", "std/iter", "std/number", "std/string"]);
 }
 
 #[test]

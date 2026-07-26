@@ -26,7 +26,7 @@
 `list.iter(values)` takes an O(1) copy-on-write snapshot. Later structural mutations to the original outer list do not change the iterator's traversal.
 
 ```simi
-let list = require("std/list")
+
 let iter = require("std/iter")
 let values = [1, 2]
 let source = list.iter(values)
@@ -43,7 +43,7 @@ list.append(values, 3)
 `iter.map` and `iter.filter` return new iterators. They do not invoke their callbacks when the adapter is created; work begins only when a consumer requests values.
 
 ```simi
-let list = require("std/list")
+
 let iter = require("std/iter")
 let calls = []
 
@@ -85,7 +85,7 @@ count
 Consumers advance the iterator they receive. `to_list` consumes all remaining values. `fold` threads an accumulator. `find` and `find_index` return `nil` when there is no match, and `each` always returns `nil` after successful traversal.
 
 ```simi
-let list = require("std/list")
+
 let iter = require("std/iter")
 let values = [1, 2, 3, 4]
 
@@ -106,7 +106,7 @@ end)
 Predicates passed to `find`, `find_index`, `any`, `all`, and predicate-based `count` must return booleans. Searches and boolean queries short-circuit, leaving later values unconsumed.
 
 ```simi
-let list = require("std/list")
+
 let iter = require("std/iter")
 let source = list.iter([1, 2, 3, 4])
 
@@ -122,7 +122,7 @@ end)
 Iterators are single-pass: once a value has been consumed, it is not available again. They are also sticky after exhaustion—every later `iter.next` call remains done.
 
 ```simi
-let list = require("std/list")
+
 let iter = require("std/iter")
 let values: [..string] = ["a", "b"]
 let source = list.iter(values)

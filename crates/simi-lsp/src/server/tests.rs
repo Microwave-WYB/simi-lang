@@ -842,7 +842,7 @@ fn append(xs, x) do nil end
 { append = append }
 "#;
     let mut backend = Backend::with_module_sources([("std/list", module)]);
-    let incomplete = "let emoji = \"😀\"\nlet list = require(\"std/list\") list.";
+    let incomplete = "let emoji = \"😀\"\n list.";
     open(&mut backend, incomplete);
     let completion: Option<CompletionResponse> = serde_json::from_value(
         request(
@@ -870,7 +870,7 @@ fn append(xs, x) do nil end
         Some(Documentation::String("Append one value.".to_owned()))
     );
 
-    let complete = "let list = require(\"std/list\") list.append";
+    let complete = " list.append";
     let mut backend = Backend::with_module_sources([("std/list", module)]);
     open(&mut backend, complete);
     let hover: Option<Hover> = serde_json::from_value(
@@ -1164,7 +1164,7 @@ fn real_annotated_stdlib_facade_supplies_generic_member_types() {
 #[test]
 fn cycle_shadow_and_postcondition_hovers_preserve_precise_types() {
     let module = include_str!("../../../../stdlib/list.simi");
-    let source = r#"let list = require("std/list")
+    let source = r#"
 let nums = [1, 2, 3]
 let nums = nums |> tap list.append(nums)
 nums[3]"#;
@@ -1351,7 +1351,7 @@ end"#;
 #[test]
 fn mutable_list_hovers_are_flow_position_sensitive() {
     let module = include_str!("../../../../stdlib/list.simi");
-    let source = r#"let list = require("std/list")
+    let source = r#"
 let ns = [1, 2]
 ns
 list.append(ns, 3)
@@ -1456,7 +1456,7 @@ end
 #[test]
 fn append_driven_loop_hover_uses_the_evolved_list_shape() {
     let source = r#"
-let list = require("std/list")
+
 fn sum_list(ns: [..integer]) do
     loop state = {acc=0, ns=ns} do
         case state.ns
@@ -1526,7 +1526,7 @@ sum_list(ns)
 #[test]
 fn inferred_wrapper_posts_appear_in_hover() {
     let source = r#"
-let list = require("std/list")
+
 fn append(xs, value) do list.append(xs, value) end
 let append_alias = append
 let values = []
@@ -1568,7 +1568,7 @@ let piped = [1] |> tap append_alias(2) |> tap append_alias(3)
 fn fully_unannotated_recursive_quicksort_hover_stays_list_numeric() {
     let module = include_str!("../../../../stdlib/list.simi");
     let source = r#"
-let list = require("std/list")
+
 fn partition(values, pivot) do
     loop state = {remaining=values, lower=[], higher=[]} do
         case state

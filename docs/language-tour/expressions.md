@@ -226,7 +226,7 @@ Nil-awareness is stage-local. An ordinary `|>` later in the same chain still rec
 `|> tap` performs a stage call for its effects, discards the call's result, and preserves the original input with the same alias identity:
 
 ```simi
-let list = require("std/list")
+
 let values = [1, 2, 3]
 
 values
@@ -239,7 +239,7 @@ values
 Binding a tap pipeline result creates another alias rather than a copy:
 
 ```simi
-let list = require("std/list")
+
 let values = [1, 2, 3]
 let alias = values |> tap list.append(4)
 [values, alias]
@@ -250,7 +250,7 @@ let alias = values |> tap list.append(4)
 Functions are values, so callback APIs first work through ordinary call arguments. This complete script creates a lazy mapped iterator and consumes it into a list:
 
 ```simi
-let list = require("std/list")
+
 let iter = require("std/iter")
 let values = [1, 2, 3]
 
@@ -265,7 +265,7 @@ end)
 The optional `<|` operator appends its right operand as exactly one final argument to the call on its left. It is useful when a multiline callback should end with `end` instead of `end)`:
 
 ```simi
-let list = require("std/list")
+
 let iter = require("std/iter")
 let values = [1, 2, 3]
 

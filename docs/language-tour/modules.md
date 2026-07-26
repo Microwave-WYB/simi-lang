@@ -30,10 +30,10 @@ std/number
 std/string
 ```
 
-Each module groups operations for one kind of work. The prelude modules can still be acquired explicitly when a script wants a local name, and the remaining modules are acquired with `require`:
+Each module groups operations for one kind of work. `list` and `map` are built-in prelude globals, while the remaining modules are acquired with `require`:
 
 ```simi
-let list = require("std/list")
+
 let number = require("std/number")
 
 let values = [10, 20, 30]
@@ -87,7 +87,7 @@ name
 
 ## Prelude globals
 
-All `Engine` evaluations provide `require`, `type`, and `inspect` as ordinary shadowable globals. `Engine::new()` also provides `list` and `map`; these names are the same cached module values returned by `require("std/list")` and `require("std/map")`. `type` returns stable runtime category labels. `inspect` produces cycle-safe, human-readable text; it is not serialization.
+All `Engine` evaluations provide `require`, `type`, and `inspect` as ordinary shadowable globals. `Engine::new()` also provides built-in `list` and `map` globals. Built-in `require("std/list")` and `require("std/map")` raise `module_not_found`, though an embedding host may explicitly register a module at either path. `type` returns stable runtime category labels. `inspect` produces cycle-safe, human-readable text; it is not serialization.
 
 ```simi
 let values = []

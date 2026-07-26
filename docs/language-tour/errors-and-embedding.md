@@ -206,7 +206,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-`Engine::new()` provides the `list` and `map` prelude modules, along with the core `type`, `inspect`, and `require` globals. The prelude names are the same cached module values returned by `require("std/list")` and `require("std/map")`. `Engine::with_stdlib()` adds the portable modules `std/iter`, `std/number`, and `std/string`. Text IO is a separate capability:
+`Engine::new()` provides built-in `list` and `map` prelude globals, along with the core `type`, `inspect`, and `require` globals. Built-in `require("std/list")` and `require("std/map")` raise `module_not_found`; hosts may still explicitly register modules at those paths. `Engine::with_stdlib()` adds the portable modules `std/iter`, `std/number`, and `std/string`. Text IO is a separate capability:
 
 ```rust
 use simi::Engine;

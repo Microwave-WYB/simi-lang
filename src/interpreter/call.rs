@@ -1,6 +1,6 @@
 use super::{EvaluationError, EvaluationResult, Interpreter};
 use crate::ast::{Expr, PipelineStage};
-use crate::engine::ModuleLookup;
+use crate::engine::{ModuleLookup, PreludeLookup, PreludeRegistry};
 use crate::runtime::{Environment, NativeResult, Raised, RuntimeError, TraceFrame, Value};
 use crate::span::Span;
 use crate::value::NativeImplementation;
@@ -42,11 +42,32 @@ impl Interpreter {
         Ok(value)
     }
 
-    pub(crate) fn install_prelude_modules(&mut self) -> Result<(), RuntimeError> {
-        for (name, alias) in [("std/list", "list"), ("std/map", "map")] {
-            let value = self
-                .require_module(&Value::String(name.to_owned()), Span::new(0, 0))
-                .map_err(EvaluationError::into_runtime_error)?;
+    pub(crate) fn install_prelude_modules(
+        &mut self,
+        prelude_modules: &PreludeRegistry,
+    ) -> Result<(), RuntimeError> {
+        for alias in ["list", "map"] {
+            let value = match prelude_modules.begin_load(alias) {
+                PreludeLookup::Loaded(value) => value,
+                PreludeLookup::Loading => {
+                    return Err(RuntimeError::new(
+                        Span::new(0, 0),
+                        format!("prelude global `{alias}` is already loading"),
+                    ));
+                }
+                PreludeLookup::Source { name, source, host } => {
+                    match self.evaluate_source_module(&name, source, host, Span::new(0, 0)) {
+                        Ok(value) => {
+                            prelude_modules.finish_load(alias, value.clone());
+                            value
+                        }
+                        Err(error) => {
+                            prelude_modules.fail_load(alias);
+                            return Err(error.into_runtime_error());
+                        }
+                    }
+                }
+            };
             self.prelude.define(alias, value);
         }
         Ok(())
@@ -78,44 +99,51 @@ impl Interpreter {
             ModuleLookup::Source { source, host } => (source, host),
         };
 
-        let program = match crate::parser::parse_source(&source) {
-            Ok(program) => program,
-            Err(diagnostic) => {
-                self.modules.fail_load(name);
-                return Err(EvaluationError::Runtime(RuntimeError::new(
-                    span,
-                    format!("module `{name}` has invalid source: {}", diagnostic.message),
-                )));
+        match self.evaluate_source_module(name, source, host, span) {
+            Ok(value) => {
+                self.modules.finish_load(name, value.clone());
+                Ok(value)
             }
-        };
+            Err(error) => {
+                self.modules.fail_load(name);
+                Err(error)
+            }
+        }
+    }
+
+    fn evaluate_source_module(
+        &mut self,
+        name: &str,
+        source: std::sync::Arc<str>,
+        host: Value,
+        span: Span,
+    ) -> EvaluationResult<Value> {
+        let program = crate::parser::parse_source(&source).map_err(|diagnostic| {
+            EvaluationError::Runtime(RuntimeError::new(
+                span,
+                format!("module `{name}` has invalid source: {}", diagnostic.message),
+            ))
+        })?;
         let environment = self.prelude.child();
         environment.define("host", host);
-        let previous_module_name = self.module_name.replace(name.clone());
+        let previous_module_name = self.module_name.replace(name.to_owned());
         let previous_source_domain =
             std::mem::replace(&mut self.source_domain, super::next_source_domain());
         let result = self.evaluate_items(&program.items, &environment);
         self.source_domain = previous_source_domain;
         self.module_name = previous_module_name;
         match result {
-            Ok(value) => {
-                self.modules.finish_load(name, value.clone());
-                Ok(value)
-            }
+            Ok(value) => Ok(value),
             Err(EvaluationError::Runtime(mut error)) => {
-                self.modules.fail_load(name);
                 error.span = span;
                 error.message = format!("module `{name}`: {}", error.message);
                 Err(EvaluationError::Runtime(error))
             }
             Err(EvaluationError::Raised(mut raised)) => {
-                self.modules.fail_load(name);
                 raised.remap_to_boundary(span);
                 Err(EvaluationError::Raised(raised))
             }
-            Err(error) => {
-                self.modules.fail_load(name);
-                Err(error)
-            }
+            Err(error) => Err(error),
         }
     }
 

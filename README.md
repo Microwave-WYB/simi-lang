@@ -150,7 +150,7 @@ pub type ScriptResult = Result<Value, Raised>;
 pub fn eval(source: &str) -> Result<ScriptResult, SimiError>;
 ```
 
-`eval` uses a fresh engine with the portable standard library. `Engine::new()` instead provides only the `list` and `map` prelude modules in addition to `type`, `inspect`, and `require`; those names are the same cached module values returned by `require("std/list")` and `require("std/map")`. For persistent module state or custom capabilities, construct an `Engine`:
+`eval` uses a fresh engine with the portable standard library. `Engine::new()` instead provides the built-in `list` and `map` prelude globals in addition to `type`, `inspect`, and `require`. Built-in `require("std/list")` and `require("std/map")` raise `module_not_found`; hosts may still explicitly register modules at those paths. For persistent module state or custom capabilities, construct an `Engine`:
 
 ```rust
 use simi::Engine;
@@ -171,8 +171,7 @@ Hosts can register direct value modules or use `host_value!` to generate a priva
 
 `Engine::new()` provides the minimum prelude:
 
-- `list` (`std/list`)
-- `map` (`std/map`)
+- built-in `list` and `map` globals
 
 `Engine::with_stdlib()` additionally provides:
 

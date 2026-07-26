@@ -4,7 +4,7 @@ use simi::{Engine, SimiError, eval};
 fn map_inspection_preserves_mixed_key_insertion_order() {
     let value = eval(
         r#"
-        let map = require("std/map")
+
         let iter = require("std/iter")
         let source = {
             first=1,
@@ -28,9 +28,9 @@ fn map_inspection_preserves_mixed_key_insertion_order() {
 fn map_copy_preserves_order_and_normalized_keys_with_shallow_independence() {
     let value = eval(
         r#"
-        let map = require("std/map")
+
         let iter = require("std/iter")
-        let list = require("std/list")
+
         let nested = [1]
         let source = {
             first=nested,
@@ -57,7 +57,7 @@ fn map_copy_preserves_order_and_normalized_keys_with_shallow_independence() {
 fn map_has_reflects_absence_and_normalized_numeric_keys() {
     let value = eval(
         r#"
-        let map = require("std/map")
+
         let iter = require("std/iter")
         let source = {[1]="one", [0]="zero"}
         [
@@ -81,7 +81,7 @@ fn map_has_reflects_absence_and_normalized_numeric_keys() {
 fn map_clear_mutates_aliases_and_returns_nil() {
     let value = eval(
         r#"
-        let map = require("std/map")
+
         let source = {first=1, second=2}
         let alias = source
         let result = map.clear(source)
@@ -96,7 +96,7 @@ fn map_clear_mutates_aliases_and_returns_nil() {
 
 #[test]
 fn map_argument_errors_are_qualified_hard_diagnostics() {
-    let wrong_copy = match eval("let map = require(\"std/map\") map.copy([])") {
+    let wrong_copy = match eval(" map.copy([])") {
         Err(error) => error,
         Ok(_) => panic!("wrong copy argument should be a hard diagnostic"),
     };
@@ -106,7 +106,7 @@ fn map_argument_errors_are_qualified_hard_diagnostics() {
             .contains("std/map.copy requires a map, got list")
     );
 
-    let wrong_copy_arity = match eval("let map = require(\"std/map\") map.copy()") {
+    let wrong_copy_arity = match eval(" map.copy()") {
         Err(error) => error,
         Ok(_) => panic!("wrong copy arity should be a hard diagnostic"),
     };
@@ -116,7 +116,7 @@ fn map_argument_errors_are_qualified_hard_diagnostics() {
             .contains("native function `std/map.copy` expects 1 arguments, got 0")
     );
 
-    let wrong_map = match eval("let map = require(\"std/map\") map.iter([])") {
+    let wrong_map = match eval(" map.iter([])") {
         Err(error) => error,
         Ok(_) => panic!("wrong map argument should be a hard diagnostic"),
     };
@@ -126,7 +126,7 @@ fn map_argument_errors_are_qualified_hard_diagnostics() {
             .contains("std/map.iter requires a map, got list")
     );
 
-    let wrong_key = match eval("let map = require(\"std/map\") map.has({}, [])") {
+    let wrong_key = match eval(" map.has({}, [])") {
         Err(error) => error,
         Ok(_) => panic!("wrong key argument should be a hard diagnostic"),
     };
@@ -136,7 +136,7 @@ fn map_argument_errors_are_qualified_hard_diagnostics() {
             .contains("std/map.has key must be a string, integer, float, or boolean, got list")
     );
 
-    let wrong_arity = match eval("let map = require(\"std/map\") map.clear()") {
+    let wrong_arity = match eval(" map.clear()") {
         Err(error) => error,
         Ok(_) => panic!("wrong arity should be a hard diagnostic"),
     };
@@ -149,13 +149,22 @@ fn map_argument_errors_are_qualified_hard_diagnostics() {
 }
 
 #[test]
-fn map_module_is_present_in_the_engine_prelude() {
-    let exports = Engine::new()
-        .eval("require(\"std/map\")")
-        .expect("prelude map module should have no hard diagnostic")
-        .expect("prelude map module should not raise");
+fn built_in_map_module_path_is_not_requireable() {
+    let source = "require(\"std/map\")";
+    let raised = match Engine::new()
+        .eval(source)
+        .expect("missing built-in map path should not be a hard diagnostic")
+    {
+        Err(raised) => raised,
+        Ok(value) => panic!(
+            "built-in map path should raise module_not_found, got {}",
+            value.render()
+        ),
+    };
     assert_eq!(
-        exports.render(),
-        "{length=<native std/map.length>, copy=<native std/map.copy>, has=<native std/map.has>, iter=<fn std/map.iter>, clear=<native std/map.clear>}"
+        raised.value.render(),
+        "{error=\"module_not_found\", module=\"std/map\"}"
     );
+    assert_eq!(raised.origin.start, 0);
+    assert_eq!(raised.origin.end, source.len());
 }

@@ -47,8 +47,6 @@ impl Builder {
             ("require", "module"),
             ("type", "value"),
             ("inspect", "value"),
-            ("list", "module"),
-            ("map", "module"),
         ] {
             this.declare(
                 root_scope,
@@ -56,6 +54,16 @@ impl Builder {
                 SymbolKind::Builtin,
                 None,
                 Some((vec![parameter.to_owned()], None)),
+                0,
+            );
+        }
+        for name in ["list", "map"] {
+            this.declare(
+                root_scope,
+                name.to_owned(),
+                SymbolKind::Builtin,
+                None,
+                None,
                 0,
             );
         }

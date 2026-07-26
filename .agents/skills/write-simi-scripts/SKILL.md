@@ -35,13 +35,13 @@ Read the relevant topic in the [language tour](../../../docs/language-tour.md) b
 
 ## Standard modules
 
-- `std/list`: list primitives, mutation, copy, and slicing.
-- `std/map`: map primitives and inspection.
+- built-in `list`: list primitives, mutation, copy, and slicing.
+- built-in `map`: map primitives and inspection.
 - `std/iter`: lazy single-pass adapters and consumers.
 - `std/number` and `std/string`: explicit conversions and scalar operations.
 - `std/io`: opt-in text IO available from the CLI and engines configured with stdio.
 
-Use `require("std/...")` explicitly. Filesystem/package discovery, serialization, bytes, a formatter, a REPL, runtime tuples, and script-visible command-line arguments are not implemented.
+Use `require("std/...")` explicitly for registered modules; `list` and `map` are built-in globals. Filesystem/package discovery, serialization, bytes, a formatter, a REPL, runtime tuples, and script-visible command-line arguments are not implemented.
 
 ## Formatting and checks
 

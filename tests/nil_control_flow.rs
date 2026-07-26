@@ -56,7 +56,7 @@ fn nil_aware_pipelines_evaluate_input_and_active_stage_parts_once() {
 fn nil_aware_tap_preserves_nonnil_input_and_skips_nil_stages() {
     let result = value(
         r#"
-        let list = require("std/list")
+
         let events = []
         fn record(value) do list.append(events, value) end
         let kept = 4 ?> tap record()
@@ -92,7 +92,7 @@ fn standalone_blocks_are_scoped_expression_values_and_compose_postfix() {
 fn nil_propagation_passes_values_and_aborts_only_the_nearest_block() {
     let result = value(
         r#"
-        let list = require("std/list")
+
         let events = []
         let passed = do 4? + 1 end
         let nested = do
