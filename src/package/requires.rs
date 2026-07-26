@@ -62,16 +62,24 @@ impl Error for PackageRequirementsError {}
 /// `{path = string}`.
 pub fn parse_requires(source: &str) -> Result<Option<Requires>, PackageRequirementsError> {
     let parse = parse_source(source);
-    if let Some(diagnostic) = parse
-        .diagnostics()
-        .iter()
-        .find(|diagnostic| !diagnostic.message.starts_with("duplicate map field `"))
-    {
+    let root = Root::cast(parse.syntax().clone()).expect("parser produces a root node");
+    let declaration = root.syntax().children().find_map(RequiresDecl::cast);
+    let declaration_span = declaration
+        .as_ref()
+        .map(|declaration| node_span(declaration.syntax()));
+    if let Some(diagnostic) = parse.diagnostics().iter().find(|diagnostic| {
+        !matches!(
+            declaration_span,
+            Some(span)
+                if diagnostic.message.starts_with("duplicate map field `")
+                    && span.start <= diagnostic.span.start
+                    && diagnostic.span.end <= span.end
+        )
+    }) {
         return Err(error(diagnostic.span, diagnostic.message.clone()));
     }
 
-    let root = Root::cast(parse.syntax().clone()).expect("parser produces a root node");
-    let Some(declaration) = root.syntax().children().find_map(RequiresDecl::cast) else {
+    let Some(declaration) = declaration else {
         return Ok(None);
     };
     let map = ast::child::<MapExpr>(declaration.syntax())

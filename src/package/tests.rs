@@ -142,6 +142,20 @@ fn rejects_duplicate_requirement_aliases_and_source_fields() {
 }
 
 #[test]
+fn preserves_duplicate_map_diagnostics_outside_requires_metadata() {
+    for source in [
+        "let value = {a = 1, a = 2}",
+        "requires {text = {path = \"dev\"}} let value = {a = 1, a = 2}",
+    ] {
+        let error = parse_requires(source).unwrap_err();
+        assert!(
+            error.message.contains("duplicate map field `a`"),
+            "{source:?}: {error}"
+        );
+    }
+}
+
+#[test]
 fn rejects_noncanonical_or_unsafe_public_metadata() {
     for (source, expected) in [
         (
