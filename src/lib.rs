@@ -8,6 +8,7 @@ pub mod lexer;
 mod lower;
 mod module;
 pub mod native;
+pub mod package;
 pub mod parser;
 pub mod runtime;
 pub mod span;
@@ -17,6 +18,7 @@ mod value;
 pub use engine::{Engine, EngineBuilder};
 pub use error::SimiError;
 pub use module::{Module, ModuleBuilder, NativeCallback, SourceModuleBuilder};
+pub use package::{NativePackage, PackageManifest, PackageManifestError, PackageModule};
 pub use runtime::{NativeResult, Raised, ScriptResult, TraceFrame, Value};
 
 pub fn eval(source: &str) -> Result<ScriptResult, SimiError> {
