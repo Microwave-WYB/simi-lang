@@ -5,7 +5,12 @@ fn terminal_expressions_are_hard_diagnostics_with_exact_spans() {
     for (source, message) in [
         ("panic", "panic"),
         ("panic \"unreachable state\"", "panic: unreachable state"),
+        ("panic \"first\\nsecond\"", "panic: first\nsecond"),
         ("todo", "todo"),
+        (
+            "todo \"finish the \\\"decoder\\\"\"",
+            "todo: finish the \"decoder\"",
+        ),
         ("todo \"finish the decoder\"", "todo: finish the decoder"),
     ] {
         match eval(source) {
