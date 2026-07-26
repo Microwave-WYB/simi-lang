@@ -22,6 +22,7 @@ const TOKENS: &[&str] = &[
     "ELSE_KW",
     "LET_KW",
     "ALIAS_KW",
+    "REQUIRES_KW",
     "TAP_KW",
     "NIL_KW",
     "TRUE_KW",

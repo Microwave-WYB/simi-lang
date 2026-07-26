@@ -23,6 +23,7 @@ pub enum SyntaxKind {
     ELSE_KW,
     LET_KW,
     ALIAS_KW,
+    REQUIRES_KW,
     TAP_KW,
     NIL_KW,
     TRUE_KW,
@@ -74,6 +75,8 @@ pub enum SyntaxKind {
     PIPE_GREATER,
     LESS_PIPE,
     ROOT,
+    REQUIRES_DECL,
+    MAP_EXPR,
     FUNCTION_DECL,
     ALIAS_DECL,
     LET_STMT,
@@ -108,7 +111,6 @@ pub enum SyntaxKind {
     BLOCK_EXPR,
     PAREN_EXPR,
     LIST_EXPR,
-    MAP_EXPR,
     CALL_EXPR,
     FIELD_EXPR,
     INDEX_EXPR,
@@ -171,6 +173,8 @@ macro_rules! ast_node {
 }
 
 ast_node!(Root, ROOT);
+ast_node!(RequiresDecl, REQUIRES_DECL);
+ast_node!(MapExpr, MAP_EXPR);
 ast_node!(FunctionDecl, FUNCTION_DECL);
 ast_node!(AliasDecl, ALIAS_DECL);
 ast_node!(LetStmt, LET_STMT);
@@ -205,7 +209,6 @@ ast_node!(FunctionExpr, FUNCTION_EXPR);
 ast_node!(BlockExpr, BLOCK_EXPR);
 ast_node!(ParenExpr, PAREN_EXPR);
 ast_node!(ListExpr, LIST_EXPR);
-ast_node!(MapExpr, MAP_EXPR);
 ast_node!(CallExpr, CALL_EXPR);
 ast_node!(FieldExpr, FIELD_EXPR);
 ast_node!(IndexExpr, INDEX_EXPR);

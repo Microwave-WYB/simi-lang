@@ -17,6 +17,7 @@ pub enum TokenKind {
     Else,
     Let,
     Alias,
+    Requires,
     Tap,
     Nil,
     True,

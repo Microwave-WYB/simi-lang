@@ -1,5 +1,16 @@
 use super::*;
 
+pub(super) fn requires_decl(p: &mut Parser<'_>) {
+    let marker = p.start();
+    p.expect(K::REQUIRES_KW, "`requires`");
+    if p.at(K::L_BRACE) {
+        map_expr(p);
+    } else {
+        p.error("`requires` must be followed by a map".to_owned());
+    }
+    marker.complete(&mut p.events, K::REQUIRES_DECL);
+}
+
 pub(super) fn function_decl(p: &mut Parser<'_>) {
     let marker = p.start();
     p.expect(K::FN_KW, "`fn`");
