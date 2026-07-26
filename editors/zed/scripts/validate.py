@@ -151,14 +151,32 @@ def check_source_extension() -> None:
     indents = (language / "indents.scm").read_text(encoding="utf-8")
     check("(case_expression" not in indents, "case_expression double-indents sibling clauses")
     check("(case_clause) @indent" in indents, "each case clause must own its body indentation")
-    check("(catch_clause" in indents, "catch_clause is not indented")
+    check('(try_expression\n  "end" @end) @indent' in indents, "try_expression must own its final end indentation")
+    check('(catch_clause\n  "catch" @end) @indent' in indents, "each catch must realign and indent its handler body")
     for removed_node in ("match_expression", "pattern_clause"):
         check(removed_node not in indents, f"legacy indent node remains: {removed_node}")
 
     fixture = (COMPONENT / "tests" / "fixtures" / "language.simi").read_text(encoding="utf-8")
     check("case value" in fixture and fixture.count("\n    of ") >= 2, "fixture does not exercise repeated-of syntax")
     check("of _ do nil\n" in fixture, "fixture does not exercise final case clause")
-    check("catch _ do nil\n" in fixture, "fixture does not exercise repeated catches")
+    check(fixture.count("catch ") >= 2, "fixture does not exercise repeated catches")
+    try_block = [
+        ("try", 0),
+        ("let error = { error = \"example\" }", 4),
+        ("raise error", 4),
+        ("catch { error = message } when message != nil do", 0),
+        ("classify([final])", 4),
+        ("catch _ do", 0),
+        ("nil", 4),
+        ("end", 0),
+    ]
+    fixture_lines = fixture.splitlines()
+    try_start = fixture_lines.index("try")
+    actual_try_block = [
+        (line.lstrip(), len(line) - len(line.lstrip(" ")))
+        for line in fixture_lines[try_start : try_start + len(try_block)]
+    ]
+    check(actual_try_block == try_block, "fixture must align repeated catches and handlers level-by-level")
     check("?>" in fixture and "?" in fixture, "fixture does not exercise nil control flow")
     for removed in ("match ", " with\n"):
         check(removed not in fixture, f"fixture contains legacy syntax: {removed.strip()}")
