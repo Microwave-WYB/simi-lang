@@ -244,19 +244,14 @@ fn a_catch_does_not_catch_a_raise_from_its_own_handler() {
 }
 
 #[test]
-fn raises_propagate_through_loop_initialization_and_iterations() {
+fn raises_propagate_through_loop_bodies() {
     assert_eval(
         r#"
-            [
-                try loop state = raise "initial" do break state end
-                    catch value do value
-                end,
-                try loop state = 0 do raise "iteration" end
-                    catch value do value
-                end
-            ]
+            try loop
+                raise "iteration"
+            end catch value do value end
         "#,
-        "[\"initial\", \"iteration\"]",
+        "\"iteration\"",
     );
 }
 

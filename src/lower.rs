@@ -237,48 +237,17 @@ fn lower_expr(node: syntax::Expr) -> ast::Expr {
             }
         }
         syntax::Expr::Loop(node) => {
-            let loop_keyword = direct_token(node.syntax(), K::LOOP_KW).expect("loop token");
-            let identifiers = direct_tokens(node.syntax(), K::IDENT).collect::<Vec<_>>();
-            let labeled = direct_token(node.syntax(), K::AT).is_some();
-            let label = labeled.then(|| identifiers[0].text().to_string());
-            let state_token = identifiers.get(usize::from(labeled));
-            let (state, initial) = match state_token {
-                Some(token) => (
-                    token.text().to_string(),
-                    lower_expr(child_expr(node.syntax(), 0)),
-                ),
-                None => (
-                    "_".to_owned(),
-                    ast::Expr {
-                        kind: ast::ExprKind::Nil,
-                        span: Span::new(end(&loop_keyword), end(&loop_keyword)),
-                    },
-                ),
-            };
-            let body = lower_block(support::child(node.syntax()).expect("loop body"));
-            ast::ExprKind::Loop {
-                label,
-                state,
-                initial: Box::new(initial),
-                body,
-            }
-        }
-        syntax::Expr::Continue(node) => {
-            let keyword = direct_token(node.syntax(), K::CONTINUE_KW).expect("continue token");
             let label = direct_token(node.syntax(), K::AT)
                 .and_then(|_| direct_token(node.syntax(), K::IDENT))
                 .map(|token| token.text().to_string());
-            let value = support::child::<syntax::Expr>(node.syntax())
-                .map(lower_expr)
-                .unwrap_or(ast::Expr {
-                    kind: ast::ExprKind::Nil,
-                    span: Span::new(end(&keyword), end(&keyword)),
-                });
-            ast::ExprKind::Continue {
-                label,
-                value: Box::new(value),
-            }
+            let body = lower_block(support::child(node.syntax()).expect("loop body"));
+            ast::ExprKind::Loop { label, body }
         }
+        syntax::Expr::Continue(node) => ast::ExprKind::Continue {
+            label: direct_token(node.syntax(), K::AT)
+                .and_then(|_| direct_token(node.syntax(), K::IDENT))
+                .map(|token| token.text().to_string()),
+        },
         syntax::Expr::Break(node) => ast::ExprKind::Break {
             label: direct_token(node.syntax(), K::AT)
                 .and_then(|_| direct_token(node.syntax(), K::IDENT))
@@ -529,11 +498,6 @@ fn expr_children(node: &SyntaxNode) -> impl Iterator<Item = syntax::Expr> + '_ {
 fn pattern_children(node: &SyntaxNode) -> impl Iterator<Item = syntax::Pattern> + '_ {
     node.children().filter_map(syntax::Pattern::cast)
 }
-fn direct_tokens(node: &SyntaxNode, kind: K) -> impl Iterator<Item = SyntaxToken> + '_ {
-    node.children_with_tokens()
-        .filter_map(|element| element.into_token())
-        .filter(move |token| token.kind() == kind)
-}
 
 fn direct_token(node: &SyntaxNode, kind: K) -> Option<SyntaxToken> {
     support::token(node, kind)
@@ -579,7 +543,4 @@ fn token_span(token: &SyntaxToken) -> Span {
         u32::from(range.start()) as usize,
         u32::from(range.end()) as usize,
     )
-}
-fn end(token: &SyntaxToken) -> usize {
-    token_span(token).end
 }

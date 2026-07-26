@@ -282,20 +282,7 @@ impl Builder {
                 }
             }
             syntax::Expr::Loop(node) => {
-                if let Some(initial) = expr_children(node.syntax()).next() {
-                    self.expression(initial, scope);
-                }
                 let child = self.child_scope(scope, node.syntax(), false);
-                if let Some(state) = direct_token(node.syntax(), K::IDENT) {
-                    self.declare(
-                        child,
-                        state.text().to_string(),
-                        SymbolKind::LoopState,
-                        Some(token_span(&state)),
-                        None,
-                        token_span(&state).start,
-                    );
-                }
                 if let Some(body) = support::child::<syntax::Block>(node.syntax()) {
                     self.block(&body, child);
                 }

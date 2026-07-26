@@ -146,14 +146,6 @@ pub(super) fn loop_expr(p: &mut Parser<'_>) -> Parsed {
         None
     };
     p.expect(K::LOOP_KW, "`loop` after loop label");
-    if p.at(K::DO_KW) {
-        p.bump();
-    } else {
-        p.expect(K::IDENT, "loop state name");
-        p.expect(K::EQ, "`=` after loop state name");
-        expression(p);
-        p.expect(K::DO_KW, "`do` before loop body");
-    }
     p.loop_depth += 1;
     if let Some(label) = &label {
         p.loop_labels.push(label.clone());
@@ -178,7 +170,10 @@ pub(super) fn continue_expr(p: &mut Parser<'_>) -> Parsed {
         p.error_at(span, "`continue` outside of a loop".to_owned());
     }
     if can_begin_expression(p.current()) {
-        expression(p);
+        p.error_at(
+            p.current_span(),
+            "`continue` does not take a value".to_owned(),
+        );
     }
     Parsed {
         marker: marker.complete(&mut p.events, K::CONTINUE_EXPR),

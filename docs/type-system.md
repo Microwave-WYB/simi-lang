@@ -239,9 +239,9 @@ mutated structure.
 
 Postfix `?` removes `nil` on the surviving continuation through the nearest
 lexical block. The block's nil-abort and normal exits join again outside that
-boundary. A nil-abort from a loop body contributes `nil` to the loop state fixed
-point because the body value is the next state; it does not contribute a loop
-result, which only comes from `break`. Each `?>` stage similarly splits
+boundary. A nil-abort from a loop body ends that iteration and starts the next;
+the ordinary body value is discarded. It does not contribute a loop result,
+which only comes from `break value`. Each `?>` stage similarly splits
 nil-skipped and active paths lazily,
 applies call effects only on the active path, and rejoins before the following
 pipeline stage. An ordinary `|>` following it therefore receives the complete

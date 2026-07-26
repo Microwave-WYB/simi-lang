@@ -29,8 +29,11 @@ let handled = try
 catch { error = reason } do reason
 end
 let optional = do mapped? end
-loop state = 0 do
-    if state > 1 then break state else continue state + 1 end
+do
+    let state = 0
+    loop
+        if state > 1 then break state else state = state + 1 end
+    end
 end
 let bad_escape = "\q"
 let concatenated = "Simi" <> " language"

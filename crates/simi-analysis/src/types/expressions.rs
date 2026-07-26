@@ -120,101 +120,28 @@ impl Context<'_> {
             syntax::Expr::Pipeline(node) => self.pipeline(node),
             syntax::Expr::TrailingArgument(node) => self.trailing_call(node),
             syntax::Expr::Loop(node) => {
-                const MAX_LOOP_PASSES: usize = 8;
-
-                let initial = child_expr(node.syntax(), 0)
-                    .map(|child| self.expression(child))
-                    .unwrap_or(Type::Nil);
-                let state_symbol = direct_token(node.syntax(), K::IDENT)
-                    .and_then(|token| self.resolution.symbol_at(token_span(&token).start));
-                if let Some(symbol) = state_symbol {
-                    self.symbol_types.insert(symbol, initial.clone());
+                let label = direct_token(node.syntax(), K::AT)
+                    .and_then(|_| direct_token(node.syntax(), K::IDENT))
+                    .map(|token| token.text().to_owned());
+                self.loops.push(LoopContext {
+                    label,
+                    breaks: Vec::new(),
+                });
+                let body = support::child::<syntax::Block>(node.syntax())
+                    .map(|block| self.infer_block(&block));
+                let context = self.loops.pop().expect("loop inference context");
+                if body != Some(Type::Never) {
+                    // Falling through repeats the loop; its value is discarded.
                 }
-
-                let entry_flow = self.flow_state();
-                let entry_nil_aborts = self.nil_abort_states.clone();
-                let entry_raised_exits = self.raised_exit_frames.clone();
-                let entry_assignment_effects = self.assignment_effect_frames.clone();
-                let entry_mutation_effects = self.mutation_effect_frames.clone();
-                let entry_conservative_regions = self.conservative_regions.clone();
-                let entry_next_region = self.next_region;
-                let expression_count = self.expression_types.len();
-                let pattern_count = self.pattern_types.len();
-                let diagnostic_count = self.diagnostics.len();
-                let anonymous_capture_count = self.anonymous_capture_effects.len();
-                let anonymous_assignment_count = self.anonymous_assignment_effects.len();
-                let mut state = self.resolve_type(initial);
-                let mut breaks = Vec::new();
-
-                for pass in 0..=MAX_LOOP_PASSES {
-                    self.restore_flow(&entry_flow);
-                    self.nil_abort_states = entry_nil_aborts.clone();
-                    self.raised_exit_frames = entry_raised_exits.clone();
-                    self.assignment_effect_frames = entry_assignment_effects.clone();
-                    self.mutation_effect_frames = entry_mutation_effects.clone();
-                    self.conservative_regions = entry_conservative_regions.clone();
-                    self.next_region = entry_next_region;
-                    self.expression_types.truncate(expression_count);
-                    self.pattern_types.truncate(pattern_count);
-                    self.diagnostics.truncate(diagnostic_count);
-                    self.anonymous_capture_effects
-                        .truncate(anonymous_capture_count);
-                    self.anonymous_assignment_effects
-                        .truncate(anonymous_assignment_count);
-                    if let Some(symbol) = state_symbol {
-                        self.symbol_types.insert(symbol, state.clone());
-                    }
-
-                    let label = direct_token(node.syntax(), K::AT)
-                        .and_then(|_| direct_token(node.syntax(), K::IDENT))
-                        .map(|token| token.text().to_owned());
-                    self.loops.push(LoopContext {
-                        label,
-                        transitions: Vec::new(),
-                        breaks: Vec::new(),
-                    });
-                    let ordinary = support::child::<syntax::Block>(node.syntax())
-                        .map(|block| self.infer_block(&block))
-                        .unwrap_or(Type::Nil);
-                    let mut context = self.loops.pop().expect("loop inference context");
-                    if ordinary != Type::Never {
-                        context.transitions.push(ordinary);
-                    }
-                    let evolved = context.transitions.into_iter().fold(
-                        state.clone(),
-                        |current, transition| {
-                            join_loop_state(current, self.resolve_type(transition))
-                        },
-                    );
-                    if evolved == state {
-                        breaks = context.breaks;
-                        if let Some(symbol) = state_symbol {
-                            self.symbol_types.insert(symbol, state.clone());
-                        }
-                        break;
-                    }
-                    state = if pass + 1 == MAX_LOOP_PASSES {
-                        widen_mutable_type(evolved)
-                    } else {
-                        evolved
-                    };
-                    if pass == MAX_LOOP_PASSES {
-                        unreachable!("a conservatively widened loop state must stabilize")
-                    }
-                }
-
-                if breaks.is_empty() {
+                if context.breaks.is_empty() {
                     Type::Never
                 } else {
-                    let (types, exits): (Vec<_>, Vec<_>) = breaks.into_iter().unzip();
+                    let (types, exits): (Vec<_>, Vec<_>) = context.breaks.into_iter().unzip();
                     self.join_and_restore(exits);
                     union(types)
                 }
             }
             syntax::Expr::Continue(node) => {
-                let value = child_expr(node.syntax(), 0)
-                    .map(|child| self.expression(child))
-                    .unwrap_or(Type::Nil);
                 let label = direct_token(node.syntax(), K::AT)
                     .and_then(|_| direct_token(node.syntax(), K::IDENT))
                     .map(|token| token.text().to_owned());
@@ -225,17 +152,6 @@ impl Context<'_> {
                         "Unlabeled `continue` targets the nearest enclosing loop. Add a loop label to make the target explicit.".to_owned(),
                         expression_span,
                     );
-                }
-                let index = label
-                    .as_ref()
-                    .and_then(|label| {
-                        self.loops
-                            .iter()
-                            .rposition(|context| context.label.as_ref() == Some(label))
-                    })
-                    .unwrap_or_else(|| self.loops.len().saturating_sub(1));
-                if let Some(context) = self.loops.get_mut(index) {
-                    context.transitions.push(value);
                 }
                 Type::Never
             }

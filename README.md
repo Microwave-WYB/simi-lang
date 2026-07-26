@@ -18,32 +18,20 @@ end
 greet("Simi")
 ```
 
-### Functional loop
+### Loops
 
 ```simi
-let io = require("std/io")
-
---- Finds two numbers whose sum equals the target.
-fn two_sum(numbers: [..integer], target: integer) -> [integer, integer] | nil noraise do
-    loop state = {seen = {}, numbers = numbers} do
-        case state.numbers
-        of [] do
-            break nil
-        of [number, ..rest] do
-            let complement = target - number
-            if state.seen[complement] != nil then
-                break [complement, number]
-            else
-                state.seen[number] = true
-                continue {seen = state.seen, numbers = rest}
-            end
-        end
+--- Computes the greatest common divisor with ordinary lexical state.
+fn gcd(left: integer, right: integer) -> integer noraise do
+    loop
+        if right == 0 then break left end
+        let remainder = left % right
+        left = right
+        right = remainder
     end
 end
 
-two_sum([2, 7, 11, 15], 9)
-|> inspect()
-|> io.println()
+gcd(1071, 462)
 ```
 
 Save this as `two_sum.simi`, install Simi using one of the options below, and run:

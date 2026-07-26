@@ -46,14 +46,14 @@
     ],
     "description": "Create an if/else expression"
   },
-  "Functional loop": {
+  "Loop": {
     "prefix": "loop",
     "body": [
-      "loop $1 = $2 do",
+      "loop",
       "    $0",
       "end"
     ],
-    "description": "Create a state-threading functional loop"
+    "description": "Create an expression-valued loop"
   },
   "Case expression": {
     "prefix": "case",

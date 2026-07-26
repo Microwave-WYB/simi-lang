@@ -217,19 +217,17 @@ fn literal_require_calls_use_the_evaluated_module_result_type() {
 }
 
 #[test]
-fn loop_state_transitions_and_break_values_infer_the_loop_result() {
+fn plain_loops_preserve_types_for_reassigned_lexical_state() {
     let source = r#"
-fn fib(n: integer) do
-    loop state = { a = 0, b = 1, n = n } do
-        case state.n
-        of 0 do
-            break state.a
-        of _ do
-            { a = state.b, b = state.a + state.b, n = state.n - 1 }
-        end
+fn gcd(left: integer, right: integer) do
+    loop
+        if right == 0 then break left end
+        let remainder = left % right
+        left = right
+        right = remainder
     end
 end
-let result = fib(5)
+let result = gcd(1071, 462)
 "#;
     let (inference, resolution) = inferred(source);
     assert!(
@@ -238,8 +236,8 @@ let result = fib(5)
         inference.diagnostics
     );
     assert_eq!(
-        type_of(&inference, &resolution, "fib").display(),
-        "(n: integer) -> integer"
+        type_of(&inference, &resolution, "gcd").display(),
+        "(left: integer, right: integer) -> integer"
     );
     assert_eq!(
         type_of(&inference, &resolution, "result").display(),
@@ -292,56 +290,6 @@ let result: option<string> = callback(1)
     assert_eq!(
         type_of(&inference, &resolution, "result").display(),
         "string | nil"
-    );
-}
-
-#[test]
-fn loop_breaks_keep_path_values_and_nonreturning_loops_are_never() {
-    let source = r#"
-let value = 1
-let selected = loop state = 0 do
-    if state == 0 then
-        break value
-    else
-        value = "later"
-        state + 1
-    end
-end
-let joined = loop state = {common=1, left=2} do
-    if state.common == 1 then
-        {common=2, right="new"}
-    else
-        break state
-    end
-end
-fn nested(flag) do
-    loop state = [] do
-        if flag then [state] else break state end
-    end
-end
-let forever = loop state = 0 do state + 1 end
-"#;
-    let (inference, resolution) = inferred(source);
-    assert!(
-        inference.diagnostics.is_empty(),
-        "{:?}",
-        inference.diagnostics
-    );
-    assert_eq!(
-        type_of(&inference, &resolution, "selected").display(),
-        "integer"
-    );
-    assert_eq!(
-        type_of(&inference, &resolution, "forever").display(),
-        "never"
-    );
-    assert_eq!(
-        type_of(&inference, &resolution, "joined").display(),
-        "{ common: integer, .. }"
-    );
-    assert_eq!(
-        type_of(&inference, &resolution, "nested").display(),
-        "(flag: boolean) -> [..any]"
     );
 }
 
@@ -762,40 +710,6 @@ end
 }
 
 #[test]
-fn nil_propagation_contributes_nil_to_the_loop_state_fixed_point() {
-    let source = r#"
-fn evolve(maybe: integer | nil) do
-    loop state = 0 do
-        if state == nil then
-            break state
-        end
-        maybe?
-        state + 1
-    end
-end
-"#;
-    let (inference, resolution) = inferred(source);
-    assert!(
-        inference.diagnostics.is_empty(),
-        "{:?}",
-        inference.diagnostics
-    );
-    assert_eq!(
-        type_at(source, &inference, &resolution, "state", 1),
-        "integer | nil"
-    );
-    assert_eq!(type_at(source, &inference, &resolution, "state", 2), "nil");
-    assert_eq!(
-        type_at(source, &inference, &resolution, "state", 3),
-        "integer"
-    );
-    assert_eq!(
-        type_of(&inference, &resolution, "evolve").display(),
-        "(maybe: integer | nil) -> nil"
-    );
-}
-
-#[test]
 fn nil_propagation_narrows_only_the_normal_block_continuation() {
     let source = r#"
 fn unwrap(value: string | nil) do
@@ -1194,104 +1108,6 @@ fn nested() do [nested()] end
     assert_eq!(
         type_of(&inference, &resolution, "nested").display(),
         "() -> never"
-    );
-}
-
-#[test]
-fn fully_unannotated_recursive_quicksort_has_a_reachable_list_signature() {
-    let db = AnalysisDatabase::default();
-    let module_file = db.add_file(include_str!("../../../stdlib/list.simi"));
-    let modules = HashMap::from([(
-        "std/list".to_owned(),
-        simi_analysis::module_shape(&db, module_file),
-    )]);
-    let source = r#"
-
-fn partition(values, pivot) do
-    loop state = {remaining=values, lower=[], higher=[]} do
-        case state
-        of {remaining=[], lower=lower, higher=higher} do
-            break {lower=lower, higher=higher}
-        of {remaining=[value, ..rest], lower=lower, higher=higher} when value < pivot do
-            {remaining=rest, lower=lower |> tap list.append(value), higher=higher}
-        of {remaining=[value, ..rest], lower=lower, higher=higher} do
-            {remaining=rest, lower=lower, higher=higher |> tap list.append(value)}
-        end
-    end
-end
-fn quicksort(values) do
-    case values
-    of [] do []
-    of [value] do [value]
-    of [pivot, ..rest] do
-        let parts = partition(rest, pivot)
-        []
-        |> tap list.extend(quicksort(parts.lower))
-        |> tap list.append(pivot)
-        |> tap list.extend(quicksort(parts.higher))
-    end
-end
-"#;
-    let file = db.add_file(source);
-    let resolution = resolve(&db, file);
-    let inference = infer_types(&db, file, &modules);
-    assert!(
-        inference.diagnostics.is_empty(),
-        "{:?}",
-        inference.diagnostics
-    );
-    assert_eq!(
-        type_of(&inference, &resolution, "quicksort").display(),
-        "(values: [..(integer | float)]) -> [..(integer | float)]"
-    );
-}
-
-#[test]
-fn append_driven_loop_state_infers_an_integer_list_result() {
-    let db = AnalysisDatabase::default();
-    let module_file = db.add_file(include_str!("../../../stdlib/list.simi"));
-    let modules = HashMap::from([(
-        "std/list".to_owned(),
-        simi_analysis::module_shape(&db, module_file),
-    )]);
-    let source = r#"
-
-fn sum_list(ns: [..integer]) do
-    loop state = {acc=0, ns=ns} do
-        case state.ns
-        of [] do break state.acc
-        of [head, ..tail] do {acc=state.acc + head, ns=tail}
-        end
-    end
-end
-let ns = loop state = {acc=[], i=0} do
-    if state.i < 1000 then
-        {acc=state.acc |> tap list.append(state.i), i=state.i + 1}
-    else
-        break state.acc
-    end
-end
-sum_list(ns)
-"#;
-    let file = db.add_file(source);
-    let resolution = resolve(&db, file);
-    let inference = infer_types(&db, file, &modules);
-    assert!(
-        inference.diagnostics.is_empty(),
-        "{:?}",
-        inference.diagnostics
-    );
-    assert_eq!(
-        type_of(&inference, &resolution, "ns").display(),
-        "[..integer]"
-    );
-    assert_eq!(
-        type_at(source, &inference, &resolution, "ns", 5),
-        "[..integer]"
-    );
-    assert_eq!(
-        type_at(source, &inference, &resolution, "ns", 6),
-        "[..integer]"
     );
 }
 

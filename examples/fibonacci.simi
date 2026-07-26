@@ -2,16 +2,16 @@ let io = require("std/io")
 let number = require("std/number")
 
 fn fibonacci(n: integer) -> integer do
-    loop state = {remaining = n, current = 0, next = 1} do
-        if state.remaining == 0 then
-            break state.current
-        else
-            {
-                remaining = state.remaining - 1,
-                current = state.next,
-                next = state.current + state.next,
-            }
-        end
+    let remaining = n
+    let current = 0
+    let next = 1
+
+    loop
+        if remaining == 0 then break current end
+        let following = current + next
+        current = next
+        next = following
+        remaining = remaining - 1
     end
 end
 

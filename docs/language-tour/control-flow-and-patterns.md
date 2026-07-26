@@ -14,7 +14,7 @@
     - [Destructuring with `let`](#destructuring-with-let)
   - [Postfix nil propagation](#postfix-nil-propagation)
     - [Try and catch boundaries](#try-and-catch-boundaries)
-  - [Loops thread state](#loops-thread-state)
+  - [Loops](#loops)
 - [Mutation and copies](mutation-and-copies.md)
 - [Modules](modules.md)
 - [Text IO](text-io.md)
@@ -218,65 +218,58 @@ end
 
 Raised values and the full error model are covered in [Errors and embedding](errors-and-embedding.md).
 
-## Loops thread state
+## Loops
 
-A loop is also an expression. With a state initializer, each ordinary body result becomes the next iteration's state. `continue value` performs that transition early, while `break value` finishes the loop and supplies its result.
+A loop is an expression with one primitive form. Its body repeats when it reaches `end`; `continue` repeats early, and `break value` is the only terminating path and supplies the loop result. Ordinary body values are discarded.
 
 ```simi
-let result = loop state = 0 do
-    if state < 3 then
-        continue state + 1
-    else
-        break state
+let result = do
+    let state = 0
+
+    loop
+        if state == 3 then break state end
+        state = state + 1
     end
 end
 
 result
 ```
 
-The initializer runs once. Bare `continue` is equivalent to `continue nil`. A stateless loop omits the initializer:
+State is ordinary lexical state. Lists and maps retain their normal mutable alias behavior, so a private setup block is useful when loop-local bindings should not escape:
 
 ```simi
-let result = loop do
-    break "finished"
-end
+let result = do
+    let values = []
 
-result
-```
-
-Because a loop body is a block, postfix nil propagation from that body produces the next state. It is equivalent to `continue nil`; it never means `break nil`.
-
-```simi
-let result = loop state = 0 do
-    if state == nil then
-        break "the next state was nil"
+    loop
+        list.append(values, 1)
+        if list.length(values) == 3 then break values end
     end
-
-    nil?
-    "unreachable"
 end
 
 result
 ```
 
-This remains true even when `?` appears inside the operand of a `break`: the propagation stops the loop body before `break` can execute, and the next state is `nil`.
+Because a loop body is a block, postfix nil propagation exits the current body normally and starts the next iteration. It does not determine the loop result; only `break value` does.
 
 ```simi
-let result = loop state = 0 do
-    if state == nil then
-        break "break was skipped"
+let result = do
+    let remaining = 1
+
+    loop
+        if remaining == 0 then break "finished" end
+        remaining = remaining - 1
+        nil?
     end
-
-    break nil?
 end
 
 result
 ```
 
-An ordinary `break nil` still ends a loop with `nil`:
+An ordinary `break nil` ends a loop with `nil`:
 
 ```simi
-let result = loop do
+let result = loop
     break nil
 end
 
@@ -286,12 +279,14 @@ result
 Loop control targets the nearest lexical loop and cannot cross a function boundary. Nested loops may be labeled with `@name` to make a cross-loop transfer explicit. A label is lexical: it targets only an enclosing loop and is unavailable inside a nested function.
 
 ```simi
-let result = @outer loop state = 0 do
-    @inner loop do
-        if state < 3 then
-            continue @outer state + 1
-        else
-            break @outer state
+let result = do
+    let count = 0
+
+    @outer loop
+        loop
+            count = count + 1
+            if count < 3 then continue @outer end
+            break @outer count
         end
     end
 end

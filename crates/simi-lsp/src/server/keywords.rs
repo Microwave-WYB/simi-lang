@@ -109,8 +109,8 @@ const KEYWORDS: &[KeywordHelp] = &[
     },
     KeywordHelp {
         word: "loop",
-        syntax: "loop state = initial do … end",
-        documentation: "Begins an expression-valued functional loop whose body supplies the next state.",
+        syntax: "loop … end",
+        documentation: "Begins an expression-valued loop. Its body repeats on fall-through; `break value` supplies its result.",
         contextual: false,
     },
     KeywordHelp {
@@ -121,8 +121,8 @@ const KEYWORDS: &[KeywordHelp] = &[
     },
     KeywordHelp {
         word: "continue",
-        syntax: "continue value",
-        documentation: "Starts the nearest loop's next iteration with a new state. Bare `continue` supplies `nil`.",
+        syntax: "continue",
+        documentation: "Starts the nearest loop's next iteration and discards the current body value.",
         contextual: false,
     },
     KeywordHelp {

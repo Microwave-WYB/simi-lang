@@ -160,8 +160,8 @@ try
 catch error when error != nil do
     error
 end
-loop state = 0 do
-    break state
+loop
+    break 0
 end
 "#;
     let db = AnalysisDatabase::default();
@@ -171,8 +171,7 @@ end
     for name in ["first", "nested", "rest", "item", "error"] {
         symbol_named(&resolution, name, SymbolKind::Pattern);
     }
-    symbol_named(&resolution, "state", SymbolKind::LoopState);
-    for name in ["item", "error", "state"] {
+    for name in ["item", "error"] {
         let symbol = resolution
             .hir
             .symbols

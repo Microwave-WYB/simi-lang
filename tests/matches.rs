@@ -323,25 +323,22 @@ fn duplicate_map_pattern_fields_are_rejected_at_the_second_key() {
 }
 
 #[test]
-fn match_inside_a_functional_loop_propagates_continue_and_break() {
+fn match_inside_a_loop_uses_ordinary_lexical_state() {
     assert_eval(
         r#"
-
-            let visited = []
-            let result = loop state = 0 do
-                case state
-                    of 0 do
-                        list.append(visited, state)
-                        continue 1
-
+            do
+                let visited = []
+                let state = 0
+                loop
+                    case state
                     of n when n < 3 do
                         list.append(visited, n)
-                        n + 1
-
+                        state = state + 1
+                        continue
                     of n do break [n, visited]
+                    end
                 end
             end
-            result
         "#,
         "[3, [0, 1, 2]]",
     );

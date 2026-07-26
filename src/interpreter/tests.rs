@@ -271,18 +271,6 @@ fn try_evaluates_its_protected_expression_exactly_once() {
 }
 
 #[test]
-fn loops_propagate_raises_from_initialization_and_iterations() {
-    let initializer =
-        evaluate("try loop state = raise 4 do break state end catch value do value end")
-            .expect("the enclosing try should catch an initializer raise");
-    assert_eq!(initializer.render(), "4");
-
-    let iteration = evaluate("try loop state = 0 do raise state end catch 0 do 9 end")
-        .expect("the enclosing try should catch an iteration raise");
-    assert_eq!(iteration.render(), "9");
-}
-
-#[test]
 fn hard_errors_and_non_boolean_catch_guards_bypass_language_catches() {
     let undefined = expect_runtime_error("try missing_name catch _ do \"must not catch\" end");
     assert_eq!(undefined.span, Span::new(4, 16));
@@ -464,22 +452,6 @@ fn runtime_errors_keep_the_expression_span() {
 }
 
 #[test]
-fn nested_loop_initializer_control_targets_the_surrounding_loop() {
-    let value = evaluate(
-        r#"
-                loop outer = 0 do
-                    loop inner = break 7 do
-                        break inner
-                    end
-                end
-            "#,
-    )
-    .expect("break in the inner initializer should reach the outer loop");
-
-    assert_eq!(value.render(), "7");
-}
-
-#[test]
 fn leaked_top_level_control_becomes_a_runtime_error() {
     for (kind, expected_message) in [
         (
@@ -493,13 +465,7 @@ fn leaked_top_level_control_becomes_a_runtime_error() {
             "`break` outside of a loop",
         ),
         (
-            ExprKind::Continue {
-                label: None,
-                value: Box::new(Expr {
-                    kind: ExprKind::Int(1),
-                    span: Span::new(9, 10),
-                }),
-            },
+            ExprKind::Continue { label: None },
             "`continue` outside of a loop",
         ),
     ] {
@@ -554,11 +520,6 @@ fn leaked_function_control_cannot_be_caught_by_callers_loop() {
         kind: StmtKind::Expr(Expr {
             kind: ExprKind::Loop {
                 label: None,
-                state: "state".to_owned(),
-                initial: Box::new(Expr {
-                    kind: ExprKind::Nil,
-                    span: Span::new(40, 43),
-                }),
                 body: Block {
                     items: vec![Stmt {
                         kind: StmtKind::Expr(Expr {

@@ -67,7 +67,7 @@ end
 
 A standalone `do ... end` is a primary block expression with zero or more items. It evaluates in a fresh child scope to its last item's value, or to `nil` when empty, and composes with postfix calls, field access, indexing, and `?`.
 
-Postfix `?` passes a non-`nil` value through unchanged. A `nil` value stops the nearest lexically enclosing block and makes that block evaluate to `nil`. Every function body, standalone block, conditional branch, case or catch arm, try protected body, and loop body is such a boundary. Raises and hard diagnostics are unaffected, and nil propagation from a protected try body bypasses catches. In a functional loop, the body block's ordinary value supplies the next state, so propagation directly from that body is equivalent to `continue nil`, not `break nil`; only `break value` determines the loop expression's result. The canonical Rust parser rejects `?` at the operator only when there is no enclosing block, while the Tree-sitter editor grammar may parse that form permissively for editor recovery.
+Postfix `?` passes a non-`nil` value through unchanged. A `nil` value stops the nearest lexically enclosing block and makes that block evaluate to `nil`. Every function body, standalone block, conditional branch, case or catch arm, try protected body, and loop body is such a boundary. Raises and hard diagnostics are unaffected, and nil propagation from a protected try body bypasses catches. In a loop body, propagation exits that iteration normally; its ordinary value is discarded and the loop starts its next iteration. Only `break value` determines the loop expression's result. The canonical Rust parser rejects `?` at the operator only when there is no enclosing block, while the Tree-sitter editor grammar may parse that form permissively for editor recovery.
 
 ### Bindings and assignment
 
@@ -220,11 +220,19 @@ Source-level documentation uses consecutive `---` comments for the following dec
 
 A missing module raises `{ error = "module_not_found", module = name }`. Circular lazy loading raises `{ error = "circular_module_dependency", module = name }`. A non-string module name, calling a missing or non-function host field, and invalid native function arguments are hard runtime errors. Filesystem and package discovery are not implemented; embedders register source strings explicitly.
 
-### Functional loops
+### Loops
 
-Loops are expression-valued and may thread state. The final expression of an ordinary iteration supplies the next state. `continue value` performs an early transition, bare `continue` supplies `nil`, and `break value` determines the loop result.
+Loops are expression-valued with one primitive form:
 
-Maintain the existing loop syntax and control-flow contracts in the parser and integration tests. Do not introduce conventional imperative-loop assumptions without an explicit language-design decision.
+```simi
+loop
+    body
+end
+```
+
+Reaching the end of the body discards its ordinary value and starts the next iteration. `continue` starts the next iteration early, while `break value` is the sole terminating path and determines the loop result. State is ordinary lexical state: assignments and mutations update surrounding bindings and containers. Use a standalone `do ... end` block when setup bindings should remain private.
+
+Keep loop control-flow contracts consistent in the parser and integration tests. Future `for` or `while` convenience forms, if introduced, must desugar to ordinary bindings plus this primitive and must not introduce separate runtime loop semantics.
 
 ### Pattern matching
 

@@ -1,187 +1,46 @@
 ==================
-If branches and functional loops
+Plain loops
 ==================
 
-let result = loop state = 0 do
-  if state < 3 then
-    continue state + 1
-  elseif state == 3 then
-    break state
-  else
-    nil
+do
+  let count = 0
+  loop
+    count = count + 1
+    if count == 3 then break count end
   end
-end
-
-loop do
-  continue
 end
 
 ---
 
 (program
-  (let_statement
-    (identifier)
-    (loop_expression
-      (identifier)
-      (integer)
-      (block
-        (if_expression
-          (binary_expression
-            (identifier)
-            (integer))
-          (block
-            (continue_expression
-              (binary_expression
-                (identifier)
-                (integer))))
-          (elseif_clause
+  (block_expression
+    (block
+      (let_statement
+        (identifier)
+        (integer))
+      (loop_expression
+        (block
+          (assignment_expression
+            (assignment_target
+              (identifier))
+            (binary_expression
+              (identifier)
+              (integer)))
+          (if_expression
             (binary_expression
               (identifier)
               (integer))
             (block
               (break_expression
-                (identifier))))
-          (else_clause
-            (block
-              (nil)))))))
-  (loop_expression
-    (block
-      (continue_expression))))
+                (identifier)))))))))
 
 ==================
-Case-of pattern clauses and nested patterns
+Labeled loops and control
 ==================
 
-let selected = case payload
-of [head, {kind = "ok", value = value}, ..tail] when head >= 0 do
-  [value, tail]
-of {error = nil, ..} do
-  nil
-of _ignored do
-  case true of true do "fallback" of false do nil end
-end
-
----
-
-(program
-  (let_statement
-    (identifier)
-    (case_expression
-      (identifier)
-      (case_clause
-        (list_pattern
-          (identifier)
-          (map_pattern
-            (map_pattern_field
-              (identifier)
-              (string
-                (string_content)))
-            (map_pattern_field
-              (identifier)
-              (identifier)))
-          (rest_pattern
-            (identifier)))
-        (binary_expression
-          (identifier)
-          (integer))
-        (block
-          (list
-            (identifier)
-            (identifier))))
-      (case_clause
-        (map_pattern
-          (map_pattern_field
-            (identifier)
-            (nil))
-          (rest_pattern))
-        (block
-          (nil)))
-      (case_clause
-        (wildcard_pattern)
-        (block
-          (case_expression
-            (boolean)
-            (case_clause
-              (boolean)
-              (block
-                (string
-                  (string_content))))
-            (case_clause
-              (boolean)
-              (block
-                (nil)))))))))
-
-==================
-Raise, try, and guarded catch clauses
-==================
-
-let handled = try
-  let attempted = {error = "invalid", payload = [1, 2]}
-  raise attempted
-catch {error = "invalid", payload = [head, ..tail]} when head == 1 do
-  tail
-catch _ do
-  raise "unexpected"
-end
-
----
-
-(program
-  (let_statement
-    (identifier)
-    (try_expression
-      (block
-        (let_statement
-          (identifier)
-          (map
-            (map_entry
-              (map_field
-                (identifier)
-                (string
-                  (string_content))))
-            (map_entry
-              (map_field
-                (identifier)
-                (list
-                  (integer)
-                  (integer))))))
-        (raise_expression
-          (identifier)))
-      (catch_clause
-        (map_pattern
-          (map_pattern_field
-            (identifier)
-            (string
-              (string_content)))
-          (map_pattern_field
-            (identifier)
-            (list_pattern
-              (identifier)
-              (rest_pattern
-                (identifier)))))
-        (binary_expression
-          (identifier)
-          (integer))
-        (block
-          (identifier)))
-      (catch_clause
-        (wildcard_pattern)
-        (block
-          (raise_expression
-            (string
-              (string_content))))))))
-
-==================
-Labeled loops and cross-loop control
-==================
-
-@outer loop state = 0 do
-  @inner loop do
-    if state < 1 then
-      continue @outer state + 1
-    else
-      break @outer state
-    end
+@outer loop
+  loop
+    continue @outer
   end
 end
 
@@ -191,27 +50,9 @@ end
   (loop_expression
     (loop_label
       (identifier))
-    (identifier)
-    (integer)
     (block
       (loop_expression
-        (loop_label
-          (identifier))
         (block
-          (if_expression
-            (binary_expression
-              (identifier)
-              (integer))
-            (block
-              (continue_expression
-                (loop_label
-                  (identifier))
-                (binary_expression
-                  (identifier)
-                  (integer))))
-            (else_clause
-              (block
-                (break_expression
-                  (loop_label
-                    (identifier))
-                  (identifier))))))))))
+          (continue_expression
+            (loop_label
+              (identifier))))))))
