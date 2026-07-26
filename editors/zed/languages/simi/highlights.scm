@@ -98,6 +98,9 @@
 (map_field
   name: (identifier) @property)
 
+(map_shorthand
+  name: (identifier) @variable)
+
 (map_pattern_field
   name: (identifier) @property)
 

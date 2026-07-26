@@ -27,8 +27,8 @@ use simi_analysis::{
     AnalysisDatabase, AnalysisDiagnosticSeverity, FileId, ModuleShape, ParameterPostType,
     RenameError, Resolution, Span, SymbolKind, Type, diagnostics, document_symbols,
     expression_type_at, field_type_at, imported_members, infer_types, member_at,
-    member_completions, module_at, module_shape, references, resolve, source_text, symbol_type_at,
-    wildcard_type_at,
+    member_completions, module_at, module_shape, parse, references, resolve, source_text,
+    symbol_type_at, wildcard_type_at,
 };
 
 use crate::position;

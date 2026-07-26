@@ -184,17 +184,17 @@ fn fields_from_map(
     support::children::<syntax::MapEntry>(node)
         .filter_map(|entry| {
             let key = support::token(entry.syntax(), K::IDENT)?;
-            let value = support::child::<syntax::Expr>(entry.syntax())?;
-            if is_nil(&value) {
-                return None;
+            let name = key.text().to_owned();
+            let span = token_span(&key);
+            let value = support::child::<syntax::Expr>(entry.syntax());
+            match value {
+                Some(value) if is_nil(&value) => None,
+                Some(value) => Some(field_from_value(name, span, value, resolution, maps)),
+                None if support::token(entry.syntax(), K::EQ).is_none() => Some(
+                    field_from_binding(name.clone(), name, span, resolution, maps),
+                ),
+                None => None,
             }
-            Some(field_from_value(
-                key.text().to_owned(),
-                token_span(&key),
-                value,
-                resolution,
-                maps,
-            ))
         })
         .collect()
 }
@@ -207,7 +207,7 @@ fn field_from_value(
     maps: &HashMap<String, Vec<ExportField>>,
 ) -> ExportField {
     let mut field = ExportField {
-        name,
+        name: name.clone(),
         span,
         parameters: None,
         documentation: None,
@@ -218,17 +218,13 @@ fn field_from_value(
     match value {
         syntax::Expr::Name(node) => {
             if let Some(token) = support::token(node.syntax(), K::IDENT) {
-                if let Some(symbol) = resolution.symbol_at(token_span(&token).start)
-                    && let Some(data) = resolution.symbol_data(symbol)
-                {
-                    if matches!(data.kind, SymbolKind::Function | SymbolKind::Builtin) {
-                        field.parameters = data.parameters.clone();
-                    }
-                    field.documentation = data.documentation.clone();
-                    field.span = data.declaration.unwrap_or(field.span);
-                } else if let Some(fields) = maps.get(token.text()) {
-                    field.fields = fields.clone();
-                }
+                return field_from_binding(
+                    name,
+                    token.text().to_owned(),
+                    token_span(&token),
+                    resolution,
+                    maps,
+                );
             }
         }
         syntax::Expr::Function(node) => {
@@ -246,6 +242,36 @@ fn field_from_value(
             field.fields = fields_from_map(map.syntax(), resolution, maps);
         }
         _ => {}
+    }
+    field
+}
+
+fn field_from_binding(
+    name: String,
+    binding: String,
+    span: Span,
+    resolution: &Resolution,
+    maps: &HashMap<String, Vec<ExportField>>,
+) -> ExportField {
+    let mut field = ExportField {
+        name: name.clone(),
+        span,
+        parameters: None,
+        documentation: None,
+        ty: None,
+        posts: Vec::new(),
+        fields: Vec::new(),
+    };
+    if let Some(symbol) = resolution.symbol_at(span.start)
+        && let Some(data) = resolution.symbol_data(symbol)
+    {
+        if matches!(data.kind, SymbolKind::Function | SymbolKind::Builtin) {
+            field.parameters = data.parameters.clone();
+        }
+        field.documentation = data.documentation.clone();
+        field.span = data.declaration.unwrap_or(field.span);
+    } else if let Some(fields) = maps.get(&binding) {
+        field.fields = fields.clone();
     }
     field
 }

@@ -398,3 +398,25 @@ exports
     assert_eq!(shape.fields.len(), 1);
     assert_eq!(shape.fields[0].name, "added");
 }
+
+#[test]
+fn infers_shorthand_map_exports() {
+    let source = r#"
+--- Shared export.
+fn shared(value) do value end
+{shared}
+"#;
+    let db = AnalysisDatabase::default();
+    let file = db.add_file(source);
+    let shape = module_shape(&db, file);
+    assert_eq!(shape.fields.len(), 1);
+    assert_eq!(shape.fields[0].name, "shared");
+    assert_eq!(
+        shape.fields[0].parameters.as_deref(),
+        Some(&["value".to_owned()][..])
+    );
+    assert_eq!(
+        shape.fields[0].documentation.as_deref(),
+        Some("Shared export.")
+    );
+}

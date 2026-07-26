@@ -1713,6 +1713,10 @@
         {
           "type": "map_field",
           "named": true
+        },
+        {
+          "type": "map_shorthand",
+          "named": true
         }
       ]
     }
@@ -1782,6 +1786,22 @@
         "types": [
           {
             "type": "_pattern",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "map_shorthand",
+    "named": true,
+    "fields": {
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
             "named": true
           }
         ]
