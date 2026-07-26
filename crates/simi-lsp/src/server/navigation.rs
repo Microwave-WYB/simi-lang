@@ -1,4 +1,7 @@
 use super::*;
+use simi_syntax::SyntaxKind as K;
+use simi_syntax::ast as support;
+use simi_syntax::generated::{self as syntax, AstNode};
 
 impl Backend {
     #[allow(deprecated)]
@@ -89,7 +92,7 @@ impl Backend {
     ) -> Result<Option<WorkspaceEdit>, ProtocolError> {
         let uri = params.text_document_position.text_document.uri;
         let position = params.text_document_position.position;
-        let (_, text, resolution, offset) = self.analysis_at(&uri, position)?;
+        let (document, text, resolution, offset) = self.analysis_at(&uri, position)?;
         let Some(symbol) = resolution.symbol_at(offset) else {
             return Err(ProtocolError::request_failed(
                 "cannot rename an unresolved name",
@@ -98,13 +101,19 @@ impl Backend {
         resolution
             .check_rename(symbol, &params.new_name)
             .map_err(rename_error)?;
+        let shorthand = self.map_shorthand_spans(document.file);
         let edits = resolution
             .rename_spans(symbol)
             .into_iter()
             .map(|span| {
+                let new_text = if shorthand.contains(&span) {
+                    format!("{} = {}", &text[span.start..span.end], params.new_name)
+                } else {
+                    params.new_name.clone()
+                };
                 Ok(TextEdit {
                     range: self.range(&text, span)?,
-                    new_text: params.new_name.clone(),
+                    new_text,
                 })
             })
             .collect::<Result<Vec<_>, ProtocolError>>()?;
@@ -115,5 +124,25 @@ impl Backend {
             document_changes: None,
             change_annotations: None,
         }))
+    }
+
+    fn map_shorthand_spans(&self, file: FileId) -> Vec<Span> {
+        let parsed = parse(&self.db, file);
+        parsed
+            .syntax()
+            .descendants()
+            .filter_map(syntax::MapEntry::cast)
+            .filter_map(|entry| {
+                let token = support::token(entry.syntax(), K::IDENT)?;
+                (support::token(entry.syntax(), K::EQ).is_none()
+                    && support::child::<syntax::Expr>(entry.syntax()).is_none())
+                .then(|| {
+                    Span::new(
+                        token.text_range().start().into(),
+                        token.text_range().end().into(),
+                    )
+                })
+            })
+            .collect()
     }
 }

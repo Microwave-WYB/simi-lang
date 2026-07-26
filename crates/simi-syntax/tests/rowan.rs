@@ -334,3 +334,22 @@ fn malformed_lexemes_are_preserved_as_error_tokens() {
         2
     );
 }
+
+#[test]
+fn map_local_binding_shorthand_is_a_map_entry_without_pattern_changes() {
+    let source = "let first = 1 let map = {first, label = \"pair\", [true] = first}";
+    let parse = parse_source(source);
+    assert!(parse.diagnostics().is_empty(), "{:?}", parse.diagnostics());
+    assert_eq!(parse.syntax().to_string(), source);
+    let entries = parse
+        .syntax()
+        .descendants()
+        .filter(|node| node.kind() == SyntaxKind::MAP_ENTRY)
+        .collect::<Vec<_>>();
+    assert_eq!(entries.len(), 3);
+    assert!(
+        entries[0]
+            .children()
+            .all(|child| child.kind() != SyntaxKind::NAME_EXPR)
+    );
+}

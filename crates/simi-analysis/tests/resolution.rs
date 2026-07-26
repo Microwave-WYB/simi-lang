@@ -514,3 +514,15 @@ fn recovery_prefers_the_function_scope_when_it_ties_the_root_span() {
         .collect::<Vec<_>>();
     assert!(names.contains(&"n"), "visible names: {names:?}");
 }
+
+#[test]
+fn map_local_binding_shorthand_resolves_as_a_read() {
+    let source = "let first = 1 let map = {first}";
+    let db = AnalysisDatabase::default();
+    let file = db.add_file(source);
+    let resolution = resolve(&db, file);
+    let first = symbol_named(&resolution, "first", SymbolKind::Let);
+    let references = references(&db, file, first);
+    assert_eq!(references.len(), 1);
+    assert_eq!(&source[references[0].start..references[0].end], "first");
+}

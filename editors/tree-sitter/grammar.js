@@ -416,6 +416,7 @@ module.exports = grammar({
 
     map_entry: ($) => choice(
       $.map_field,
+      $.map_shorthand,
       $.map_computed_entry,
     ),
 
@@ -424,6 +425,8 @@ module.exports = grammar({
       "=",
       field("value", $._expression),
     ),
+
+    map_shorthand: ($) => field("name", $.identifier),
 
     map_computed_entry: ($) => seq(
       "[",

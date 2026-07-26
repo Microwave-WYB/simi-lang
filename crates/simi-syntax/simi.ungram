@@ -37,7 +37,7 @@ BlockExpr = 'do' Block 'end'
 ParenExpr = '(' Expr ')'
 ListExpr = '[' (Expr (',' Expr)* ','?)? ']'
 MapExpr = '{' (MapEntry (',' MapEntry)* ','?)? '}'
-MapEntry = ('ident' | '[' Expr ']') '=' Expr
+MapEntry = ('ident' ('=' Expr)? | '[' Expr ']' '=' Expr)
 CallExpr = Expr ArgList
 ArgList = '(' (Expr (',' Expr)* ','?)? ')'
 FieldExpr = Expr '.' 'ident'

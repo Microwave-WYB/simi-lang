@@ -134,3 +134,37 @@ make()[key()].field(1, 2,)
     (arguments
       (integer)
       (integer))))
+
+==================
+Map local-binding shorthand
+==================
+
+let first = 1
+let second = 2
+{first, second, label = "pair", [first] = second}
+
+---
+
+(program
+  (let_statement
+    (identifier)
+    (integer))
+  (let_statement
+    (identifier)
+    (integer))
+  (map
+    (map_entry
+      (map_shorthand
+        (identifier)))
+    (map_entry
+      (map_shorthand
+        (identifier)))
+    (map_entry
+      (map_field
+        (identifier)
+        (string
+          (string_content))))
+    (map_entry
+      (map_computed_entry
+        (identifier)
+        (identifier)))))

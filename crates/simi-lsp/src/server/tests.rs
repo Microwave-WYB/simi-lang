@@ -745,6 +745,32 @@ fn rename_preparation_edits_and_rejections_follow_analysis_rules() {
 }
 
 #[test]
+fn rename_expands_map_local_binding_shorthand_without_renaming_its_key() {
+    let source = "let first = 1 let map = {first, label = first}";
+    let mut backend = Backend::new();
+    open(&mut backend, source);
+    let edit: Option<WorkspaceEdit> = serde_json::from_value(
+        request(
+            &mut backend,
+            Rename::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": text_position(source, "first", 0),
+                "newName": "renamed"
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let mut edits = edit.unwrap().changes.unwrap()[&uri()].clone();
+    edits.sort_by_key(|edit| (edit.range.start.line, edit.range.start.character));
+    assert_eq!(edits.len(), 3);
+    assert_eq!(edits[0].new_text, "renamed");
+    assert_eq!(edits[1].new_text, "first = renamed");
+    assert_eq!(edits[2].new_text, "renamed");
+}
+
+#[test]
 fn rename_rejects_capture_of_an_unresolved_host_name() {
     let source = "let target = 1 do missing target end";
     let mut backend = Backend::new();

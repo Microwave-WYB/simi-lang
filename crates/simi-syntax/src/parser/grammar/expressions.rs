@@ -345,8 +345,9 @@ pub(super) fn map_expr(p: &mut Parser<'_>) -> Parsed {
                     p.error_at(span, format!("duplicate map field `{name}`"));
                 }
             }
-            p.expect(K::EQ, "`=` after map key");
-            expression(p);
+            if p.bump_if(K::EQ) {
+                expression(p);
+            }
             entry.complete(&mut p.events, K::MAP_ENTRY);
             if !p.bump_if(K::COMMA) || p.at(K::R_BRACE) {
                 break;

@@ -2267,3 +2267,18 @@ fn unfinished() -> never do todo "finish the decoder" end
         simi_analysis::AnalysisDiagnosticSeverity::Warning
     );
 }
+
+#[test]
+fn map_local_binding_shorthand_infers_the_referenced_value_type() {
+    let source = "let first = 1 let second = \"two\" let map = {first, second}";
+    let (inference, resolution) = inferred(source);
+    assert!(
+        inference.diagnostics.is_empty(),
+        "{:?}",
+        inference.diagnostics
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "map").display(),
+        "{ first: integer, second: \"two\" }"
+    );
+}

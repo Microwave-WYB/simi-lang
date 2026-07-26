@@ -78,3 +78,40 @@ fn unsupported_map_keys_are_runtime_errors() {
 
     assert!(error.to_string().contains("map key must be"));
 }
+
+#[test]
+fn map_local_binding_shorthand_matches_named_entries_and_preserves_nil_omission() {
+    let value = eval(
+        r#"
+        let first = 1
+        let second = 2
+        let omitted = nil
+        let dynamic = "dynamic"
+        let map = {first, second, omitted, label = "pair", [dynamic] = first + second}
+        [map, map.first, map.second, map.omitted, map[dynamic]]
+        "#,
+    )
+    .expect("map shorthand should have no diagnostics")
+    .expect("map shorthand should not raise");
+
+    assert_eq!(
+        value.render(),
+        "[{first=1, second=2, label=\"pair\", dynamic=3}, 1, 2, nil, 3]"
+    );
+}
+
+#[test]
+fn map_local_binding_shorthand_reports_undefined_bindings_as_reads() {
+    let error = match eval("{missing}") {
+        Err(error) => error,
+        Ok(Ok(value)) => panic!(
+            "undefined shorthand unexpectedly produced {}",
+            value.render()
+        ),
+        Ok(Err(raised)) => panic!("undefined shorthand unexpectedly raised {raised}"),
+    };
+    assert!(
+        error.to_string().contains("undefined name `missing`"),
+        "{error}"
+    );
+}

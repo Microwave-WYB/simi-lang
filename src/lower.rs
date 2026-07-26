@@ -288,7 +288,15 @@ fn lower_map_entry(entry: &syntax::MapEntry) -> (ast::Expr, ast::Expr) {
             kind: ast::ExprKind::String(name.text().to_string()),
             span: token_span(&name),
         };
-        (key, lower_expr(expressions[0].clone()))
+        let value = expressions
+            .first()
+            .cloned()
+            .map(lower_expr)
+            .unwrap_or_else(|| ast::Expr {
+                kind: ast::ExprKind::Variable(name.text().to_string()),
+                span: token_span(&name),
+            });
+        (key, value)
     } else {
         (
             lower_expr(expressions[0].clone()),

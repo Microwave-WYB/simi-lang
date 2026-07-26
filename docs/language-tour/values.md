@@ -142,6 +142,14 @@ let settings = {
 [settings.name, settings["visits"], settings[true], settings[10]]
 ```
 
+A same-named local binding may use compact shorthand: `{name}` is equivalent to `{name = name}`. The key remains the identifier spelling, while the value follows ordinary lexical lookup. Shorthand may mix with ordinary and computed entries:
+
+```simi
+let name = "Ada"
+let visits = 1
+let settings = {name, visits, enabled = true}
+```
+
 An empty map is `{}`. Map keys may be strings, integers, finite non-integral floats, or booleans. Missing reads return `nil`:
 
 ```simi

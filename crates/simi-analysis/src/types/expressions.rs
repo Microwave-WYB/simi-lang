@@ -36,15 +36,26 @@ impl Context<'_> {
                 for entry in support::children::<syntax::MapEntry>(node.syntax()) {
                     let mut expressions = expr_children(entry.syntax());
                     if let Some(name) = direct_token(entry.syntax(), K::IDENT) {
-                        if let Some(value) = expressions.next() {
-                            let value = self.expression(value);
-                            if value != Type::Nil && !type_may_be_nil(&value) {
-                                fields.push((name.text().to_owned(), value));
-                            } else if value != Type::Nil {
-                                // The type model has no optional fields. An entry whose value may
-                                // be nil may be omitted at runtime, so retain only an open-map fact.
-                                open = true;
+                        let value = if let Some(value) = expressions.next() {
+                            self.expression(value)
+                        } else if let Some(symbol) =
+                            self.resolution.symbol_at(token_span(&name).start)
+                            && let Some(ty) = self.symbol_types.get(&symbol).cloned()
+                        {
+                            if self.monomorphic_symbols.contains(&symbol) {
+                                ty
+                            } else {
+                                self.instantiate(ty)
                             }
+                        } else {
+                            Type::Unknown
+                        };
+                        if value != Type::Nil && !type_may_be_nil(&value) {
+                            fields.push((name.text().to_owned(), value));
+                        } else if value != Type::Nil {
+                            // The type model has no optional fields. An entry whose value may
+                            // be nil may be omitted at runtime, so retain only an open-map fact.
+                            open = true;
                         }
                     } else if let (Some(key), Some(value)) =
                         (expressions.next(), expressions.next())

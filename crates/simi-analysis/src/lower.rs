@@ -226,6 +226,18 @@ impl Builder {
                     self.block(&block, child);
                 }
             }
+            syntax::Expr::Map(node) => {
+                for entry in support::children::<syntax::MapEntry>(node.syntax()) {
+                    if let Some(token) = direct_token(entry.syntax(), K::IDENT)
+                        && support::token(entry.syntax(), K::EQ).is_none()
+                        && support::child::<syntax::Expr>(entry.syntax()).is_none()
+                    {
+                        self.occurrence(token, scope, OccurrenceKind::Read);
+                    } else {
+                        self.walk_nested(entry.syntax(), scope);
+                    }
+                }
+            }
             syntax::Expr::Assign(node) => {
                 let mut expressions = expr_children(node.syntax());
                 if let Some(target) = expressions.next() {
