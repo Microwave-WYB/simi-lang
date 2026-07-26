@@ -417,17 +417,6 @@ impl Context<'_> {
             related: Vec::new(),
         });
     }
-
-    fn warning(&mut self, code: AnalysisDiagnosticCode, title: &str, detail: String, span: Span) {
-        self.diagnostics.push(AnalysisDiagnostic {
-            span,
-            code,
-            title: title.to_owned(),
-            detail,
-            severity: AnalysisDiagnosticSeverity::Warning,
-            related: Vec::new(),
-        });
-    }
 }
 
 fn restore_map_entry<K, V>(target: &mut HashMap<K, V>, source: &HashMap<K, V>, key: K)

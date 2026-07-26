@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use simi_analysis::{
-    AnalysisDatabase, Type, expression_type_at, infer_types, module_shape, parse, resolve,
-    symbol_type_at,
+    AnalysisDatabase, AnalysisDiagnosticCode, AnalysisDiagnosticSeverity, Type, diagnostics,
+    expression_type_at, infer_types, module_shape, parse, resolve, symbol_type_at,
 };
 
 fn inferred(
