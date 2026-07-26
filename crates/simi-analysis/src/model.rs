@@ -313,6 +313,15 @@ impl Type {
     pub fn display(&self) -> String {
         display_type(self, false)
     }
+
+    /// Render this type for a presentation surface with a maximum line width.
+    ///
+    /// Unlike [`Type::display`], this formatter is intentionally presentation-only:
+    /// it preserves the same type syntax while introducing deterministic breaks and
+    /// four-space indentation for large structural types.
+    pub fn pretty_display(&self, width: usize) -> String {
+        pretty_type(self, false, 0, 0, width.max(1))
+    }
 }
 
 fn display_type(ty: &Type, nested: bool) -> String {
@@ -454,6 +463,208 @@ fn display_type(ty: &Type, nested: bool) -> String {
     }
 }
 
+fn pretty_type(
+    ty: &Type,
+    nested: bool,
+    column: usize,
+    continuation_indent: usize,
+    width: usize,
+) -> String {
+    let compact = display_type(ty, nested);
+    if !compact.contains('\n') && column + compact.len() <= width {
+        return compact;
+    }
+
+    match ty {
+        Type::Map {
+            fields,
+            index,
+            open,
+        } => pretty_map(fields, index.as_ref(), *open, continuation_indent, width),
+        Type::ListExact(items) => {
+            let indent = continuation_indent + 4;
+            let items = items
+                .iter()
+                .map(|item| {
+                    format!(
+                        "{}{},",
+                        " ".repeat(indent),
+                        pretty_type(item, false, indent, indent, width)
+                    )
+                })
+                .collect::<Vec<_>>();
+            if items.is_empty() {
+                "[]".to_owned()
+            } else {
+                format!(
+                    "[\n{}\n{}]",
+                    items.join("\n"),
+                    " ".repeat(continuation_indent)
+                )
+            }
+        }
+        Type::Function(callable) => {
+            let value = pretty_function(callable, continuation_indent, width);
+            if nested { format!("({value})") } else { value }
+        }
+        Type::Union(items) => pretty_union(items, nested, continuation_indent, width),
+        _ => compact,
+    }
+}
+
+fn pretty_map(
+    fields: &[(String, Type)],
+    index: Option<&(Box<Type>, Box<Type>)>,
+    open: bool,
+    continuation_indent: usize,
+    width: usize,
+) -> String {
+    let indent = continuation_indent + 4;
+    let mut lines = Vec::new();
+    for (name, ty) in fields {
+        let prefix = format!("{}{}: ", " ".repeat(indent), name);
+        let value = pretty_type(ty, false, indent + name.len() + 2, indent, width);
+        lines.push(format!("{prefix}{value},"));
+    }
+    if let Some((key, value)) = index {
+        let key = pretty_type(key, false, indent + 1, indent, width);
+        let value = pretty_type(value, false, indent + key.len() + 5, indent, width);
+        lines.push(format!("{}[{}]: {},", " ".repeat(indent), key, value));
+    }
+    if open {
+        lines.push(format!("{}..", " ".repeat(indent)));
+    }
+    if lines.is_empty() {
+        "{}".to_owned()
+    } else {
+        format!(
+            "{{\n{}\n{}}}",
+            lines.join("\n"),
+            " ".repeat(continuation_indent)
+        )
+    }
+}
+
+fn pretty_function(callable: &CallableType, continuation_indent: usize, width: usize) -> String {
+    let indent = continuation_indent + 4;
+    let parameters = callable
+        .parameters
+        .iter()
+        .map(|parameter| {
+            let name = parameter
+                .name
+                .as_deref()
+                .map_or(String::new(), |name| format!("{name}: "));
+            let type_column = indent + name.len();
+            let mut value = format!(
+                "{}{}{}",
+                " ".repeat(indent),
+                name,
+                pretty_type(&parameter.ty, false, type_column, indent, width)
+            );
+            if let Some(post) = &parameter.post {
+                value.push_str(" => ");
+                value.push_str(&pretty_type(post, false, type_column + 4, indent, width));
+            }
+            format!("{value},")
+        })
+        .collect::<Vec<_>>();
+    let parameters = if parameters.is_empty() {
+        "()".to_owned()
+    } else {
+        format!(
+            "(\n{}\n{})",
+            parameters.join("\n"),
+            " ".repeat(continuation_indent)
+        )
+    };
+
+    let constraints = if callable.constraints.is_empty() {
+        String::new()
+    } else {
+        let constraints = callable
+            .constraints
+            .iter()
+            .map(|constraint| {
+                let variable = constraint.variable.display();
+                constraint.bound.as_ref().map_or(variable.clone(), |bound| {
+                    format!(
+                        "{variable}: {}",
+                        pretty_type(bound, false, indent + variable.len() + 2, indent, width,)
+                    )
+                })
+            })
+            .collect::<Vec<_>>();
+        if constraints.join(", ").len() + continuation_indent + 3 <= width {
+            format!("<{}> ", constraints.join(", "))
+        } else {
+            format!(
+                "<\n{}\n{}> ",
+                constraints
+                    .iter()
+                    .map(|constraint| format!("{}{},", " ".repeat(indent), constraint))
+                    .collect::<Vec<_>>()
+                    .join("\n"),
+                " ".repeat(continuation_indent)
+            )
+        }
+    };
+    let result = pretty_type(
+        &callable.result,
+        false,
+        continuation_indent + 4,
+        continuation_indent,
+        width,
+    );
+    let mut value = format!("{constraints}{parameters} -> {result}");
+    match (&*callable.raised, callable.raised_annotation) {
+        (Type::Never, RaisedAnnotation::Inferred) => {}
+        (Type::Never, _) => value.push_str(" noraise"),
+        (raised, _) => {
+            value.push_str(" raises ");
+            let raised = if value.len() + raised.display().len() <= width {
+                raised.display()
+            } else {
+                pretty_type(
+                    raised,
+                    true,
+                    continuation_indent + 8,
+                    continuation_indent,
+                    width,
+                )
+            };
+            value.push_str(&raised);
+        }
+    }
+    value
+}
+
+fn pretty_union(items: &[Type], nested: bool, continuation_indent: usize, width: usize) -> String {
+    let indent = if nested {
+        continuation_indent + 4
+    } else {
+        continuation_indent
+    };
+    let lines = items
+        .iter()
+        .enumerate()
+        .map(|(index, item)| {
+            let line_indent = if nested || index > 0 { indent } else { 0 };
+            format!(
+                "{}| {}",
+                " ".repeat(line_indent),
+                pretty_type(item, true, indent + 2, indent, width)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    if nested {
+        format!("(\n{}\n{})", lines, " ".repeat(continuation_indent))
+    } else {
+        lines
+    }
+}
+
 fn contains_generic(ty: &Type, id: u32) -> bool {
     match ty {
         Type::Generic(candidate) => *candidate == id,
@@ -561,4 +772,98 @@ fn contains(span: Span, offset: usize) -> bool {
 
 fn contains_inclusive(span: Span, offset: usize) -> bool {
     span.start <= offset && offset <= span.end
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pretty_display_keeps_compact_types_compact() {
+        let ty = Type::Union(vec![Type::Int, Type::String]);
+        assert_eq!(ty.pretty_display(80), "integer | string");
+        assert_eq!(ty.display(), "integer | string");
+    }
+
+    #[test]
+    fn pretty_display_wraps_maps_and_callable_parameters() {
+        let ty = Type::Map {
+            fields: vec![
+                (
+                    "concat".to_owned(),
+                    Type::Function(Box::new(CallableType {
+                        constraints: Vec::new(),
+                        parameters: vec![
+                            CallableParameter {
+                                name: Some("left".to_owned()),
+                                ty: Type::String,
+                                post: None,
+                            },
+                            CallableParameter {
+                                name: Some("right".to_owned()),
+                                ty: Type::String,
+                                post: None,
+                            },
+                        ],
+                        result: Box::new(Type::String),
+                        raised: Box::new(Type::Never),
+                        raised_annotation: RaisedAnnotation::NoRaise,
+                    })),
+                ),
+                ("length".to_owned(), Type::Int),
+            ],
+            index: None,
+            open: true,
+        };
+        assert_eq!(
+            ty.pretty_display(40),
+            "{\n    concat: (\n        left: string,\n        right: string,\n    ) -> string noraise,\n    length: integer,\n    ..\n}"
+        );
+        assert_eq!(
+            ty.display(),
+            "{ concat: (left: string, right: string) -> string noraise, length: integer, .. }"
+        );
+    }
+
+    #[test]
+    fn pretty_display_puts_multiline_unions_on_marked_lines() {
+        let ty = Type::Union(vec![
+            Type::Map {
+                fields: vec![("name".to_owned(), Type::String)],
+                index: None,
+                open: false,
+            },
+            Type::ListExact(vec![Type::Int, Type::String]),
+        ]);
+        assert_eq!(
+            ty.pretty_display(20),
+            "| { name: string }\n| [integer, string]"
+        );
+    }
+
+    #[test]
+    fn pretty_display_preserves_generics_posts_and_raised_effects() {
+        let ty = Type::Function(Box::new(CallableType {
+            constraints: vec![GenericConstraint {
+                variable: Type::Generic(0),
+                bound: Some(Type::Union(vec![Type::Int, Type::String])),
+            }],
+            parameters: vec![CallableParameter {
+                name: Some("value".to_owned()),
+                ty: Type::Generic(0),
+                post: Some(Type::ListRest(Box::new(Type::Union(vec![
+                    Type::Int,
+                    Type::String,
+                ])))),
+            }],
+            result: Box::new(Type::String),
+            raised: Box::new(Type::Union(vec![Type::String, Type::Int])),
+            raised_annotation: RaisedAnnotation::Explicit,
+        }));
+        let rendered = ty.pretty_display(40);
+        assert!(rendered.contains("<"));
+        assert!(rendered.contains("=>"));
+        assert!(rendered.contains("raises"));
+        assert!(rendered.lines().all(|line| line.len() <= 40), "{rendered}");
+    }
 }
