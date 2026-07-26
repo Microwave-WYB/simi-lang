@@ -306,6 +306,8 @@ fn supports_symbol_lookup_hover_references_and_visible_symbols() {
     assert!(names.contains(&"parameter"));
     assert!(names.contains(&"value"));
     assert!(names.contains(&"require"));
+    assert!(names.contains(&"list"));
+    assert!(names.contains(&"map"));
 }
 
 #[test]

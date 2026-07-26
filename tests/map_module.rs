@@ -149,26 +149,11 @@ fn map_argument_errors_are_qualified_hard_diagnostics() {
 }
 
 #[test]
-fn map_module_is_only_present_in_standard_library_engines() {
-    let missing = match Engine::new()
+fn map_module_is_present_in_the_engine_prelude() {
+    let exports = Engine::new()
         .eval("require(\"std/map\")")
-        .expect("missing map module should be a raise")
-    {
-        Err(raised) => raised,
-        Ok(value) => panic!(
-            "empty engine should not contain the map module, got {}",
-            value.render()
-        ),
-    };
-    assert_eq!(
-        missing.value.render(),
-        "{error=\"module_not_found\", module=\"std/map\"}"
-    );
-
-    let exports = Engine::with_stdlib()
-        .eval("require(\"std/map\")")
-        .expect("standard map module should have no hard diagnostic")
-        .expect("standard map module should not raise");
+        .expect("prelude map module should have no hard diagnostic")
+        .expect("prelude map module should not raise");
     assert_eq!(
         exports.render(),
         "{length=<native std/map.length>, copy=<native std/map.copy>, has=<native std/map.has>, iter=<fn std/map.iter>, clear=<native std/map.clear>}"

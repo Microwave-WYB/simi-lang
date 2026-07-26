@@ -22,17 +22,15 @@
 
 ## The portable standard library
 
-A standard-library engine registers these portable modules:
+`Engine::new()` provides `list` and `map` as the minimum prelude modules. `Engine::with_stdlib()` additionally registers these portable modules:
 
 ```text
-std/list
-std/map
 std/iter
 std/number
 std/string
 ```
 
-Each module groups operations for one kind of work. Import only the modules a script uses:
+Each module groups operations for one kind of work. The prelude modules can still be acquired explicitly when a script wants a local name, and the remaining modules are acquired with `require`:
 
 ```simi
 let list = require("std/list")
@@ -89,10 +87,9 @@ name
 
 ## Prelude globals
 
-Normal interpreters and all `Engine` evaluations provide `require`, `type`, and `inspect` as ordinary shadowable globals. `type` returns stable runtime category labels. `inspect` produces cycle-safe, human-readable text; it is not serialization.
+All `Engine` evaluations provide `require`, `type`, and `inspect` as ordinary shadowable globals. `Engine::new()` also provides `list` and `map`; these names are the same cached module values returned by `require("std/list")` and `require("std/map")`. `type` returns stable runtime category labels. `inspect` produces cycle-safe, human-readable text; it is not serialization.
 
 ```simi
-let list = require("std/list")
 let values = []
 list.append(values, values)
 

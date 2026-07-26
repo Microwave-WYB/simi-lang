@@ -47,6 +47,8 @@ impl Builder {
             ("require", "module"),
             ("type", "value"),
             ("inspect", "value"),
+            ("list", "module"),
+            ("map", "module"),
         ] {
             this.declare(
                 root_scope,
