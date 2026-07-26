@@ -88,8 +88,8 @@ pub(super) fn rebase_expr(expression: &mut ast::Expr, origins: &simi_syntax::Tok
         ast::ExprKind::Raise { value }
         | ast::ExprKind::NilPropagate { value }
         | ast::ExprKind::Unary { value, .. }
-        | ast::ExprKind::Break { value }
-        | ast::ExprKind::Continue { value } => rebase_expr(value, origins),
+        | ast::ExprKind::Break { value, .. }
+        | ast::ExprKind::Continue { value, .. } => rebase_expr(value, origins),
         ast::ExprKind::Try { protected, clauses } => {
             rebase_block(protected, origins);
             for clause in clauses {

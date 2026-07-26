@@ -245,6 +245,7 @@ pub(super) fn primary(p: &mut Parser<'_>) -> Parsed {
         K::CASE_KW => case_expr(p),
         K::IF_KW => if_expr(p),
         K::LOOP_KW => loop_expr(p),
+        K::AT if p.nth(2) == K::LOOP_KW => loop_expr(p),
         K::CONTINUE_KW => continue_expr(p),
         K::BREAK_KW => break_expr(p),
         _ => {

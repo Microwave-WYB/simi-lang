@@ -29,6 +29,7 @@ module.exports = grammar({
     [$.assignment_target, $._primary_expression],
     [$.assignment_target, $._postfix_expression],
     [$.parenthesized_call, $._postfix_expression],
+    [$.loop_expression],
   ],
 
   rules: {
@@ -478,6 +479,7 @@ module.exports = grammar({
     ),
 
     loop_expression: ($) => seq(
+      optional(field("label", $.loop_label)),
       "loop",
       optional(seq(
         field("state", $.identifier),
@@ -489,13 +491,17 @@ module.exports = grammar({
       "end",
     ),
 
+    loop_label: ($) => seq("@", field("name", $.identifier)),
+
     continue_expression: ($) => prec.right(seq(
       "continue",
+      optional(field("label", $.loop_label)),
       optional(field("value", $._expression)),
     )),
 
     break_expression: ($) => seq(
       "break",
+      optional(field("label", $.loop_label)),
       field("value", $._expression),
     ),
 

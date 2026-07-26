@@ -1857,3 +1857,30 @@ fn type_errors_are_published_and_clear_after_incremental_repair() {
             .is_empty()
     );
 }
+
+#[test]
+fn nested_unlabeled_loop_control_publishes_a_warning() {
+    let source = "loop outer = 0 do\n    loop inner = 0 do\n        break inner\n    end\n    break outer\nend\n";
+    let mut backend = Backend::new();
+    let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
+    let warnings = diagnostics
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| {
+            diagnostic.code
+                == Some(lsp_types::NumberOrString::String(
+                    "ambiguous_loop_control".to_owned(),
+                ))
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(warnings.len(), 1);
+    assert_eq!(
+        warnings[0].severity,
+        Some(lsp_types::DiagnosticSeverity::WARNING)
+    );
+    assert!(
+        warnings[0]
+            .message
+            .contains("Unlabeled `break` targets the nearest enclosing loop")
+    );
+}

@@ -130,6 +130,10 @@ impl<'a> Scanner<'a> {
                 self.simple(start, SyntaxKind::APOSTROPHE, TokenKind::Apostrophe);
                 Ok(())
             }
+            b'@' => {
+                self.simple(start, SyntaxKind::AT, TokenKind::At);
+                Ok(())
+            }
             b'.' => {
                 self.one_or_two(
                     start,

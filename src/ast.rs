@@ -132,14 +132,17 @@ pub enum ExprKind {
         else_branch: Option<Block>,
     },
     Loop {
+        label: Option<String>,
         state: String,
         initial: Box<Expr>,
         body: Block,
     },
     Continue {
+        label: Option<String>,
         value: Box<Expr>,
     },
     Break {
+        label: Option<String>,
         value: Box<Expr>,
     },
     Call {

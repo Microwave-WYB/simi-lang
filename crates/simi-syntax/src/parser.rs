@@ -163,6 +163,7 @@ struct Parser<'a> {
     events: Vec<Event>,
     diagnostics: Vec<SyntaxDiagnostic>,
     loop_depth: usize,
+    loop_labels: Vec<String>,
     block_depth: usize,
 }
 
@@ -175,6 +176,7 @@ impl<'a> Parser<'a> {
             events: Vec::new(),
             diagnostics: Vec::new(),
             loop_depth: 0,
+            loop_labels: Vec::new(),
             block_depth: 0,
         }
     }
@@ -439,6 +441,7 @@ fn token_lexeme(kind: TokenKind) -> (SyntaxKind, String) {
         TokenKind::Comma => (SyntaxKind::COMMA, ","),
         TokenKind::Colon => (SyntaxKind::COLON, ":"),
         TokenKind::Apostrophe => (SyntaxKind::APOSTROPHE, "'"),
+        TokenKind::At => (SyntaxKind::AT, "@"),
         TokenKind::Arrow => (SyntaxKind::ARROW, "->"),
         TokenKind::FatArrow => (SyntaxKind::FAT_ARROW, "=>"),
         TokenKind::Pipe => (SyntaxKind::PIPE, "|"),

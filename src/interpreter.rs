@@ -32,9 +32,19 @@ pub struct Interpreter {
 pub(super) enum EvaluationError {
     Runtime(RuntimeError),
     Raised(Raised),
-    NilPropagate { span: Span },
-    Break { value: Value, span: Span },
-    Continue { value: Value, span: Span },
+    NilPropagate {
+        span: Span,
+    },
+    Break {
+        value: Value,
+        label: Option<String>,
+        span: Span,
+    },
+    Continue {
+        value: Value,
+        label: Option<String>,
+        span: Span,
+    },
 }
 
 pub(super) type EvaluationResult<T> = Result<T, EvaluationError>;

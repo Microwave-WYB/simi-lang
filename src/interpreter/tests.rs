@@ -484,6 +484,7 @@ fn leaked_top_level_control_becomes_a_runtime_error() {
     for (kind, expected_message) in [
         (
             ExprKind::Break {
+                label: None,
                 value: Box::new(Expr {
                     kind: ExprKind::Int(1),
                     span: Span::new(6, 7),
@@ -493,6 +494,7 @@ fn leaked_top_level_control_becomes_a_runtime_error() {
         ),
         (
             ExprKind::Continue {
+                label: None,
                 value: Box::new(Expr {
                     kind: ExprKind::Int(1),
                     span: Span::new(9, 10),
@@ -532,6 +534,7 @@ fn leaked_function_control_cannot_be_caught_by_callers_loop() {
                 items: vec![Stmt {
                     kind: StmtKind::Expr(Expr {
                         kind: ExprKind::Break {
+                            label: None,
                             value: Box::new(Expr {
                                 kind: ExprKind::Int(9),
                                 span: Span::new(26, 27),
@@ -550,6 +553,7 @@ fn leaked_function_control_cannot_be_caught_by_callers_loop() {
     let caller_loop = Stmt {
         kind: StmtKind::Expr(Expr {
             kind: ExprKind::Loop {
+                label: None,
                 state: "state".to_owned(),
                 initial: Box::new(Expr {
                     kind: ExprKind::Nil,

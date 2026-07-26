@@ -281,7 +281,21 @@ end
 result
 ```
 
-Loop control targets the nearest lexical loop and cannot cross a function boundary.
+Loop control targets the nearest lexical loop and cannot cross a function boundary. Nested loops may be labeled with `@name` to make a cross-loop transfer explicit. A label is lexical: it targets only an enclosing loop and is unavailable inside a nested function.
+
+```simi
+let result = @outer loop state = 0 do
+    @inner loop do
+        if state < 3 then
+            continue @outer state + 1
+        else
+            break @outer state
+        end
+    end
+end
+
+result
+```
 
 <!-- tour:navigation:start -->
 ---

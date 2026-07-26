@@ -63,6 +63,7 @@
   "->"
   "=>"
   "|"
+  "@"
 ] @operator
 
 (function_declaration
@@ -109,3 +110,5 @@
 
 ["(" ")" "[" "]" "{" "}"] @punctuation.bracket
 ["," "."] @punctuation.delimiter
+
+(loop_label name: (identifier) @variable)

@@ -287,6 +287,6 @@ fn hard_runtime_errors_bypass_language_catches() {
 
 #[test]
 fn lex_and_parse_failures_remain_outer_diagnostics() {
-    assert!(matches!(eval("@"), Err(SimiError::Lex(_))));
+    assert!(matches!(eval("$"), Err(SimiError::Lex(_))));
     assert!(matches!(eval("try 1 end"), Err(SimiError::Parse(_))));
 }

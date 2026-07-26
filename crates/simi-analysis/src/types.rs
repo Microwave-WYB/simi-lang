@@ -218,6 +218,7 @@ fn builtin_types(resolution: &Resolution) -> HashMap<SymbolId, Type> {
 }
 
 struct LoopContext {
+    label: Option<String>,
     transitions: Vec<Type>,
     breaks: Vec<(Type, FlowState)>,
 }
@@ -413,6 +414,16 @@ impl Context<'_> {
             title: title.to_owned(),
             detail,
             severity: AnalysisDiagnosticSeverity::Error,
+            related: Vec::new(),
+        });
+    }
+    fn warning(&mut self, code: AnalysisDiagnosticCode, title: &str, detail: String, span: Span) {
+        self.diagnostics.push(AnalysisDiagnostic {
+            span,
+            code,
+            title: title.to_owned(),
+            detail,
+            severity: AnalysisDiagnosticSeverity::Warning,
             related: Vec::new(),
         });
     }

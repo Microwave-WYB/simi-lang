@@ -50,6 +50,7 @@ pub enum SyntaxKind {
     COMMA,
     COLON,
     APOSTROPHE,
+    AT,
     ARROW,
     FAT_ARROW,
     PIPE,
