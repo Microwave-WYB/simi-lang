@@ -131,6 +131,8 @@ let {name = name, ..details} = user
 
 The right side is evaluated once, and matching is atomic: no bindings are installed unless the entire pattern succeeds. A mismatch in `let` is a hard diagnostic. Use `case` instead when mismatch is an ordinary possibility.
 
+When analysis has enough type information, it reports an error for a pattern that cannot match and a warning for one that may fail, recommending `case` for explicit recovery. These are erased diagnostics only: ignoring a warning or skipping analysis never changes the runtime's atomic hard-failure behavior.
+
 Rest captures are independent shallow containers. A list rest is an O(1) copy-on-write view, while a map rest is a new shallow map. Nested values inside either capture retain their existing alias identities. The next page develops these copy rules.
 
 ## Postfix nil propagation

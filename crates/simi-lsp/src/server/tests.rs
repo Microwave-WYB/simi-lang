@@ -1884,3 +1884,56 @@ fn nested_unlabeled_loop_control_publishes_a_warning() {
             .contains("Unlabeled `break` targets the nearest enclosing loop")
     );
 }
+
+#[test]
+fn destructuring_let_certainty_diagnostics_publish_warnings_and_errors() {
+    let source = concat!(
+        "fn first(values: any) do\n",
+        "    let [first, ..rest] = values\n",
+        "    first\n",
+        "end\n",
+        "let [impossible, ..rest] = 42\n",
+    );
+    let mut backend = Backend::new();
+    let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
+    assert_eq!(diagnostics.diagnostics.len(), 2, "{diagnostics:?}");
+    assert_eq!(
+        diagnostics.diagnostics[0].code,
+        Some(lsp_types::NumberOrString::String(
+            "destructuring_let_may_fail".to_owned()
+        ))
+    );
+    assert_eq!(
+        diagnostics.diagnostics[0].severity,
+        Some(lsp_types::DiagnosticSeverity::WARNING)
+    );
+    assert!(diagnostics.diagnostics[0].message.contains("Use `case`"));
+    assert_eq!(
+        diagnostics.diagnostics[1].code,
+        Some(lsp_types::NumberOrString::String(
+            "destructuring_let_never_matches".to_owned()
+        ))
+    );
+    assert_eq!(
+        diagnostics.diagnostics[1].severity,
+        Some(lsp_types::DiagnosticSeverity::ERROR)
+    );
+    assert!(diagnostics.diagnostics[1].message.contains("incompatible"));
+
+    let hover: Option<Hover> = serde_json::from_value(
+        request(
+            &mut backend,
+            HoverRequest::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": text_position(source, "first", 1),
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let HoverContents::Markup(markup) = hover.expect("destructured binding hover").contents else {
+        panic!("expected markup")
+    };
+    assert_simi_hover(&markup, "any");
+}

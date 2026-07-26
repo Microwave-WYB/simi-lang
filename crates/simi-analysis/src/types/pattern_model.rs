@@ -190,6 +190,27 @@ pub(super) fn type_may_be_callable(ty: &Type) -> bool {
         _ => false,
     }
 }
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum MatchCertainty {
+    Always,
+    Sometimes,
+    Never,
+}
+
+pub(super) fn pattern_match_certainty(source: Type, pattern: &syntax::Pattern) -> MatchCertainty {
+    if source == Type::Never {
+        return MatchCertainty::Always;
+    }
+    let (matched, unmatched) = pattern_partition(source, pattern);
+    if matched == Type::Never {
+        MatchCertainty::Never
+    } else if unmatched == Type::Never {
+        MatchCertainty::Always
+    } else {
+        MatchCertainty::Sometimes
+    }
+}
+
 pub(super) fn pattern_partition(source: Type, pattern: &syntax::Pattern) -> (Type, Type) {
     match pattern {
         syntax::Pattern::Binding(_) | syntax::Pattern::Wildcard(_) => (source, Type::Never),

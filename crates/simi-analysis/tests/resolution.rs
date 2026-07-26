@@ -149,12 +149,14 @@ fn later_outer_bindings_hide_prelude_symbols_inside_closures() {
 #[test]
 fn lowers_destructuring_case_catch_and_loop_bindings() {
     let source = r#"
+let input = [1, {name = "Ada"}, 2]
 let [first, { name = nested }, ..rest] = input
-case input
+let candidate: any = input
+case candidate
 of item when item != nil do item
 end
 try
-    raise input
+    raise candidate
 catch error when error != nil do
     error
 end

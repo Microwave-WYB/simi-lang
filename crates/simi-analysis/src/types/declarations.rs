@@ -152,6 +152,28 @@ impl Context<'_> {
                     .as_ref()
                     .and_then(|expression| self.callable_assignment_effects(expression));
                 if let Some(pattern) = support::child::<syntax::Pattern>(statement.syntax()) {
+                    let resolved_value = self.resolve_type(final_ty.clone());
+                    match pattern_match_certainty(resolved_value.clone(), &pattern) {
+                        MatchCertainty::Always => {}
+                        MatchCertainty::Sometimes => self.warning(
+                            AnalysisDiagnosticCode::DestructuringLetMayFail,
+                            "Destructuring let pattern may not match",
+                            format!(
+                                "This pattern may not match a value of type `{}`. Use `case` when mismatch is expected.",
+                                resolved_value.display()
+                            ),
+                            span(pattern.syntax()),
+                        ),
+                        MatchCertainty::Never => self.diagnostic(
+                            AnalysisDiagnosticCode::DestructuringLetNeverMatches,
+                            "Destructuring let pattern cannot match",
+                            format!(
+                                "This pattern is incompatible with the inferred value type `{}`.",
+                                resolved_value.display()
+                            ),
+                            span(pattern.syntax()),
+                        ),
+                    }
                     if let Some(symbol) = pattern_symbol(&pattern, self.resolution) {
                         if explicitly_annotated {
                             self.annotated_symbols.insert(symbol);
