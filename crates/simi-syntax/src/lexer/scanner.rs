@@ -78,6 +78,17 @@ impl<'a> Scanner<'a> {
 
         let result = match byte {
             b'0'..=b'9' => self.number(start),
+            b'_' if matches!(self.peek(1), Some(b'0'..=b'9')) => {
+                self.position += 1;
+                while matches!(self.peek(0), Some(b'0'..=b'9' | b'_')) {
+                    self.position += 1;
+                }
+                self.fail(
+                    Span::new(start, self.position),
+                    "numeric separator must appear between digits".to_owned(),
+                );
+                Err(())
+            }
             b'A'..=b'Z' | b'a'..=b'z' | b'_' => {
                 self.identifier(start);
                 Ok(())
@@ -259,15 +270,41 @@ impl<'a> Scanner<'a> {
     }
 
     fn number(&mut self, start: usize) -> Result<(), ()> {
-        while matches!(self.peek(0), Some(b'0'..=b'9')) {
+        let prefixed =
+            self.peek(0) == Some(b'0') && matches!(self.peek(1), Some(b'b' | b'B' | b'x' | b'X'));
+        if prefixed {
             self.position += 1;
+            let prefix = self.peek(0).expect("numeric prefix is present");
+            self.position += 1;
+            let radix = if matches!(prefix, b'b' | b'B') { 2 } else { 16 };
+            self.digit_run(radix, true, "integer literal")?;
+            let text = self.source[start + 2..self.position].replace('_', "");
+            match i64::from_str_radix(&text, radix) {
+                Ok(value) => self.push(SyntaxKind::INT, TokenKind::Int(value), start),
+                Err(_) => {
+                    self.fail(
+                        Span::new(start, self.position),
+                        "integer literal is too large for i64".to_owned(),
+                    );
+                    return Err(());
+                }
+            }
+            return Ok(());
         }
+
+        self.digit_run(10, false, "integer literal")?;
         let mut float = false;
-        if self.peek(0) == Some(b'.') && matches!(self.peek(1), Some(b'0'..=b'9')) {
-            float = true;
-            self.position += 1;
-            while matches!(self.peek(0), Some(b'0'..=b'9')) {
+        if self.peek(0) == Some(b'.') {
+            if matches!(self.peek(1), Some(b'0'..=b'9')) {
+                float = true;
                 self.position += 1;
+                self.digit_run(10, false, "floating-point fraction")?;
+            } else if self.peek(1) == Some(b'_') {
+                self.fail(
+                    Span::new(self.position + 1, self.position + 2),
+                    "numeric separator must appear between digits".to_owned(),
+                );
+                return Err(());
             }
         }
         if matches!(self.peek(0), Some(b'e' | b'E')) {
@@ -276,19 +313,9 @@ impl<'a> Scanner<'a> {
             if matches!(self.peek(0), Some(b'+' | b'-')) {
                 self.position += 1;
             }
-            let exponent = self.position;
-            while matches!(self.peek(0), Some(b'0'..=b'9')) {
-                self.position += 1;
-            }
-            if self.position == exponent {
-                self.fail(
-                    Span::new(start, self.position),
-                    "expected digits in floating-point exponent".to_owned(),
-                );
-                return Err(());
-            }
+            self.digit_run(10, false, "floating-point exponent")?;
         }
-        let text = &self.source[start..self.position];
+        let text = self.source[start..self.position].replace('_', "");
         if float {
             match text.parse::<f64>() {
                 Ok(value) if value.is_finite() => {
@@ -320,6 +347,71 @@ impl<'a> Scanner<'a> {
                     return Err(());
                 }
             }
+        }
+        Ok(())
+    }
+
+    fn digit_run(
+        &mut self,
+        radix: u32,
+        allow_prefix_separator: bool,
+        context: &str,
+    ) -> Result<(), ()> {
+        let run_start = self.position;
+        let mut digits = 0;
+        let mut previous_was_digit = false;
+        if allow_prefix_separator && self.peek(0) == Some(b'_') {
+            if self
+                .peek(1)
+                .is_some_and(|byte| digit_value(byte).is_some_and(|value| value < radix))
+            {
+                self.position += 1;
+            } else {
+                self.fail(
+                    Span::new(self.position, self.position + 1),
+                    format!("expected digits after {context}"),
+                );
+                return Err(());
+            }
+        }
+        while let Some(byte) = self.peek(0) {
+            if digit_value(byte).is_some_and(|value| value < radix) {
+                self.position += 1;
+                digits += 1;
+                previous_was_digit = true;
+                continue;
+            }
+            if byte == b'_' {
+                if previous_was_digit
+                    && self
+                        .peek(1)
+                        .is_some_and(|next| digit_value(next).is_some_and(|value| value < radix))
+                {
+                    self.position += 1;
+                    previous_was_digit = false;
+                    continue;
+                }
+                self.fail(
+                    Span::new(self.position, self.position + 1),
+                    "numeric separator must appear between digits".to_owned(),
+                );
+                return Err(());
+            }
+            if radix != 10 && byte.is_ascii_alphanumeric() {
+                self.fail(
+                    Span::new(self.position, self.position + 1),
+                    format!("invalid digit in base-{radix} integer literal"),
+                );
+                return Err(());
+            }
+            break;
+        }
+        if digits == 0 {
+            self.fail(
+                Span::new(run_start, self.position),
+                format!("expected digits in {context}"),
+            );
+            return Err(());
         }
         Ok(())
     }
@@ -432,6 +524,15 @@ impl<'a> Scanner<'a> {
     }
     fn peek(&self, offset: usize) -> Option<u8> {
         self.source.as_bytes().get(self.position + offset).copied()
+    }
+}
+
+fn digit_value(byte: u8) -> Option<u32> {
+    match byte {
+        b'0'..=b'9' => Some(u32::from(byte - b'0')),
+        b'a'..=b'f' => Some(u32::from(byte - b'a') + 10),
+        b'A'..=b'F' => Some(u32::from(byte - b'A') + 10),
+        _ => None,
     }
 }
 

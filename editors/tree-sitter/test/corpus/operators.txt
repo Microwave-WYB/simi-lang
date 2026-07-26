@@ -170,3 +170,21 @@ values [0]
   (identifier)
   (list
     (integer)))
+
+==================
+Radix integers and numeric separators
+==================
+
+[0b1010_0110, 0b_1010, 0x7f, 0x_ff, 1_000, 1_000.25, 1.5_0e1_0]
+
+---
+
+(program
+  (list
+    (integer)
+    (integer)
+    (integer)
+    (integer)
+    (integer)
+    (float)
+    (float)))

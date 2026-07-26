@@ -73,7 +73,9 @@ test("TextMate grammar assigns semantic scopes to representative Simi syntax", a
   assertScope(lines, 2, "classify", "entity.name.function.simi");
   assertScope(lines, 2, "value", "variable.parameter.simi");
   assertScope(lines, 3, "threshold", "variable.other.readwrite.simi");
-  assertScope(lines, 3, "1.5e+2", "constant.numeric.float.simi");
+  assertScope(lines, 3, "0x_ff", "constant.numeric.integer.simi");
+  assertScope(lines, 3, "1_000.25", "constant.numeric.float.simi");
+  assertScope(lines, 3, "1.5_0e+2", "constant.numeric.float.simi");
   assertScope(lines, 4, "\\n", "constant.character.escape.simi");
   assertScope(lines, 5, "if", "keyword.control.conditional.simi");
   assertScope(lines, 5, ">=", "keyword.operator.comparison.simi");

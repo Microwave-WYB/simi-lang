@@ -50,8 +50,14 @@ Boolean operators short-circuit, so an unnecessary right-hand expression is not 
 Simi distinguishes integers from finite floating-point numbers:
 
 ```simi
-[0, 42, -7, 3.14, -0.5, 2e3, 1.5E-2]
+[0, 42, -7, 0b1010_0110, 0x_ff, 3.14, -0.5, 2e3, 1.5E-2]
 ```
+
+Binary (`0b`) and hexadecimal (`0x`) literals are integers. Decimal, binary,
+and hexadecimal digits may use single `_` separators for readability, including
+immediately after a radix prefix: `0b_1010` and `0x_ff`. Separators must not be
+leading or trailing elsewhere, doubled, or adjacent to a decimal point or
+exponent marker.
 
 A leading `-` is a unary operator rather than part of the literal. The `/` operator always returns a float. `//` performs floor division, and `%` uses matching floor-division semantics:
 

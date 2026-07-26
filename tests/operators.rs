@@ -16,6 +16,24 @@ fn float_literals_render_and_arithmetic_promotes_like_lua() {
 }
 
 #[test]
+fn radix_and_separator_literals_preserve_numeric_categories() {
+    let result = value("[0b1010_0110, 0b_1010, 0x7f, 0x_ff, 0XCA_FE, 1_000, 1_000.25, 1.5_0e1_0]");
+    assert_eq!(
+        result.render(),
+        "[166, 10, 127, 255, 51966, 1000, 1000.25, 15000000000.0]"
+    );
+}
+
+#[test]
+fn invalid_radix_and_separator_literals_are_hard_lexical_diagnostics() {
+    for source in [
+        "_100", "100_", "1__000", "0x_", "0x__ff", "0b2", "0xg", "1_.0", "1._0", "1e_10", "1e+_10",
+    ] {
+        assert!(matches!(eval(source), Err(SimiError::Lex(_))), "{source}");
+    }
+}
+
+#[test]
 fn floor_division_and_remainder_follow_the_divisor_sign() {
     let result = value("[-5 // 2, 5 // -2, -5 // -2, -5 % 2, 5 % -2, -5 % -2, 5.0 % -2]");
     assert_eq!(result.render(), "[-3, -3, 2, 1, -1, -1, -1.0]");
