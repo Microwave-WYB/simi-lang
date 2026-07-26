@@ -47,8 +47,7 @@ let wrapped: ((appender<integer, string>)) = host.append
 "#;
     let db = AnalysisDatabase::default();
     let file = db.add_file(source);
-    let shape = module_shape(&db, file);
-    for field in &shape.fields {}
+    let _ = module_shape(&db, file);
 }
 
 #[test]
