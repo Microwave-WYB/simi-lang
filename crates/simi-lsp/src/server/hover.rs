@@ -33,13 +33,11 @@ impl Backend {
                         .unwrap_or(Type::Any)
                 },
                 |facts| {
-                    hover_type(
-                        inference.symbol_types.get(&facts.symbol),
-                        inference
-                            .symbol_posts
-                            .get(&facts.symbol)
-                            .map_or(&[], Vec::as_slice),
-                    )
+                    inference
+                        .symbol_types
+                        .get(&facts.symbol)
+                        .cloned()
+                        .unwrap_or(Type::Any)
                 },
             );
             return Ok(Some(Hover {
@@ -49,7 +47,7 @@ impl Backend {
         }
         if let Some(member) = member_at(&self.db, document.file, &self.module_shapes, &text, offset)
         {
-            let ty = hover_type(member.field.ty.as_ref(), &member.field.posts);
+            let ty = member.field.ty.clone().unwrap_or(Type::Any);
             return Ok(Some(Hover {
                 contents: type_hover(&ty, member.field.documentation.as_deref()),
                 range: None,
@@ -75,17 +73,7 @@ impl Backend {
                     .get(&facts.symbol)
                     .and_then(|member| member.field.ty.clone())
             });
-            let posts = inference
-                .symbol_posts
-                .get(&facts.symbol)
-                .map(Vec::as_slice)
-                .or_else(|| {
-                    imported
-                        .get(&facts.symbol)
-                        .map(|member| member.field.posts.as_slice())
-                })
-                .unwrap_or(&[]);
-            let ty = hover_type(ty.as_ref(), posts);
+            let ty = ty.unwrap_or(Type::Any);
             let documentation = facts.documentation.or_else(|| {
                 imported
                     .get(&facts.symbol)
@@ -107,22 +95,6 @@ impl Backend {
             range: Some(self.range(&text, span)?),
         }))
     }
-}
-
-fn hover_type(ty: Option<&Type>, posts: &[ParameterPostType]) -> Type {
-    let Some(Type::Function(callable)) = ty else {
-        return ty.cloned().unwrap_or(Type::Any);
-    };
-    if posts.is_empty() {
-        return Type::Function(callable.clone());
-    }
-    let mut callable = callable.clone();
-    for post in posts {
-        if let Some(parameter) = callable.parameters.get_mut(post.parameter_index) {
-            parameter.post = Some(post.becomes.clone());
-        }
-    }
-    Type::Function(callable)
 }
 
 fn type_hover(ty: &Type, documentation: Option<&str>) -> HoverContents {

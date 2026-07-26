@@ -254,15 +254,8 @@ module.exports = grammar({
       optional(field("type", $.type_annotation)),
     ),
 
-    type_annotation: ($) => seq(
-      ":",
-      choice(
-        seq(field("before", $.union_type), field("post", $.post_type)),
-        $._type,
-      ),
-    ),
+    type_annotation: ($) => seq(":", $._type),
     return_annotation: ($) => seq("->", $._type),
-    post_type: ($) => seq("=>", field("type", $.union_type)),
 
     type_parameters: ($) => seq(
       "<",
@@ -348,10 +341,7 @@ module.exports = grammar({
 
     function_type_parameter: ($) => seq(
       optional(seq(field("label", $.identifier), ":")),
-      choice(
-        seq(field("before", $.union_type), field("post", $.post_type)),
-        $._type,
-      ),
+      $._type,
     ),
 
     list_type: ($) => seq(

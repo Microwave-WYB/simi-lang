@@ -1,10 +1,10 @@
 ==================
-Exact/rest types and inline post-states
+Exact/rest types and callable parameter types
 ==================
 
 fn mutate(
-    xs: [..integer] => [..(integer | string)],
-    ys: [integer, string] => [..(integer | string)],
+    xs: [..integer],
+    ys: [integer, string],
 ) -> nil do nil end
 
 ---
@@ -16,51 +16,27 @@ fn mutate(
       (declared_parameter
         (identifier)
         (type_annotation
-          (union_type
-            (list_type
-              (function_type
-                (union_type
-                  (named_type
-                    (identifier))))))
-          (post_type
+          (function_type
             (union_type
               (list_type
                 (function_type
                   (union_type
-                    (parenthesized_type
-                      (function_type_parameter
-                        (function_type
-                          (union_type
-                            (named_type
-                              (identifier))
-                            (named_type
-                              (identifier)))))))))))))
+                    (named_type
+                      (identifier)))))))))
       (declared_parameter
         (identifier)
         (type_annotation
-          (union_type
-            (list_type
-              (function_type
-                (union_type
-                  (named_type
-                    (identifier))))
-              (function_type
-                (union_type
-                  (named_type
-                    (identifier))))))
-          (post_type
+          (function_type
             (union_type
               (list_type
                 (function_type
                   (union_type
-                    (parenthesized_type
-                      (function_type_parameter
-                        (function_type
-                          (union_type
-                            (named_type
-                              (identifier))
-                            (named_type
-                              (identifier))))))))))))))
+                    (named_type
+                      (identifier))))
+                (function_type
+                  (union_type
+                    (named_type
+                      (identifier))))))))))
     (return_annotation
       (function_type
         (union_type

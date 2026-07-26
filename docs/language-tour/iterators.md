@@ -45,7 +45,7 @@ list.append(values, 3)
 ```simi
 
 let iter = require("std/iter")
-let calls = []
+let calls: [..any] = []
 
 let transformed =
     [-2, 1, 3]

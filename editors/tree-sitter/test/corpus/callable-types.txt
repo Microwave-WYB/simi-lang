@@ -4,8 +4,8 @@ Callable generics, constraints, labels, effects, and leading unions
 
 fn identity<'a: | integer | string>(value: 'a) -> 'a noraise do value end
 let mapper: <'a, 'error: { error: string, .. }> (value: 'a) -> 'a raises 'error = nil
-let callback: (input: | integer | string, state: [..integer] => [..integer]) -> nil = nil
-let anonymous = fn<'a: any>(value: 'a => 'a) -> 'a raises string do value end
+let callback: (input: | integer | string, state: [..integer]) -> nil = nil
+let anonymous = fn<'a: any>(value: 'a) -> 'a raises string do value end
 
 ---
 
@@ -84,13 +84,7 @@ let anonymous = fn<'a: any>(value: 'a => 'a) -> 'a raises string do value end
                     (identifier)))))
             (function_type_parameter
               (identifier)
-              (union_type
-                (list_type
-                  (function_type
-                    (union_type
-                      (named_type
-                        (identifier))))))
-              (post_type
+              (function_type
                 (union_type
                   (list_type
                     (function_type
@@ -116,9 +110,7 @@ let anonymous = fn<'a: any>(value: 'a => 'a) -> 'a raises string do value end
         (parameter
           (identifier)
           (type_annotation
-            (union_type
-              (type_variable))
-            (post_type
+            (function_type
               (union_type
                 (type_variable))))))
       (return_annotation

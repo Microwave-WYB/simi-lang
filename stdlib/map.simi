@@ -24,6 +24,6 @@ fn iter(entries: { .. }) do
 end
 
 --- Remove every entry from a map.
-let clear: (entries: { .. } => {}) -> nil noraise = host.clear
+let clear: (entries: { .. }) -> nil noraise = host.clear
 
 {length = length, copy = copy, has = has, iter = iter, clear = clear}

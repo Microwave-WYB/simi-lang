@@ -95,28 +95,6 @@ pub(super) fn child_expr(node: &SyntaxNode, index: usize) -> Option<syntax::Expr
 pub(super) fn child_node(node: &SyntaxNode) -> Option<SyntaxNode> {
     node.children().next()
 }
-pub(super) fn transparent_type_name(node: &SyntaxNode) -> Option<syntax::TypeName> {
-    if let Some(name) = syntax::TypeName::cast(node.clone()) {
-        return Some(name);
-    }
-    if node.kind() == K::TYPE_PAREN {
-        let mut parameters = support::children::<syntax::TypeFunctionParam>(node);
-        let parameter = parameters.next()?;
-        if parameters.next().is_some()
-            || support::child::<syntax::PostType>(parameter.syntax()).is_some()
-        {
-            return None;
-        }
-        let ty = support::child::<syntax::TypeExpr>(parameter.syntax())?;
-        return transparent_type_name(ty.syntax());
-    }
-    let mut children = node.children();
-    let child = children.next()?;
-    if children.next().is_some() {
-        return None;
-    }
-    transparent_type_name(&child)
-}
 pub(super) fn direct_token(node: &SyntaxNode, kind: K) -> Option<SyntaxToken> {
     support::token(node, kind)
 }

@@ -255,7 +255,7 @@
         },
         {
           "name": "keyword.operator.type.simi",
-          "match": "=>|->|\\|(?!>)"
+          "match": "->|\\|(?!>)"
         },
         {
           "name": "keyword.operator.concatenation.simi",

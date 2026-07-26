@@ -215,28 +215,11 @@ Known operations retain the strongest representable fact. Appending to an exact
 list therefore extends its exact shape, while insertion at an unknown position
 widens it to a homogeneous rest list.
 
-A named or anonymous function may declare normal-return parameter post-types directly beside each input type:
+Structural inference is local to a binding's defining lexical scope. A newly inferred list or map is unsealed there, so direct modeled mutations can refine its exact shape or element type. An explicit annotation or function/closure capture seals the analyzer-visible contract: subsequent captured mutation must stay compatible with that contract and cannot implicitly add fields or widen element/value unions. Function calls never publish caller-visible mutation transitions.
 
-```simi
-fn append(xs: [..'a] => [..('a | 'b)], value: 'b) -> nil do
-    host.append(xs, value)
-end
-```
+Maps never retain `nil`; therefore a field type containing `nil`, such as `{count: integer | nil}`, means that the field may be absent and, when present, contains an integer.
 
-Multiple affected parameters each use `before => after` in their own parameter slot. Inline function types use the same notation inside an explicit parameter list, for example `([..'a] => [..('a | 'b)], 'b) -> nil`. A post-type is
-a guaranteed upper bound after normal return; it does not discard a stronger
-fact inferred for a known operation. List and map post-types may transform their
-internal structure while preserving runtime category and alias identity. Other
-categories may only narrow. All aliases to the same mutable region receive the
-post-state. Raised and nonreturning paths do not establish a caller-visible
-post-state.
-
-Named functions also infer missing mutable-parameter post-types from modeled
-operations and already-known postconditions in their bodies. Normal-return paths
-are joined conservatively, inferred posts share generic identities with the
-function signature, and function aliases inherit them. An explicit post-state annotation takes precedence for its parameter and is checked against an ordinary Simi body when the final state is provable. Callable values carry post-states as part of their authoritative type, so direct anonymous calls, aliases, and higher-order parameters apply the same guarantee. Compatibility rejects a callback that lacks a required post-state. A direct call to an ordinary native function on the private `host` value remains a trusted native contract. Unknown calls may widen state but cannot establish a stronger inferred guarantee.
-
-Raised exits snapshot flow independently from normal exits. Effects that may occur before a raise are visible in a matching catch, while declared post-states are applied only after normal completion. A catch removes only the raised variants that its pattern definitely handles; guarded matches remain possible for later clauses, and raises from guards or handlers escape the current `try`.
+Raised exits snapshot flow independently from normal exits. Effects that may occur before a raise are visible in a matching catch, while no callable post-state is established at a call site.
 
 ## Narrowing
 

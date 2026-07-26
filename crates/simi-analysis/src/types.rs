@@ -8,8 +8,8 @@ use simi_syntax::{SyntaxKind as K, SyntaxNode, SyntaxToken};
 use crate::db::{FileId, parse, resolve, source_text};
 use crate::model::{
     AnalysisDiagnostic, AnalysisDiagnosticCode, AnalysisDiagnosticSeverity, CallableParameter,
-    CallableType, GenericConstraint, ModuleShape, ParameterPostType, RaisedAnnotation, Resolution,
-    SymbolId, Type, TypeInference,
+    CallableType, GenericConstraint, ModuleShape, RaisedAnnotation, Resolution, SymbolId, Type,
+    TypeInference,
 };
 use crate::modules::member_at;
 
@@ -84,7 +84,6 @@ pub fn infer_types(
         vars: Vec::new(),
         symbol_types: builtin_types(&resolution),
         symbol_bounds: builtin_types(&resolution),
-        symbol_posts: HashMap::new(),
         symbol_regions: HashMap::new(),
         conservative_regions: HashSet::new(),
         callable_capture_effects: HashMap::new(),
@@ -233,7 +232,6 @@ struct RaisedExit {
 struct FlowState {
     symbol_types: HashMap<SymbolId, Type>,
     symbol_bounds: HashMap<SymbolId, Type>,
-    symbol_posts: HashMap<SymbolId, Vec<ParameterPostType>>,
     symbol_regions: HashMap<SymbolId, u32>,
     callable_capture_effects: HashMap<SymbolId, HashSet<SymbolId>>,
     callable_assignment_effects: HashMap<SymbolId, HashSet<SymbolId>>,
@@ -257,7 +255,6 @@ struct Context<'a> {
     vars: Vec<VarState>,
     symbol_types: HashMap<SymbolId, Type>,
     symbol_bounds: HashMap<SymbolId, Type>,
-    symbol_posts: HashMap<SymbolId, Vec<ParameterPostType>>,
     symbol_regions: HashMap<SymbolId, u32>,
     conservative_regions: HashSet<u32>,
     callable_capture_effects: HashMap<SymbolId, HashSet<SymbolId>>,
@@ -295,24 +292,9 @@ impl Context<'_> {
             .into_iter()
             .map(|(span, ty)| (span, public_type(self.generalize(ty))))
             .collect();
-        let posts = std::mem::take(&mut self.symbol_posts);
-        let symbol_posts = posts
-            .into_iter()
-            .map(|(symbol, posts)| {
-                let posts = posts
-                    .into_iter()
-                    .map(|post| ParameterPostType {
-                        becomes: public_type(self.generalize(post.becomes)),
-                        ..post
-                    })
-                    .collect();
-                (symbol, posts)
-            })
-            .collect();
         TypeInference {
             result_type,
             symbol_types,
-            symbol_posts,
             expression_types,
             pattern_types,
             diagnostics: self.diagnostics,
@@ -541,8 +523,8 @@ mod tests {
     #[test]
     fn assigned_private_host_bindings_are_not_trusted_wrappers() {
         for source in [
-            "host = replacement fn mutate(xs: [..integer] => [integer]) -> nil do host.mutate(xs) end",
-            "fn mutate(xs: [..integer] => [integer]) -> nil do host.mutate(xs) end host = replacement",
+            "host = replacement fn mutate(xs: [..integer]) -> nil do host.mutate(xs) end",
+            "fn mutate(xs: [..integer]) -> nil do host.mutate(xs) end host = replacement",
         ] {
             let db = AnalysisDatabase::default();
             let file = db.add_file(source);

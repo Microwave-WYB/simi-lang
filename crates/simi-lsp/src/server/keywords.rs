@@ -273,7 +273,6 @@ fn is_contextual_keyword(token: &SyntaxToken, word: &str) -> bool {
                 | K::TYPE_PRIMARY
                 | K::TYPE_ANNOTATION
                 | K::RETURN_ANNOTATION
-                | K::POST_TYPE
         ),
         _ => false,
     })

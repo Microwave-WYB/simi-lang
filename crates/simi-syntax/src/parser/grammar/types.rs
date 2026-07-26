@@ -1,17 +1,11 @@
 use super::*;
 
 pub(super) fn type_expr(p: &mut Parser<'_>) {
-    type_expr_with_post_boundary(p, false);
-}
-pub(super) fn type_expr_before_post(p: &mut Parser<'_>) {
-    type_expr_with_post_boundary(p, true);
-}
-pub(super) fn type_expr_with_post_boundary(p: &mut Parser<'_>, allow_post_boundary: bool) {
     let marker = p.start();
-    type_function(p, allow_post_boundary);
+    type_function(p);
     marker.complete(&mut p.events, K::TYPE_EXPR);
 }
-pub(super) fn type_function(p: &mut Parser<'_>, allow_post_boundary: bool) {
+pub(super) fn type_function(p: &mut Parser<'_>) {
     let marker = p.start();
     let generic = if p.at(K::LESS) {
         callable_type_param_list(p);
@@ -21,18 +15,10 @@ pub(super) fn type_function(p: &mut Parser<'_>, allow_post_boundary: bool) {
     };
     type_union(p);
     if p.bump_if(K::ARROW) {
-        type_function(p, false);
+        type_function(p);
         effect_annotation(p);
     } else if generic {
         p.error("a callable generic header must be followed by `->` and a result type".to_owned());
-    } else if p.at(K::FAT_ARROW) && !allow_post_boundary {
-        let at = p.current_span();
-        p.error_at(
-            at,
-            "ambiguous post-state annotation; put `before => after` inside a parenthesized function parameter list".to_owned(),
-        );
-        p.bump();
-        type_function(p, false);
     }
     marker.complete(&mut p.events, K::TYPE_FUNCTION);
 }
@@ -98,7 +84,6 @@ pub(super) fn type_primary(p: &mut Parser<'_>) {
     } else if p.at(K::L_PAREN) {
         let marker = p.start();
         p.bump();
-        let mut post_spans = Vec::new();
         let mut label_spans = Vec::new();
         if !p.at(K::R_PAREN) {
             loop {
@@ -108,11 +93,7 @@ pub(super) fn type_primary(p: &mut Parser<'_>) {
                     p.bump();
                     p.bump();
                 }
-                type_expr_before_post(p);
-                if p.at(K::FAT_ARROW) {
-                    post_spans.push(p.current_span());
-                    post_type(p);
-                }
+                type_expr(p);
                 parameter.complete(&mut p.events, K::TYPE_FUNCTION_PARAM);
                 if !p.bump_if(K::COMMA) || p.at(K::R_PAREN) {
                     break;
@@ -125,15 +106,6 @@ pub(super) fn type_primary(p: &mut Parser<'_>) {
                 p.error_at(
                     at,
                     "a labeled parameter list must be followed by `->` and a result type"
-                        .to_owned(),
-                );
-            }
-        }
-        if !post_spans.is_empty() && !p.at(K::ARROW) {
-            for at in post_spans {
-                p.error_at(
-                    at,
-                    "a post-state parameter list must be followed by `->` and a result type"
                         .to_owned(),
                 );
             }

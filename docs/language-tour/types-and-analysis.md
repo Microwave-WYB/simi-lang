@@ -283,29 +283,11 @@ A nil-abort directly from a loop body contributes `nil` as the next state, equiv
 
 Runtime lists and maps remain mutable and aliased. An erased annotation cannot freeze a container or restrict later values. Analysis updates facts after known mutation and widens them after mutation through an alias, unresolved call, or unknown native function when a stronger claim is unsafe.
 
-A named function may document the guaranteed parameter state after **normal return** with `before => after`:
+Simi refines mutable list and map shapes only while a binding remains in its defining lexical scope. An explicit annotation or closure capture seals that binding's analyzer-visible contract. A closure may mutate a sealed capture only compatibly; it cannot implicitly widen a captured list element type or add a captured map field. Calls do not carry caller-visible mutation postconditions.
 
-```simi
-fn append_text(
-    values: [..integer] => [..(integer | string)],
-    value: string,
-) -> nil do
-    list.append(values, value)
-end
+Because maps delete `nil` values, `{count: integer | nil}` means that `count` may be absent or may hold an integer.
 
-let values: [..integer] = [1, 2]
-let alias = values
-append_text(values, "three")
-[values, alias]
-```
-
-Place `=>` directly after each affected parameter's input type. In an inline function type, post-state parameters require the explicit parameter-list form, such as `([..integer] => [..(integer | string)], string) -> nil`; an unparenthesized `integer => string -> nil` is rejected as ambiguous. A post-type is a guaranteed upper bound, not permission to discard a stronger fact known at a particular call. List and map post-types may change internal structure while preserving runtime category and alias identity; all aliases to the same mutable region receive the post-state. Other runtime categories may only narrow.
-
-Postconditions apply only after normal return. Raised and nonreturning paths do not establish caller-visible post-state.
-
-Missing mutable-parameter post-types may also be inferred from modeled operations and already-known postconditions in the body. Normal-return paths are joined conservatively. An explicit post-state annotation takes precedence and is checked when an ordinary Simi body makes the final state provable; a direct call to a native function on a facade's private `host` value is treated as a trusted native contract.
-
-For complete inference rules and scope boundaries, see the [erased type-system reference](../type-system.md).
+Because maps delete `nil` values, `{count: integer | nil}` means that `count` may be absent or may hold an integer.
 
 <!-- tour:navigation:start -->
 ---

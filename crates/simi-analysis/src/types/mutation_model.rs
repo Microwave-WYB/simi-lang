@@ -52,17 +52,3 @@ pub(super) fn has_mutable_category(ty: &Type) -> bool {
         _ => false,
     }
 }
-pub(super) fn valid_post_transition(pre: &Type, post: &Type) -> bool {
-    match post {
-        Type::Union(items) => items.iter().all(|item| valid_post_transition(pre, item)),
-        _ => match pre {
-            Type::Any | Type::Unknown | Type::Generic(_) | Type::Infer(_) => true,
-            Type::Union(items) => items.iter().any(|item| valid_post_transition(item, post)),
-            Type::ListExact(_) | Type::ListRest(_) => {
-                matches!(post, Type::ListExact(_) | Type::ListRest(_))
-            }
-            Type::Map { .. } => matches!(post, Type::Map { .. }),
-            _ => is_subtype(post, pre),
-        },
-    }
-}

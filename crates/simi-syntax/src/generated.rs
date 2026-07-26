@@ -52,7 +52,6 @@ pub enum SyntaxKind {
     APOSTROPHE,
     AT,
     ARROW,
-    FAT_ARROW,
     PIPE,
     DOT,
     DOT_DOT,
@@ -88,7 +87,6 @@ pub enum SyntaxKind {
     TYPE_EXPR,
     TYPE_ANNOTATION,
     PARAM,
-    POST_TYPE,
     TYPE_VARIABLE,
     TYPE_CONSTRAINT,
     TYPE_FUNCTION,
@@ -186,7 +184,6 @@ ast_node!(TypeParamList, TYPE_PARAM_LIST);
 ast_node!(TypeExpr, TYPE_EXPR);
 ast_node!(TypeAnnotation, TYPE_ANNOTATION);
 ast_node!(Param, PARAM);
-ast_node!(PostType, POST_TYPE);
 ast_node!(TypeVariable, TYPE_VARIABLE);
 ast_node!(TypeConstraint, TYPE_CONSTRAINT);
 ast_node!(TypeFunction, TYPE_FUNCTION);

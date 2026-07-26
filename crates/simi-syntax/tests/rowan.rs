@@ -172,33 +172,6 @@ fn erased_type_surface_is_lossless_and_alias_is_contextual() {
     );
 }
 
-#[test]
-fn post_state_types_require_unambiguous_parameter_boundaries() {
-    let valid = parse_source("let append: ([..'a] => [..('a | 'b)], 'b) -> nil = host.append\n");
-    assert!(valid.diagnostics().is_empty(), "{:?}", valid.diagnostics());
-    assert_eq!(
-        valid
-            .syntax()
-            .descendants()
-            .filter(|node| node.kind() == SyntaxKind::POST_TYPE)
-            .count(),
-        1
-    );
-
-    let ambiguous = parse_source("let bad: 'a | 'b => 'b -> 'b = nil\n");
-    assert!(ambiguous.diagnostics().iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("ambiguous post-state annotation")
-    }));
-
-    let missing_result = parse_source("let bad: ('a => 'b) = nil\n");
-    assert!(missing_result.diagnostics().iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("must be followed by `->` and a result type")
-    }));
-}
 
 #[test]
 fn callable_generics_labels_effects_and_leading_unions_are_lossless() {
@@ -352,4 +325,12 @@ fn map_local_binding_shorthand_is_a_map_entry_without_pattern_changes() {
             .children()
             .all(|child| child.kind() != SyntaxKind::NAME_EXPR)
     );
+}
+
+#[test]
+fn callable_post_state_syntax_is_rejected() {
+    let parse = parse_source("fn append(xs: [..integer] => [..integer]) -> nil do nil end\n");
+    assert!(parse.diagnostics().iter().any(|diagnostic| {
+        diagnostic.message.contains("found `=>`") || diagnostic.message.contains("expected `)`")
+    }));
 }

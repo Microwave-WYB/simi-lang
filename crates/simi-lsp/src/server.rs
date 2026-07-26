@@ -24,11 +24,10 @@ use lsp_types::{
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 use simi_analysis::{
-    AnalysisDatabase, AnalysisDiagnosticSeverity, FileId, ModuleShape, ParameterPostType,
-    RenameError, Resolution, Span, SymbolKind, Type, diagnostics, document_symbols,
-    expression_type_at, field_type_at, imported_members, infer_types, member_at,
-    member_completions, module_at, module_shape, parse, references, resolve, source_text,
-    symbol_type_at, wildcard_type_at,
+    AnalysisDatabase, AnalysisDiagnosticSeverity, FileId, ModuleShape, RenameError, Resolution,
+    Span, SymbolKind, Type, diagnostics, document_symbols, expression_type_at, field_type_at,
+    imported_members, infer_types, member_at, member_completions, module_at, module_shape,
+    references, resolve, source_text, symbol_type_at, wildcard_type_at,
 };
 
 use crate::position;
@@ -408,25 +407,11 @@ fn completion_kind(kind: SymbolKind) -> CompletionItemKind {
     }
 }
 
-fn typed_detail(
-    name: &str,
-    ty: Option<&simi_analysis::Type>,
-    posts: &[ParameterPostType],
-) -> String {
-    let displayed = match ty {
-        Some(Type::Function(callable)) if !posts.is_empty() => {
-            let mut callable = callable.clone();
-            for post in posts {
-                if let Some(parameter) = callable.parameters.get_mut(post.parameter_index) {
-                    parameter.post = Some(post.becomes.clone());
-                }
-            }
-            Type::Function(callable).display()
-        }
-        Some(ty) => ty.display(),
-        None => "any".to_owned(),
-    };
-    format!("{name} : {displayed}")
+fn typed_detail(name: &str, ty: Option<&simi_analysis::Type>) -> String {
+    format!(
+        "{name} : {}",
+        ty.map_or_else(|| "any".to_owned(), Type::display)
+    )
 }
 
 fn completion_detail(_kind: SymbolKind, name: &str, _parameters: Option<&[String]>) -> String {

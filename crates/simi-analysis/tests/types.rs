@@ -404,199 +404,10 @@ fn known_list_append_refines_empty_lists_and_all_aliases() {
     );
 }
 
-#[test]
-fn malformed_post_state_parameters_remain_recoverable_during_inference() {
-    let db = AnalysisDatabase::default();
-    let file = db.add_file("fn bad(: integer => string) do nil end\n");
-    let modules = HashMap::new();
-    let _ = infer_types(&db, file, &modules);
-}
 
-#[test]
-fn declared_post_types_update_all_aliases_after_normal_calls() {
-    let source = r#"
-fn widen(xs: [..integer] => [..(integer | string)]) -> nil noraise do
-    host.widen(xs)
-end
-let values = [1]
-let alias = values
-widen(values)
-"#;
-    let (inference, resolution) = inferred(source);
-    assert!(
-        inference.diagnostics.is_empty(),
-        "{:?}",
-        inference.diagnostics
-    );
-    assert_eq!(
-        type_of(&inference, &resolution, "values").display(),
-        "[..(integer | string)]"
-    );
-    assert_eq!(
-        type_of(&inference, &resolution, "alias").display(),
-        "[..(integer | string)]"
-    );
-    let widen = type_of(&inference, &resolution, "widen");
-    assert_eq!(
-        widen.display(),
-        "(xs: [..integer] => [..(integer | string)]) -> nil noraise"
-    );
-}
 
-#[test]
-fn named_wrappers_infer_and_propagate_parameter_post_states() {
-    let db = AnalysisDatabase::default();
-    let module_file = db.add_file(include_str!("../../../stdlib/list.simi"));
-    let modules = HashMap::from([(
-        "std/list".to_owned(),
-        simi_analysis::module_shape(&db, module_file),
-    )]);
-    let source = r#"
 
-fn append(xs, value) do list.append(xs, value) end
-fn append_then_break(xs, value) do
-    loop state = nil do
-        list.append(xs, value)
-        break nil
-    end
-end
-let append_alias = append
-let values = []
-let alias = values
-append_alias(values, 1)
-let stopped = []
-append_then_break(stopped, 2)
-let piped = [1] |> tap append_alias(2) |> tap append_alias(3)
-"#;
-    let file = db.add_file(source);
-    let resolution = resolve(&db, file);
-    let inference = infer_types(&db, file, &modules);
-    assert!(
-        inference.diagnostics.is_empty(),
-        "{:?}",
-        inference.diagnostics
-    );
-    let append = resolution
-        .hir
-        .symbols
-        .iter()
-        .find(|(_, symbol)| symbol.name == "append" && !symbol.builtin)
-        .map(|(symbol, _)| symbol)
-        .expect("append symbol");
-    assert_eq!(
-        inference.symbol_types[&append].display(),
-        "(xs: [..'a] => [..('a | 'b)], value: 'b) -> nil"
-    );
-    assert_eq!(inference.symbol_posts[&append].len(), 1);
-    assert_eq!(
-        type_of(&inference, &resolution, "append_alias").display(),
-        "(xs: [..'a] => [..('a | 'b)], value: 'b) -> nil"
-    );
-    assert_eq!(inference.symbol_posts[&append][0].parameter_name, "xs");
-    assert_eq!(
-        inference.symbol_posts[&append][0].becomes.display(),
-        "[..('a | 'b)]"
-    );
-    assert_eq!(
-        type_of(&inference, &resolution, "values").display(),
-        "[..integer]"
-    );
-    assert_eq!(
-        type_of(&inference, &resolution, "alias").display(),
-        "[..integer]"
-    );
-    assert_eq!(
-        type_of(&inference, &resolution, "stopped").display(),
-        "[..integer]"
-    );
-    let append_then_break = resolution
-        .hir
-        .symbols
-        .iter()
-        .find(|(_, symbol)| symbol.name == "append_then_break" && !symbol.builtin)
-        .map(|(symbol, _)| symbol)
-        .expect("append_then_break symbol");
-    assert_eq!(inference.symbol_posts[&append_then_break].len(), 1);
-    assert_eq!(
-        type_of(&inference, &resolution, "piped").display(),
-        "[..integer]"
-    );
-}
 
-#[test]
-fn copied_list_mutation_does_not_infer_an_input_post_state() {
-    let db = AnalysisDatabase::default();
-    let module_file = db.add_file(include_str!("../../../stdlib/list.simi"));
-    let modules = HashMap::from([(
-        "std/list".to_owned(),
-        simi_analysis::module_shape(&db, module_file),
-    )]);
-    let source = r#"
-
-let ns = [1]
-fn immut_append(ns, n) do
-    ns |> list.copy() |> tap list.append(n)
-end
-let ns_new = ns |> immut_append(2) |> immut_append(3)
-ns
-"#;
-    let file = db.add_file(source);
-    let resolution = resolve(&db, file);
-    let inference = infer_types(&db, file, &modules);
-    assert!(
-        inference.diagnostics.is_empty(),
-        "{:?}",
-        inference.diagnostics
-    );
-    assert_eq!(
-        type_of(&inference, &resolution, "ns").display(),
-        "[integer]"
-    );
-    assert_eq!(
-        type_of(&inference, &resolution, "ns_new").display(),
-        "[..integer]"
-    );
-    let immut_append = resolution
-        .hir
-        .symbols
-        .iter()
-        .find(|(_, symbol)| symbol.name == "immut_append" && !symbol.builtin)
-        .map(|(symbol, _)| symbol)
-        .expect("immut_append symbol");
-    assert!(
-        inference
-            .symbol_posts
-            .get(&immut_append)
-            .is_none_or(Vec::is_empty)
-    );
-}
-
-#[test]
-fn source_posts_are_verified_and_host_facades_are_trusted() {
-    let source = r#"
-fn wrong(xs: [..integer] => [..string]) -> nil do nil end
-fn trusted(xs: [..integer] => [..string]) -> nil do host.opaque(xs) end
-fn invalid(value: integer => string) -> nil do nil end
-fn shadowed(
-    host: {opaque: [..integer] -> nil},
-    xs: [..integer] => [integer],
-) -> nil do host.opaque(xs) end
-"#;
-    let (inference, _) = inferred(source);
-    let titles = inference
-        .diagnostics
-        .iter()
-        .map(|diagnostic| diagnostic.title.as_str())
-        .collect::<Vec<_>>();
-    assert_eq!(
-        titles,
-        vec![
-            "Post-type is not established",
-            "Invalid post-type",
-            "Post-type is not established",
-        ]
-    );
-}
 
 #[test]
 fn shadow_versions_keep_distinct_symbol_and_closure_types() {
@@ -1064,40 +875,6 @@ ns"#;
     );
 }
 
-#[test]
-fn closure_bodies_do_not_mutate_declaration_time_outer_flow() {
-    let db = AnalysisDatabase::default();
-    let module_file = db.add_file(include_str!("../../../stdlib/list.simi"));
-    let modules = HashMap::from([(
-        "std/list".to_owned(),
-        simi_analysis::module_shape(&db, module_file),
-    )]);
-    let source = r#"
-
-let named = [1, 2]
-fn later() do list.append(named, 3) end
-named
-let anonymous = [1, 2]
-let callback = fn() do list.append(anonymous, 3) end
-anonymous
-"#;
-    let file = db.add_file(source);
-    let resolution = resolve(&db, file);
-    let inference = infer_types(&db, file, &modules);
-    assert!(
-        inference.diagnostics.is_empty(),
-        "{:?}",
-        inference.diagnostics
-    );
-    assert_eq!(
-        type_at(source, &inference, &resolution, "named", 2),
-        "[integer, integer]"
-    );
-    assert_eq!(
-        type_at(source, &inference, &resolution, "anonymous", 2),
-        "[integer, integer]"
-    );
-}
 
 #[test]
 fn analyzed_calls_preserve_arguments_while_unknown_calls_widen() {
@@ -1358,315 +1135,10 @@ end
     );
 }
 
-#[test]
-fn closure_calls_and_callbacks_invalidate_captured_mutable_regions() {
-    let db = AnalysisDatabase::default();
-    let list_file = db.add_file(include_str!("../../../stdlib/list.simi"));
-    let iter_file = db.add_file(include_str!("../../../stdlib/iter.simi"));
-    let modules = HashMap::from([
-        (
-            "std/list".to_owned(),
-            simi_analysis::module_shape(&db, list_file),
-        ),
-        (
-            "std/iter".to_owned(),
-            simi_analysis::module_shape(&db, iter_file),
-        ),
-    ]);
-    let source = r#"
 
-let iter = require("std/iter")
-let named_values = [1]
-fn mutate_named() do list.append(named_values, 2) end
-named_values
-mutate_named()
-named_values
-let anonymous_values = [1]
-let mutate_anonymous = fn() do list.append(anonymous_values, 2) end
-anonymous_values
-mutate_anonymous()
-anonymous_values
-let visited = [1]
-let separate = [2]
-fn visit(value: integer) -> nil do list.append(separate, 3) end
-iter.each(list.iter(visited), visit)
-separate
-let accumulator = [0]
-fn keep(acc: [integer], value: integer) -> [integer] do acc end
-iter.fold(list.iter([1]), accumulator, keep)
-accumulator
-fn mutate_forward() do list.append(forward_values, 2) end
-let forward_values = [1]
-mutate_forward()
-forward_values
-let nested_list_outer = {inner = [1]}
-let nested_list = nested_list_outer.inner
-list.append(nested_list, 2)
-nested_list_outer
-"#;
-    let file = db.add_file(source);
-    let resolution = resolve(&db, file);
-    let inference = infer_types(&db, file, &modules);
-    assert!(
-        inference.diagnostics.is_empty(),
-        "{:?}",
-        inference.diagnostics
-    );
-    assert_eq!(
-        type_at(source, &inference, &resolution, "named_values", 2),
-        "[integer]"
-    );
-    assert_eq!(
-        type_at(source, &inference, &resolution, "named_values", 3),
-        "[..any]"
-    );
-    assert_eq!(
-        type_at(source, &inference, &resolution, "anonymous_values", 2),
-        "[integer]"
-    );
-    assert_eq!(
-        type_at(source, &inference, &resolution, "anonymous_values", 3),
-        "[..any]"
-    );
-    assert_eq!(
-        type_at(source, &inference, &resolution, "separate", 2),
-        "[..any]"
-    );
-    assert_eq!(
-        type_at(source, &inference, &resolution, "accumulator", 2),
-        "[integer]"
-    );
-    assert_eq!(
-        type_at(source, &inference, &resolution, "forward_values", 2),
-        "[..any]"
-    );
-    assert_eq!(
-        type_at(source, &inference, &resolution, "nested_list_outer", 2),
-        "{ .. }"
-    );
-}
 
-#[test]
-fn unknown_callable_invocations_widen_all_mutable_regions_only_on_active_paths() {
-    let db = AnalysisDatabase::default();
-    let module_file = db.add_file(include_str!("../../../stdlib/list.simi"));
-    let modules = HashMap::from([(
-        "std/list".to_owned(),
-        simi_analysis::module_shape(&db, module_file),
-    )]);
-    let source = r#"
 
-let values = [1]
-let handlers = {
-    run = fn() do list.append(values, 2) end,
-}
-let invoke: any = handlers.run
-invoke()
-values
-let returned_values = [1]
-fn make_handler() do
-    fn() do list.append(returned_values, 2) end
-end
-let returned = make_handler()
-returned_values
-returned()
-returned_values
-let pipeline_values = [1]
-let pipeline_handlers = {
-    run = fn(incoming) do list.append(pipeline_values, incoming) end,
-}
-let pipeline_invoke: any = pipeline_handlers.run
-nil ?> pipeline_invoke()
-pipeline_values
-1 ?> pipeline_invoke()
-pipeline_values
-"#;
-    let file = db.add_file(source);
-    let resolution = resolve(&db, file);
-    let inference = infer_types(&db, file, &modules);
-    assert!(
-        inference.diagnostics.is_empty(),
-        "{:?}",
-        inference.diagnostics
-    );
-    assert_eq!(
-        type_at(source, &inference, &resolution, "values", 2),
-        "[..any]"
-    );
-    assert_eq!(
-        type_at(source, &inference, &resolution, "returned_values", 2),
-        "[integer]"
-    );
-    assert_eq!(
-        type_at(source, &inference, &resolution, "returned_values", 3),
-        "[..any]"
-    );
-    assert_eq!(
-        type_at(source, &inference, &resolution, "pipeline_values", 2),
-        "[integer]"
-    );
-    assert_eq!(
-        type_at(source, &inference, &resolution, "pipeline_values", 3),
-        "[..any]"
-    );
-}
 
-#[test]
-fn callable_reassignment_clears_posts_and_builtin_trust() {
-    let db = AnalysisDatabase::default();
-    let module_file = db.add_file(include_str!("../../../stdlib/list.simi"));
-    let modules = HashMap::from([(
-        "std/list".to_owned(),
-        simi_analysis::module_shape(&db, module_file),
-    )]);
-    let source = r#"
-
-let values = [1]
-let handlers = {
-    run = fn() do list.append(values, 2) end,
-}
-fn invoke() do nil end
-invoke = handlers.run
-invoke()
-values
-let builtin_values = [1]
-let builtin_handlers = {
-    run = fn() do list.append(builtin_values, 2) end,
-}
-type = builtin_handlers.run
-type()
-builtin_values
-let candidate: integer | string = 1
-type = fn(value) do "integer" end
-let selected = if type(candidate) == "integer" then candidate else nil end
-"#;
-    let file = db.add_file(source);
-    let resolution = resolve(&db, file);
-    let inference = infer_types(&db, file, &modules);
-    assert!(
-        inference.diagnostics.is_empty(),
-        "{:?}",
-        inference.diagnostics
-    );
-    assert_eq!(
-        type_at(source, &inference, &resolution, "values", 2),
-        "[..any]"
-    );
-    assert_eq!(
-        type_at(source, &inference, &resolution, "builtin_values", 2),
-        "[..any]"
-    );
-    assert_eq!(
-        type_of(&inference, &resolution, "selected").display(),
-        "integer | string | nil"
-    );
-}
-
-#[test]
-fn callable_metadata_joins_and_invoked_assignments_are_conservative() {
-    let db = AnalysisDatabase::default();
-    let module_file = db.add_file(include_str!("../../../stdlib/list.simi"));
-    let modules = HashMap::from([(
-        "std/list".to_owned(),
-        simi_analysis::module_shape(&db, module_file),
-    )]);
-    let source = r#"
-
-fn widen(xs: [..integer] => [..(integer | string)]) -> nil noraise do
-    host.widen(xs)
-end
-fn plain(xs: [..integer]) do nil end
-let flag: boolean = true
-let selected = widen
-if flag then selected = plain end
-let post_values = [1]
-selected(post_values)
-post_values
-let left = [1]
-let right = [1]
-let callback = fn() do list.append(left, 2) end
-if flag then callback = fn() do list.append(right, 2) end end
-callback()
-left
-right
-let builtin_values = [1]
-let handlers = { run = fn() do list.append(builtin_values, 2) end }
-fn replace() do type = handlers.run end
-fn wrapper() do replace() end
-wrapper()
-type()
-builtin_values
-let candidate: integer | string = 1
-let narrowed = if type(candidate) == "integer" then candidate else nil end
-"#;
-    let file = db.add_file(source);
-    let resolution = resolve(&db, file);
-    let inference = infer_types(&db, file, &modules);
-    assert!(
-        inference.diagnostics.is_empty(),
-        "{:?}",
-        inference.diagnostics
-    );
-    assert_eq!(
-        type_at(source, &inference, &resolution, "post_values", 2),
-        "[..any]"
-    );
-    assert_eq!(
-        type_at(source, &inference, &resolution, "left", 2),
-        "[..any]"
-    );
-    assert_eq!(
-        type_at(source, &inference, &resolution, "right", 2),
-        "[..any]"
-    );
-    assert_eq!(
-        type_at(source, &inference, &resolution, "builtin_values", 2),
-        "[..any]"
-    );
-    assert_eq!(
-        type_of(&inference, &resolution, "narrowed").display(),
-        "integer | string | nil"
-    );
-}
-
-#[test]
-fn callable_assignment_effects_propagate_through_multiple_wrappers() {
-    let db = AnalysisDatabase::default();
-    let module_file = db.add_file(include_str!("../../../stdlib/list.simi"));
-    let modules = HashMap::from([(
-        "std/list".to_owned(),
-        simi_analysis::module_shape(&db, module_file),
-    )]);
-    let source = r#"
-
-let values = [1]
-let handlers = { run = fn() do list.append(values, 2) end }
-fn replace() do type = handlers.run end
-fn wrapper() do replace() end
-fn outer_wrapper() do wrapper() end
-outer_wrapper()
-type()
-values
-let candidate: integer | string = 1
-let narrowed = if type(candidate) == "integer" then candidate else nil end
-"#;
-    let file = db.add_file(source);
-    let resolution = resolve(&db, file);
-    let inference = infer_types(&db, file, &modules);
-    assert!(
-        inference.diagnostics.is_empty(),
-        "{:?}",
-        inference.diagnostics
-    );
-    assert_eq!(
-        type_at(source, &inference, &resolution, "values", 2),
-        "[..any]"
-    );
-    assert_eq!(
-        type_of(&inference, &resolution, "narrowed").display(),
-        "integer | string | nil"
-    );
-}
 
 #[test]
 fn unannotated_case_patterns_seed_body_stable_list_and_map_domains() {
@@ -1736,58 +1208,6 @@ fn nested() do [nested()] end
     );
 }
 
-#[test]
-fn mixed_structural_cases_keep_possible_clauses_and_fallbacks() {
-    let source = r#"
-fn list_or_nil(value) do
-    case value
-    of [] do 1
-    of _ do nil
-    end
-end
-fn map_or_nil(value) do
-    case value
-    of {item=_} do 1
-    of fallback do nil
-    end
-end
-fn literal_list_or_nil(value) do
-    case value
-    of "skip" do "text"
-    of [] do 1
-    of _ do nil
-    end
-end
-fn alternative_maps(value) do
-    case value
-    of {left=_} do 1
-    of {right=_} do "right"
-    end
-end
-"#;
-    let (inference, resolution) = inferred(source);
-    assert!(
-        inference.diagnostics.is_empty(),
-        "{:?}",
-        inference.diagnostics
-    );
-    assert_eq!(
-        type_of(&inference, &resolution, "list_or_nil").display(),
-        "(value: 'a) -> integer | nil"
-    );
-    assert_eq!(
-        type_of(&inference, &resolution, "map_or_nil").display(),
-        "(value: 'a) -> integer | nil"
-    );
-    assert_eq!(
-        type_of(&inference, &resolution, "literal_list_or_nil").display(),
-        "(value: 'a) -> integer | \"text\" | nil"
-    );
-    assert_eq!(
-        type_of(&inference, &resolution, "alternative_maps").display(),
-        "(value: { left: 'a, .. } | { right: 'b, .. }) -> integer | \"right\""
-    );
-}
 
 #[test]
 fn fully_unannotated_recursive_quicksort_has_a_reachable_list_signature() {
@@ -2095,31 +1515,6 @@ let result = add(1, 2)
     );
 }
 
-#[test]
-fn callable_posts_are_authoritative_for_anonymous_and_higher_order_calls() {
-    let invalid = r#"
-let fake = fn(xs: [] => [integer]) -> nil noraise do nil end
-"#;
-    let (invalid_inference, _) = inferred(invalid);
-    assert_eq!(invalid_inference.diagnostics.len(), 1);
-    assert!(invalid_inference.diagnostics[0].title.contains("Post-type"));
-
-    let missing = r#"
-fn run(callback: ([] => [integer]) -> nil noraise, xs: [] => [integer]) -> nil noraise do
-    callback(xs)
-end
-fn noop(xs: []) -> nil noraise do nil end
-let values = []
-run(noop, values)
-"#;
-    let (missing_inference, _) = inferred(missing);
-    assert!(
-        missing_inference
-            .diagnostics
-            .iter()
-            .any(|diagnostic| { diagnostic.detail.contains("no post-state guarantee") })
-    );
-}
 
 #[test]
 fn require_and_raised_callbacks_propagate_effects_with_raised_path_mutation() {
@@ -2356,4 +1751,49 @@ end
         "integer"
     );
     assert_eq!(type_of(&inference, &resolution, "value").display(), "any");
+}
+
+#[test]
+fn nil_union_map_field_allows_absent_annotated_presence() {
+    let source = r#"
+let state: {count: integer | nil} = {}
+state.count = 1
+"#;
+    let (inference, resolution) = inferred(source);
+    assert!(
+        inference.diagnostics.is_empty(),
+        "{:?}",
+        inference.diagnostics
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "state").display(),
+        "{ count: integer }"
+    );
+}
+
+
+#[test]
+fn closure_capture_requires_a_stable_structural_contract() {
+    let unannotated = r#"
+let state = {}
+let initialize = fn() do state.count = 1 end
+"#;
+    let (inference, _) = inferred(unannotated);
+    assert!(
+        inference
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.title == "Captured mutation exceeds declared type")
+    );
+
+    let annotated = r#"
+let state: {count: integer | nil} = {}
+let initialize = fn() do state.count = 1 end
+"#;
+    let (inference, _) = inferred(annotated);
+    assert!(
+        inference.diagnostics.is_empty(),
+        "{:?}",
+        inference.diagnostics
+    );
 }

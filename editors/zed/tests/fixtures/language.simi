@@ -10,11 +10,11 @@ fn typed_identity<'a: | integer | string>(value: 'a) -> 'a noraise do
 end
 
 let typed_callback: <'a: any> (input: | integer | string) -> 'a raises string = nil
-let typed_lambda = fn<'a: any>(value: 'a => 'a) -> 'a raises string do value end
+let typed_lambda = fn<'a: any>(value: 'a) -> 'a raises string do value end
 
 fn declared_effect(
-    xs: [..integer] => [..(integer | string)],
-    pair: [integer, string] => [..(integer | string)],
+    xs: [..integer],
+    pair: [integer, string],
 ) -> nil do nil end
 
 

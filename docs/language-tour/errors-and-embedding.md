@@ -249,7 +249,7 @@ end
 {double = double, quadruple = quadruple}
 ```
 
-The final expression remains the public module value, so facades may also define Simi functions, closures, mutable state, lists, maps, and imports. Direct typed aliases retain the native function's value identity and add no forwarding-call overhead. Mutable contracts can also remain direct aliases, such as `([..'a] => [..('a | 'b)], 'b) -> nil`. A wrapper is needed only when the facade intentionally adds Simi behavior.
+The final expression remains the public module value, so facades may also define Simi functions, closures, mutable state, lists, maps, and imports. Direct typed aliases retain the native function's value identity and add no forwarding-call overhead. Mutable direct aliases retain their ordinary input and result types. A wrapper is needed only when the facade intentionally adds Simi behavior.
 
 Trace spans do not carry a separate source-file identity. When a raise crosses a source-module boundary, Simi therefore preserves function names but collapses the raised origin and accumulated frame spans to the public caller's module-call boundary. This keeps every exposed span valid for the source evaluated by the embedder.
 

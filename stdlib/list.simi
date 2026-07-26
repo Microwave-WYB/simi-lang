@@ -17,16 +17,16 @@ let copy: (xs: [..'a]) -> [..'a] noraise = host.copy
 let get: (xs: [..'a], index: integer) -> 'a | nil noraise = host.get
 
 --- Append a value to a list.
-let append: (xs: [..'a] => [..('a | 'b)], value: 'b) -> nil noraise = host.append
+let append: (xs: [..'a], value: 'b) -> nil noraise = host.append
 
 --- Append every value from one list to another.
-let extend: (xs: [..'a] => [..('a | 'b)], values: [..'b]) -> nil noraise = host.extend
+let extend: (xs: [..'a], values: [..'b]) -> nil noraise = host.extend
 
 --- Replace the value at an existing index.
-let set: (xs: [..'a] => [..('a | 'b)], index: integer, value: 'b) -> nil raises IndexError = host.set
+let set: (xs: [..'a], index: integer, value: 'b) -> nil raises IndexError = host.set
 
 --- Insert a value at an existing position.
-let insert: (xs: [..'a] => [..('a | 'b)], index: integer, value: 'b) -> nil raises IndexError = host.insert
+let insert: (xs: [..'a], index: integer, value: 'b) -> nil raises IndexError = host.insert
 
 --- Remove and return the value at an index.
 let remove: (xs: [..'a], index: integer) -> 'a raises IndexError = host.remove

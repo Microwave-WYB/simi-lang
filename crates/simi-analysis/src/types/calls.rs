@@ -14,9 +14,6 @@ impl Context<'_> {
         let member = self.call_member(&callee_node);
         let callee = self.expression(callee_node.clone());
         let callee = self.instantiate_callee(&callee_node, callee);
-        let post_scheme = self
-            .call_post_scheme(&callee_node)
-            .or_else(|| callable_post_scheme(&callee));
         let callable = type_may_be_callable(&self.resolve_type(callee.clone()));
         let mut argument_nodes = support::child::<syntax::ArgList>(stage.syntax())
             .map(|list| expr_children(list.syntax()).collect::<Vec<_>>())
@@ -31,42 +28,21 @@ impl Context<'_> {
         );
         let (result, raised) = self.apply_call_type(callee, &arguments, span(stage.syntax()));
         let raised_entry = self.flow_state();
-        let known_tap_result = member
-            .as_ref()
-            .and_then(|(module, field)| {
-                (tap && module == "std/list" && field == "append" && arguments.len() == 2).then(
-                    || {
-                        list_append_result(
-                            self.resolve_type(incoming.clone()),
-                            arguments[1].clone(),
-                        )
-                    },
-                )
+        let known_tap_result = member.as_ref().and_then(|(module, field)| {
+            (tap && module == "std/list" && field == "append" && arguments.len() == 2).then(|| {
+                list_append_result(self.resolve_type(incoming.clone()), arguments[1].clone())
             })
-            .or_else(|| {
-                tap.then(|| {
-                    post_scheme.as_ref().and_then(|(parameters, posts)| {
-                        self.instantiate_parameter_posts(parameters, posts, &arguments)
-                            .into_iter()
-                            .find_map(|(index, becomes)| (index == 0).then_some(becomes))
-                    })
-                })
-                .flatten()
-            });
+        });
         let mut effect_nodes = origin.clone().into_iter().collect::<Vec<_>>();
         effect_nodes.extend(argument_nodes.clone());
-        if result != Type::Never {
-            if let Some((parameters, posts)) = &post_scheme {
-                self.apply_parameter_posts(parameters, posts, &effect_nodes, &arguments);
-            }
-            if let Some((module, field)) = &member {
-                self.apply_call_effect(module, field, &effect_nodes, &arguments);
-            }
+        if result != Type::Never
+            && let Some((module, field)) = &member
+        {
+            self.apply_call_effect(module, field, &effect_nodes, &arguments);
         }
         let contract_complete = self.callable_parameter_contract_complete(&callee_node);
         self.invalidate_unmodeled_call_arguments(
             member.as_ref(),
-            post_scheme.as_ref(),
             contract_complete,
             &effect_nodes,
             &arguments,
@@ -85,7 +61,6 @@ impl Context<'_> {
             &effect_nodes,
             &arguments,
             member.as_ref(),
-            post_scheme.as_ref(),
             contract_complete,
             callable,
         );
@@ -120,9 +95,6 @@ impl Context<'_> {
         let member = self.call_member(&callee_node);
         let callee = self.expression(callee_node.clone());
         let callee = self.instantiate_callee(&callee_node, callee);
-        let post_scheme = self
-            .call_post_scheme(&callee_node)
-            .or_else(|| callable_post_scheme(&callee));
         let callable = type_may_be_callable(&self.resolve_type(callee.clone()));
         let mut argument_nodes = support::child::<syntax::ArgList>(call.syntax())
             .map(|list| expr_children(list.syntax()).collect::<Vec<_>>())
@@ -135,18 +107,14 @@ impl Context<'_> {
             .collect::<Vec<_>>();
         let (result, raised) = self.apply_call_type(callee, &arguments, span(node.syntax()));
         let raised_entry = self.flow_state();
-        if result != Type::Never {
-            if let Some((parameters, posts)) = &post_scheme {
-                self.apply_parameter_posts(parameters, posts, &argument_nodes, &arguments);
-            }
-            if let Some((module, field)) = &member {
-                self.apply_call_effect(module, field, &argument_nodes, &arguments);
-            }
+        if result != Type::Never
+            && let Some((module, field)) = &member
+        {
+            self.apply_call_effect(module, field, &argument_nodes, &arguments);
         }
         let contract_complete = self.callable_parameter_contract_complete(&callee_node);
         self.invalidate_unmodeled_call_arguments(
             member.as_ref(),
-            post_scheme.as_ref(),
             contract_complete,
             &argument_nodes,
             &arguments,
@@ -165,7 +133,6 @@ impl Context<'_> {
             &argument_nodes,
             &arguments,
             member.as_ref(),
-            post_scheme.as_ref(),
             contract_complete,
             callable,
         );
@@ -224,9 +191,6 @@ impl Context<'_> {
         let member = self.call_member(&callee_node);
         let callee = self.expression(callee_node.clone());
         let callee = self.instantiate_callee(&callee_node, callee);
-        let post_scheme = self
-            .call_post_scheme(&callee_node)
-            .or_else(|| callable_post_scheme(&callee));
         let callable = type_may_be_callable(&self.resolve_type(callee.clone()));
         let arguments = support::child::<syntax::ArgList>(node.syntax())
             .map(|list| expr_children(list.syntax()).collect::<Vec<_>>())
@@ -242,18 +206,14 @@ impl Context<'_> {
             result = required_type;
         }
         let raised_entry = self.flow_state();
-        if result != Type::Never {
-            if let Some((parameters, posts)) = &post_scheme {
-                self.apply_parameter_posts(parameters, posts, &arguments, &argument_types);
-            }
-            if let Some((module, field)) = &member {
-                self.apply_call_effect(module, field, &arguments, &argument_types);
-            }
+        if result != Type::Never
+            && let Some((module, field)) = &member
+        {
+            self.apply_call_effect(module, field, &arguments, &argument_types);
         }
         let contract_complete = self.callable_parameter_contract_complete(&callee_node);
         self.invalidate_unmodeled_call_arguments(
             member.as_ref(),
-            post_scheme.as_ref(),
             contract_complete,
             &arguments,
             &argument_types,
@@ -272,7 +232,6 @@ impl Context<'_> {
             &arguments,
             &argument_types,
             member.as_ref(),
-            post_scheme.as_ref(),
             contract_complete,
             callable,
         );
@@ -287,7 +246,6 @@ impl Context<'_> {
         arguments: &[syntax::Expr],
         argument_types: &[Type],
         member: Option<&(String, String)>,
-        post_scheme: Option<&(Vec<Type>, Vec<ParameterPostType>)>,
         contract_complete: bool,
         callable: bool,
     ) {
@@ -298,7 +256,6 @@ impl Context<'_> {
         self.restore_flow(&raised_entry);
         self.invalidate_unmodeled_call_arguments(
             member,
-            post_scheme,
             contract_complete,
             arguments,
             argument_types,
@@ -400,7 +357,6 @@ impl Context<'_> {
     pub(super) fn invalidate_assigned_binding(&mut self, symbol: SymbolId) {
         self.symbol_types.insert(symbol, Type::Any);
         self.symbol_bounds.insert(symbol, Type::Any);
-        self.symbol_posts.remove(&symbol);
         self.symbol_regions.remove(&symbol);
         self.callable_capture_effects.remove(&symbol);
         self.callable_assignment_effects.remove(&symbol);
@@ -438,8 +394,7 @@ impl Context<'_> {
             syntax::Expr::Name(name) => direct_token(name.syntax(), K::IDENT)
                 .and_then(|token| self.resolution.symbol_at(token_span(&token).start))
                 .is_some_and(|symbol| {
-                    self.symbol_posts.contains_key(&symbol)
-                        && self.callable_capture_effects.contains_key(&symbol)
+                    self.callable_capture_effects.contains_key(&symbol)
                         && self.callable_assignment_effects.contains_key(&symbol)
                 }),
             syntax::Expr::Paren(paren) => child_expr(paren.syntax(), 0)
@@ -470,120 +425,6 @@ impl Context<'_> {
             _ => None,
         }
     }
-    pub(super) fn call_post_scheme(
-        &self,
-        callee: &syntax::Expr,
-    ) -> Option<(Vec<Type>, Vec<ParameterPostType>)> {
-        match callee {
-            syntax::Expr::Name(name) => {
-                let token = direct_token(name.syntax(), K::IDENT)?;
-                let symbol = self.resolution.symbol_at(token_span(&token).start)?;
-                let ty = self.symbol_types.get(&symbol).cloned().or_else(|| {
-                    crate::modules::imported_members(self.db, self.file, self.modules)
-                        .get(&symbol)
-                        .and_then(|member| member.field.ty.clone())
-                })?;
-                let Type::Function(callable) = ty else {
-                    return None;
-                };
-                let parameters = callable
-                    .parameters
-                    .into_iter()
-                    .map(|parameter| parameter.ty)
-                    .collect();
-                let posts = self.symbol_posts.get(&symbol).cloned().or_else(|| {
-                    crate::modules::imported_members(self.db, self.file, self.modules)
-                        .get(&symbol)
-                        .map(|member| member.field.posts.clone())
-                })?;
-                Some((parameters, posts))
-            }
-            syntax::Expr::Field(field) => {
-                let token = direct_token(field.syntax(), K::IDENT)?;
-                let member = member_at(
-                    self.db,
-                    self.file,
-                    self.modules,
-                    self.source,
-                    token_span(&token).start,
-                )?;
-                let Type::Function(callable) = member.field.ty.clone()? else {
-                    return None;
-                };
-                let parameters = callable
-                    .parameters
-                    .into_iter()
-                    .map(|parameter| parameter.ty)
-                    .collect();
-                Some((parameters, member.field.posts))
-            }
-            _ => None,
-        }
-    }
-    pub(super) fn instantiate_parameter_posts(
-        &mut self,
-        parameters: &[Type],
-        posts: &[ParameterPostType],
-        argument_types: &[Type],
-    ) -> Vec<(usize, Type)> {
-        let mut replacements = HashMap::new();
-        for (parameter, actual) in parameters.iter().zip(argument_types) {
-            collect_generic_replacements(
-                parameter,
-                &self.resolve_type(actual.clone()),
-                &mut replacements,
-            );
-        }
-        posts
-            .iter()
-            .map(|post| {
-                (
-                    post.parameter_index,
-                    self.resolve_type(substitute_post_generics(
-                        post.becomes.clone(),
-                        &replacements,
-                    )),
-                )
-            })
-            .collect()
-    }
-    pub(super) fn apply_parameter_posts(
-        &mut self,
-        parameters: &[Type],
-        posts: &[ParameterPostType],
-        arguments: &[syntax::Expr],
-        argument_types: &[Type],
-    ) {
-        for (parameter_index, becomes) in
-            self.instantiate_parameter_posts(parameters, posts, argument_types)
-        {
-            let Some(argument) = arguments.get(parameter_index) else {
-                continue;
-            };
-            let Some(symbol) = expression_symbol(argument, self.resolution) else {
-                continue;
-            };
-            self.record_mutation(symbol);
-            if let Some(region) = self.symbol_regions.get(&symbol).copied() {
-                if self.conservative_regions.contains(&region) {
-                    self.widen_region_individually(region);
-                    continue;
-                }
-                let aliases = self
-                    .symbol_regions
-                    .iter()
-                    .filter_map(|(symbol, candidate)| (*candidate == region).then_some(*symbol))
-                    .collect::<Vec<_>>();
-                for alias in aliases {
-                    self.symbol_types.insert(alias, becomes.clone());
-                    self.symbol_bounds.insert(alias, becomes.clone());
-                }
-            } else {
-                self.symbol_types.insert(symbol, becomes.clone());
-                self.symbol_bounds.insert(symbol, becomes);
-            }
-        }
-    }
     pub(super) fn apply_call_effect(
         &mut self,
         module: &str,
@@ -610,6 +451,9 @@ impl Context<'_> {
             .cloned()
             .map(|ty| list_append_result(self.resolve_type(ty), argument_types[1].clone()))
             .unwrap_or_else(|| Type::ListRest(Box::new(Type::Unknown)));
+        if !self.capture_mutation_is_compatible(symbol, &widened, span(arguments[0].syntax())) {
+            return;
+        }
         let aliases = self
             .symbol_regions
             .iter()
@@ -623,24 +467,14 @@ impl Context<'_> {
     pub(super) fn invalidate_unmodeled_call_arguments(
         &mut self,
         member: Option<&(String, String)>,
-        post_scheme: Option<&(Vec<Type>, Vec<ParameterPostType>)>,
         contract_complete: bool,
         arguments: &[syntax::Expr],
         argument_types: &[Type],
     ) {
-        let posted = post_scheme
-            .map(|(_, posts)| {
-                posts
-                    .iter()
-                    .map(|post| post.parameter_index)
-                    .collect::<HashSet<_>>()
-            })
-            .unwrap_or_default();
         for (index, (argument, ty)) in arguments.iter().zip(argument_types).enumerate() {
             let has_mutable_region = mutation_root_symbol(argument, self.resolution)
                 .is_some_and(|symbol| self.symbol_regions.contains_key(&symbol));
             if contract_complete
-                || posted.contains(&index)
                 || member.is_some_and(|(module, field)| {
                     known_module_argument_is_pure(module, field, index)
                 })

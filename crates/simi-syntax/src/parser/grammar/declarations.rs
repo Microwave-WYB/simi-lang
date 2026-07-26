@@ -22,17 +22,8 @@ pub(super) fn function_parts(p: &mut Parser<'_>, open: &str) {
             if p.expect(K::IDENT, "parameter name") && !seen.insert(name.clone()) {
                 p.error_at(span, format!("duplicate parameter `{name}`"));
             }
-            let annotated = if p.at(K::COLON) {
+            if p.at(K::COLON) {
                 parameter_type_annotation(p);
-                true
-            } else {
-                false
-            };
-            if p.at(K::FAT_ARROW) {
-                if !annotated {
-                    p.error("post-state annotation requires an input type".to_owned());
-                }
-                post_type(p);
             }
             param.complete(&mut p.events, K::PARAM);
             if !p.bump_if(K::COMMA) || p.at(K::R_PAREN) {
@@ -129,14 +120,6 @@ pub(super) fn type_annotation(p: &mut Parser<'_>) {
 pub(super) fn parameter_type_annotation(p: &mut Parser<'_>) {
     let marker = p.start();
     p.bump();
-    type_expr_before_post(p);
+    type_expr(p);
     marker.complete(&mut p.events, K::TYPE_ANNOTATION);
-}
-pub(super) fn post_type(p: &mut Parser<'_>) {
-    let marker = p.start();
-    p.bump();
-    let ty = p.start();
-    type_union(p);
-    ty.complete(&mut p.events, K::TYPE_EXPR);
-    marker.complete(&mut p.events, K::POST_TYPE);
 }

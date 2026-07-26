@@ -151,11 +151,6 @@ fn attach_field_types(
     for field in fields {
         if let Some(symbol) = resolution.symbol_at(field.span.start) {
             field.ty = inference.symbol_types.get(&symbol).cloned();
-            field.posts = inference
-                .symbol_posts
-                .get(&symbol)
-                .cloned()
-                .unwrap_or_default();
         } else if let Some((_, ty)) = expression_types.iter().find(|(at, _)| *at == field.span) {
             field.ty = Some(ty.clone());
         }
@@ -212,7 +207,6 @@ fn field_from_value(
         parameters: None,
         documentation: None,
         ty: None,
-        posts: Vec::new(),
         fields: Vec::new(),
     };
     match value {
