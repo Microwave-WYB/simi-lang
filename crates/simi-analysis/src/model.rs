@@ -106,6 +106,8 @@ pub enum AnalysisDiagnosticCode {
     InvalidType,
     Todo,
     AmbiguousLoopControl,
+    DestructuringLetMayFail,
+    DestructuringLetNeverMatches,
 }
 
 impl AnalysisDiagnosticCode {
@@ -123,6 +125,8 @@ impl AnalysisDiagnosticCode {
             Self::InvalidType => "invalid_type",
             Self::Todo => "todo",
             Self::AmbiguousLoopControl => "ambiguous_loop_control",
+            Self::DestructuringLetMayFail => "destructuring_let_may_fail",
+            Self::DestructuringLetNeverMatches => "destructuring_let_never_matches",
         }
     }
 }

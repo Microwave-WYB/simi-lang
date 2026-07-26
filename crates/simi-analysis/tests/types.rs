@@ -2282,3 +2282,78 @@ fn map_local_binding_shorthand_infers_the_referenced_value_type() {
         "{ first: integer, second: \"two\" }"
     );
 }
+
+#[test]
+fn destructuring_let_patterns_report_match_certainty_without_changing_bindings() {
+    let source = r#"
+alias maybe_values = [..integer] | nil
+let [first, second] = [1, 2]
+let [head, ..tail] = [1, 2]
+let {name = "Ada"} = {name = "Ada"}
+let {missing = nil} = {}
+let [1, {kind = "ok"}] = [1, {kind = "ok"}]
+let [impossible, ..rest] = 42
+let {missing = value} = {}
+let ["two"] = ["one"]
+fn unknown(values: any) do
+    let [first, ..rest] = values
+    first
+end
+fn unioned(values: maybe_values) do
+    let [first, ..rest] = values
+    first
+end
+fn open_map(values: {..}) do
+    let {name = name} = values
+    name
+end
+"#;
+    let db = AnalysisDatabase::default();
+    let file = db.add_file(source);
+    let resolution = resolve(&db, file);
+    let inference = infer_types(&db, file, &HashMap::new());
+    let reported = diagnostics(&db, file);
+    let codes = reported
+        .iter()
+        .map(|diagnostic| {
+            (
+                diagnostic.code,
+                diagnostic.severity,
+                diagnostic.detail.as_str(),
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        codes
+            .iter()
+            .filter(|(code, _, _)| *code == AnalysisDiagnosticCode::DestructuringLetNeverMatches)
+            .count(),
+        3,
+        "{reported:?}"
+    );
+    assert_eq!(
+        codes
+            .iter()
+            .filter(|(code, _, _)| *code == AnalysisDiagnosticCode::DestructuringLetMayFail)
+            .count(),
+        3,
+        "{reported:?}"
+    );
+    assert!(
+        codes.iter().all(|(code, severity, detail)| match code {
+            AnalysisDiagnosticCode::DestructuringLetNeverMatches => {
+                *severity == AnalysisDiagnosticSeverity::Error && detail.contains("incompatible")
+            }
+            AnalysisDiagnosticCode::DestructuringLetMayFail => {
+                *severity == AnalysisDiagnosticSeverity::Warning && detail.contains("Use `case`")
+            }
+            _ => true,
+        }),
+        "{reported:?}"
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "first").display(),
+        "integer"
+    );
+    assert_eq!(type_of(&inference, &resolution, "value").display(), "any");
+}
