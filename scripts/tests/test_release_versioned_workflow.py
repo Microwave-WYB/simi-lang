@@ -23,6 +23,7 @@ class VersionedReleaseWorkflowTests(unittest.TestCase):
         )
         self.assertIn('git ls-remote --tags origin "refs/tags/$TAG^{}"', workflow)
         self.assertIn("--verify-tag", workflow)
+        self.assertIn("--prerelease", workflow)
 
         for forbidden in (
             r"\bgit\s+tag\b",
