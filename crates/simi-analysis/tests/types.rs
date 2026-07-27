@@ -177,10 +177,18 @@ fn singleton_context_applies_to_function_bodies_and_mutation_rhs() {
 fn direct_true() -> true true
 fn direct_int() -> 42 42
 let anon = fn() -> false false
+let annotated: () -> true noraise = fn() true
 let tagged: {done: true} = {done = true}
 tagged.done = true
 let indexed: {done: true} = {done = true}
 indexed["done"] = true
+let initial_code: 41 = 41
+let field_union: {code: 41 | 42} = {code = initial_code}
+field_union.code = 42
+field_union.code = 41
+let index_union: {code: 41 | 42} = {code = initial_code}
+index_union["code"] = 42
+index_union["code"] = 41
 "#;
     let (inference, resolution) = inferred(source);
     assert!(
@@ -200,12 +208,51 @@ indexed["done"] = true
         type_of(&inference, &resolution, "anon").display(),
         "() -> false"
     );
+    assert_eq!(
+        type_of(&inference, &resolution, "annotated").display(),
+        "() -> true noraise"
+    );
     for name in ["tagged", "indexed"] {
         assert_eq!(
             type_of(&inference, &resolution, name).display(),
             "{ done: true }"
         );
     }
+    for name in ["field_union", "index_union"] {
+        assert_eq!(
+            type_of(&inference, &resolution, name).display(),
+            "{ code: 41 | 42 }"
+        );
+    }
+}
+
+#[test]
+fn contextual_callable_let_annotations_keep_effect_and_explicit_result_checks() {
+    let source = r#"
+let inferred: (value: true) -> true noraise = fn(value) value
+let raised: () -> never raises string = fn() raise "failure"
+let explicit_result_mismatch: () -> true noraise = fn() -> false noraise false
+let effect_mismatch: () -> true noraise = fn() raise "failure"
+"#;
+    let (inference, resolution) = inferred(source);
+    assert_eq!(
+        type_of(&inference, &resolution, "inferred").display(),
+        "(value: true) -> true noraise"
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "raised").display(),
+        "() -> never raises string"
+    );
+    assert_eq!(
+        inference
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code == AnalysisDiagnosticCode::TypeMismatch)
+            .count(),
+        2,
+        "{:?}",
+        inference.diagnostics
+    );
 }
 
 #[test]

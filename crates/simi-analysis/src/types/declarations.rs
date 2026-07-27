@@ -95,9 +95,8 @@ impl Context<'_> {
                 let value = value_expression
                     .clone()
                     .map(|expression| {
-                        if annotation.is_some() {
-                            direct_literal_type(&expression)
-                                .unwrap_or_else(|| self.expression(expression))
+                        if let Some(expected) = annotation.as_ref() {
+                            self.infer_annotated_let_value(expression, expected)
                         } else {
                             self.expression(expression)
                         }
@@ -165,6 +164,21 @@ impl Context<'_> {
             syntax::Stmt::ExprStmt(statement) => support::child::<syntax::Expr>(statement.syntax())
                 .map(|expression| self.expression(expression))
                 .unwrap_or(Type::Unknown),
+        }
+    }
+    fn infer_annotated_let_value(&mut self, expression: syntax::Expr, expected: &Type) -> Type {
+        let resolved_expected = self.resolve_type(expected.clone());
+        match (expression, &resolved_expected) {
+            (syntax::Expr::Function(function), Type::Function(callable)) => {
+                self.infer_anonymous_expected(function, callable)
+            }
+            (syntax::Expr::Paren(paren), Type::Function(_)) => child_expr(paren.syntax(), 0)
+                .map_or(Type::Unknown, |inner| {
+                    self.infer_annotated_let_value(inner, &resolved_expected)
+                }),
+            (expression, _) => {
+                direct_literal_type(&expression).unwrap_or_else(|| self.expression(expression))
+            }
         }
     }
     pub(super) fn expression_region(&mut self, expression: &syntax::Expr) -> Option<u32> {

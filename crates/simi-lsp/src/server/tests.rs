@@ -965,10 +965,18 @@ fn contextual_singleton_function_bodies_and_mutations_publish_exact_hovers() {
     let source = r#"fn direct_true() -> true true
 fn direct_int() -> 42 42
 let anon = fn() -> false false
+let annotated: () -> true noraise = fn() true
 let tagged: {done: true} = {done = true}
 tagged.done = true
 let indexed: {done: true} = {done = true}
 indexed["done"] = true
+let initial_code: 41 = 41
+let field_union: {code: 41 | 42} = {code = initial_code}
+field_union.code = 42
+field_union.code = 41
+let index_union: {code: 41 | 42} = {code = initial_code}
+index_union["code"] = 42
+index_union["code"] = 41
 "#;
     let mut backend = Backend::new();
     let published = diagnostics_from(open(&mut backend, source).remove(0));
@@ -982,8 +990,11 @@ indexed["done"] = true
         ("direct_true", "() -> true"),
         ("direct_int", "() -> 42"),
         ("anon", "() -> false"),
+        ("annotated", "() -> true noraise"),
         ("tagged", "{ done: true }"),
         ("indexed", "{ done: true }"),
+        ("field_union", "{ code: 41 | 42 }"),
+        ("index_union", "{ code: 41 | 42 }"),
     ] {
         let hover: Option<Hover> = serde_json::from_value(
             request(

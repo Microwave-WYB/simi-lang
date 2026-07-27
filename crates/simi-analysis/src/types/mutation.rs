@@ -153,17 +153,28 @@ impl Context<'_> {
                     .and_then(direct_literal_type)
                     .filter(|literal| type_contains_exact(&resolved_expected, literal))
                     .unwrap_or_else(|| value.clone());
-                if mutation_owner_symbol(&target, self.resolution)
-                    .is_some_and(|symbol| self.annotated_symbols.contains(&symbol))
-                {
+                let sealed = mutation_owner_symbol(&target, self.resolution)
+                    .is_some_and(|symbol| self.annotated_symbols.contains(&symbol));
+                if sealed {
                     self.constrain(&expected, &checked_value, span(node.syntax()));
                 }
+                let retain_singleton_union = sealed
+                    && matches!(
+                        &resolved_expected,
+                        Type::Union(items)
+                            if items.len() > 1 && items.iter().all(type_contains_singleton)
+                    );
+                let updated_value = if retain_singleton_union {
+                    &resolved_expected
+                } else {
+                    &checked_value
+                };
                 match target {
                     syntax::Expr::Index(index) => {
-                        self.apply_index_assignment(&index, &checked_value)
+                        self.apply_index_assignment(&index, updated_value)
                     }
                     syntax::Expr::Field(field) => {
-                        self.apply_field_assignment(&field, &checked_value)
+                        self.apply_field_assignment(&field, updated_value)
                     }
                     _ => {}
                 }
