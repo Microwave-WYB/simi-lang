@@ -33,8 +33,9 @@ let anonymous = fn<'a: any>(value: 'a) -> 'a raises string do value end
         (union_type
           (type_variable))))
     (effect_annotation)
-    (block
-      (identifier)))
+    (block_expression
+      (block
+        (identifier))))
   (let_statement
     (identifier)
     (type_annotation
@@ -122,8 +123,9 @@ let anonymous = fn<'a: any>(value: 'a) -> 'a raises string do value end
           (union_type
             (named_type
               (identifier)))))
-      (block
-        (identifier)))))
+      (block_expression
+        (block
+          (identifier))))))
 
 ==================
 Effect tail binds to nearest arrow

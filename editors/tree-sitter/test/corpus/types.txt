@@ -42,5 +42,6 @@ fn mutate(
         (union_type
           (literal_type
             (nil)))))
-    (block
-      (nil))))
+    (block_expression
+      (block
+        (nil)))))

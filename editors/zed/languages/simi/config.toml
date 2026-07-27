@@ -13,6 +13,6 @@ brackets = [
 ]
 
 # These patterns complement indents.scm while a construct is incomplete.
-# Branch markers realign before their `do` body; complete one-line forms do not match.
-increase_indent_pattern = "^(?:.*\\b(do|then|else|try)\\s*|\\s*case\\b(?:[^-]|-[^-])*(?:[^d\\s]|[^n\\s]d|[^e\\s]nd)\\s*)(--.*)?$"
+# Direct arm headers indent their following expression; complete one-line forms do not match.
+increase_indent_pattern = "^(?:.*\\b(do|then|else|catch)\\s*|\\s*(?:case|fn|of)\\b(?:[^-]|-[^-])*(?:[^d\\s]|[^n\\s]d|[^e\\s]nd)\\s*)(--.*)?$"
 decrease_indent_pattern = "^\\s*(elseif|else|of|catch|end)\\b"

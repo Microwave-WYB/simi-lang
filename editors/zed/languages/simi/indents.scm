@@ -1,9 +1,3 @@
-(function_declaration
-  "end" @end) @indent
-
-(function_expression
-  "end" @end) @indent
-
 (block_expression
   "end" @end) @indent
 
@@ -13,13 +7,13 @@
 (loop_expression
   "end" @end) @indent
 
-(try_expression
+(protected_expression
   "end" @end) @indent
 
 (case_clause) @indent
 
-(catch_clause
-  "catch" @end) @indent
+(catch_arm
+  "of" @end) @indent
 
 (elseif_clause) @indent
 (else_clause) @indent

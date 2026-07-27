@@ -71,16 +71,17 @@ test("language configuration covers comments, pairs, indentation, and folding", 
   const decrease = new RegExp(configuration.indentationRules.decreaseIndentPattern);
   const indentNext = new RegExp(configuration.indentationRules.indentNextLinePattern);
   for (const line of [
+    "fn add(a, b)",
     "fn add(a, b) do",
     "if ready then",
+    "of [head, ..tail] when ready",
     "of [head, ..tail] when ready do",
-    "catch _ do",
+    "catch",
     "else",
-    "let result = try",
   ]) {
     assert.match(line, increase);
   }
-  for (const line of ["end", "elseif ready then", "else", "of _ do", "catch _ do"]) {
+  for (const line of ["end", "elseif ready then", "else", "of _", "catch"]) {
     assert.match(line, decrease);
   }
   for (const line of ["case n", "    case n -- comment", 'case "x of y"']) {
@@ -88,6 +89,7 @@ test("language configuration covers comments, pairs, indentation, and folding", 
     assert.doesNotMatch(line, increase, "case indentation must affect only its next line");
   }
   for (const oneLine of [
+    "fn add(a, b) do a + b end",
     "of _ do value end",
     "case n of _ do n end",
     'case "x of y" of _ do 1 end',
@@ -103,9 +105,9 @@ test("language configuration covers comments, pairs, indentation, and folding", 
   };
   const lines = [
     "case value",
-    "of 1 do",
+    "of 1",
     "    first()",
-    "of 2 do",
+    "of 2",
     "    second()",
     "end",
   ];
@@ -119,29 +121,23 @@ test("language configuration covers comments, pairs, indentation, and folding", 
     "each sibling of and the final end must align with case",
   );
 
-  const tryLines = [
-    "try",
+  const protectedLines = [
+    "do",
     "    prepare()",
-    "catch first do",
+    "catch",
+    "of first",
     "    recover_first()",
-    "catch second do",
+    "of second",
     "    recover_second()",
     "end",
   ];
-  const tryLevels = [0];
-  for (let index = 1; index < tryLines.length; index += 1) {
-    tryLevels.push(nextIndent(tryLevels[index - 1], tryLines[index - 1], tryLines[index]));
+  const protectedLevels = [0];
+  for (let index = 1; index < protectedLines.length; index += 1) {
+    protectedLevels.push(nextIndent(protectedLevels[index - 1], protectedLines[index - 1], protectedLines[index]));
   }
-  assert.deepEqual(
-    tryLevels,
-    [0, 1, 0, 1, 0, 1, 0],
-    "each sibling catch and the final end must align with try",
-  );
+  assert.deepEqual(protectedLevels, [0, 1, 0, 0, 1, 0, 1, 0]);
 
-  for (const oneLine of ["try operation() catch _ do value end", "catch _ do value end"]) {
-    assert.doesNotMatch(oneLine, increase, "one-line try/catch forms must not indent the following line");
-  }
-  assert.match("catch _ do value end", decrease, "catch forms must still realign their current line");
+  assert.doesNotMatch("do operation() catch of _ value end", increase);
 
   for (const legacyLine of ["match value with", "case value ->"]) {
     assert.doesNotMatch(legacyLine, increase);
@@ -157,29 +153,32 @@ test("control-flow snippets use construct-specific final ends", async () => {
   );
 
   assert.deepEqual(Object.keys(byPrefix).sort(), [
-    "case", "do", "fn", "fnexpr", "if", "ifelse", "loop", "try",
+    "case", "catch", "do", "fn", "fnexpr", "if", "ifelse", "loop",
   ]);
   assert.deepEqual(byPrefix.case.body, [
     "case $1",
-    "of $2 do",
-    "    $3",
-    "of _ do",
-    "    $0",
+    "    of $2",
+    "        $3",
+    "    of _",
+    "        $0",
     "end",
   ]);
   assert.equal(byPrefix.case.body.filter((line) => line === "end").length, 1);
-  assert.deepEqual(byPrefix.try.body, [
-    "try",
+  assert.deepEqual(byPrefix.catch.body, [
+    "do",
     "    $1",
-    "catch $2 do",
-    "    $0",
+    "catch",
+    "    of $2",
+    "        $0",
     "end",
   ]);
-  assert.equal(byPrefix.try.body.filter((line) => line === "end").length, 1);
+  assert.equal(byPrefix.catch.body.filter((line) => line === "end").length, 1);
   assert.ok(!byPrefix.of, "case clauses must not insert their own end");
-  assert.ok(!byPrefix.catch, "catch clauses must not insert their own end");
+
   for (const snippet of Object.values(snippets)) {
-    assert.equal(snippet.body.at(-1), "end", `${snippet.prefix} must own one final end`);
+    if (!["fn", "fnexpr"].includes(snippet.prefix)) {
+      assert.equal(snippet.body.at(-1), "end", `${snippet.prefix} must own one final end`);
+    }
     assert.ok(
       snippet.body.every((line) => !/\$\{\d+:[^}]+\}/.test(line)),
       `${snippet.prefix} must use blank tab stops rather than visible placeholder defaults`,
@@ -194,7 +193,7 @@ test("grammar keyword inventory follows the current Simi lexer", async () => {
   const keywordInventory = keywordPatterns.replaceAll("\\b", "");
   const lexerKeywords = [
     "fn", "do", "end", "if", "then", "elseif", "else", "let", "tap", "and", "or", "not",
-    "loop", "break", "continue", "case", "of", "when", "raise", "try", "catch",
+    "loop", "break", "continue", "case", "of", "when", "raise", "catch",
   ];
 
   for (const keyword of lexerKeywords) {

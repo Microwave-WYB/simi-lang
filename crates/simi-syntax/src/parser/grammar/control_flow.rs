@@ -23,29 +23,12 @@ pub(super) fn terminal_expr(p: &mut Parser<'_>, kind: K) -> Parsed {
         flavor: Flavor::Other,
     }
 }
-pub(super) fn try_expr(p: &mut Parser<'_>) -> Parsed {
+pub(super) fn legacy_try_expr(p: &mut Parser<'_>) -> Parsed {
     let marker = p.start();
+    p.error("`try` was removed; use `do … catch of … end`".to_owned());
     p.bump();
-    let before = p.nontrivia_index();
-    let protected = block(p);
-    if p.nontrivia_index() == before {
-        p.error("expected at least one protected block item".to_owned());
-    }
-    if p.at(K::CATCH_KW) {
-        pattern_clauses(
-            p,
-            K::CATCH_KW,
-            K::CATCH_CLAUSE,
-            "catch",
-            "`catch` after protected block",
-        );
-    } else {
-        p.expect(K::CATCH_KW, "`catch` after protected block");
-    }
-    p.expect(K::END_KW, "`end` after try expression");
-    let _ = protected;
     Parsed {
-        marker: marker.complete(&mut p.events, K::TRY_EXPR),
+        marker: marker.complete(&mut p.events, K::ERROR),
         flavor: Flavor::Other,
     }
 }
@@ -53,40 +36,31 @@ pub(super) fn case_expr(p: &mut Parser<'_>) -> Parsed {
     let marker = p.start();
     p.bump();
     expression(p);
-    if p.at(K::OF_KW) {
-        pattern_clauses(p, K::OF_KW, K::CASE_CLAUSE, "of", "`of` after case value");
-    } else {
-        p.expect(K::OF_KW, "`of` after case value");
-    }
+    pattern_clauses(p, K::CASE_CLAUSE, "`of` after case value");
     p.expect(K::END_KW, "`end` after case expression");
     Parsed {
         marker: marker.complete(&mut p.events, K::CASE_EXPR),
         flavor: Flavor::Other,
     }
 }
-pub(super) fn pattern_clauses(
-    p: &mut Parser<'_>,
-    repeated_marker: K,
-    clause_kind: K,
-    marker_name: &str,
-    first_marker_description: &str,
-) {
+pub(super) fn pattern_clauses(p: &mut Parser<'_>, clause_kind: K, first_marker: &str) {
     let mut first = true;
-    loop {
+    while p.at(K::OF_KW) || first {
         let clause = p.start();
-        p.expect(
-            repeated_marker,
+        if !p.expect(
+            K::OF_KW,
             if first {
-                first_marker_description
+                first_marker
             } else {
-                marker_name
+                "`of` before next arm"
             },
-        );
+        ) {
+            clause.complete(&mut p.events, clause_kind);
+            break;
+        }
         first = false;
         if p.at(K::END_KW) {
-            p.error(format!(
-                "expected pattern after `{marker_name}`, found `end`"
-            ));
+            p.error("expected pattern after `of`, found `end`".to_owned());
             clause.complete(&mut p.events, clause_kind);
             break;
         }
@@ -95,12 +69,18 @@ pub(super) fn pattern_clauses(
         if p.bump_if(K::WHEN_KW) {
             expression(p);
         }
-        p.expect(K::DO_KW, "`do` before clause body");
-        block(p);
-        clause.complete(&mut p.events, clause_kind);
-        if !p.at(repeated_marker) {
-            break;
+        let body = p.start();
+        p.block_depth += 1;
+        if p.at(K::DO_KW) && !do_starts_protected(p) {
+            p.bump();
+            block(p);
+            p.expect(K::END_KW, "`end` after clause block body");
+        } else {
+            expression(p);
         }
+        p.block_depth -= 1;
+        body.complete(&mut p.events, K::BODY);
+        clause.complete(&mut p.events, clause_kind);
     }
 }
 pub(super) fn if_expr(p: &mut Parser<'_>) -> Parsed {

@@ -7,8 +7,8 @@ Visual Studio Code language support for Simi, including:
 - TextMate-based syntax highlighting that remains available when the server is absent;
 - `--` line comments;
 - bracket matching, single-character auto-closing and surrounding pairs, plus extension-managed `do … end` block shells;
-- indentation rules for standalone `do` blocks and one-final-`end` repeated `of`/`catch` branches;
-- construct-specific snippets for blocks, functions, conditionals, loops, cases, and try/catch expressions;
+- indentation rules for standalone and protected `do` blocks plus direct `of` arms;
+- construct-specific snippets for blocks, functions, conditionals, loops, cases, and protected expressions;
 - indentation-based folding plus `-- region` / `-- endregion` folding markers.
 
 The extension is a workspace extension. Platform-specific VSIX release assets bundle the matching `simi` language server. Ordinary source-development packages created with `just package` contain no native binary and fall back to an externally installed server.
@@ -83,7 +83,7 @@ VS Code's stable declarative grammar contribution point consumes TextMate gramma
 
 The shared `editors/tree-sitter` parser is the structural syntax source for Zed and other Tree-sitter consumers. Keep this TextMate grammar's token and keyword inventory aligned with that source, but expect contextual highlighting to remain an independently maintained TextMate approximation unless VS Code exposes a supported Tree-sitter contribution mechanism. Language configuration remains editor-specific in either case.
 
-Canonical pattern dispatch is `case expression of pattern [when guard] do block ... of pattern do block end`, with no per-branch `end`. Try handlers repeat `catch pattern [when guard] do block` under the try's single final `end`. Standalone `do ... end`, postfix `?`, and nil-aware `?>` pipelines share the normal block/operator highlighting. The removed `match`, `with`, per-arm `case`, catch-section headers, and `->` spellings are not highlighted as control syntax.
+Canonical pattern dispatch is `case expression of pattern [when guard] expression ... end`. A zero- or multi-item arm body is an explicit `do ... end` block. Protected expressions use `do ... catch` followed by repeated `of` arms and one final `end`. Standalone `do ... end`, postfix `?`, and nil-aware `?>` pipelines share the normal block/operator highlighting. Removed legacy spellings such as `match ... with`, case arrows, `try`, and `catch pattern do` are not highlighted as control syntax.
 
 Runtime-category checks use the builtin call and ordinary comparison syntax, such as `type(value) == "integer"` and `type(callback) == "function"`. The shadowable builtin is highlighted as a builtin only when called, `==` uses the normal comparison scope, and `is` is an ordinary identifier.
 

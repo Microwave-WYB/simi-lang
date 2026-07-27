@@ -27,7 +27,6 @@
   "raise"
   "panic"
   "todo"
-  "try"
   "catch"
   "tap"
   "raises"

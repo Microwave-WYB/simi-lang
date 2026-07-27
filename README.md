@@ -117,7 +117,7 @@ simi lsp
 
 - dynamic values with optional, runtime-erased annotations, bounded generics, callable labels, and raised-effect contracts;
 - lexical closures, recursion, and same-scope shadowing;
-- expression-valued `if`, `case`, `try`, standalone blocks, and functional loops;
+- expression-valued `if`, `case`, protected and standalone `do` blocks, and functional loops;
 - ordinary, nil-aware, tap, and trailing-callback pipeline operators;
 - mutable zero-based lists and insertion-ordered maps;
 - structural list/map patterns and catchable raised values;

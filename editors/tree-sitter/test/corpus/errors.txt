@@ -69,11 +69,14 @@ case value of case _ -> nil end
 ---
 
 (program
-  (ERROR
+  (case_expression
     (identifier)
-    (identifier)
-    (identifier)
-    (nil)))
+    (case_clause
+      (identifier)
+      (binary_expression
+        (identifier)
+        (ERROR)
+        (nil)))))
 
 ==================
 Legacy match-with does not form a case expression
@@ -106,15 +109,17 @@ case value of 1 do "one" end of _ do "other" end
     (identifier)
     (case_clause
       (integer)
-      (block
-        (string
-          (string_content)))))
-  (identifier)
-  (identifier)
-  (block_expression
-    (block
-      (string
-        (string_content)))))
+      (block_expression
+        (block
+          (string
+            (string_content)))))
+    (case_clause
+      (wildcard_pattern)
+      (block_expression
+        (block
+          (string
+            (string_content)))))
+    (MISSING "end")))
 
 ==================
 Legacy per-catch-handler end is rejected
@@ -125,15 +130,15 @@ try raise 1 catch 1 do "one" end catch _ do "other" end
 ---
 
 (program
-  (try_expression
+  (identifier)
+  (raise_expression
+    (integer))
+  (identifier)
+  (integer)
+  (block_expression
     (block
-      (raise_expression
-        (integer)))
-    (catch_clause
-      (integer)
-      (block
-        (string
-          (string_content)))))
+      (string
+        (string_content))))
   (identifier)
   (identifier)
   (block_expression

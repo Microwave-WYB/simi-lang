@@ -11,18 +11,16 @@
   "Named function": {
     "prefix": "fn",
     "body": [
-      "fn $1($2) do",
-      "    $0",
-      "end"
+      "fn $1($2)",
+      "    $0"
     ],
     "description": "Declare a named function"
   },
   "Anonymous function": {
     "prefix": "fnexpr",
     "body": [
-      "fn($1) do",
-      "    $0",
-      "end"
+      "fn($1)",
+      "    $0"
     ],
     "description": "Create an anonymous function expression"
   },
@@ -59,23 +57,24 @@
     "prefix": "case",
     "body": [
       "case $1",
-      "of $2 do",
-      "    $3",
-      "of _ do",
-      "    $0",
+      "    of $2",
+      "        $3",
+      "    of _",
+      "        $0",
       "end"
     ],
     "description": "Create a case expression with one final end"
   },
-  "Try catch expression": {
-    "prefix": "try",
+  "Protected expression": {
+    "prefix": "catch",
     "body": [
-      "try",
+      "do",
       "    $1",
-      "catch $2 do",
-      "    $0",
+      "catch",
+      "    of $2",
+      "        $0",
       "end"
     ],
-    "description": "Create a try/catch expression with one final end"
+    "description": "Create a protected expression with case-style catch arms"
   }
 }

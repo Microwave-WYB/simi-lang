@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 use gc::{Finalize, Gc, GcCell, Trace, custom_trace};
 
-use crate::ast::Block;
+use crate::ast::Body;
 use crate::environment::Environment;
 use crate::module::NativeCallback;
 use crate::span::Span;
@@ -112,7 +112,7 @@ pub struct Raised {
 pub struct UserFunction {
     pub name: String,
     pub params: Vec<String>,
-    pub body: Block,
+    pub body: Body,
     pub closure: Environment,
     pub(crate) source_domain: u64,
     pub(crate) module: Option<String>,

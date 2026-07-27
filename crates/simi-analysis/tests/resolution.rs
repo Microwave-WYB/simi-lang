@@ -153,12 +153,14 @@ let input = [1, {name = "Ada"}, 2]
 let [first, { name = nested }, ..rest] = input
 let candidate: any = input
 case candidate
-of item when item != nil do item
+    of item when item != nil
+        item
 end
-try
+do
     raise candidate
-catch error when error != nil do
-    error
+catch
+    of error when error != nil
+        error
 end
 loop
     break 0

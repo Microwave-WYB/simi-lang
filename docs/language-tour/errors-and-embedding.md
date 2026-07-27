@@ -68,46 +68,50 @@ end
 
 ## Catching raised values
 
-A `try` expression evaluates one or more protected items. Its `catch` clauses use the same structural patterns and Boolean guards as `case`, in source order:
+A protected `do` expression evaluates one or more protected items. Its `catch` section contains `of` arms using the same structural patterns and Boolean guards as `case`, in source order:
 
 ```simi
 fn load(key) do
     raise {error = "not_found", key = key}
 end
 
-try
+do
     load("profile")
-catch {error = "not_found", key = key} do
-    "missing: " <> key
-catch error do
-    raise error
+catch
+    of {error = "not_found", key = key}
+        "missing: " <> key
+    of error
+        raise error
 end
 ```
 
 Only a raise from the protected block is considered by those catches. If no clause matches, the original raise continues unchanged. Bindings created by a catch pattern belong only to that handler.
 
-A raise from a catch guard or handler body escapes the current `try`; it is not offered to later sibling catches:
+A raise from a catch guard or handler body escapes the current protected expression; it is not offered to later sibling arms:
 
 ```simi
-try
-    try
+do
+    do
         raise "original"
-    catch error do
-        raise {error = "replacement", cause = error}
+    catch
+        of error
+            raise {error = "replacement", cause = error}
     end
-catch {error = "replacement", cause = cause} do
-    cause
+catch
+    of {error = "replacement", cause = cause}
+        cause
 end
 ```
 
-`try` catches neither postfix nil propagation nor hard diagnostics. This complete script intentionally produces a hard operand diagnostic; its handler is not entered:
+A protected `do` catches neither postfix nil propagation nor hard diagnostics. This complete script intentionally produces a hard operand diagnostic; its handler is not entered:
 
 ```simi
 -- Expected type and runtime diagnostics: catch handles raises, not hard diagnostics.
-try
+do
     1 + "two"
-catch _ do
-    "not reached"
+catch
+    of _
+        "not reached"
 end
 ```
 
@@ -124,9 +128,9 @@ fn lookup(key: string) -> string raises lookup_error do
     raise {error = "not_found", key = key}
 end
 
-try
+do
     lookup("profile")
-catch {error = "not_found", key = key} do
+catch of {error = "not_found", key = key}
     "missing: " <> key
 end
 ```

@@ -25,49 +25,52 @@ let add_one = fn(value) do value + 1 end
       )
       (declared_parameter
         (identifier)))
-    (block
-      (let_statement
-        (list_pattern
-          (identifier)
+    (block_expression
+      (block
+        (let_statement
+          (list_pattern
+            (identifier)
+            (map_pattern
+              (map_pattern_field
+                (identifier)
+                (identifier)))
+            (rest_pattern
+              (identifier)))
+          (identifier))
+        (let_statement
           (map_pattern
             (map_pattern_field
               (identifier)
+              (boolean))
+            (map_pattern_field
+              (identifier)
+              (nil))
+            (rest_pattern
               (identifier)))
-          (rest_pattern
-            (identifier)))
-        (identifier))
-      (let_statement
-        (map_pattern
-          (map_pattern_field
-            (identifier)
-            (boolean))
-          (map_pattern_field
-            (identifier)
-            (nil))
-          (rest_pattern
-            (identifier)))
-        (identifier))
-      (function_expression
-        (parameters
-          (parameter
-            (identifier)))
-        (block
-          (binary_expression
-            (parenthesized_expression
+          (identifier))
+        (function_expression
+          (parameters
+            (parameter
+              (identifier)))
+          (block_expression
+            (block
               (binary_expression
-                (identifier)
-                (identifier)))
-            (identifier))))))
+                (parenthesized_expression
+                  (binary_expression
+                    (identifier)
+                    (identifier)))
+                (identifier))))))))
   (let_statement
     (identifier)
     (function_expression
       (parameters
         (parameter
           (identifier)))
-      (block
-        (binary_expression
-          (identifier)
-          (integer))))))
+      (block_expression
+        (block
+          (binary_expression
+            (identifier)
+            (integer)))))))
 
 ==================
 Collections, postfix expressions, strings, and numeric forms

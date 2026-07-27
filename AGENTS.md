@@ -67,7 +67,7 @@ end
 
 A standalone `do ... end` is a primary block expression with zero or more items. It evaluates in a fresh child scope to its last item's value, or to `nil` when empty, and composes with postfix calls, field access, indexing, and `?`.
 
-Postfix `?` passes a non-`nil` value through unchanged. A `nil` value stops the nearest lexically enclosing block and makes that block evaluate to `nil`. Every function body, standalone block, conditional branch, case or catch arm, try protected body, and loop body is such a boundary. Raises and hard diagnostics are unaffected, and nil propagation from a protected try body bypasses catches. In a loop body, propagation exits that iteration normally; its ordinary value is discarded and the loop starts its next iteration. Only `break value` determines the loop expression's result. The canonical Rust parser rejects `?` at the operator only when there is no enclosing block, while the Tree-sitter editor grammar may parse that form permissively for editor recovery.
+Postfix `?` passes a non-`nil` value through unchanged. A `nil` value stops the nearest lexically enclosing body boundary and makes that body evaluate to `nil`. Every function body, standalone block, conditional branch, case or catch arm, protected `do` body, and loop body is such a boundary. Raises and hard diagnostics are unaffected, and nil propagation from a protected body bypasses catches. In a loop body, propagation exits that iteration normally; its ordinary value is discarded and the loop starts its next iteration. Only `break value` determines the loop expression's result. The canonical Rust parser rejects `?` at the operator only when there is no enclosing body boundary, while the Tree-sitter editor grammar may parse that form permissively for editor recovery.
 
 ### Bindings and assignment
 
@@ -240,14 +240,14 @@ Simi has structural, expression-valued matching:
 
 ```simi
 case value
-of pattern when guard do
-    body
-of _ do
-    fallback
+    of pattern when guard
+        body
+    of _
+        fallback
 end
 ```
 
-The canonical case grammar requires one or more `of` clauses, repeats `of` before each sibling clause, and uses one final `end` for the whole expression rather than a per-clause `end`. Patterns support literals, bindings, wildcards, nested list/map patterns, and list/map rests. Guards must evaluate to booleans. Bindings are scoped to the selected clause; its `do` body extends until the next `of` or the final `end`, so clauses remain whitespace-independent and may appear on one line.
+The canonical case grammar requires one or more `of` clauses and one final `end` for the whole expression. A direct arm body is exactly one complete expression; write it on the following indented line, although newlines and indentation are syntactically insignificant. Use `of pattern do ... end` for a zero- or multi-item lexical body. Patterns support literals, bindings, wildcards, nested list/map patterns, and list/map rests. Guards must evaluate to booleans. Bindings are scoped to the selected clause.
 
 Map patterns are closed by default: `{field = pattern}` rejects maps with any additional string or computed keys. Add `..` to allow additional keys or `..rest` to capture them. Named fields normally require key presence. The literal nil field pattern is the exception: `{missing = nil}` matches an absent field, consistent with map lookup and deletion semantics; without a rest marker, unrelated keys still make that closed pattern fail.
 
@@ -260,17 +260,18 @@ Any value may be raised and structurally caught:
 ```simi
 raise { error = "invalid_input", value = input }
 
-try
+do
     prepare()
     operation()
-catch { error = "invalid_input", value = value } do
-    recover(value)
-catch error do
-    raise error
+catch
+    of { error = "invalid_input", value = value }
+        recover(value)
+    of error
+        raise error
 end
 ```
 
-The canonical try grammar requires one or more protected items followed by one or more `catch` clauses, repeats `catch` before each sibling clause, and uses one final `end` for the whole expression. The protected items evaluate as a block in a fresh child scope. Only a raise from that protected block is matched by the catches: nil propagation and hard diagnostics bypass them, while raises from catch guards or handler bodies escape rather than being considered by later catches.
+A protected `do` expression requires one or more protected items followed by a `catch` section containing one or more repeated `of pattern [when guard] body` arms, then one final `end`. Direct catch bodies are written on the following indented line; whitespace is not syntactically significant. Use `of pattern do ... end` for a zero- or multi-item lexical handler body. The protected items evaluate in a fresh child scope. Only a raise from that protected body is matched by the catches: nil propagation and hard diagnostics bypass them, while raises from catch guards or handler bodies escape rather than being considered by later catches.
 
 Generated structural errors use an `error` discriminator and may gain additional fields over time. Preserve stable discriminator strings.
 
@@ -314,6 +315,8 @@ Canonical source examples use compact delimiters with spaces after commas and ar
 ```
 
 Empty forms remain `{}` and `[]`. Trailing commas are accepted in comma-separated constructs. Write single-line type unions without a leading `|`. For multiline type unions, put every member—including the first—on its own line beginning with `|`.
+
+When a function, `case of`, or `catch of` arm has an elided single-expression body, put that body on the following indented line. This is canonical formatting only: newlines and indentation never terminate syntax. Use an explicit `do ... end` body for zero or multiple items.
 
 When a multiline pipeline is the right-hand side of a binding, break after `=` and indent the continuation:
 

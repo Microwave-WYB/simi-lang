@@ -22,7 +22,7 @@ Read the relevant topic in the [language tour](../../../docs/language-tour.md) b
 ## Core contracts
 
 - Runtime typing is dynamic. Optional annotations and aliases are erased and must not change runtime behavior.
-- `if`, `case`, `try`, `do`, function bodies, and loop bodies are value-producing lexical blocks.
+- `if`, `case`, protected `do ... catch of ... end`, standalone `do`, function bodies, and loop bodies are value-producing lexical blocks.
 - Postfix `?` passes non-`nil` values through; `nil` evaluates the nearest lexical block as `nil`. In a loop body that supplies the next state rather than breaking the loop.
 - Booleans are strict; there is no truthiness. Use `type(value) == "integer"` for runtime category checks.
 - Lists are zero-based and mutable. Maps are insertion-ordered, normalize numeric keys, and delete entries assigned `nil`.

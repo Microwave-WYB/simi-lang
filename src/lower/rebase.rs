@@ -7,7 +7,7 @@ pub(super) fn rebase_program(program: &mut ast::Program, origins: &simi_syntax::
 }
 pub(super) fn rebase_stmt(statement: &mut ast::Stmt, origins: &simi_syntax::TokenOrigins) {
     match &mut statement.kind {
-        ast::StmtKind::Function { body, .. } => rebase_block(body, origins),
+        ast::StmtKind::Function { body, .. } => rebase_body(body, origins),
         ast::StmtKind::Let { pattern, value } => {
             rebase_pattern(pattern, origins);
             rebase_expr(value, origins);
@@ -22,12 +22,15 @@ pub(super) fn rebase_block(block: &mut ast::Block, origins: &simi_syntax::TokenO
     }
     block.span = origins.rebase(block.span);
 }
+pub(super) fn rebase_body(body: &mut ast::Body, origins: &simi_syntax::TokenOrigins) {
+    rebase_block(body, origins);
+}
 pub(super) fn rebase_clause(clause: &mut ast::PatternClause, origins: &simi_syntax::TokenOrigins) {
     rebase_pattern(&mut clause.pattern, origins);
     if let Some(guard) = &mut clause.guard {
         rebase_expr(guard, origins);
     }
-    rebase_block(&mut clause.body, origins);
+    rebase_body(&mut clause.body, origins);
 }
 pub(super) fn rebase_pattern(pattern: &mut ast::Pattern, origins: &simi_syntax::TokenOrigins) {
     match &mut pattern.kind {
@@ -78,9 +81,8 @@ pub(super) fn rebase_expr(expression: &mut ast::Expr, origins: &simi_syntax::Tok
                 rebase_expr(value, origins);
             }
         }
-        ast::ExprKind::Function { body, .. } | ast::ExprKind::Block(body) => {
-            rebase_block(body, origins)
-        }
+        ast::ExprKind::Function { body, .. } => rebase_body(body, origins),
+        ast::ExprKind::Block(body) => rebase_block(body, origins),
         ast::ExprKind::Assign { target, value } => {
             rebase_target(target, origins);
             rebase_expr(value, origins);

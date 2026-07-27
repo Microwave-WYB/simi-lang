@@ -240,7 +240,7 @@ impl Context<'_> {
                 parameter_symbols.push(symbol);
             }
         }
-        let body = support::child::<syntax::Block>(function.syntax());
+        let body = support::child::<syntax::Body>(function.syntax());
         let trusted_host_wrapper = body
             .as_ref()
             .is_some_and(|body| is_host_wrapper(body, self.resolution));
@@ -257,7 +257,7 @@ impl Context<'_> {
         self.raised_exit_frames.push(Vec::new());
         let actual = body
             .as_ref()
-            .map(|body| self.infer_block(body))
+            .map(|body| self.infer_body(body.syntax()))
             .unwrap_or(Type::Nil);
         let raised_exits = self.raised_exit_frames.pop().unwrap_or_default();
         self.generic_bound_frames.pop();
@@ -280,7 +280,10 @@ impl Context<'_> {
         } else {
             if matches!(resolved_result, Type::Infer(_))
                 && matches!(resolved_actual, Type::Infer(_))
-                && body.as_ref().is_some_and(block_ends_in_direct_call)
+                && body
+                    .as_ref()
+                    .and_then(|body| support::child::<syntax::Block>(body.syntax()))
+                    .is_some_and(|body| block_ends_in_direct_call(&body))
             {
                 self.bind_infer(resolved_actual, Type::Never);
             }
@@ -324,6 +327,27 @@ impl Context<'_> {
             .insert(symbol, capture_effects);
         self.callable_assignment_effects
             .insert(symbol, assignment_effects);
+    }
+    pub(super) fn infer_body(&mut self, body: &SyntaxNode) -> Type {
+        self.nil_abort_states.push(Vec::new());
+        let result = if let Some(block) = support::child::<syntax::Block>(body) {
+            self.statements(block.statements())
+        } else if let Some(expression) = support::child::<syntax::Expr>(body) {
+            self.expression(expression)
+        } else {
+            Type::Nil
+        };
+        let aborts = self.nil_abort_states.pop().unwrap_or_default();
+        if aborts.is_empty() {
+            return result;
+        }
+
+        let mut exits = aborts;
+        if result != Type::Never {
+            exits.push(self.flow_state());
+        }
+        self.join_and_restore(exits);
+        union(vec![result, Type::Nil])
     }
     pub(super) fn infer_block(&mut self, block: &syntax::Block) -> Type {
         self.nil_abort_states.push(Vec::new());
@@ -401,8 +425,8 @@ impl Context<'_> {
                 .collect(),
         );
         self.raised_exit_frames.push(Vec::new());
-        let actual = support::child::<syntax::Block>(node.syntax())
-            .map(|body| self.infer_block(&body))
+        let actual = support::child::<syntax::Body>(node.syntax())
+            .map(|body| self.infer_body(body.syntax()))
             .unwrap_or(Type::Nil);
         let raised_exits = self.raised_exit_frames.pop().unwrap_or_default();
         self.generic_bound_frames.pop();

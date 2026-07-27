@@ -5,7 +5,7 @@
   (if_expression)
   (loop_expression)
   (case_expression)
-  (try_expression)
+  (protected_expression)
   (list)
   (map)
 ] @fold
