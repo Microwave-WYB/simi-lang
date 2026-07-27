@@ -5,7 +5,9 @@ alias Entry = {
     value: any,
     ..
 }
-alias Step = { done: boolean, value: Entry, .. }
+alias Step =
+    | { done: true, .. }
+    | { done: false, value: Entry, .. }
 alias Iterator = () -> Step noraise
 
 --- Return the number of entries in a map.
@@ -24,7 +26,7 @@ fn iter(entries: { .. }) -> Iterator noraise do
     fn() do
         if index >= host.snapshot_length(snapshot) then {done = true}
         else
-            let value = snapshot[index]
+            let value: Entry = snapshot[index]
             index = index + 1
             {done = false, value = value}
         end

@@ -8,8 +8,8 @@ use simi_syntax::{SyntaxKind as K, SyntaxNode, SyntaxToken};
 use crate::db::{FileId, parse, resolve, source_text};
 use crate::model::{
     AnalysisDiagnostic, AnalysisDiagnosticCode, AnalysisDiagnosticSeverity, CallableParameter,
-    CallableType, GenericConstraint, ModuleShape, RaisedAnnotation, Resolution, SymbolId, Type,
-    TypeInference,
+    CallableType, GenericConstraint, LiteralFloat, ModuleShape, RaisedAnnotation, Resolution,
+    SymbolId, Type, TypeInference,
 };
 use crate::modules::member_at;
 
@@ -467,6 +467,14 @@ fn known_module_argument_is_pure(module: &str, field: &str, index: usize) -> boo
         "std/iter" | "std/number" | "std/string" | "std/io" => true,
         _ => false,
     }
+}
+
+fn block_direct_literal_type(body: &syntax::Block) -> Option<Type> {
+    let syntax::Stmt::ExprStmt(statement) = body.statements().last()? else {
+        return None;
+    };
+    let expression = support::child::<syntax::Expr>(statement.syntax())?;
+    direct_literal_type(&expression)
 }
 
 fn block_ends_in_direct_call(body: &syntax::Block) -> bool {

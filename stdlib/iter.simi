@@ -1,6 +1,8 @@
 ---- Lazy, single-pass iterator operations.
 
-alias Step<'a> = { done: boolean, value: 'a, .. }
+alias Step<'a> =
+    | { done: true, .. }
+    | { done: false, value: 'a, .. }
 alias Iterator<'a, 'e> = () -> Step<'a> raises 'e
 
 fn from<'a, 'e>(next_fn: Iterator<'a, 'e>) -> Iterator<'a, 'e> noraise do

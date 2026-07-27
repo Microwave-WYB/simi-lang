@@ -12,7 +12,8 @@ fn iterator_facades_export_item_and_effect_relationships() {
     let map_file = db.add_file(include_str!("../../../stdlib/map.simi"));
     let iter_file = db.add_file(include_str!("../../../stdlib/iter.simi"));
     for file in [list_file, map_file, iter_file] {
-        assert!(simi_analysis::parse(&db, file).diagnostics.is_empty());
+        let diagnostics = simi_analysis::diagnostics(&db, file);
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
     }
     let list = module_shape(&db, list_file);
     let map = module_shape(&db, map_file);
@@ -29,19 +30,19 @@ fn iterator_facades_export_item_and_effect_relationships() {
     };
     assert_eq!(
         displayed(&list, "iter"),
-        "<'a> (xs: [..'a]) -> () -> { done: boolean, value: 'a, .. } noraise noraise"
+        "<'a> (xs: [..'a]) -> () -> { done: true, .. } | { done: false, value: 'a, .. } noraise noraise"
     );
     assert_eq!(
         displayed(&map, "iter"),
-        "(entries: { .. }) -> () -> { done: boolean, value: { key: boolean | integer | float | string, value: any, .. }, .. } noraise noraise"
+        "(entries: { .. }) -> () -> { done: true, .. } | { done: false, value: { key: boolean | integer | float | string, value: any, .. }, .. } noraise noraise"
     );
     assert_eq!(
         displayed(&iter, "to_list"),
-        "<'a, 'b> (iterator: () -> { done: boolean, value: 'a, .. } raises 'b) -> [..'a] raises 'b"
+        "<'a, 'b> (iterator: () -> { done: true, .. } | { done: false, value: 'a, .. } raises 'b) -> [..'a] raises 'b"
     );
     assert_eq!(
         displayed(&iter, "find"),
-        "<'a, 'b, 'c> (iterator: () -> { done: boolean, value: 'a, .. } raises 'b, predicate: 'a -> boolean raises 'c) -> 'a | nil raises 'b | 'c"
+        "<'a, 'b, 'c> (iterator: () -> { done: true, .. } | { done: false, value: 'a, .. } raises 'b, predicate: 'a -> boolean raises 'c) -> 'a | nil raises 'b | 'c"
     );
 }
 

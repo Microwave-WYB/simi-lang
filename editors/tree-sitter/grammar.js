@@ -332,7 +332,12 @@ module.exports = grammar({
 
     type_variable: ($) => token(seq("'", /[A-Za-z_][A-Za-z0-9_]*/)),
 
-    literal_type: ($) => choice($.string, $.nil),
+    literal_type: ($) => choice(
+      $.string,
+      $.nil,
+      $.boolean,
+      seq(optional("-"), choice($.integer, $.float)),
+    ),
 
     parenthesized_type: ($) => seq(
       "(",

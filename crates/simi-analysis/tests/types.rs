@@ -46,6 +46,164 @@ let exponent = 1.5_0e1_0
 }
 
 #[test]
+fn boolean_singletons_are_narrow_record_discriminants() {
+    let source = r#"
+alias Step<'a> =
+    | {done: true, ..}
+    | {done: false, value: 'a, ..}
+alias EitherBoolean = true | false
+let flag = false
+let exhausted = {done = true}
+let yielded = {done = false, value = 1}
+let either: EitherBoolean = true
+fn next<'a>(item: 'a, stop: boolean) -> Step<'a> do
+    if stop then {done = true} else {done = false, value = item} end
+end
+fn read(step: Step<integer>) -> integer | nil do
+    if step.done then
+        let exhausted_value = step.value
+        exhausted_value
+    else
+        let payload = step.value
+        payload
+    end
+end
+let nil_item: Step<integer | nil> = {done = false}
+"#;
+    let (inference, resolution) = inferred(source);
+    assert!(
+        inference.diagnostics.is_empty(),
+        "{:?}",
+        inference.diagnostics
+    );
+    assert_eq!(type_of(&inference, &resolution, "flag"), Type::Boolean);
+    assert_eq!(
+        type_of(&inference, &resolution, "exhausted").display(),
+        "{ done: true }"
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "yielded").display(),
+        "{ done: false, value: integer }"
+    );
+    assert_eq!(type_of(&inference, &resolution, "either"), Type::Boolean);
+    assert_eq!(
+        type_of(&inference, &resolution, "exhausted_value"),
+        Type::Any
+    );
+    assert_eq!(type_of(&inference, &resolution, "payload"), Type::Int);
+}
+
+#[test]
+fn explicit_primitive_singletons_are_erased_and_expressions_stay_wide() {
+    let source = r#"
+alias Scalar = nil | true | false | "ready" | 42 | 1.0 | -0.0
+let count = 42
+let ratio = 1.0
+let enabled = true
+let exact_nil: nil = nil
+let exact_true: true = true
+let exact_false: false = false
+let exact_text: "ready" = "ready"
+let exact_integer: 42 = 42
+let exact_hex: 0x2a = 42
+let exact_float: 1.0 = 1.0
+let exact_exponent: 1e3 = 1000.0
+let normalized_zero: 0.0 = -0.0
+fn accept(value: 42) -> integer do value end
+fn exact_result() -> 42 do 42 end
+let accepted = accept(42)
+let returned = exact_result()
+let wrong_integer: 42 = 43
+let wrong_category: 1.0 = 1
+let computed: 42 = 40 + 2
+"#;
+    let (inference, resolution) = inferred(source);
+    assert_eq!(type_of(&inference, &resolution, "count"), Type::Int);
+    assert_eq!(type_of(&inference, &resolution, "ratio"), Type::Float);
+    assert_eq!(type_of(&inference, &resolution, "enabled"), Type::Boolean);
+    assert_eq!(type_of(&inference, &resolution, "exact_nil"), Type::Nil);
+    assert_eq!(
+        type_of(&inference, &resolution, "exact_true"),
+        Type::LiteralBoolean(true)
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "exact_false"),
+        Type::LiteralBoolean(false)
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "exact_text"),
+        Type::LiteralString("ready".to_owned())
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "exact_integer"),
+        Type::LiteralInt(42)
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "exact_hex"),
+        Type::LiteralInt(42)
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "exact_float").display(),
+        "1.0"
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "exact_exponent").display(),
+        "1000.0"
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "normalized_zero").display(),
+        "0.0"
+    );
+    assert_eq!(type_of(&inference, &resolution, "accepted"), Type::Int);
+    assert_eq!(
+        type_of(&inference, &resolution, "returned"),
+        Type::LiteralInt(42)
+    );
+    assert_eq!(
+        inference
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code == AnalysisDiagnosticCode::TypeMismatch)
+            .count(),
+        3,
+        "{:?}",
+        inference.diagnostics
+    );
+}
+
+#[test]
+fn arbitrary_booleans_do_not_satisfy_singleton_fields() {
+    let source = r#"
+alias Step<'a> =
+    | {done: true, ..}
+    | {done: false, value: 'a, ..}
+let missing: Step<integer> = {done = false}
+let broad: true = false and true
+let computed = {done = false and true}
+let computed_step: Step<integer> = computed
+"#;
+    let (inference, resolution) = inferred(source);
+    assert_eq!(
+        type_of(&inference, &resolution, "broad"),
+        Type::LiteralBoolean(true)
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "computed").display(),
+        "{ done: boolean }"
+    );
+    assert_eq!(
+        inference
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code == AnalysisDiagnosticCode::TypeMismatch)
+            .count(),
+        3,
+        "{:?}",
+        inference.diagnostics
+    );
+}
+
+#[test]
 fn fibonacci_example_is_syntax_and_type_clean() {
     let db = AnalysisDatabase::default();
     let modules = [
@@ -496,12 +654,18 @@ let keys =
     map.iter({first = 1})
     |> iter.map(fn(entry) do entry.key end)
     |> iter.to_list()
+let map_step = iter.next(map.iter({}))
+if map_step.done then
+    let exhausted_entry = map_step.value
+else
+    let live_entry = map_step.value
+end
 fn transform<'a, 'b, 'e>(value: 'a, callback: 'a -> 'b raises 'e) -> 'b raises 'e do
     callback(value)
 end
 let generic_result = transform(1, fn(generic_item) do generic_item + 1 end)
 let parenthesized = transform(1, (fn(parenthesized_item) do parenthesized_item + 1 end))
-fn raising_source() -> { done: boolean, value: integer, .. } raises "source" do
+fn raising_source() -> { done: true, .. } | { done: false, value: integer, .. } raises "source" do
     raise "source"
 end
 let effect_iterator = iter.map(raising_source, fn(effect_item) do
@@ -538,6 +702,14 @@ end)
         type_of(&inference, &resolution, "keys").display(),
         "[..(boolean | integer | float | string)]"
     );
+    assert_eq!(
+        type_of(&inference, &resolution, "exhausted_entry"),
+        Type::Any
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "live_entry").display(),
+        "{ key: boolean | integer | float | string, value: any, .. }"
+    );
     for name in [
         "acc",
         "fold_item",
@@ -558,7 +730,7 @@ end)
     );
     assert_eq!(
         type_of(&inference, &resolution, "effect_iterator").display(),
-        "() -> { done: boolean, value: integer, .. } raises \"source\" | \"callback\""
+        "() -> { done: true, .. } | { done: false, value: integer, .. } raises \"source\" | \"callback\""
     );
 }
 
@@ -1790,7 +1962,7 @@ end
             .iter()
             .filter(|(code, _, _)| *code == AnalysisDiagnosticCode::DestructuringLetMayFail)
             .count(),
-        3,
+        4,
         "{reported:?}"
     );
     assert!(

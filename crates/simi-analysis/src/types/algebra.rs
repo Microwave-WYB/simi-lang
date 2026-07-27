@@ -381,6 +381,12 @@ pub(super) fn union(items: Vec<Type>) -> Type {
             item => flattened.push(item),
         }
     }
+    let has_true = flattened.contains(&Type::LiteralBoolean(true));
+    let has_false = flattened.contains(&Type::LiteralBoolean(false));
+    if has_true && has_false {
+        flattened.retain(|item| !matches!(item, Type::LiteralBoolean(_)));
+        flattened.push(Type::Boolean);
+    }
     let mut merged = Vec::new();
     for item in flattened {
         if let Type::Function(candidate) = &item
@@ -422,7 +428,7 @@ pub(super) fn type_order(ty: &Type) -> u8 {
         Type::Never => 0,
         Type::Boolean | Type::LiteralBoolean(_) => 1,
         Type::Int | Type::LiteralInt(_) => 2,
-        Type::Float => 3,
+        Type::Float | Type::LiteralFloat(_) => 3,
         Type::String | Type::LiteralString(_) => 4,
         Type::ListExact(_) | Type::ListRest(_) => 5,
         Type::Map { .. } => 7,
@@ -432,6 +438,17 @@ pub(super) fn type_order(ty: &Type) -> u8 {
         Type::Unknown => 11,
         Type::Any => 12,
         Type::FunctionArgs(_) | Type::Union(_) => 13,
+    }
+}
+pub(super) fn type_contains_singleton(ty: &Type) -> bool {
+    match ty {
+        Type::Nil
+        | Type::LiteralBoolean(_)
+        | Type::LiteralInt(_)
+        | Type::LiteralFloat(_)
+        | Type::LiteralString(_) => true,
+        Type::Union(items) => items.iter().any(type_contains_singleton),
+        _ => false,
     }
 }
 pub(super) fn equality_type(ty: &Type) -> bool {
@@ -444,6 +461,7 @@ pub(super) fn equality_type(ty: &Type) -> bool {
         | Type::Float
         | Type::String
         | Type::LiteralInt(_)
+        | Type::LiteralFloat(_)
         | Type::LiteralString(_)
         | Type::LiteralBoolean(_)
         | Type::Infer(_)
@@ -457,8 +475,8 @@ pub(super) fn numeric() -> Type {
 }
 pub(super) fn numeric_atoms(ty: &Type) -> Vec<Type> {
     match ty {
-        Type::Int => vec![Type::Int],
-        Type::Float => vec![Type::Float],
+        Type::Int | Type::LiteralInt(_) => vec![Type::Int],
+        Type::Float | Type::LiteralFloat(_) => vec![Type::Float],
         Type::Union(items) => items.iter().flat_map(numeric_atoms).collect(),
         _ => Vec::new(),
     }
@@ -472,6 +490,7 @@ pub(super) fn is_subtype(actual: &Type, expected: &Type) -> bool {
     }
     match (actual, expected) {
         (Type::LiteralInt(_), Type::Int) => true,
+        (Type::LiteralFloat(_), Type::Float) => true,
         (Type::LiteralString(_), Type::String) => true,
         (Type::LiteralBoolean(_), Type::Boolean) => true,
         (Type::Union(items), expected) => items.iter().all(|item| is_subtype(item, expected)),

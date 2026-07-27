@@ -892,14 +892,130 @@ fn real_annotated_stdlib_facade_supplies_generic_member_types() {
     };
     assert_simi_hover(
         &markup,
-        "<'a, 'b, 'c, 'd> (\n    iterator: () -> { done: boolean, value: 'a, .. } raises 'c,\n    transform: 'a -> 'b raises 'd,\n) -> () -> { done: boolean, value: 'b, .. } raises 'c | 'd noraise",
+        "<'a, 'b, 'c, 'd> (\n    iterator: () -> { done: true, .. } | { done: false, value: 'a, .. } raises 'c,\n    transform: 'a -> 'b raises 'd,\n) -> () -> { done: true, .. } | { done: false, value: 'b, .. } raises 'c | 'd noraise",
     );
+}
+
+#[test]
+fn real_iterator_facades_publish_no_diagnostics() {
+    for source in [
+        include_str!("../../../../stdlib/list.simi"),
+        include_str!("../../../../stdlib/map.simi"),
+        include_str!("../../../../stdlib/iter.simi"),
+    ] {
+        let mut backend = Backend::new();
+        let published = diagnostics_from(open(&mut backend, source).remove(0));
+        assert!(
+            published.diagnostics.is_empty(),
+            "{:?}",
+            published.diagnostics
+        );
+    }
+}
+
+#[test]
+fn primitive_singleton_annotations_hover_without_narrowing_expression_inference() {
+    let source = r#"let count = 42
+let exact_integer: 42 = 42
+let exact_float: 1.0 = 1.0
+let normalized_zero: 0.0 = -0.0
+let exact_text: "ready" = "ready"
+let exact_flag: false = false
+let mismatch: 42 = 43
+"#;
+    let mut backend = Backend::new();
+    let published = diagnostics_from(open(&mut backend, source).remove(0));
+    assert_eq!(
+        published.diagnostics.len(),
+        1,
+        "{:?}",
+        published.diagnostics
+    );
+    assert!(published.diagnostics[0].message.contains("Type mismatch"));
+
+    for (name, expected) in [
+        ("count", "integer"),
+        ("exact_integer", "42"),
+        ("exact_float", "1.0"),
+        ("normalized_zero", "0.0"),
+        ("exact_text", "\"ready\""),
+        ("exact_flag", "false"),
+    ] {
+        let hover: Option<Hover> = serde_json::from_value(
+            request(
+                &mut backend,
+                HoverRequest::METHOD,
+                json!({
+                    "textDocument": { "uri": uri() },
+                    "position": text_position(source, name, 0),
+                }),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let HoverContents::Markup(markup) = hover.expect("singleton hover").contents else {
+            panic!("expected markup")
+        };
+        assert_simi_hover(&markup, expected);
+    }
+}
+
+#[test]
+fn iterator_step_hover_and_boolean_narrowing_are_sound() {
+    let source = r#"let iter = require("std/iter")
+let step = iter.next(map.iter({}))
+if step.done then
+    let exhausted_entry = step.value
+else
+    let live_entry = step.value
+end
+"#;
+    let mut backend = Backend::with_module_sources([
+        ("std/iter", include_str!("../../../../stdlib/iter.simi")),
+        ("std/map", include_str!("../../../../stdlib/map.simi")),
+    ]);
+    let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
+    assert!(
+        diagnostics.diagnostics.is_empty(),
+        "{:?}",
+        diagnostics.diagnostics
+    );
+
+    for (name, expected) in [
+        (
+            "next",
+            "<'a, 'b> (\n    iterator: () -> { done: true, .. } | { done: false, value: 'a, .. } raises 'b,\n) -> { done: true, .. } | { done: false, value: 'a, .. } raises 'b",
+        ),
+        ("exhausted_entry", "any"),
+        (
+            "live_entry",
+            "{ key: boolean | integer | float | string, value: any, .. }",
+        ),
+    ] {
+        let hover: Option<Hover> = serde_json::from_value(
+            request(
+                &mut backend,
+                HoverRequest::METHOD,
+                json!({
+                    "textDocument": { "uri": uri() },
+                    "position": text_position(source, name, 0),
+                }),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let HoverContents::Markup(markup) = hover.expect("iterator step hover").contents else {
+            panic!("expected markup")
+        };
+        assert_simi_hover(&markup, expected);
+    }
 }
 
 #[test]
 fn real_iterator_pipeline_contextualizes_unannotated_fold_callback() {
     let source = r#"let iter = require("std/iter")
 let number = require("std/number")
+let io = require("std/io")
 let total =
     [1, 2, 3]
     |> list.iter()
@@ -914,12 +1030,18 @@ let keys =
     map.iter({first = 1})
     |> iter.map(fn(entry) do entry.key end)
     |> iter.to_list()
+[1, 2, 3, 4, 5]
+|> list.iter()
+|> iter.fold(0, fn(acc, n) do acc + n end)
+|> number.to_string()
+|> io.println()
 "#;
     let mut backend = Backend::with_module_sources([
         ("std/list", include_str!("../../../../stdlib/list.simi")),
         ("std/iter", include_str!("../../../../stdlib/iter.simi")),
         ("std/map", include_str!("../../../../stdlib/map.simi")),
         ("std/number", include_str!("../../../../stdlib/number.simi")),
+        ("std/io", include_str!("../../../../stdlib/io.simi")),
     ]);
     let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
     assert!(

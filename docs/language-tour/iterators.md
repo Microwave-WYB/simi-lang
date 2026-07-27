@@ -159,6 +159,16 @@ Do not reuse an iterator when two independent traversals are needed. Create two 
 
 Lists may legitimately contain `nil`. Such an item produces `{done = false}` because maps omit nil-valued fields; the boolean `done` field is therefore the authoritative completion signal.
 
+The erased static contract mirrors those runtime variants:
+
+```simi
+alias Step<'a> =
+    | {done: true, ..}
+    | {done: false, value: 'a, ..}
+```
+
+An `if step.done` check narrows the `else` branch to the false variant, where `step.value` has the iterator item type. The exhausted variant does not advertise a required value. If the item type includes `nil`, the false variant still permits the runtime field to be absent because reading that absent field produces the valid `nil` item.
+
 A custom producer is a zero-argument function returning these step maps. Wrap it with `iter.from` to obtain a public iterator:
 
 ```simi

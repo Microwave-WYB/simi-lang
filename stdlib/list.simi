@@ -6,7 +6,9 @@ alias IndexError = {
     length: integer,
     ..
 }
-alias Step<'a> = { done: boolean, value: 'a, .. }
+alias Step<'a> =
+    | { done: true, .. }
+    | { done: false, value: 'a, .. }
 alias Iterator<'a> = () -> Step<'a> noraise
 
 --- Return the number of visible elements in a list.

@@ -15,6 +15,90 @@ pub(super) fn literal_type(node: &SyntaxNode) -> Type {
     }
     Type::Nil
 }
+pub(super) fn type_literal_type(node: &SyntaxNode) -> Type {
+    if direct_token(node, K::TRUE_KW).is_some() {
+        return Type::LiteralBoolean(true);
+    }
+    if direct_token(node, K::FALSE_KW).is_some() {
+        return Type::LiteralBoolean(false);
+    }
+    if let Some(token) = direct_token(node, K::STRING) {
+        return Type::LiteralString(unquote(token.text()));
+    }
+    let negative = direct_token(node, K::MINUS).is_some();
+    if let Some(token) = direct_token(node, K::INT)
+        && let Some(value) = parse_integer_literal(token.text())
+        && let Some(value) = if negative {
+            value.checked_neg()
+        } else {
+            Some(value)
+        }
+    {
+        return Type::LiteralInt(value);
+    }
+    if let Some(token) = direct_token(node, K::FLOAT)
+        && let Some(mut value) = parse_float_literal(token.text())
+    {
+        if negative {
+            value = -value;
+        }
+        return Type::LiteralFloat(
+            LiteralFloat::new(value).expect("the syntax lexer accepts only finite floats"),
+        );
+    }
+    Type::Nil
+}
+pub(super) fn direct_literal_type(expression: &syntax::Expr) -> Option<Type> {
+    match expression {
+        syntax::Expr::Literal(literal) => Some(type_literal_type(literal.syntax())),
+        syntax::Expr::Paren(paren) => child_expr(paren.syntax(), 0)
+            .as_ref()
+            .and_then(direct_literal_type),
+        syntax::Expr::Unary(unary) if direct_token(unary.syntax(), K::MINUS).is_some() => {
+            let value = child_expr(unary.syntax(), 0)?;
+            let syntax::Expr::Literal(literal) = value else {
+                return None;
+            };
+            if let Some(token) = direct_token(literal.syntax(), K::INT) {
+                return parse_integer_literal(token.text())
+                    .and_then(i64::checked_neg)
+                    .map(Type::LiteralInt);
+            }
+            let token = direct_token(literal.syntax(), K::FLOAT)?;
+            let value = -parse_float_literal(token.text())?;
+            Some(Type::LiteralFloat(
+                LiteralFloat::new(value).expect("the syntax lexer accepts only finite floats"),
+            ))
+        }
+        _ => None,
+    }
+}
+pub(super) fn direct_boolean_literal_type(expression: &syntax::Expr) -> Option<Type> {
+    let syntax::Expr::Literal(literal) = expression else {
+        return None;
+    };
+    if direct_token(literal.syntax(), K::TRUE_KW).is_some() {
+        return Some(Type::LiteralBoolean(true));
+    }
+    if direct_token(literal.syntax(), K::FALSE_KW).is_some() {
+        return Some(Type::LiteralBoolean(false));
+    }
+    None
+}
+pub(super) fn parse_integer_literal(text: &str) -> Option<i64> {
+    let text = text.replace('_', "");
+    if let Some(digits) = text.strip_prefix("0b").or_else(|| text.strip_prefix("0B")) {
+        i64::from_str_radix(digits, 2).ok()
+    } else if let Some(digits) = text.strip_prefix("0x").or_else(|| text.strip_prefix("0X")) {
+        i64::from_str_radix(digits, 16).ok()
+    } else {
+        text.parse().ok()
+    }
+}
+pub(super) fn parse_float_literal(text: &str) -> Option<f64> {
+    let value = text.replace('_', "").parse::<f64>().ok()?;
+    value.is_finite().then_some(value)
+}
 pub(super) fn unquote(text: &str) -> String {
     text.strip_prefix('"')
         .and_then(|text| text.strip_suffix('"'))

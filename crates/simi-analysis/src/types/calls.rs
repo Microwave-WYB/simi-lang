@@ -165,6 +165,9 @@ impl Context<'_> {
                     self.infer_call_argument(inner, Some(expected))
                 })
             }
+            (argument, Some(expected)) if type_contains_singleton(expected) => {
+                direct_literal_type(&argument).unwrap_or_else(|| self.expression(argument))
+            }
             (argument, _) => self.expression(argument),
         }
     }

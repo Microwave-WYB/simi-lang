@@ -87,15 +87,22 @@ impl Context<'_> {
                 let inherited_region = value_expression
                     .as_ref()
                     .and_then(|expression| self.expression_region(expression));
-                let value = value_expression
-                    .clone()
-                    .map(|expression| self.expression(expression))
-                    .unwrap_or(Type::Unknown);
                 let annotation_node = support::child::<syntax::TypeAnnotation>(statement.syntax())
                     .and_then(|annotation| support::child::<syntax::TypeExpr>(annotation.syntax()));
                 let mut annotation_generics = HashMap::new();
                 let annotation = annotation_node
                     .map(|ty| self.parse_type(ty.syntax(), &mut annotation_generics));
+                let value = value_expression
+                    .clone()
+                    .map(|expression| {
+                        if annotation.is_some() {
+                            direct_literal_type(&expression)
+                                .unwrap_or_else(|| self.expression(expression))
+                        } else {
+                            self.expression(expression)
+                        }
+                    })
+                    .unwrap_or(Type::Unknown);
                 let explicitly_annotated = annotation.is_some();
                 let final_ty = if let Some(expected) = annotation {
                     self.constrain(&expected, &value, span(statement.syntax()));
@@ -269,7 +276,15 @@ impl Context<'_> {
             .unwrap_or_default();
         self.mutation_effect_frames.pop();
         let resolved_result = self.resolve_type((*expected_result).clone());
-        let resolved_actual = self.resolve_type(actual.clone());
+        let checked_actual = if type_contains_singleton(&resolved_result) {
+            body.as_ref()
+                .and_then(|body| support::child::<syntax::Block>(body.syntax()))
+                .and_then(|block| block_direct_literal_type(&block))
+                .unwrap_or_else(|| actual.clone())
+        } else {
+            actual.clone()
+        };
+        let resolved_actual = self.resolve_type(checked_actual.clone());
         if matches!(resolved_result, Type::Infer(_)) && resolved_actual == Type::Any {
             self.bind_infer((*expected_result).clone(), Type::Any);
         } else if let Type::Infer(id) = resolved_result
@@ -287,7 +302,7 @@ impl Context<'_> {
             {
                 self.bind_infer(resolved_actual, Type::Never);
             }
-            self.constrain(&expected_result, &actual, span(function.syntax()));
+            self.constrain(&expected_result, &checked_actual, span(function.syntax()));
         }
 
         let declared_raised = (*callable.raised).clone();

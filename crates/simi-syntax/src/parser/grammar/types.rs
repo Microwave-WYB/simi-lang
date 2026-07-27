@@ -51,6 +51,11 @@ pub(super) fn at_type_start(p: &Parser<'_>) -> bool {
             | K::APOSTROPHE
             | K::STRING
             | K::NIL_KW
+            | K::TRUE_KW
+            | K::FALSE_KW
+            | K::INT
+            | K::FLOAT
+            | K::MINUS
             | K::IDENT
             | K::L_PAREN
             | K::L_BRACKET
@@ -70,8 +75,13 @@ pub(super) fn type_union(p: &mut Parser<'_>) {
 pub(super) fn type_primary(p: &mut Parser<'_>) {
     if p.at(K::APOSTROPHE) {
         type_variable(p);
-    } else if matches!(p.current(), K::STRING | K::NIL_KW) {
+    } else if matches!(
+        p.current(),
+        K::STRING | K::NIL_KW | K::TRUE_KW | K::FALSE_KW | K::INT | K::FLOAT
+    ) || (p.at(K::MINUS) && matches!(p.nth(1), K::INT | K::FLOAT))
+    {
         let marker = p.start();
+        p.bump_if(K::MINUS);
         p.bump();
         marker.complete(&mut p.events, K::TYPE_LITERAL);
     } else if p.at(K::IDENT) {
