@@ -961,6 +961,73 @@ let mismatch: 42 = 43
 }
 
 #[test]
+fn contextual_singleton_function_bodies_and_mutations_publish_exact_hovers() {
+    let source = r#"fn direct_true() -> true true
+fn direct_int() -> 42 42
+let anon = fn() -> false false
+let tagged: {done: true} = {done = true}
+tagged.done = true
+let indexed: {done: true} = {done = true}
+indexed["done"] = true
+"#;
+    let mut backend = Backend::new();
+    let published = diagnostics_from(open(&mut backend, source).remove(0));
+    assert!(
+        published.diagnostics.is_empty(),
+        "{:?}",
+        published.diagnostics
+    );
+
+    for (name, expected) in [
+        ("direct_true", "() -> true"),
+        ("direct_int", "() -> 42"),
+        ("anon", "() -> false"),
+        ("tagged", "{ done: true }"),
+        ("indexed", "{ done: true }"),
+    ] {
+        let hover: Option<Hover> = serde_json::from_value(
+            request(
+                &mut backend,
+                HoverRequest::METHOD,
+                json!({
+                    "textDocument": { "uri": uri() },
+                    "position": text_position(source, name, 0),
+                }),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let HoverContents::Markup(markup) = hover.expect("contextual singleton hover").contents
+        else {
+            panic!("expected markup")
+        };
+        assert_simi_hover(&markup, expected);
+    }
+}
+
+#[test]
+fn broad_mutation_values_publish_singleton_mismatch_diagnostics() {
+    let source = r#"let field_flag: {done: true} = {done = true}
+let index_flag: {done: true} = {done = true}
+let broad_flag = false and true
+field_flag.done = broad_flag
+index_flag["done"] = broad_flag
+"#;
+    let mut backend = Backend::new();
+    let published = diagnostics_from(open(&mut backend, source).remove(0));
+    assert_eq!(
+        published.diagnostics.len(),
+        2,
+        "{:?}",
+        published.diagnostics
+    );
+    assert!(published.diagnostics.iter().all(|diagnostic| {
+        diagnostic.code == Some(NumberOrString::String("type_mismatch".to_owned()))
+            && diagnostic.message.contains("Type mismatch")
+    }));
+}
+
+#[test]
 fn iterator_step_hover_and_boolean_narrowing_are_sound() {
     let source = r#"let iter = require("std/iter")
 let step = iter.next(map.iter({}))

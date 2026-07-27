@@ -469,12 +469,17 @@ fn known_module_argument_is_pure(module: &str, field: &str, index: usize) -> boo
     }
 }
 
-fn block_direct_literal_type(body: &syntax::Block) -> Option<Type> {
-    let syntax::Stmt::ExprStmt(statement) = body.statements().last()? else {
-        return None;
-    };
-    let expression = support::child::<syntax::Expr>(statement.syntax())?;
-    direct_literal_type(&expression)
+fn body_direct_literal_type(body: &syntax::Body) -> Option<Type> {
+    if let Some(block) = support::child::<syntax::Block>(body.syntax()) {
+        let syntax::Stmt::ExprStmt(statement) = block.statements().last()? else {
+            return None;
+        };
+        let expression = support::child::<syntax::Expr>(statement.syntax())?;
+        return direct_literal_type(&expression);
+    }
+    support::child::<syntax::Expr>(body.syntax())
+        .as_ref()
+        .and_then(direct_literal_type)
 }
 
 fn block_ends_in_direct_call(body: &syntax::Block) -> bool {

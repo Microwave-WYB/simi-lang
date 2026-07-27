@@ -451,6 +451,10 @@ pub(super) fn type_contains_singleton(ty: &Type) -> bool {
         _ => false,
     }
 }
+pub(super) fn type_contains_exact(ty: &Type, expected: &Type) -> bool {
+    ty == expected
+        || matches!(ty, Type::Union(items) if items.iter().any(|item| type_contains_exact(item, expected)))
+}
 pub(super) fn equality_type(ty: &Type) -> bool {
     match ty {
         Type::Unknown

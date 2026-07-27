@@ -172,6 +172,71 @@ let computed: 42 = 40 + 2
 }
 
 #[test]
+fn singleton_context_applies_to_function_bodies_and_mutation_rhs() {
+    let source = r#"
+fn direct_true() -> true true
+fn direct_int() -> 42 42
+let anon = fn() -> false false
+let tagged: {done: true} = {done = true}
+tagged.done = true
+let indexed: {done: true} = {done = true}
+indexed["done"] = true
+"#;
+    let (inference, resolution) = inferred(source);
+    assert!(
+        inference.diagnostics.is_empty(),
+        "{:?}",
+        inference.diagnostics
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "direct_true").display(),
+        "() -> true"
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "direct_int").display(),
+        "() -> 42"
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "anon").display(),
+        "() -> false"
+    );
+    for name in ["tagged", "indexed"] {
+        assert_eq!(
+            type_of(&inference, &resolution, name).display(),
+            "{ done: true }"
+        );
+    }
+}
+
+#[test]
+fn broad_values_do_not_satisfy_singleton_mutation_targets() {
+    let source = r#"
+let field_flag: {done: true} = {done = true}
+let index_flag: {done: true} = {done = true}
+let broad_flag = false and true
+field_flag.done = broad_flag
+index_flag["done"] = broad_flag
+let exact_number: 42 = 42
+let field_number: {code: 42} = {code = exact_number}
+let index_number: {code: 42} = {code = exact_number}
+let broad_number = 40 + 2
+field_number.code = broad_number
+index_number["code"] = broad_number
+"#;
+    let (inference, _) = inferred(source);
+    assert_eq!(
+        inference
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code == AnalysisDiagnosticCode::TypeMismatch)
+            .count(),
+        4,
+        "{:?}",
+        inference.diagnostics
+    );
+}
+
+#[test]
 fn arbitrary_booleans_do_not_satisfy_singleton_fields() {
     let source = r#"
 alias Step<'a> =

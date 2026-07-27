@@ -278,8 +278,7 @@ impl Context<'_> {
         let resolved_result = self.resolve_type((*expected_result).clone());
         let checked_actual = if type_contains_singleton(&resolved_result) {
             body.as_ref()
-                .and_then(|body| support::child::<syntax::Block>(body.syntax()))
-                .and_then(|block| block_direct_literal_type(&block))
+                .and_then(body_direct_literal_type)
                 .unwrap_or_else(|| actual.clone())
         } else {
             actual.clone()
@@ -467,7 +466,9 @@ impl Context<'_> {
                 .collect(),
         );
         self.raised_exit_frames.push(Vec::new());
-        let actual = support::child::<syntax::Body>(node.syntax())
+        let body = support::child::<syntax::Body>(node.syntax());
+        let actual = body
+            .as_ref()
             .map(|body| self.infer_body(body.syntax()))
             .unwrap_or(Type::Nil);
         let raised_exits = self.raised_exit_frames.pop().unwrap_or_default();
@@ -479,8 +480,19 @@ impl Context<'_> {
             .map(|(_, assigned)| assigned)
             .unwrap_or_default();
         self.mutation_effect_frames.pop();
-        let result = if let Some(expected) = expected {
-            self.require_subtype(&actual, &expected, span(node.syntax()));
+        let expected_result = expected.clone().or_else(|| {
+            expected_callable
+                .map(|callable| self.resolve_type((*callable.result).clone()))
+                .filter(type_contains_singleton)
+        });
+        let checked_actual = expected_result
+            .as_ref()
+            .map(|expected| self.resolve_type(expected.clone()))
+            .filter(type_contains_singleton)
+            .and_then(|_| body.as_ref().and_then(body_direct_literal_type))
+            .unwrap_or_else(|| actual.clone());
+        let result = if let Some(expected) = expected_result {
+            self.require_subtype(&checked_actual, &expected, span(node.syntax()));
             expected
         } else {
             actual.clone()

@@ -147,14 +147,24 @@ impl Context<'_> {
             }
             Some(target) => {
                 let expected = self.expression(target.clone());
+                let resolved_expected = self.resolve_type(expected.clone());
+                let checked_value = value_node
+                    .as_ref()
+                    .and_then(direct_literal_type)
+                    .filter(|literal| type_contains_exact(&resolved_expected, literal))
+                    .unwrap_or_else(|| value.clone());
                 if mutation_owner_symbol(&target, self.resolution)
                     .is_some_and(|symbol| self.annotated_symbols.contains(&symbol))
                 {
-                    self.constrain(&expected, &value, span(node.syntax()));
+                    self.constrain(&expected, &checked_value, span(node.syntax()));
                 }
                 match target {
-                    syntax::Expr::Index(index) => self.apply_index_assignment(&index, &value),
-                    syntax::Expr::Field(field) => self.apply_field_assignment(&field, &value),
+                    syntax::Expr::Index(index) => {
+                        self.apply_index_assignment(&index, &checked_value)
+                    }
+                    syntax::Expr::Field(field) => {
+                        self.apply_field_assignment(&field, &checked_value)
+                    }
                     _ => {}
                 }
             }
