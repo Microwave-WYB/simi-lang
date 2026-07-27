@@ -114,11 +114,14 @@ Omitting an effect clause asks the analyzer to infer it. `raises E` declares and
 
 ## Unions and literal types
 
-`|` forms unions. The syntax accepts an optional leading `|`. Canonical documentation omits it for single-line unions; multiline unions put every member, including the first, on a line beginning with `|`. String literals may be singleton types; numeric and Boolean literals widen to `integer`, `float`, and `boolean`. `nil` is also a type and an ordinary union member:
+`|` forms unions. The syntax accepts an optional leading `|`. Canonical documentation omits it for single-line unions; multiline unions put every member, including the first, on a line beginning with `|`. Every primitive literal may be written as an explicit singleton type: `nil`, `true`, `false`, strings, integers, and finite floats. Each singleton is a subtype of its ordinary primitive category. Numeric literals and ordinary Boolean expression values still infer as `integer`, `float`, and `boolean`; singleton annotations do not introduce global literal inference. Direct named map fields preserve Boolean singleton facts as record discriminants. `nil` is also an ordinary union member:
 
 ```simi
 alias mode = "read" | "write"
+alias retry_count = 0 | 1 | 2
+alias threshold = 0.5 | 1.0
 alias maybe_name = string | nil
+let port: 8080 = 8080
 ```
 
 Literal fields support discriminated structural records:
@@ -127,7 +130,15 @@ Literal fields support discriminated structural records:
 alias result<'value, 'error> =
     | { kind: "ok", value: 'value }
     | { kind: "error", error: 'error }
+
+alias step<'value> =
+    | { done: true, .. }
+    | { done: false, value: 'value, .. }
 ```
+
+A direct field such as `{done = false}` proves the `false` variant. A field initialized from an arbitrary Boolean variable, call, or operator remains `boolean` and does not prove either singleton. `true | false` normalizes to `boolean`, and a broad primitive is never a subtype of one of its singletons.
+
+Numeric singleton spelling preserves runtime categories: `1` is an integer singleton while `1.0` is a float singleton, including integral floats. Float zero is normalized by runtime numeric equality, so `-0.0` and `0.0` denote the same float singleton and display canonically as `0.0`. Finite-float lexical validation remains unchanged, and annotations remain erased.
 
 Pattern matching and ordinary equality may narrow these unions. Exhaustiveness
 analysis may warn about missing cases, but it does not change the current

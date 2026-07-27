@@ -171,6 +171,44 @@ fn utf8_tokens_keep_byte_ranges() {
 }
 
 #[test]
+fn primitive_singleton_types_are_lossless() {
+    let source = concat!(
+        "alias Step<'a> =\n",
+        "    | { done: true, .. }\n",
+        "    | { done: false, value: 'a, .. }\n",
+        "alias Literals = nil | \"ready\" | 42 | -7 | 0.5 | -0.0\n",
+    );
+    let parse = parse_source(source);
+    assert!(parse.diagnostics().is_empty(), "{:?}", parse.diagnostics());
+    assert_eq!(parse.syntax().to_string(), source);
+
+    let literals = parse
+        .syntax()
+        .descendants()
+        .filter(|node| node.kind() == SyntaxKind::TYPE_LITERAL)
+        .collect::<Vec<_>>();
+    assert_eq!(literals.len(), 8);
+    assert_eq!(literals[0].to_string(), "true");
+    assert_eq!(literals[1].to_string(), "false");
+    assert_eq!(literals[2].to_string(), "nil");
+    assert_eq!(literals[3].to_string(), "\"ready\"");
+    assert_eq!(literals[4].to_string(), "42");
+    assert_eq!(literals[5].to_string(), "-7");
+    assert_eq!(literals[6].to_string(), "0.5");
+    assert_eq!(literals[7].to_string(), "-0.0");
+    assert!(
+        literals[0]
+            .children_with_tokens()
+            .any(|element| element.kind() == SyntaxKind::TRUE_KW)
+    );
+    assert!(
+        literals[1]
+            .children_with_tokens()
+            .any(|element| element.kind() == SyntaxKind::FALSE_KW)
+    );
+}
+
+#[test]
 fn erased_type_surface_is_lossless_and_alias_is_contextual() {
     let source = concat!(
         "let alias = 1\n",

@@ -46,6 +46,276 @@ let exponent = 1.5_0e1_0
 }
 
 #[test]
+fn boolean_singletons_are_narrow_record_discriminants() {
+    let source = r#"
+alias Step<'a> =
+    | {done: true, ..}
+    | {done: false, value: 'a, ..}
+alias EitherBoolean = true | false
+let flag = false
+let exhausted = {done = true}
+let yielded = {done = false, value = 1}
+let either: EitherBoolean = true
+fn next<'a>(item: 'a, stop: boolean) -> Step<'a> do
+    if stop then {done = true} else {done = false, value = item} end
+end
+fn read(step: Step<integer>) -> integer | nil do
+    if step.done then
+        let exhausted_value = step.value
+        exhausted_value
+    else
+        let payload = step.value
+        payload
+    end
+end
+let nil_item: Step<integer | nil> = {done = false}
+"#;
+    let (inference, resolution) = inferred(source);
+    assert!(
+        inference.diagnostics.is_empty(),
+        "{:?}",
+        inference.diagnostics
+    );
+    assert_eq!(type_of(&inference, &resolution, "flag"), Type::Boolean);
+    assert_eq!(
+        type_of(&inference, &resolution, "exhausted").display(),
+        "{ done: true }"
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "yielded").display(),
+        "{ done: false, value: integer }"
+    );
+    assert_eq!(type_of(&inference, &resolution, "either"), Type::Boolean);
+    assert_eq!(
+        type_of(&inference, &resolution, "exhausted_value"),
+        Type::Any
+    );
+    assert_eq!(type_of(&inference, &resolution, "payload"), Type::Int);
+}
+
+#[test]
+fn explicit_primitive_singletons_are_erased_and_expressions_stay_wide() {
+    let source = r#"
+alias Scalar = nil | true | false | "ready" | 42 | 1.0 | -0.0
+let count = 42
+let ratio = 1.0
+let enabled = true
+let exact_nil: nil = nil
+let exact_true: true = true
+let exact_false: false = false
+let exact_text: "ready" = "ready"
+let exact_integer: 42 = 42
+let exact_hex: 0x2a = 42
+let exact_float: 1.0 = 1.0
+let exact_exponent: 1e3 = 1000.0
+let normalized_zero: 0.0 = -0.0
+fn accept(value: 42) -> integer do value end
+fn exact_result() -> 42 do 42 end
+let accepted = accept(42)
+let returned = exact_result()
+let wrong_integer: 42 = 43
+let wrong_category: 1.0 = 1
+let computed: 42 = 40 + 2
+"#;
+    let (inference, resolution) = inferred(source);
+    assert_eq!(type_of(&inference, &resolution, "count"), Type::Int);
+    assert_eq!(type_of(&inference, &resolution, "ratio"), Type::Float);
+    assert_eq!(type_of(&inference, &resolution, "enabled"), Type::Boolean);
+    assert_eq!(type_of(&inference, &resolution, "exact_nil"), Type::Nil);
+    assert_eq!(
+        type_of(&inference, &resolution, "exact_true"),
+        Type::LiteralBoolean(true)
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "exact_false"),
+        Type::LiteralBoolean(false)
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "exact_text"),
+        Type::LiteralString("ready".to_owned())
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "exact_integer"),
+        Type::LiteralInt(42)
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "exact_hex"),
+        Type::LiteralInt(42)
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "exact_float").display(),
+        "1.0"
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "exact_exponent").display(),
+        "1000.0"
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "normalized_zero").display(),
+        "0.0"
+    );
+    assert_eq!(type_of(&inference, &resolution, "accepted"), Type::Int);
+    assert_eq!(
+        type_of(&inference, &resolution, "returned"),
+        Type::LiteralInt(42)
+    );
+    assert_eq!(
+        inference
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code == AnalysisDiagnosticCode::TypeMismatch)
+            .count(),
+        3,
+        "{:?}",
+        inference.diagnostics
+    );
+}
+
+#[test]
+fn singleton_context_applies_to_function_bodies_and_mutation_rhs() {
+    let source = r#"
+fn direct_true() -> true true
+fn direct_int() -> 42 42
+let anon = fn() -> false false
+let annotated: () -> true noraise = fn() true
+let tagged: {done: true} = {done = true}
+tagged.done = true
+let indexed: {done: true} = {done = true}
+indexed["done"] = true
+let initial_code: 41 = 41
+let field_union: {code: 41 | 42} = {code = initial_code}
+field_union.code = 42
+field_union.code = 41
+let index_union: {code: 41 | 42} = {code = initial_code}
+index_union["code"] = 42
+index_union["code"] = 41
+"#;
+    let (inference, resolution) = inferred(source);
+    assert!(
+        inference.diagnostics.is_empty(),
+        "{:?}",
+        inference.diagnostics
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "direct_true").display(),
+        "() -> true"
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "direct_int").display(),
+        "() -> 42"
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "anon").display(),
+        "() -> false"
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "annotated").display(),
+        "() -> true noraise"
+    );
+    for name in ["tagged", "indexed"] {
+        assert_eq!(
+            type_of(&inference, &resolution, name).display(),
+            "{ done: true }"
+        );
+    }
+    for name in ["field_union", "index_union"] {
+        assert_eq!(
+            type_of(&inference, &resolution, name).display(),
+            "{ code: 41 | 42 }"
+        );
+    }
+}
+
+#[test]
+fn contextual_callable_let_annotations_keep_effect_and_explicit_result_checks() {
+    let source = r#"
+let inferred: (value: true) -> true noraise = fn(value) value
+let raised: () -> never raises string = fn() raise "failure"
+let explicit_result_mismatch: () -> true noraise = fn() -> false noraise false
+let effect_mismatch: () -> true noraise = fn() raise "failure"
+"#;
+    let (inference, resolution) = inferred(source);
+    assert_eq!(
+        type_of(&inference, &resolution, "inferred").display(),
+        "(value: true) -> true noraise"
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "raised").display(),
+        "() -> never raises string"
+    );
+    assert_eq!(
+        inference
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code == AnalysisDiagnosticCode::TypeMismatch)
+            .count(),
+        2,
+        "{:?}",
+        inference.diagnostics
+    );
+}
+
+#[test]
+fn broad_values_do_not_satisfy_singleton_mutation_targets() {
+    let source = r#"
+let field_flag: {done: true} = {done = true}
+let index_flag: {done: true} = {done = true}
+let broad_flag = false and true
+field_flag.done = broad_flag
+index_flag["done"] = broad_flag
+let exact_number: 42 = 42
+let field_number: {code: 42} = {code = exact_number}
+let index_number: {code: 42} = {code = exact_number}
+let broad_number = 40 + 2
+field_number.code = broad_number
+index_number["code"] = broad_number
+"#;
+    let (inference, _) = inferred(source);
+    assert_eq!(
+        inference
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code == AnalysisDiagnosticCode::TypeMismatch)
+            .count(),
+        4,
+        "{:?}",
+        inference.diagnostics
+    );
+}
+
+#[test]
+fn arbitrary_booleans_do_not_satisfy_singleton_fields() {
+    let source = r#"
+alias Step<'a> =
+    | {done: true, ..}
+    | {done: false, value: 'a, ..}
+let missing: Step<integer> = {done = false}
+let broad: true = false and true
+let computed = {done = false and true}
+let computed_step: Step<integer> = computed
+"#;
+    let (inference, resolution) = inferred(source);
+    assert_eq!(
+        type_of(&inference, &resolution, "broad"),
+        Type::LiteralBoolean(true)
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "computed").display(),
+        "{ done: boolean }"
+    );
+    assert_eq!(
+        inference
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code == AnalysisDiagnosticCode::TypeMismatch)
+            .count(),
+        3,
+        "{:?}",
+        inference.diagnostics
+    );
+}
+
+#[test]
 fn fibonacci_example_is_syntax_and_type_clean() {
     let db = AnalysisDatabase::default();
     let modules = [
@@ -431,15 +701,11 @@ fn annotated_generic_stdlib_calls_infer_through_nested_type_variables() {
     let db = AnalysisDatabase::default();
     let list_file = db.add_file(include_str!("../../../stdlib/list.simi"));
     let iter_file = db.add_file(include_str!("../../../stdlib/iter.simi"));
+    let list_shape = simi_analysis::module_shape(&db, list_file);
+    let iter_shape = simi_analysis::module_shape(&db, iter_file);
     let modules = HashMap::from([
-        (
-            "std/list".to_owned(),
-            simi_analysis::module_shape(&db, list_file),
-        ),
-        (
-            "std/iter".to_owned(),
-            simi_analysis::module_shape(&db, iter_file),
-        ),
+        ("std/list".to_owned(), list_shape),
+        ("std/iter".to_owned(), iter_shape),
     ]);
     let file = db.add_file(concat!(
         "\n",
@@ -456,9 +722,169 @@ fn annotated_generic_stdlib_calls_infer_through_nested_type_variables() {
     );
     assert_eq!(
         type_of(&inference, &resolution, "mapped").display(),
-        "[..any]"
+        "[..integer]"
     );
-    assert_eq!(type_of(&inference, &resolution, "found").display(), "any");
+    assert_eq!(
+        type_of(&inference, &resolution, "found").display(),
+        "integer | nil"
+    );
+}
+
+#[test]
+fn iterator_items_contextualize_callbacks_across_call_forms() {
+    let db = AnalysisDatabase::default();
+    let modules = [
+        ("std/list", include_str!("../../../stdlib/list.simi")),
+        ("std/map", include_str!("../../../stdlib/map.simi")),
+        ("std/iter", include_str!("../../../stdlib/iter.simi")),
+    ]
+    .into_iter()
+    .map(|(name, source)| {
+        let file = db.add_file(source);
+        (name.to_owned(), simi_analysis::module_shape(&db, file))
+    })
+    .collect::<HashMap<_, _>>();
+    let source = r#"
+let iter = require("std/iter")
+let folded = iter.fold(list.iter([1, 2, 3]), 0, fn(acc, fold_item) do acc + fold_item end)
+let piped =
+    [1, 2, 3]
+    |> list.iter()
+    |> iter.map(fn(pipeline_item) do pipeline_item + 1 end)
+    |> iter.to_list()
+let trailing_iterator =
+    iter.map(list.iter([1, 2, 3])) <| fn(trailing_item) do trailing_item + 1 end
+let trailing = iter.to_list(trailing_iterator)
+let mixed = iter.fold(list.iter([1, 2.0]), 0.0, fn(mixed_acc, mixed_item) do
+    mixed_acc + mixed_item
+end)
+let mapped = iter.to_list(iter.map(list.iter([1, 2]), fn(map_item) do map_item + 1 end))
+let filtered = iter.to_list(iter.filter(list.iter([1, 2]), fn(filter_item) do filter_item > 1 end))
+let found = iter.find(list.iter([1, 2]), fn(find_item) do find_item > 1 end)
+let nil_items = iter.to_list(iter.map(list.iter([1, nil, 3]), fn(nil_item) do nil_item end))
+let keys =
+    map.iter({first = 1})
+    |> iter.map(fn(entry) do entry.key end)
+    |> iter.to_list()
+let map_step = iter.next(map.iter({}))
+if map_step.done then
+    let exhausted_entry = map_step.value
+else
+    let live_entry = map_step.value
+end
+fn transform<'a, 'b, 'e>(value: 'a, callback: 'a -> 'b raises 'e) -> 'b raises 'e do
+    callback(value)
+end
+let generic_result = transform(1, fn(generic_item) do generic_item + 1 end)
+let parenthesized = transform(1, (fn(parenthesized_item) do parenthesized_item + 1 end))
+fn raising_source() -> { done: true, .. } | { done: false, value: integer, .. } raises "source" do
+    raise "source"
+end
+let effect_iterator = iter.map(raising_source, fn(effect_item) do
+    if effect_item > 0 then raise "callback" else effect_item end
+end)
+"#;
+    let file = db.add_file(source);
+    let resolution = resolve(&db, file);
+    let inference = infer_types(&db, file, &modules);
+    assert!(
+        inference.diagnostics.is_empty(),
+        "{:?}",
+        inference.diagnostics
+    );
+    for name in ["folded", "generic_result", "parenthesized"] {
+        assert_eq!(type_of(&inference, &resolution, name).display(), "integer");
+    }
+    assert_eq!(type_of(&inference, &resolution, "mixed").display(), "float");
+    for name in ["piped", "trailing", "mapped", "filtered"] {
+        assert_eq!(
+            type_of(&inference, &resolution, name).display(),
+            "[..integer]"
+        );
+    }
+    assert_eq!(
+        type_of(&inference, &resolution, "found").display(),
+        "integer | nil"
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "nil_items").display(),
+        "[..(integer | nil)]"
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "keys").display(),
+        "[..(boolean | integer | float | string)]"
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "exhausted_entry"),
+        Type::Any
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "live_entry").display(),
+        "{ key: boolean | integer | float | string, value: any, .. }"
+    );
+    for name in [
+        "acc",
+        "fold_item",
+        "pipeline_item",
+        "trailing_item",
+        "map_item",
+        "filter_item",
+        "find_item",
+        "generic_item",
+        "parenthesized_item",
+        "effect_item",
+    ] {
+        assert_eq!(type_of(&inference, &resolution, name).display(), "integer");
+    }
+    assert_eq!(
+        type_of(&inference, &resolution, "nil_item").display(),
+        "integer | nil"
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "effect_iterator").display(),
+        "() -> { done: true, .. } | { done: false, value: integer, .. } raises \"source\" | \"callback\""
+    );
+}
+
+#[test]
+fn contextual_callbacks_still_check_explicit_annotations() {
+    let db = AnalysisDatabase::default();
+    let modules = [
+        ("std/list", include_str!("../../../stdlib/list.simi")),
+        ("std/iter", include_str!("../../../stdlib/iter.simi")),
+    ]
+    .into_iter()
+    .map(|(name, source)| {
+        let file = db.add_file(source);
+        (name.to_owned(), simi_analysis::module_shape(&db, file))
+    })
+    .collect::<HashMap<_, _>>();
+    let source = r#"
+let iter = require("std/iter")
+let compatible = iter.to_list(iter.map(list.iter([1, 2]), fn(item: integer) -> integer noraise do
+    item + 1
+end))
+iter.fold(list.iter([1, 2]), 0, fn(acc: string, item: integer) do acc end)
+iter.map(list.iter([1, 2]), fn(item: integer) -> string do item + 1 end)
+iter.map(list.iter([1, 2]), fn(item: integer) -> any noraise do raise "nope" end)
+"#;
+    let file = db.add_file(source);
+    let resolution = resolve(&db, file);
+    let inference = infer_types(&db, file, &modules);
+    assert_eq!(
+        type_of(&inference, &resolution, "compatible").display(),
+        "[..integer]"
+    );
+    assert!(
+        inference
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code == AnalysisDiagnosticCode::TypeMismatch)
+            .count()
+            == 4,
+        "{:?}",
+        inference.diagnostics
+    );
 }
 
 #[test]
@@ -1648,7 +2074,7 @@ end
             .iter()
             .filter(|(code, _, _)| *code == AnalysisDiagnosticCode::DestructuringLetMayFail)
             .count(),
-        3,
+        4,
         "{reported:?}"
     );
     assert!(

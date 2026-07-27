@@ -37,7 +37,9 @@ impl Context<'_> {
                     let mut expressions = expr_children(entry.syntax());
                     if let Some(name) = direct_token(entry.syntax(), K::IDENT) {
                         let value = if let Some(value) = expressions.next() {
-                            self.expression(value)
+                            let discriminant = direct_boolean_literal_type(&value);
+                            let inferred = self.expression(value);
+                            discriminant.unwrap_or(inferred)
                         } else if let Some(symbol) =
                             self.resolution.symbol_at(token_span(&name).start)
                             && let Some(ty) = self.symbol_types.get(&symbol).cloned()

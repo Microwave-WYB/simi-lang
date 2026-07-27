@@ -24,6 +24,26 @@ fn list_and_map_producers_are_public_iterators() {
 }
 
 #[test]
+fn erased_iterator_item_annotations_preserve_fold_and_nil_items() {
+    assert_eval(
+        r#"
+
+        let iter = require("std/iter")
+        let number = require("std/number")
+        let total =
+            [1, 2, 3, 4]
+            |> list.iter()
+            |> iter.fold(0, fn(acc, item) do acc + item end)
+        let nil_items = iter.to_list(
+            iter.map(list.iter([1, nil, 3]), fn(item) do item end)
+        )
+        [total |> number.to_string(), nil_items]
+        "#,
+        "[\"10\", [1, nil, 3]]",
+    );
+}
+
+#[test]
 fn iterators_are_lazy_single_pass_and_sticky_after_exhaustion() {
     assert_eval(
         r#"

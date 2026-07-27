@@ -32,29 +32,19 @@ pub(super) fn literal_string(expression: &syntax::Expr) -> Option<String> {
     direct_token(literal.syntax(), K::STRING).map(|token| unquote(token.text()))
 }
 pub(super) fn comparison_matcher(expression: &syntax::Expr) -> Option<TypeMatcher> {
-    let syntax::Expr::Literal(literal) = expression else {
-        return None;
-    };
-    if direct_token(literal.syntax(), K::NIL_KW).is_some() {
-        return Some(TypeMatcher::Exact(Type::Nil));
+    direct_literal_type(expression).map(TypeMatcher::Exact)
+}
+fn int_float_equal(integer: i64, float: f64) -> bool {
+    const EXACT_INTEGER_LIMIT: i64 = 1_i64 << 53;
+    if (-EXACT_INTEGER_LIMIT..=EXACT_INTEGER_LIMIT).contains(&integer) {
+        integer as f64 == float
+    } else if !float.is_finite() || float.fract() != 0.0 {
+        false
+    } else {
+        const I64_MIN_F64: f64 = -9_223_372_036_854_775_808.0;
+        const I64_END_F64: f64 = 9_223_372_036_854_775_808.0;
+        (I64_MIN_F64..I64_END_F64).contains(&float) && float as i64 == integer
     }
-    if let Some(token) = direct_token(literal.syntax(), K::STRING) {
-        return Some(TypeMatcher::Exact(Type::LiteralString(unquote(
-            token.text(),
-        ))));
-    }
-    if let Some(token) = direct_token(literal.syntax(), K::INT)
-        && let Ok(value) = token.text().parse()
-    {
-        return Some(TypeMatcher::Exact(Type::LiteralInt(value)));
-    }
-    if direct_token(literal.syntax(), K::TRUE_KW).is_some() {
-        return Some(TypeMatcher::Exact(Type::LiteralBoolean(true)));
-    }
-    if direct_token(literal.syntax(), K::FALSE_KW).is_some() {
-        return Some(TypeMatcher::Exact(Type::LiteralBoolean(false)));
-    }
-    None
 }
 pub(super) fn matcher_relation(ty: &Type, matcher: &TypeMatcher) -> Option<bool> {
     if matches!(
@@ -68,7 +58,7 @@ pub(super) fn matcher_relation(ty: &Type, matcher: &TypeMatcher) -> Option<bool>
             "nil" => matches!(ty, Type::Nil),
             "boolean" => matches!(ty, Type::Boolean | Type::LiteralBoolean(_)),
             "integer" => matches!(ty, Type::Int | Type::LiteralInt(_)),
-            "float" => matches!(ty, Type::Float),
+            "float" => matches!(ty, Type::Float | Type::LiteralFloat(_)),
             "string" => matches!(ty, Type::String | Type::LiteralString(_)),
             "list" => matches!(ty, Type::ListExact(_) | Type::ListRest(_)),
             "map" => matches!(ty, Type::Map { .. }),
@@ -78,9 +68,15 @@ pub(super) fn matcher_relation(ty: &Type, matcher: &TypeMatcher) -> Option<bool>
         TypeMatcher::Exact(expected) => match (ty, expected) {
             (Type::String, Type::LiteralString(_))
             | (Type::Int, Type::LiteralInt(_))
+            | (Type::Float, Type::LiteralFloat(_))
             | (Type::Boolean, Type::LiteralBoolean(_)) => None,
             (Type::LiteralString(left), Type::LiteralString(right)) => Some(left == right),
             (Type::LiteralInt(left), Type::LiteralInt(right)) => Some(left == right),
+            (Type::LiteralFloat(left), Type::LiteralFloat(right)) => Some(left == right),
+            (Type::LiteralInt(integer), Type::LiteralFloat(float))
+            | (Type::LiteralFloat(float), Type::LiteralInt(integer)) => {
+                Some(int_float_equal(*integer, float.value()))
+            }
             (Type::LiteralBoolean(left), Type::LiteralBoolean(right)) => Some(left == right),
             _ => Some(ty == expected),
         },
@@ -102,6 +98,9 @@ pub(super) fn narrow_type(ty: Type, matcher: &TypeMatcher, keep: bool) -> Type {
             (Type::String, TypeMatcher::Exact(Type::LiteralString(value))) => {
                 Type::LiteralString(value.clone())
             }
+            (Type::Int, TypeMatcher::Exact(value @ Type::LiteralInt(_)))
+            | (Type::Float, TypeMatcher::Exact(value @ Type::LiteralFloat(_)))
+            | (Type::Boolean, TypeMatcher::Exact(value @ Type::LiteralBoolean(_))) => value.clone(),
             _ => ty,
         },
         None => ty,
@@ -239,7 +238,14 @@ pub(super) fn pattern_partition(source: Type, pattern: &syntax::Pattern) -> (Typ
             } else if let Some(token) = direct_token(node.syntax(), K::STRING) {
                 TypeMatcher::Exact(Type::LiteralString(unquote(token.text())))
             } else if let Some(token) = direct_token(node.syntax(), K::INT) {
-                TypeMatcher::Exact(Type::LiteralInt(token.text().parse().unwrap_or_default()))
+                TypeMatcher::Exact(Type::LiteralInt(
+                    parse_integer_literal(token.text()).unwrap_or_default(),
+                ))
+            } else if let Some(token) = direct_token(node.syntax(), K::FLOAT) {
+                let value = parse_float_literal(token.text()).unwrap_or_default();
+                TypeMatcher::Exact(Type::LiteralFloat(
+                    LiteralFloat::new(value).expect("pattern floats are finite"),
+                ))
             } else if direct_token(node.syntax(), K::TRUE_KW).is_some() {
                 TypeMatcher::Exact(Type::LiteralBoolean(true))
             } else if direct_token(node.syntax(), K::FALSE_KW).is_some() {

@@ -256,7 +256,7 @@ impl Context<'_> {
                 let next = generics.values().copied().max().map_or(0, |id| id + 1);
                 Type::Generic(*generics.entry(name).or_insert(next))
             }
-            K::TYPE_LITERAL => literal_type(node),
+            K::TYPE_LITERAL => type_literal_type(node),
             K::TYPE_PAREN => {
                 let items = support::children::<syntax::TypeFunctionParam>(node)
                     .filter_map(|parameter| {

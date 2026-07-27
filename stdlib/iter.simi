@@ -1,9 +1,11 @@
 ---- Lazy, single-pass iterator operations.
 
-alias Step = { done: boolean, .. }
-alias Iterator<'e> = () -> Step raises 'e
+alias Step<'a> =
+    | { done: true, .. }
+    | { done: false, value: 'a, .. }
+alias Iterator<'a, 'e> = () -> Step<'a> raises 'e
 
-fn from<'e>(next_fn: Iterator<'e>) -> Iterator<'e> noraise do
+fn from<'a, 'e>(next_fn: Iterator<'a, 'e>) -> Iterator<'a, 'e> noraise do
     let exhausted = false
     fn() do
         if exhausted then { done = true }
@@ -19,12 +21,12 @@ fn from<'e>(next_fn: Iterator<'e>) -> Iterator<'e> noraise do
     end
 end
 
-fn next<'e>(iterator: Iterator<'e>) -> Step raises 'e do iterator() end
+fn next<'a, 'e>(iterator: Iterator<'a, 'e>) -> Step<'a> raises 'e do iterator() end
 
 fn map<'a, 'b, 'e, 'f>(
-    iterator: Iterator<'e>,
+    iterator: Iterator<'a, 'e>,
     transform: 'a -> 'b raises 'f,
-) -> Iterator<'e | 'f> noraise do
+) -> Iterator<'b, 'e | 'f> noraise do
     fn() do
         let step = iterator()
         if step.done then step else { done = false, value = transform(step.value) } end
@@ -32,9 +34,9 @@ fn map<'a, 'b, 'e, 'f>(
 end
 
 fn filter<'a, 'e, 'f>(
-    iterator: Iterator<'e>,
+    iterator: Iterator<'a, 'e>,
     predicate: 'a -> boolean raises 'f,
-) -> Iterator<'e | 'f> noraise do
+) -> Iterator<'a, 'e | 'f> noraise do
     fn() do
         loop
             let step = iterator()
@@ -46,7 +48,7 @@ fn filter<'a, 'e, 'f>(
     end
 end
 
-fn to_list<'e>(iterator: Iterator<'e>) -> [..any] raises 'e do
+fn to_list<'a, 'e>(iterator: Iterator<'a, 'e>) -> [..'a] raises 'e do
     let result = []
     loop
         let step = iterator()
@@ -59,7 +61,7 @@ fn to_list<'e>(iterator: Iterator<'e>) -> [..any] raises 'e do
 end
 
 fn fold<'state, 'a, 'e, 'f>(
-    iterator: Iterator<'e>,
+    iterator: Iterator<'a, 'e>,
     initial: 'state,
     reducer: ('state, 'a) -> 'state raises 'f,
 ) -> 'state raises 'e | 'f do
@@ -75,9 +77,9 @@ fn fold<'state, 'a, 'e, 'f>(
 end
 
 fn find<'a, 'e, 'f>(
-    iterator: Iterator<'e>,
+    iterator: Iterator<'a, 'e>,
     predicate: 'a -> boolean raises 'f,
-) -> any | nil raises 'e | 'f do
+) -> 'a | nil raises 'e | 'f do
     loop
         let step = iterator()
         if step.done then break nil
@@ -88,7 +90,7 @@ fn find<'a, 'e, 'f>(
 end
 
 fn find_index<'a, 'e, 'f>(
-    iterator: Iterator<'e>,
+    iterator: Iterator<'a, 'e>,
     predicate: 'a -> boolean raises 'f,
 ) -> integer | nil raises 'e | 'f do
     let index = 0
@@ -103,7 +105,7 @@ fn find_index<'a, 'e, 'f>(
     end
 end
 
-fn contains<'a, 'e>(iterator: Iterator<'e>, needle: 'a) -> boolean raises 'e do
+fn contains<'a, 'e>(iterator: Iterator<'a, 'e>, needle: 'a) -> boolean raises 'e do
     loop
         let step = iterator()
         if step.done then break false
@@ -114,7 +116,7 @@ fn contains<'a, 'e>(iterator: Iterator<'e>, needle: 'a) -> boolean raises 'e do
 end
 
 fn any<'a, 'e, 'f>(
-    iterator: Iterator<'e>,
+    iterator: Iterator<'a, 'e>,
     predicate: 'a -> boolean raises 'f,
 ) -> boolean raises 'e | 'f do
     loop
@@ -127,7 +129,7 @@ fn any<'a, 'e, 'f>(
 end
 
 fn all<'a, 'e, 'f>(
-    iterator: Iterator<'e>,
+    iterator: Iterator<'a, 'e>,
     predicate: 'a -> boolean raises 'f,
 ) -> boolean raises 'e | 'f do
     loop
@@ -140,7 +142,7 @@ fn all<'a, 'e, 'f>(
 end
 
 fn each<'a, 'e, 'f>(
-    iterator: Iterator<'e>,
+    iterator: Iterator<'a, 'e>,
     callback: 'a -> any raises 'f,
 ) -> nil raises 'e | 'f do
     loop
@@ -154,7 +156,7 @@ fn each<'a, 'e, 'f>(
 end
 
 fn count<'a, 'e, 'f>(
-    iterator: Iterator<'e>,
+    iterator: Iterator<'a, 'e>,
     predicate: 'a -> boolean raises 'f,
 ) -> integer raises 'e | 'f do
     let total = 0

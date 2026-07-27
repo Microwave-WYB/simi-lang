@@ -6,6 +6,10 @@ alias IndexError = {
     length: integer,
     ..
 }
+alias Step<'a> =
+    | { done: true, .. }
+    | { done: false, value: 'a, .. }
+alias Iterator<'a> = () -> Step<'a> noraise
 
 --- Return the number of visible elements in a list.
 let length: (xs: [..'a]) -> integer noraise = host.length
@@ -44,7 +48,7 @@ let contains: (xs: [..'a], value: 'a) -> boolean noraise = host.contains
 let reverse: (xs: [..'a]) -> nil noraise = host.reverse
 
 --- Create a lazy iterator over an O(1) copy-on-write snapshot.
-fn iter(xs: [..'a]) do
+fn iter<'a>(xs: [..'a]) -> Iterator<'a> noraise do
     let snapshot = host.iter(xs)
     let length = host.length(snapshot)
     let index = 0

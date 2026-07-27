@@ -83,7 +83,9 @@ let name: maybe_name = nil
 [selected, name]
 ```
 
-Numeric and Boolean literals widen to `integer`, `float`, and `boolean`. `nil` remains an ordinary union member.
+Every primitive literal can be written explicitly as a singleton annotation type: `nil`, `true`, `false`, strings, integers, and finite floats. Numeric literals and ordinary Boolean expression values still infer as `integer`, `float`, and `boolean`; an annotation such as `let port: 8080 = 8080` opts into the singleton contract. Each singleton is a subtype of its primitive category, but a broad primitive is not a subtype of one singleton. Integral float spellings remain float singletons, while `-0.0` normalizes to the same singleton as `0.0`.
+
+Direct named map fields are the narrow Boolean inference exception: `{done = false}` preserves `false` as a record-discriminant fact, while arbitrary Boolean variables, calls, and operators remain `boolean`. The union `true | false` normalizes to `boolean`. `nil` remains an ordinary union member.
 
 ## Function types and generics
 
@@ -237,6 +239,26 @@ of {kind = "error", error = error}
     error
 end
 ```
+
+Boolean fields can discriminate record unions too:
+
+```simi
+alias Step<'a> =
+    | {done: true, ..}
+    | {done: false, value: 'a, ..}
+
+fn step_value(step: Step<integer>) -> integer | nil do
+    if step.done then
+        nil
+    else
+        step.value
+    end
+end
+
+step_value({done = false, value = 42})
+```
+
+The `if step.done` branches select the corresponding record variants, so `step.value` has type `integer` in the `else` branch. Before that check, the done variant makes `value` not definitely present.
 
 Pattern matching and equality can narrow these unions. Exhaustiveness analysis may warn about a missing case, but erasure preserves the runtime rule: an unmatched `case` is still a hard diagnostic.
 

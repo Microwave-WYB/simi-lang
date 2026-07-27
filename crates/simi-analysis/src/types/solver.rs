@@ -26,9 +26,7 @@ impl Context<'_> {
                 self.bind_infer(actual, expected);
             }
             (Type::ListRest(expected), Type::ListExact(actual)) => {
-                for actual in actual {
-                    self.constrain(expected, actual, at);
-                }
+                self.constrain(expected, &union(actual.clone()), at);
             }
             (Type::ListRest(_), Type::ListRest(actual)) if **actual == Type::Never => {}
             (Type::ListRest(expected), Type::ListRest(actual)) => {
@@ -69,6 +67,40 @@ impl Context<'_> {
                     );
                 }
             }
+            (
+                Type::Map {
+                    fields: expected_fields,
+                    index: expected_index,
+                    ..
+                },
+                Type::Map {
+                    fields: actual_fields,
+                    index: actual_index,
+                    ..
+                },
+            ) => {
+                for (name, expected) in expected_fields {
+                    if let Some((_, actual)) = actual_fields
+                        .iter()
+                        .find(|(actual_name, _)| actual_name == name)
+                    {
+                        self.constrain(expected, actual, at);
+                    }
+                }
+                if let (Some((expected_key, expected_value)), Some((actual_key, actual_value))) =
+                    (expected_index, actual_index)
+                {
+                    self.constrain(expected_key, actual_key, at);
+                    self.constrain(expected_value, actual_value, at);
+                }
+                let expected = self.resolve_type(expected.clone());
+                self.require_subtype(&actual, &expected, at);
+            }
+            (_, Type::Union(actual)) => {
+                for actual in actual {
+                    self.constrain(&expected, actual, at);
+                }
+            }
             (Type::Union(expected), _) => {
                 let concrete = union(
                     expected
@@ -84,11 +116,6 @@ impl Context<'_> {
                     self.constrain(variable, &actual, at);
                 } else {
                     self.require_subtype(&actual, &Type::Union(expected.clone()), at);
-                }
-            }
-            (_, Type::Union(actual)) => {
-                for actual in actual {
-                    self.constrain(&expected, actual, at);
                 }
             }
             _ => self.require_subtype(&actual, &expected, at),

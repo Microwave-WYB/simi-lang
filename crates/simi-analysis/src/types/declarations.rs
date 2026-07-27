@@ -87,15 +87,21 @@ impl Context<'_> {
                 let inherited_region = value_expression
                     .as_ref()
                     .and_then(|expression| self.expression_region(expression));
-                let value = value_expression
-                    .clone()
-                    .map(|expression| self.expression(expression))
-                    .unwrap_or(Type::Unknown);
                 let annotation_node = support::child::<syntax::TypeAnnotation>(statement.syntax())
                     .and_then(|annotation| support::child::<syntax::TypeExpr>(annotation.syntax()));
                 let mut annotation_generics = HashMap::new();
                 let annotation = annotation_node
                     .map(|ty| self.parse_type(ty.syntax(), &mut annotation_generics));
+                let value = value_expression
+                    .clone()
+                    .map(|expression| {
+                        if let Some(expected) = annotation.as_ref() {
+                            self.infer_annotated_let_value(expression, expected)
+                        } else {
+                            self.expression(expression)
+                        }
+                    })
+                    .unwrap_or(Type::Unknown);
                 let explicitly_annotated = annotation.is_some();
                 let final_ty = if let Some(expected) = annotation {
                     self.constrain(&expected, &value, span(statement.syntax()));
@@ -158,6 +164,21 @@ impl Context<'_> {
             syntax::Stmt::ExprStmt(statement) => support::child::<syntax::Expr>(statement.syntax())
                 .map(|expression| self.expression(expression))
                 .unwrap_or(Type::Unknown),
+        }
+    }
+    fn infer_annotated_let_value(&mut self, expression: syntax::Expr, expected: &Type) -> Type {
+        let resolved_expected = self.resolve_type(expected.clone());
+        match (expression, &resolved_expected) {
+            (syntax::Expr::Function(function), Type::Function(callable)) => {
+                self.infer_anonymous_expected(function, callable)
+            }
+            (syntax::Expr::Paren(paren), Type::Function(_)) => child_expr(paren.syntax(), 0)
+                .map_or(Type::Unknown, |inner| {
+                    self.infer_annotated_let_value(inner, &resolved_expected)
+                }),
+            (expression, _) => {
+                direct_literal_type(&expression).unwrap_or_else(|| self.expression(expression))
+            }
         }
     }
     pub(super) fn expression_region(&mut self, expression: &syntax::Expr) -> Option<u32> {
@@ -269,7 +290,14 @@ impl Context<'_> {
             .unwrap_or_default();
         self.mutation_effect_frames.pop();
         let resolved_result = self.resolve_type((*expected_result).clone());
-        let resolved_actual = self.resolve_type(actual.clone());
+        let checked_actual = if type_contains_singleton(&resolved_result) {
+            body.as_ref()
+                .and_then(body_direct_literal_type)
+                .unwrap_or_else(|| actual.clone())
+        } else {
+            actual.clone()
+        };
+        let resolved_actual = self.resolve_type(checked_actual.clone());
         if matches!(resolved_result, Type::Infer(_)) && resolved_actual == Type::Any {
             self.bind_infer((*expected_result).clone(), Type::Any);
         } else if let Type::Infer(id) = resolved_result
@@ -287,7 +315,7 @@ impl Context<'_> {
             {
                 self.bind_infer(resolved_actual, Type::Never);
             }
-            self.constrain(&expected_result, &actual, span(function.syntax()));
+            self.constrain(&expected_result, &checked_actual, span(function.syntax()));
         }
 
         let declared_raised = (*callable.raised).clone();
@@ -365,6 +393,22 @@ impl Context<'_> {
         union(vec![result, Type::Nil])
     }
     pub(super) fn infer_anonymous(&mut self, node: syntax::FunctionExpr) -> Type {
+        self.infer_anonymous_with_expected(node, None)
+    }
+
+    pub(super) fn infer_anonymous_expected(
+        &mut self,
+        node: syntax::FunctionExpr,
+        expected: &CallableType,
+    ) -> Type {
+        self.infer_anonymous_with_expected(node, Some(expected))
+    }
+
+    fn infer_anonymous_with_expected(
+        &mut self,
+        node: syntax::FunctionExpr,
+        expected_callable: Option<&CallableType>,
+    ) -> Type {
         let outer_flow = self.flow_state();
         let outer_nil_aborts = std::mem::take(&mut self.nil_abort_states);
         let function_span = span(node.syntax());
@@ -379,20 +423,31 @@ impl Context<'_> {
         let parameters = support::child::<syntax::ParamList>(node.syntax())
             .map(|list| {
                 support::children::<syntax::Param>(list.syntax())
-                    .map(|parameter| {
-                        let ty = support::child::<syntax::TypeAnnotation>(parameter.syntax())
+                    .enumerate()
+                    .map(|(index, parameter)| {
+                        let annotation =
+                            support::child::<syntax::TypeAnnotation>(parameter.syntax());
+                        let ty = annotation
+                            .as_ref()
                             .and_then(|annotation| {
                                 support::child::<syntax::TypeExpr>(annotation.syntax())
                             })
                             .map(|annotation| self.parse_type(annotation.syntax(), &mut generics))
-                            .unwrap_or_else(|| self.fresh());
+                            .unwrap_or_else(|| {
+                                expected_callable
+                                    .and_then(|callable| callable.parameters.get(index))
+                                    .map(|parameter| self.resolve_type(parameter.ty.clone()))
+                                    .filter(|ty| {
+                                        !contains_infer(ty)
+                                            && !matches!(ty, Type::Any | Type::Unknown)
+                                    })
+                                    .unwrap_or_else(|| self.fresh())
+                            });
                         if let Some(token) = direct_token(parameter.syntax(), K::IDENT)
                             && let Some(symbol) =
                                 self.resolution.symbol_at(token_span(&token).start)
                         {
-                            if support::child::<syntax::TypeAnnotation>(parameter.syntax())
-                                .is_some()
-                            {
+                            if annotation.is_some() {
                                 self.annotated_symbols.insert(symbol);
                             }
                             self.symbol_types.insert(symbol, ty.clone());
@@ -425,7 +480,9 @@ impl Context<'_> {
                 .collect(),
         );
         self.raised_exit_frames.push(Vec::new());
-        let actual = support::child::<syntax::Body>(node.syntax())
+        let body = support::child::<syntax::Body>(node.syntax());
+        let actual = body
+            .as_ref()
             .map(|body| self.infer_body(body.syntax()))
             .unwrap_or(Type::Nil);
         let raised_exits = self.raised_exit_frames.pop().unwrap_or_default();
@@ -437,8 +494,19 @@ impl Context<'_> {
             .map(|(_, assigned)| assigned)
             .unwrap_or_default();
         self.mutation_effect_frames.pop();
-        let result = if let Some(expected) = expected {
-            self.require_subtype(&actual, &expected, span(node.syntax()));
+        let expected_result = expected.clone().or_else(|| {
+            expected_callable
+                .map(|callable| self.resolve_type((*callable.result).clone()))
+                .filter(type_contains_singleton)
+        });
+        let checked_actual = expected_result
+            .as_ref()
+            .map(|expected| self.resolve_type(expected.clone()))
+            .filter(type_contains_singleton)
+            .and_then(|_| body.as_ref().and_then(body_direct_literal_type))
+            .unwrap_or_else(|| actual.clone());
+        let result = if let Some(expected) = expected_result {
+            self.require_subtype(&checked_actual, &expected, span(node.syntax()));
             expected
         } else {
             actual.clone()

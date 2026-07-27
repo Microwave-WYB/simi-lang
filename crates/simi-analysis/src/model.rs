@@ -272,6 +272,25 @@ impl Hash for CallableType {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct LiteralFloat(u64);
+
+impl LiteralFloat {
+    pub fn new(mut value: f64) -> Option<Self> {
+        if !value.is_finite() {
+            return None;
+        }
+        if value == 0.0 {
+            value = 0.0;
+        }
+        Some(Self(value.to_bits()))
+    }
+
+    pub fn value(self) -> f64 {
+        f64::from_bits(self.0)
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Type {
     #[doc(hidden)]
@@ -284,6 +303,7 @@ pub enum Type {
     Float,
     String,
     LiteralInt(i64),
+    LiteralFloat(LiteralFloat),
     LiteralString(String),
     LiteralBoolean(bool),
     ListExact(Vec<Type>),
@@ -316,6 +336,15 @@ impl Type {
     }
 }
 
+fn display_float_literal(value: f64) -> String {
+    let rendered = value.to_string();
+    if rendered.contains(['.', 'e', 'E']) {
+        rendered
+    } else {
+        format!("{rendered}.0")
+    }
+}
+
 fn display_type(ty: &Type, nested: bool) -> String {
     match ty {
         Type::Never => "never".to_owned(),
@@ -327,6 +356,7 @@ fn display_type(ty: &Type, nested: bool) -> String {
         Type::Float => "float".to_owned(),
         Type::String => "string".to_owned(),
         Type::LiteralInt(value) => value.to_string(),
+        Type::LiteralFloat(value) => display_float_literal(value.value()),
         Type::LiteralString(value) => format!("{value:?}"),
         Type::LiteralBoolean(value) => value.to_string(),
         Type::ListExact(items) => format!(
