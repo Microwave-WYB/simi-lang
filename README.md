@@ -46,7 +46,7 @@ Start with [Hello, world!](docs/language-tour/hello-world.md), continue through 
 
 ## Installation
 
-> **Status:** Simi is under active development. Versioned prereleases and the moving `latest` development release include the exact source commit in every download name.
+> **Status:** Simi is under active development. Alpha releases are distributed only as GitHub Release artifacts; crates.io publication is deferred. Versioned prereleases and the moving `latest` development release include the exact source commit in every download name.
 
 ### Latest release
 
@@ -68,7 +68,7 @@ Development artifacts are produced for Linux x86-64, Intel macOS, and Windows x8
 
 ### Cargo
 
-To build the newest source directly, first [install Rust with rustup](https://rustup.rs/). Simi currently requires Rust 1.88 or newer. Then run:
+Simi is not published to crates.io during the alpha phase. To build the newest source directly, first [install Rust with rustup](https://rustup.rs/). Simi currently requires Rust 1.88 or newer. Then run:
 
 ```sh
 cargo install --git https://github.com/Microwave-WYB/simi-lang --bin simi
