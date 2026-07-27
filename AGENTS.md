@@ -344,7 +344,8 @@ Prefer cohesive modules over extending already-large files. Place native library
 
 ## Repository and Worktree Discipline
 
-- `main` is the integration branch.
+- Milestone integration branches are named `dev/<milestone>` (for example, `dev/0.1.0-alpha.1`). Feature PRs target the active milestone branch; CI is required but review is not.
+- `main` receives only a reviewed promotion PR from a validated milestone branch, then serves as the release branch.
 - Use focused feature branches and separate worktrees for parallel work.
 - Have only one writer modify a given worktree.
 - Avoid assigning parallel branches changes to the same facade or registration file when possible.
