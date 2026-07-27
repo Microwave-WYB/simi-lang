@@ -2,7 +2,9 @@
 
 This archive is produced from one immutable Git commit. Versioned prerelease
 assets are published under tags such as `v0.1.0-alpha.1`; the moving `latest`
-release remains a separate development convenience.
+release remains a separate development convenience. Alpha releases are
+distributed only through GitHub Release artifacts; crates.io publication is
+deferred.
 
 This archive contains one Simi command-line build:
 
