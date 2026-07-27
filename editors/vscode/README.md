@@ -6,7 +6,7 @@ Visual Studio Code language support for Simi, including:
 - `simi-lsp` diagnostics, symbols, navigation, references, rename, hover, and completion;
 - TextMate-based syntax highlighting that remains available when the server is absent;
 - `--` line comments;
-- bracket matching, auto-closing, and surrounding pairs;
+- bracket matching, single-character auto-closing and surrounding pairs, plus extension-managed `do … end` block shells;
 - indentation rules for standalone `do` blocks and one-final-`end` repeated `of`/`catch` branches;
 - construct-specific snippets for blocks, functions, conditionals, loops, cases, and try/catch expressions;
 - indentation-based folding plus `-- region` / `-- endregion` folding markers.
@@ -87,6 +87,12 @@ Canonical pattern dispatch is `case expression of pattern [when guard] do block 
 
 Runtime-category checks use the builtin call and ordinary comparison syntax, such as `type(value) == "integer"` and `type(callback) == "function"`. The shadowable builtin is highlighted as a builtin only when called, `==` uses the normal comparison scope, and `is` is an ordinary identifier.
 
+## Block auto-pairing
+
+With a single cursor, press Enter after a line-ending `do` keyword in Simi code to create an indented block shell, with the cursor on its empty body line. Waiting for Enter confirms the token boundary, so typing an identifier such as `document` never inserts a shell; comments and strings are excluded by the extension's line lexer. The `type` command delegates every keystroke to VS Code's `default:type` before applying this focused behavior. Multi-cursor entry retains normal VS Code typing without shell insertion.
+
+The extension tracks each `end` that it generates. If the cursor is moved to the start of that tracked closer, typing `end` replaces its matching characters without producing a duplicate. This is extension-managed replacement, not VS Code multi-character close overtyping. Existing, untracked `end` text keeps normal typing behavior. VS Code 1.85 does not expose native multi-character paired deletion or overtyping, so the extension does not claim or emulate paired deletion.
+
 ## Validation
 
-The tests load the grammar through the same `vscode-textmate` and Oniguruma libraries used by VS Code and assert scopes against a representative Simi fixture. They also validate package contributions, language configuration regexes, and the current lexer keyword inventory.
+The tests load the grammar through the same `vscode-textmate` and Oniguruma libraries used by VS Code and assert scopes against a representative Simi fixture. They also validate package contributions, language configuration regexes, and the current lexer keyword inventory. Focused Node tests exercise the extension's `type` control path with faithful document, selection, edit, and change-event mocks; they are not an Extension Development Host test.

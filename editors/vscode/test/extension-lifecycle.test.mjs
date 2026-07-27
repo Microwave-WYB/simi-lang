@@ -59,6 +59,9 @@ function harness(plans) {
         configurationListener = callback;
         return { dispose() {} };
       },
+      onDidChangeTextDocument() {
+        return { dispose() {} };
+      },
     },
   };
 
@@ -134,7 +137,8 @@ test("activation remains successful when simi lsp cannot start", async () => {
   assert.match(app.errors[0], /Unable to start simi lsp/);
   assert.match(app.errors[0], /simi\.languageServer\.path/);
   assert.ok(app.commands.has("simi.restartLanguageServer"));
-  assert.equal(app.context.subscriptions.length, 2);
+  assert.ok(app.commands.has("type"));
+  assert.equal(app.context.subscriptions.length, 4);
 });
 
 test("successful activation uses language client defaults and deactivates cleanly", async () => {
