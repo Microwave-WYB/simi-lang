@@ -479,7 +479,7 @@ fn block_ends_in_direct_call(body: &syntax::Block) -> bool {
     })
 }
 
-fn is_host_wrapper(body: &syntax::Block, resolution: &Resolution) -> bool {
+fn is_host_wrapper(body: &syntax::Body, resolution: &Resolution) -> bool {
     if resolution
         .hir
         .occurrences
@@ -493,14 +493,19 @@ fn is_host_wrapper(body: &syntax::Block, resolution: &Resolution) -> bool {
     {
         return false;
     }
-    let mut statements = body.statements();
-    let Some(syntax::Stmt::ExprStmt(statement)) = statements.next() else {
-        return false;
+    let expression = if let Some(block) = support::child::<syntax::Block>(body.syntax()) {
+        let mut statements = block.statements();
+        let Some(syntax::Stmt::ExprStmt(statement)) = statements.next() else {
+            return false;
+        };
+        if statements.next().is_some() {
+            return false;
+        }
+        support::child::<syntax::Expr>(statement.syntax())
+    } else {
+        support::child::<syntax::Expr>(body.syntax())
     };
-    if statements.next().is_some() {
-        return false;
-    }
-    let Some(syntax::Expr::Call(call)) = support::child::<syntax::Expr>(statement.syntax()) else {
+    let Some(syntax::Expr::Call(call)) = expression else {
         return false;
     };
     let Some(syntax::Expr::Field(field)) = child_expr(call.syntax(), 0) else {
@@ -524,6 +529,8 @@ mod tests {
         for source in [
             "host = replacement fn mutate(xs: [..integer]) -> nil do host.mutate(xs) end",
             "fn mutate(xs: [..integer]) -> nil do host.mutate(xs) end host = replacement",
+            "host = replacement fn mutate(xs: [..integer]) -> nil host.mutate(xs)",
+            "fn mutate(xs: [..integer]) -> nil host.mutate(xs) host = replacement",
         ] {
             let db = AnalysisDatabase::default();
             let file = db.add_file(source);
@@ -537,7 +544,7 @@ mod tests {
                     _ => None,
                 })
                 .unwrap();
-            let body = support::child::<syntax::Block>(function.syntax()).unwrap();
+            let body = support::child::<syntax::Body>(function.syntax()).unwrap();
             assert!(!is_host_wrapper(&body, &resolution));
         }
     }

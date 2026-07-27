@@ -99,11 +99,11 @@ def check_source_extension() -> None:
     snippets = json.loads(snippets_path.read_text(encoding="utf-8"))
     prefixes = {snippet["prefix"] for snippet in snippets.values()}
     check(
-        prefixes == {"case", "do", "fn", "fnexpr", "if", "ifelse", "loop", "try"},
+        prefixes == {"case", "catch", "do", "fn", "fnexpr", "if", "ifelse", "loop"},
         "unexpected Simi snippet inventory",
     )
     check(list(snippets["Case expression"]["body"]).count("end") == 1, "case needs one final end")
-    check(list(snippets["Try catch expression"]["body"]).count("end") == 1, "try needs one final end")
+    check(list(snippets["Protected expression"]["body"]).count("end") == 1, "protected expression needs one final end")
     vscode_snippets = COMPONENT.parent / "vscode" / "snippets" / "simi.json"
     check(
         snippets_path.read_bytes() == vscode_snippets.read_bytes(),
@@ -119,18 +119,19 @@ def check_source_extension() -> None:
     increase = re.compile(config["increase_indent_pattern"])
     decrease = re.compile(config["decrease_indent_pattern"])
     for line in (
+        "fn add(left, right)",
+        "of [head, ..tail] when ready",
         "of [head, ..tail] when ready do",
-        "catch _ do",
-        "try",
+        "catch",
         "    case n",
         '    case "x of y"',
         '    case " of "',
         "    case n -- of in a comment",
     ):
         check(increase.search(line) is not None, f"line should increase indentation: {line}")
-    for line in ("of _ do value end", "case n of _ do n end", 'case "x of y" of _ do 1 end'):
+    for line in ("fn add(a, b) do a + b end", "of _ do value end", "case n of _ do n end", 'case "x of y" of _ do 1 end'):
         check(increase.search(line) is None, f"one-line form must not indent next line: {line}")
-    for line in ("end", "of _ do", "catch _ do", "elseif ready then", "else"):
+    for line in ("end", "of _", "catch", "elseif ready then", "else"):
         check(decrease.search(line) is not None, f"line should decrease indentation: {line}")
     case_indent = 4
     provisional_indent = case_indent + (4 if increase.search("    case n") else 0)
@@ -151,32 +152,33 @@ def check_source_extension() -> None:
     indents = (language / "indents.scm").read_text(encoding="utf-8")
     check("(case_expression" not in indents, "case_expression double-indents sibling clauses")
     check("(case_clause) @indent" in indents, "each case clause must own its body indentation")
-    check('(try_expression\n  "end" @end) @indent' in indents, "try_expression must own its final end indentation")
-    check('(catch_clause\n  "catch" @end) @indent' in indents, "each catch must realign and indent its handler body")
+    check('(protected_expression\n  "end" @end) @indent' in indents, "protected_expression must own its final end indentation")
+    check('(catch_arm\n  "of" @end) @indent' in indents, "each catch arm must realign and indent its body")
     for removed_node in ("match_expression", "pattern_clause"):
         check(removed_node not in indents, f"legacy indent node remains: {removed_node}")
 
     fixture = (COMPONENT / "tests" / "fixtures" / "language.simi").read_text(encoding="utf-8")
     check("case value" in fixture and fixture.count("\n    of ") >= 2, "fixture does not exercise repeated-of syntax")
-    check("of _ do nil\n" in fixture, "fixture does not exercise final case clause")
-    check(fixture.count("catch ") >= 2, "fixture does not exercise repeated catches")
-    try_block = [
-        ("try", 0),
+    check("of _\n            nil\n" in fixture, "fixture does not exercise a direct final case arm")
+    check(sum(line.lstrip().startswith("of ") for line in fixture.splitlines()) >= 5, "fixture does not exercise repeated case and catch arms")
+    protected_block = [
+        ("do", 0),
         ("let error = { error = \"example\" }", 4),
         ("raise error", 4),
-        ("catch { error = message } when message != nil do", 0),
-        ("classify([final])", 4),
-        ("catch _ do", 0),
-        ("nil", 4),
+        ("catch", 0),
+        ("of { error = message } when message != nil", 4),
+        ("classify([final])", 8),
+        ("of _", 4),
+        ("nil", 8),
         ("end", 0),
     ]
     fixture_lines = fixture.splitlines()
-    try_start = fixture_lines.index("try")
-    actual_try_block = [
+    protected_start = fixture_lines.index("do", fixture_lines.index("let final = do") + 1)
+    actual_protected_block = [
         (line.lstrip(), len(line) - len(line.lstrip(" ")))
-        for line in fixture_lines[try_start : try_start + len(try_block)]
+        for line in fixture_lines[protected_start : protected_start + len(protected_block)]
     ]
-    check(actual_try_block == try_block, "fixture must align repeated catches and handlers level-by-level")
+    check(actual_protected_block == protected_block, "fixture must indent protected catch arms and direct bodies")
     check("?>" in fixture and "?" in fixture, "fixture does not exercise nil control flow")
     for removed in ("match ", " with\n"):
         check(removed not in fixture, f"fixture contains legacy syntax: {removed.strip()}")

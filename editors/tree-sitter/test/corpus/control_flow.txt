@@ -56,3 +56,86 @@ end
           (continue_expression
             (loop_label
               (identifier))))))))
+
+==================
+Direct and explicit case, catch, and function bodies
+==================
+
+fn identity(value)
+  value
+
+fn classify(value)
+  case value
+    of 1
+      "one"
+    of _ do
+      let fallback = "other"
+      fallback
+    end
+  end
+
+fn recover(value)
+  do
+    raise value
+  catch
+    of {error = message}
+      message
+    of _ do
+      let fallback = "unknown"
+      fallback
+    end
+  end
+
+---
+
+(program
+  (function_declaration
+    (identifier)
+    (declared_parameters
+      (declared_parameter
+        (identifier)))
+    (identifier))
+  (function_declaration
+    (identifier)
+    (declared_parameters
+      (declared_parameter
+        (identifier)))
+    (case_expression
+      (identifier)
+      (case_clause
+        (integer)
+        (string
+          (string_content)))
+      (case_clause
+        (wildcard_pattern)
+        (block_expression
+          (block
+            (let_statement
+              (identifier)
+              (string
+                (string_content)))
+            (identifier))))))
+  (function_declaration
+    (identifier)
+    (declared_parameters
+      (declared_parameter
+        (identifier)))
+    (protected_expression
+      (block
+        (raise_expression
+          (identifier)))
+      (catch_arm
+        (map_pattern
+          (map_pattern_field
+            (identifier)
+            (identifier)))
+        (identifier))
+      (catch_arm
+        (wildcard_pattern)
+        (block_expression
+          (block
+            (let_statement
+              (identifier)
+              (string
+                (string_content)))
+            (identifier)))))))

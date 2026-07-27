@@ -1179,6 +1179,51 @@ fn raised_contract_diagnostics_and_hover_use_protocol_types() {
 }
 
 #[test]
+fn varied_direct_noraise_bodies_are_clean_and_have_exact_hover_types() {
+    let source = concat!(
+        "fn identity(value: integer) -> integer noraise value\n",
+        "fn text() -> string noraise \"ok\"\n",
+        "fn values() -> [..integer] noraise [1, 2]\n",
+        "fn nothing() -> nil noraise nil\n",
+        "fn grouped() -> integer noraise (1 + 2)\n",
+        "fn append(xs: [..integer]) -> nil noraise host.append(xs)\n",
+    );
+    let mut backend = Backend::new();
+    let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
+    assert!(
+        diagnostics.diagnostics.is_empty(),
+        "{:?}",
+        diagnostics.diagnostics
+    );
+
+    for (name, expected) in [
+        ("identity", "(value: integer) -> integer noraise"),
+        ("text", "() -> string noraise"),
+        ("values", "() -> [..integer] noraise"),
+        ("nothing", "() -> nil noraise"),
+        ("grouped", "() -> integer noraise"),
+        ("append", "(xs: [..integer]) -> nil noraise"),
+    ] {
+        let hover: Option<Hover> = serde_json::from_value(
+            request(
+                &mut backend,
+                HoverRequest::METHOD,
+                json!({
+                    "textDocument": { "uri": uri() },
+                    "position": text_position(source, name, 0),
+                }),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let HoverContents::Markup(markup) = hover.expect("function hover").contents else {
+            panic!("expected markup")
+        };
+        assert_simi_hover(&markup, expected);
+    }
+}
+
+#[test]
 fn type_errors_are_published_and_clear_after_incremental_repair() {
     let source = concat!(
         "let declared: integer = \"wrong\"\n",
@@ -1287,24 +1332,30 @@ end"#;
 #[test]
 fn structural_map_pattern_shorthand_reports_absence_and_present_binding_types() {
     let source = r#"let case_absent = case {}
-of {case_missing} do "wrong"
-of _ do 0
-end
-let case_present = case {case_value = 1}
-of {case_value} do case_value
-of _ do "wrong"
-end
-let catch_absent = try
-    raise {}
-catch {catch_missing} do
+of {case_missing}
     "wrong"
-catch _ do
+of _
     0
 end
-let catch_present = try
+let case_present = case {case_value = 1}
+of {case_value}
+    case_value
+of _
+    "wrong"
+end
+let catch_absent = do
+    raise {}
+catch
+    of {catch_missing}
+        "wrong"
+    of _
+        0
+end
+let catch_present = do
     raise {catch_value = 2}
-catch {catch_value} do
-    catch_value
+catch
+    of {catch_value}
+        catch_value
 end"#;
     let mut backend = Backend::new();
     let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));

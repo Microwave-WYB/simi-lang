@@ -22,11 +22,12 @@ let iter = require("std/iter")
 
 fn classify(value) do
     case value
-    of [first, ..rest] when first >= 1 do
-        { kind = "positive\n", value = first, rest = rest }
-    of { error = message, ..details } do
-        { kind = "error", message = message, details = details }
-    of _ do nil
+        of [first, ..rest] when first >= 1
+            { kind = "positive\n", value = first, rest = rest }
+        of { error = message, ..details }
+            { kind = "error", message = message, details = details }
+        of _
+            nil
     end
 end
 
@@ -58,11 +59,12 @@ let final = do
     end
 end
 
-try
+do
     let error = { error = "example" }
     raise error
-catch { error = message } when message != nil do
-    classify([final])
-catch _ do
-    nil
+catch
+    of { error = message } when message != nil
+        classify([final])
+    of _
+        nil
 end

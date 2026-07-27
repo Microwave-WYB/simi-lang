@@ -25,10 +25,10 @@ fn terminal_expressions_are_hard_diagnostics_with_exact_spans() {
 }
 
 #[test]
-fn try_cannot_catch_terminal_expressions() {
+fn protected_expression_cannot_catch_terminal_expressions() {
     for source in [
-        "try panic catch _ do \"not reached\" end",
-        "try todo \"finish\" catch _ do \"not reached\" end",
+        "do panic catch of _ \"not reached\" end",
+        "do todo \"finish\" catch of _ \"not reached\" end",
     ] {
         assert!(matches!(eval(source), Err(SimiError::Runtime(_))));
     }

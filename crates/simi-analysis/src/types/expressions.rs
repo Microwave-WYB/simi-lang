@@ -79,7 +79,7 @@ impl Context<'_> {
             syntax::Expr::Assign(node) => self.assignment(node),
             syntax::Expr::If(node) => self.infer_if(node),
             syntax::Expr::Case(node) => self.infer_case(node),
-            syntax::Expr::Try(node) => self.infer_try(node),
+            syntax::Expr::Protected(node) => self.infer_protected(node),
             syntax::Expr::Panic(_) => Type::Never,
             syntax::Expr::Todo(node) => {
                 self.warning(
@@ -245,7 +245,7 @@ impl Context<'_> {
             union(results)
         }
     }
-    pub(super) fn infer_try(&mut self, node: syntax::TryExpr) -> Type {
+    pub(super) fn infer_protected(&mut self, node: syntax::ProtectedExpr) -> Type {
         self.raised_exit_frames.push(Vec::new());
         let protected = support::child::<syntax::Block>(node.syntax())
             .map(|block| self.infer_block(&block))
@@ -258,7 +258,7 @@ impl Context<'_> {
             normal_exits.push(self.flow_state());
         }
 
-        for clause in support::children::<syntax::CatchClause>(node.syntax()) {
+        for clause in support::children::<syntax::CatchArm>(node.syntax()) {
             let Some(pattern) = support::child::<syntax::Pattern>(clause.syntax()) else {
                 continue;
             };
@@ -316,8 +316,8 @@ impl Context<'_> {
             }
 
             if handler_reachable {
-                let result = support::child::<syntax::Block>(clause.syntax())
-                    .map(|block| self.infer_block(&block))
+                let result = support::child::<syntax::Body>(clause.syntax())
+                    .map(|body| self.infer_body(body.syntax()))
                     .unwrap_or(Type::Nil);
                 if result != Type::Never {
                     results.push(result);
@@ -388,8 +388,8 @@ impl Context<'_> {
                     let after_guard = self.flow_state();
                     self.restore_flow(&after_guard);
                     if self.refine_condition(&guard, true) {
-                        let result = support::child::<syntax::Block>(clause.syntax())
-                            .map(|block| self.infer_block(&block))
+                        let result = support::child::<syntax::Body>(clause.syntax())
+                            .map(|body| self.infer_body(body.syntax()))
                             .unwrap_or(Type::Nil);
                         if result != Type::Never {
                             results.push(result);
@@ -418,8 +418,8 @@ impl Context<'_> {
                     }
                     pending = self.joined_flow(next);
                 } else {
-                    let result = support::child::<syntax::Block>(clause.syntax())
-                        .map(|block| self.infer_block(&block))
+                    let result = support::child::<syntax::Body>(clause.syntax())
+                        .map(|body| self.infer_body(body.syntax()))
                         .unwrap_or(Type::Nil);
                     if result != Type::Never {
                         results.push(result);

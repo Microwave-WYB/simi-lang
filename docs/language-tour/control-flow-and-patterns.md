@@ -13,7 +13,7 @@
   - [Structural pattern matching](#structural-pattern-matching)
     - [Destructuring with `let`](#destructuring-with-let)
   - [Postfix nil propagation](#postfix-nil-propagation)
-    - [Try and catch boundaries](#try-and-catch-boundaries)
+    - [Protected catch boundaries](#protected-catch-boundaries)
   - [Loops](#loops)
 - [Mutation and copies](mutation-and-copies.md)
 - [Modules](modules.md)
@@ -62,11 +62,11 @@ A `case` evaluates its input once, then selects the first matching `of` clause w
 let response = {kind = "ok", value = "profile"}
 
 let message = case response
-of {kind = "ok", value = value} do
+of {kind = "ok", value = value}
     "received " <> value
-of {kind = "error", error = error} when error != nil do
+of {kind = "error", error = error} when error != nil
     "failed: " <> error
-of _ do
+of _
     "unknown response"
 end
 
@@ -91,9 +91,9 @@ of {
     kind = "point",
     coordinates = [x, y, ..remaining],
     ..metadata
-} do
+}
     [x, y, remaining, metadata]
-of _ do
+of _
     nil
 end
 ```
@@ -108,9 +108,9 @@ Named map fields normally require the key to be present. The literal `nil` field
 let settings = {theme = "dark"}
 
 case settings
-of {nickname = nil, ..} do
+of {nickname = nil, ..}
     "no nickname"
-of _ do
+of _
     "has a nickname"
 end
 ```
@@ -152,7 +152,7 @@ end
 
 Here the function body is the nearest block. `greeting("Ada")` returns the greeting, while `greeting(nil)` stops before concatenation and returns `nil`.
 
-Every control-flow body is a block: each `if` branch, each `case` clause, the protected body of `try`, each `catch` body, every named or anonymous function body, every standalone `do ... end`, and every loop body. Propagation stops at the nearest one of these lexical boundaries rather than searching only for a standalone block.
+Every control-flow body is a nil-propagation boundary: each `if` branch, each `case` arm, the protected body and selected catch arm of a protected `do`, every named or anonymous function body, every standalone `do ... end`, and every loop body. Propagation stops at the nearest one of these lexical boundaries rather than searching only for a standalone block.
 
 For example, propagation inside an `if` branch makes that branch `nil`; it does not stop the surrounding standalone block:
 
@@ -188,34 +188,36 @@ result
 
 `?` propagates only ordinary `nil`. It does not intercept a raised value or a hard diagnostic, and it cannot be used when there is no enclosing block.
 
-### Try and catch boundaries
+### Protected catch boundaries
 
-A `try` has a protected block, and every `catch` has its own handler block. `catch` matches raised values; it does **not** catch postfix nil propagation. If `?` sees `nil` in the protected block, that block simply evaluates to `nil` and catch selection never begins:
+A protected `do` has a protected block, followed by one `catch` section containing `of` arms. `catch` matches raised values; it does **not** catch postfix nil propagation. If `?` sees `nil` in the protected block, that block simply evaluates to `nil` and catch selection never begins:
 
 ```simi
-let selected = try
+let selected = do
     nil?
     "unreachable"
-catch _ do
+catch of _
     "not caught"
 end
 
-[selected, "execution continues after try"]
+[selected, "execution continues after the protected expression"]
 ```
 
-Likewise, `?` inside a selected catch stops that catch block as `nil`; later catches are not tried:
+Likewise, `?` inside a selected catch arm stops that arm as `nil`; later arms are not tried:
 
 ```simi
-let selected = try
+let selected = do
     raise "missing"
-catch "missing" do
-    nil?
-    "unreachable"
-catch _ do
-    "not selected"
+catch
+    of "missing" do
+        nil?
+        "unreachable"
+    end
+    of _
+        "not selected"
 end
 
-[selected, "execution continues after try"]
+[selected, "execution continues after the protected expression"]
 ```
 
 Raised values and the full error model are covered in [Errors and embedding](errors-and-embedding.md).

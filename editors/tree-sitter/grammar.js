@@ -30,6 +30,10 @@ module.exports = grammar({
     [$.assignment_target, $._postfix_expression],
     [$.parenthesized_call, $._postfix_expression],
     [$.loop_expression],
+    [$._primary_expression, $.function_expression],
+    [$._primary_expression, $.function_declaration],
+    [$._primary_expression, $.case_clause],
+    [$._primary_expression, $.catch_arm],
   ],
 
   rules: {
@@ -53,9 +57,7 @@ module.exports = grammar({
         field("return_type", $.return_annotation),
         optional(field("effect", $.effect_annotation)),
       )),
-      "do",
-      optional(field("body", $.block)),
-      "end",
+      field("body", choice($.block_expression, $._expression)),
     ),
 
     alias_declaration: ($) => seq(
@@ -381,10 +383,11 @@ module.exports = grammar({
       $.if_expression,
       $.loop_expression,
       $.case_expression,
+      $.protected_expression,
       $.raise_expression,
       $.panic_expression,
       $.todo_expression,
-      $.try_expression,
+
       $.continue_expression,
       $.break_expression,
     ),
@@ -435,9 +438,7 @@ module.exports = grammar({
         field("return_type", $.return_annotation),
         optional(field("effect", $.effect_annotation)),
       )),
-      "do",
-      optional(field("body", $.block)),
-      "end",
+      field("body", choice($.block_expression, $._expression)),
     ),
 
     block_expression: ($) => seq(
@@ -499,23 +500,22 @@ module.exports = grammar({
       "of",
       field("pattern", $._pattern),
       optional(seq("when", field("guard", $._expression))),
-      "do",
-      optional(field("body", $.block)),
+      field("body", choice($.block_expression, $._expression)),
     ),
 
-    try_expression: ($) => seq(
-      "try",
+    protected_expression: ($) => seq(
+      "do",
       field("protected", $.block),
-      repeat1($.catch_clause),
+      "catch",
+      repeat1($.catch_arm),
       "end",
     ),
 
-    catch_clause: ($) => seq(
-      "catch",
+    catch_arm: ($) => seq(
+      "of",
       field("pattern", $._pattern),
       optional(seq("when", field("guard", $._expression))),
-      "do",
-      optional(field("body", $.block)),
+      field("body", choice($.block_expression, $._expression)),
     ),
 
     raise_expression: ($) => seq(

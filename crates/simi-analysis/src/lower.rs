@@ -153,9 +153,7 @@ impl Builder {
                         );
                     }
                 }
-                if let Some(body) = support::child::<syntax::Block>(node.syntax()) {
-                    self.block(&body, function_scope);
-                }
+                self.body(node.syntax(), function_scope);
             }
             syntax::Stmt::AliasDecl(_) => {}
             syntax::Stmt::LetStmt(node) => {
@@ -216,9 +214,7 @@ impl Builder {
                         );
                     }
                 }
-                if let Some(body) = support::child::<syntax::Block>(node.syntax()) {
-                    self.block(&body, function_scope);
-                }
+                self.body(node.syntax(), function_scope);
             }
             syntax::Expr::Block(node) => {
                 if let Some(block) = support::child::<syntax::Block>(node.syntax()) {
@@ -247,12 +243,12 @@ impl Builder {
                     self.expression(value, scope);
                 }
             }
-            syntax::Expr::Try(node) => {
+            syntax::Expr::Protected(node) => {
                 if let Some(protected) = support::child::<syntax::Block>(node.syntax()) {
                     let child = self.child_scope(scope, protected.syntax(), false);
                     self.block(&protected, child);
                 }
-                for clause in support::children::<syntax::CatchClause>(node.syntax()) {
+                for clause in support::children::<syntax::CatchArm>(node.syntax()) {
                     self.clause(clause.syntax(), scope);
                 }
             }
@@ -312,6 +308,17 @@ impl Builder {
         }
     }
 
+    fn body(&mut self, node: &SyntaxNode, scope: ScopeId) {
+        let Some(body) = support::child::<syntax::Body>(node) else {
+            return;
+        };
+        if let Some(block) = support::child::<syntax::Block>(body.syntax()) {
+            self.block(&block, scope);
+        } else if let Some(expression) = support::child::<syntax::Expr>(body.syntax()) {
+            self.expression(expression, scope);
+        }
+    }
+
     fn clause(&mut self, node: &SyntaxNode, parent: ScopeId) {
         let scope = self.child_scope(parent, node, false);
         if let Some(pattern) = support::child::<syntax::Pattern>(node) {
@@ -320,9 +327,7 @@ impl Builder {
         if let Some(guard) = support::child::<syntax::Expr>(node) {
             self.expression(guard, scope);
         }
-        if let Some(body) = support::child::<syntax::Block>(node) {
-            self.block(&body, scope);
-        }
+        self.body(node, scope);
     }
 
     fn pattern(

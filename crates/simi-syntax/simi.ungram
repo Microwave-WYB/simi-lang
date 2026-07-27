@@ -1,6 +1,6 @@
 Root = Stmt*
 Stmt = FunctionDecl | AliasDecl | LetStmt | ExprStmt
-FunctionDecl = 'fn' 'ident' CallableTypeParamList? ParamList (ReturnAnnotation EffectAnnotation?)? 'do' Block 'end'
+FunctionDecl = 'fn' 'ident' CallableTypeParamList? ParamList (ReturnAnnotation EffectAnnotation?)? Body
 AliasDecl = 'alias' 'ident' TypeParamList? '=' TypeExpr
 LetStmt = 'let' Pattern TypeAnnotation? '=' Expr
 ExprStmt = Expr
@@ -28,11 +28,13 @@ TypeMap = '{' (TypeMapEntry (',' TypeMapEntry)* (',' TypeMapRest)? ','? | TypeMa
 TypeMapEntry = ('ident' ':' TypeExpr) | ('[' TypeExpr ']' ':' TypeExpr)
 TypeMapRest = '..'
 Block = Stmt*
-Expr = LiteralExpr | NameExpr | FunctionExpr | BlockExpr | ParenExpr | ListExpr | MapExpr | CallExpr | FieldExpr | IndexExpr | NilPropagateExpr | UnaryExpr | BinaryExpr | AssignExpr | PipelineExpr | TrailingArgumentExpr | RaiseExpr | PanicExpr | TodoExpr | TryExpr | CaseExpr | IfExpr | LoopExpr | ContinueExpr | BreakExpr
+Expr = LiteralExpr | NameExpr | FunctionExpr | BlockExpr | ProtectedExpr | ParenExpr | ListExpr | MapExpr | CallExpr | FieldExpr | IndexExpr | NilPropagateExpr | UnaryExpr | BinaryExpr | AssignExpr | PipelineExpr | TrailingArgumentExpr | RaiseExpr | PanicExpr | TodoExpr | CaseExpr | IfExpr | LoopExpr | ContinueExpr | BreakExpr
 LiteralExpr = ('int' | 'float' | 'string' | 'nil' | 'true' | 'false')
 NameExpr = 'ident'
-FunctionExpr = 'fn' CallableTypeParamList? ParamList (ReturnAnnotation EffectAnnotation?)? 'do' Block 'end'
+FunctionExpr = 'fn' CallableTypeParamList? ParamList (ReturnAnnotation EffectAnnotation?)? Body
+Body = Block | Expr
 BlockExpr = 'do' Block 'end'
+ProtectedExpr = 'do' Block 'catch' CatchArm CatchArm* 'end'
 ParenExpr = '(' Expr ')'
 ListExpr = '[' (Expr (',' Expr)* ','?)? ']'
 MapExpr = '{' (MapEntry (',' MapEntry)* ','?)? '}'
@@ -51,10 +53,9 @@ TrailingArgumentExpr = Expr '<|' Expr
 RaiseExpr = 'raise' Expr
 PanicExpr = 'panic' 'string'?
 TodoExpr = 'todo' 'string'?
-TryExpr = 'try' Block CatchClause CatchClause* 'end'
-CatchClause = 'catch' Pattern ('when' Expr)? 'do' Block
+CatchArm = 'of' Pattern ('when' Expr)? Body
 CaseExpr = 'case' Expr CaseClause CaseClause* 'end'
-CaseClause = 'of' Pattern ('when' Expr)? 'do' Block
+CaseClause = 'of' Pattern ('when' Expr)? Body
 IfExpr = 'if' IfBranch ('elseif' IfBranch)* ElseBranch? 'end'
 IfBranch = Expr 'then' Block
 ElseBranch = 'else' Block

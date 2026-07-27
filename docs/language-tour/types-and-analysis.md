@@ -165,9 +165,9 @@ fn fail(value: 'e) -> never raises 'e do
 end
 
 fn recover() -> integer noraise do
-    try
+    do
         fail("missing")
-    catch "missing" do
+    catch of "missing"
         0
     end
 end
@@ -231,9 +231,9 @@ alias result<'value, 'error> =
 let outcome: result<integer, string> = {kind = "ok", value = 42}
 
 case outcome
-of {kind = "ok", value = value} do
+of {kind = "ok", value = value}
     value
-of {kind = "error", error = error} do
+of {kind = "error", error = error}
     error
 end
 ```

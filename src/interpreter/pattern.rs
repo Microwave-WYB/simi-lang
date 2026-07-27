@@ -42,7 +42,7 @@ impl Interpreter {
                 }
             }
 
-            return self.evaluate_block(&clause.body, &clause_env);
+            return self.evaluate_body(&clause.body, &clause_env);
         }
 
         Err(EvaluationError::Runtime(RuntimeError {
@@ -51,7 +51,7 @@ impl Interpreter {
         }))
     }
 
-    pub(super) fn evaluate_try(
+    pub(super) fn evaluate_protected(
         &mut self,
         protected: &Block,
         clauses: &[PatternClause],
@@ -96,7 +96,7 @@ impl Interpreter {
                 }
             }
 
-            return match self.evaluate_block(&clause.body, &clause_env) {
+            return match self.evaluate_body(&clause.body, &clause_env) {
                 Err(EvaluationError::Raised(mut raised)) => {
                     raised.append_cause(caught);
                     Err(EvaluationError::Raised(raised))

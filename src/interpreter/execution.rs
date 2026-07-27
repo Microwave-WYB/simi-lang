@@ -1,7 +1,7 @@
 use gc::{Gc, GcCell};
 
 use super::{EvaluationError, EvaluationResult, Interpreter, pattern::match_let_pattern};
-use crate::ast::{BinaryOp, Block, Expr, ExprKind, Stmt, StmtKind};
+use crate::ast::{BinaryOp, Block, Body, Expr, ExprKind, Stmt, StmtKind};
 use crate::runtime::{Environment, List, MapKey, Raised, RuntimeError, UserFunction, Value};
 
 impl Interpreter {
@@ -38,6 +38,14 @@ impl Interpreter {
             Err(EvaluationError::NilPropagate { .. }) => Ok(Value::Nil),
             result => result,
         }
+    }
+
+    pub(super) fn evaluate_body(
+        &mut self,
+        body: &Body,
+        env: &Environment,
+    ) -> EvaluationResult<Value> {
+        self.evaluate_block(body, env)
     }
 
     fn evaluate_statement(
@@ -200,7 +208,9 @@ impl Interpreter {
                     Ok(value)
                 }
             }
-            ExprKind::Try { protected, clauses } => self.evaluate_try(protected, clauses, env),
+            ExprKind::Try { protected, clauses } => {
+                self.evaluate_protected(protected, clauses, env)
+            }
             ExprKind::Loop { label, body } => self.evaluate_loop(label.as_deref(), body, env),
             ExprKind::Continue { label } => Err(EvaluationError::Continue {
                 label: label.clone(),

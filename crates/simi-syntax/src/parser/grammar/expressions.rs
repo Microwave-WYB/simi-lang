@@ -241,7 +241,7 @@ pub(super) fn primary(p: &mut Parser<'_>) -> Parsed {
         K::RAISE_KW => raise_expr(p),
         K::PANIC_KW => terminal_expr(p, K::PANIC_EXPR),
         K::TODO_KW => terminal_expr(p, K::TODO_EXPR),
-        K::TRY_KW => try_expr(p),
+        K::TRY_KW => legacy_try_expr(p),
         K::CASE_KW => case_expr(p),
         K::IF_KW => if_expr(p),
         K::LOOP_KW => loop_expr(p),
@@ -290,10 +290,49 @@ pub(super) fn function_expr(p: &mut Parser<'_>) -> Parsed {
         flavor: Flavor::Other,
     }
 }
+pub(super) fn do_starts_protected(p: &Parser<'_>) -> bool {
+    let mut depth = 0usize;
+    for lexeme in &p.lexemes[p.position..] {
+        let kind = lexeme.kind;
+        if kind.is_trivia() {
+            continue;
+        }
+        match kind {
+            K::DO_KW | K::IF_KW | K::CASE_KW | K::LOOP_KW => depth += 1,
+            K::CATCH_KW if depth == 1 => return true,
+            K::END_KW => {
+                depth = depth.saturating_sub(1);
+                if depth == 0 {
+                    return false;
+                }
+            }
+            _ => {}
+        }
+    }
+    false
+}
+
 pub(super) fn block_expr(p: &mut Parser<'_>) -> Parsed {
     let marker = p.start();
     p.bump();
+    let before = p.nontrivia_index();
     block(p);
+    let protected_is_empty = p.nontrivia_index() == before;
+    let catch_span = p.current_span();
+    if p.bump_if(K::CATCH_KW) {
+        if protected_is_empty {
+            p.error_at(
+                catch_span,
+                "expected at least one protected block item".to_owned(),
+            );
+        }
+        pattern_clauses(p, K::CATCH_ARM, "`of` after `catch`");
+        p.expect(K::END_KW, "`end` after protected expression");
+        return Parsed {
+            marker: marker.complete(&mut p.events, K::PROTECTED_EXPR),
+            flavor: Flavor::Other,
+        };
+    }
     p.expect(K::END_KW, "`end` after standalone block");
     Parsed {
         marker: marker.complete(&mut p.events, K::BLOCK_EXPR),

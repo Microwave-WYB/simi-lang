@@ -118,10 +118,11 @@ end[0]
         (parameters
           (parameter
             (identifier)))
-        (block
-          (binary_expression
-            (identifier)
-            (integer))))))
+        (block_expression
+          (block
+            (binary_expression
+              (identifier)
+              (integer)))))))
   (trailing_argument_expression
     (call_expression
       (identifier)

@@ -221,19 +221,21 @@ fn tap_pipeline_preserves_the_alias_to_the_mutated_list() {
 }
 
 #[test]
-fn try_catches_values_with_match_semantics_and_unmatched_raises_are_unchanged() {
+fn protected_expression_catches_values_and_leaves_unmatched_raises_unchanged() {
     let value = evaluate(
         r#"
-                try raise {kind="missing", payload=[1, 2]}
-                    catch {kind="missing", payload=[head, ..tail]} when head == 1 do tail
-                    catch _ do nil
+                do raise {kind="missing", payload=[1, 2]}
+                    catch of {kind="missing", payload=[head, ..tail]} when head == 1
+                        tail
+                    of _
+                        nil
                 end
             "#,
     )
     .expect("the structural catch should match");
     assert_eq!(value.render(), "[2]");
 
-    let source = "try raise 1 catch 2 do nil end";
+    let source = "do raise 1 catch of 2 nil end";
     let raised = expect_raised(source);
     let raise_start = source
         .find("raise 1")
@@ -245,7 +247,7 @@ fn try_catches_values_with_match_semantics_and_unmatched_raises_are_unchanged() 
 }
 
 #[test]
-fn try_evaluates_its_protected_expression_exactly_once() {
+fn protected_expression_evaluates_its_body_exactly_once() {
     PROTECTED_EVALUATIONS.store(0, Ordering::SeqCst);
     let globals = Environment::new();
     globals.define(
@@ -256,7 +258,7 @@ fn try_evaluates_its_protected_expression_exactly_once() {
             Arc::new(count_protected_evaluation),
         )),
     );
-    let source = "try raise tick() catch count do count end";
+    let source = "do raise tick() catch of count count end";
     let program = parser::parse_source(source).expect("test source should parse");
     let outcome = Interpreter::with_globals(globals)
         .evaluate(&program)
@@ -272,11 +274,11 @@ fn try_evaluates_its_protected_expression_exactly_once() {
 
 #[test]
 fn hard_errors_and_non_boolean_catch_guards_bypass_language_catches() {
-    let undefined = expect_runtime_error("try missing_name catch _ do \"must not catch\" end");
-    assert_eq!(undefined.span, Span::new(4, 16));
+    let undefined = expect_runtime_error("do missing_name catch of _ \"must not catch\" end");
+    assert_eq!(undefined.span, Span::new(3, 15));
     assert!(undefined.message.contains("undefined name"));
 
-    let guard_source = "try raise 1 catch _ when 2 do nil end";
+    let guard_source = "do raise 1 catch of _ when 2 nil end";
     let guard = expect_runtime_error(guard_source);
     let guard_start = guard_source.find("2").expect("guard should exist");
     assert_eq!(guard.span, Span::new(guard_start, guard_start + 1));
@@ -285,12 +287,16 @@ fn hard_errors_and_non_boolean_catch_guards_bypass_language_catches() {
 
 #[test]
 fn handler_raises_escape_siblings_and_append_the_caught_chain() {
-    let source = r#"try try raise "old"
-                catch _ do raise "middle"
-                catch _ do "inner sibling must not run"
+    let source = r#"do do raise "old"
+                catch of _
+                    raise "middle"
+                of _
+                    "inner sibling must not run"
             end
-                catch _ do raise "new"
-                catch _ do "outer sibling must not run"
+                catch of _
+                    raise "new"
+                of _
+                    "outer sibling must not run"
             end"#;
     let raised = expect_raised(source);
 
@@ -325,8 +331,9 @@ fn handler_raises_escape_siblings_and_append_the_caught_chain() {
 #[test]
 fn handler_reraise_records_a_new_origin_and_freezes_caught_frames_in_its_cause() {
     let source = r#"fn leaf() do raise "old" end
-try leaf()
-catch error do raise error
+do leaf()
+catch of error
+    raise error
 end"#;
     let raised = expect_raised(source);
     let reraised_start = source.rfind("raise error").expect("re-raise should exist");
@@ -360,9 +367,11 @@ end"#;
 
 #[test]
 fn a_raise_from_a_catch_guard_escapes_without_trying_siblings() {
-    let source = r#"try raise "caught"
-catch _ when raise "guard" do "body must not run"
-catch _ do "sibling must not run"
+    let source = r#"do raise "caught"
+catch of _ when raise "guard"
+    "body must not run"
+of _
+    "sibling must not run"
 end"#;
     let raised = expect_raised(source);
     assert_eq!(raised.value.render(), "\"guard\"");

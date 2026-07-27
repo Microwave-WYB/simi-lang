@@ -174,7 +174,7 @@ impl Interpreter {
                 let caller_source_domain = self.source_domain;
                 let crosses_source = function.source_domain != caller_source_domain;
                 self.source_domain = function.source_domain;
-                let result = self.evaluate_block(&function.body, &call_env);
+                let result = self.evaluate_body(&function.body, &call_env);
                 self.source_domain = caller_source_domain;
                 match result {
                     Ok(value) => Ok(value),

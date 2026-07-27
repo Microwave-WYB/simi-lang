@@ -646,8 +646,10 @@ fn case_patterns_narrow_structural_union_and_bind_payloads() {
 alias result = { kind: "ok", value: integer } | { kind: "error", error: string }
 fn unwrap(result: result) do
     case result
-    of { kind = "ok", value = payload } do payload
-    of { kind = "error", error = message } do message
+    of { kind = "ok", value = payload }
+        payload
+    of { kind = "error", error = message }
+        message
     end
 end
 "#;
@@ -682,9 +684,9 @@ fn boundaries(value: integer | nil) do
     let standalone = do value? 1 end
     let selected_if = if true then value? 1 else 2 end
     let selected_else = if false then 1 else value? 2 end
-    let selected_case = case 1 of 1 do value? 1 end
-    let protected = try value? 1 catch _ do 2 end
-    let caught = try raise "failure" catch _ do value? 1 end
+    let selected_case = case 1 of 1 do value? 1 end end
+    let protected = do value? 1 catch of _ 2 end
+    let caught = do raise "failure" catch of _ do value? 1 end end
     [standalone, selected_if, selected_else, selected_case, protected, caught]
     "continued"
 end
@@ -921,22 +923,30 @@ fn structural_patterns_keep_heterogeneous_rest_and_require_closed_map_fields() {
     let source = r#"
 let values: [..(integer | string)] = [1, "two"]
 let tail = case values
-of [1, ..rest] do rest
-of _ do []
+of [1, ..rest]
+    rest
+of _
+    []
 end
 let closed = {present = 1}
 let result = case closed
-of {missing = missing} do missing
-of _ do "fallback"
+of {missing = missing}
+    missing
+of _
+    "fallback"
 end
 let extra = {x = 1, y = 2}
 let closed_result = case extra
-of {x = 1} do "wrong"
-of _ do "closed"
+of {x = 1}
+    "wrong"
+of _
+    "closed"
 end
 let open_result = case extra
-of {x = value, ..} do "open"
-of _ do "wrong"
+of {x = value, ..}
+    "open"
+of _
+    "wrong"
 end
 "#;
     let (inference, resolution) = inferred(source);
@@ -971,24 +981,30 @@ end
 fn structural_map_pattern_shorthand_requires_presence_and_binds_present_fields() {
     let source = r#"
 let case_absent = case {}
-of {case_missing} do "wrong"
-of _ do 0
-end
-let case_present = case {case_value = 1}
-of {case_value} do case_value
-of _ do "wrong"
-end
-let catch_absent = try
-    raise {}
-catch {catch_missing} do
+of {case_missing}
     "wrong"
-catch _ do
+of _
     0
 end
-let catch_present = try
+let case_present = case {case_value = 1}
+of {case_value}
+    case_value
+of _
+    "wrong"
+end
+let catch_absent = do
+    raise {}
+catch
+    of {catch_missing}
+        "wrong"
+    of _
+        0
+end
+let catch_present = do
     raise {catch_value = 2}
-catch {catch_value} do
-    catch_value
+catch
+    of {catch_value}
+        catch_value
 end
 "#;
     let (inference, resolution) = inferred(source);
@@ -1018,36 +1034,48 @@ fn map_patterns_respect_optional_presence_and_all_required_fields() {
     let source = r#"
 let absent = {missing = nil}
 let absent_binding = case absent
-of {missing = value} do "present"
-of _ do "absent"
+of {missing = value}
+    "present"
+of _
+    "absent"
 end
 let absent_nil = case absent
-of {missing = nil} do "nil"
-of _ do "other"
+of {missing = nil}
+    "nil"
+of _
+    "other"
 end
 fn maybe(value: string | nil) do
     let record = {maybe = value}
     case record
-    of {maybe = present} do "present"
-    of _ do "absent"
+    of {maybe = present}
+        "present"
+    of _
+        "absent"
     end
 end
 fn indexed(record: {[string]: integer}) do
     case record
-    of {missing = value} do "present"
-    of _ do "absent"
+    of {missing = value}
+        "present"
+    of _
+        "absent"
     end
 end
 fn opened(record: {..}) do
     case record
-    of {missing = value} do "present"
-    of _ do "absent"
+    of {missing = value}
+        "present"
+    of _
+        "absent"
     end
 end
 fn multiple(record: {first: "yes", second: "ok" | "no"}) do
     case record
-    of {first = "yes", second = "ok"} do "matched"
-    of _ do "fallback"
+    of {first = "yes", second = "ok"}
+        "matched"
+    of _
+        "fallback"
     end
 end
 "#;
@@ -1094,13 +1122,16 @@ fn unannotated_case_patterns_seed_body_stable_list_and_map_domains() {
     let source = r#"
 fn first_or_nil(values) do
     case values
-    of [value, ..rest] do value
-    of [] do nil
+    of [value, ..rest]
+        value
+    of []
+        nil
     end
 end
 fn read_value(record) do
     case record
-    of {value} do value
+    of {value}
+        value
     end
 end
 "#;
@@ -1374,10 +1405,11 @@ let callback = fn() do
     values.item = 1
     raise "bad"
 end
-let observed = try
+let observed = do
     callback()
-catch "bad" do
-    values
+catch
+    of "bad"
+        values
 end
 "#;
     let (inference, resolution) = inferred(source);
@@ -1404,10 +1436,11 @@ fn invoke(callback: () -> integer raises 'e) do
     callback()
 end
 fn recovered() do
-    try
+    do
         fail("bad")
-    catch "bad" do
-        1
+    catch
+        of "bad"
+            1
     end
 end
 fn pure() -> integer noraise do
@@ -1438,6 +1471,41 @@ end
         type_of(&inference, &resolution, "pure").display(),
         "() -> integer noraise"
     );
+    assert_eq!(
+        inference.diagnostics.len(),
+        1,
+        "{:?}",
+        inference.diagnostics
+    );
+    assert!(inference.diagnostics[0].detail.contains("never"));
+}
+
+#[test]
+fn varied_direct_bodies_honor_noraise_without_suppressing_raises() {
+    let source = r#"
+fn identity(value: integer) -> integer noraise value
+fn text() -> string noraise "ok"
+fn values() -> [..integer] noraise [1, 2]
+fn nothing() -> nil noraise nil
+fn grouped() -> integer noraise (1 + 2)
+fn direct(xs: [..integer]) -> nil noraise host.append(xs)
+fn explicit(xs: [..integer]) -> nil noraise do
+    host.append(xs)
+end
+fn unrelated() -> nil noraise raise "boom"
+"#;
+    let (inference, resolution) = inferred(source);
+    for (name, expected) in [
+        ("identity", "(value: integer) -> integer noraise"),
+        ("text", "() -> string noraise"),
+        ("values", "() -> [..integer] noraise"),
+        ("nothing", "() -> nil noraise"),
+        ("grouped", "() -> integer noraise"),
+        ("direct", "(xs: [..integer]) -> nil noraise"),
+        ("explicit", "(xs: [..integer]) -> nil noraise"),
+    ] {
+        assert_eq!(type_of(&inference, &resolution, name).display(), expected);
+    }
     assert_eq!(
         inference.diagnostics.len(),
         1,

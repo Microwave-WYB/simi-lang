@@ -46,15 +46,15 @@ fn representative_tree_shape_is_stable() {
 #[test]
 fn delimiters_belong_to_their_typed_nodes() {
     let source = concat!(
-        "case [1] of [head, ..tail] do head end ",
-        "try 1 catch _ do 2 end ",
+        "case [1] of [head, ..tail] head end ",
+        "do 1 catch of _ 2 end ",
         "if false then 0 else f(1) end",
     );
     let parse = parse_source(source);
     assert!(parse.diagnostics().is_empty(), "{:?}", parse.diagnostics());
     for (node_kind, token_kind) in [
         (SyntaxKind::CASE_CLAUSE, SyntaxKind::OF_KW),
-        (SyntaxKind::CATCH_CLAUSE, SyntaxKind::CATCH_KW),
+        (SyntaxKind::PROTECTED_EXPR, SyntaxKind::CATCH_KW),
         (SyntaxKind::REST_PATTERN, SyntaxKind::DOT_DOT),
         (SyntaxKind::ELSE_BRANCH, SyntaxKind::ELSE_KW),
         (SyntaxKind::ARG_LIST, SyntaxKind::L_PAREN),
@@ -70,6 +70,47 @@ fn delimiters_belong_to_their_typed_nodes() {
             "{token_kind:?} must be a direct child of {node_kind:?}"
         );
     }
+}
+
+#[test]
+fn noraise_functions_accept_varied_direct_expression_bodies() {
+    let source = concat!(
+        "fn identity(value: integer) -> integer noraise value\n",
+        "fn text() -> string noraise \"ok\"\n",
+        "fn values() -> [integer] noraise [1]\n",
+        "fn nothing() -> nil noraise nil\n",
+        "fn grouped() -> integer noraise (1 + 2)\n",
+        "fn append(xs: [..integer]) -> nil noraise host.append(xs)",
+    );
+    let parse = parse_source(source);
+    assert!(parse.diagnostics().is_empty(), "{:?}", parse.diagnostics());
+    assert_eq!(parse.syntax().to_string(), source);
+
+    let body_kinds = parse
+        .syntax()
+        .descendants()
+        .filter(|node| node.kind() == SyntaxKind::BODY)
+        .map(|body| body.children().next().expect("direct body").kind())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        body_kinds,
+        [
+            SyntaxKind::NAME_EXPR,
+            SyntaxKind::LITERAL_EXPR,
+            SyntaxKind::LIST_EXPR,
+            SyntaxKind::LITERAL_EXPR,
+            SyntaxKind::PAREN_EXPR,
+            SyntaxKind::CALL_EXPR,
+        ]
+    );
+    assert_eq!(
+        parse
+            .syntax()
+            .descendants()
+            .filter(|node| node.kind() == SyntaxKind::EFFECT_ANNOTATION)
+            .count(),
+        6
+    );
 }
 
 #[test]
@@ -250,8 +291,8 @@ fn malformed_callable_effects_recover_before_following_bodies_and_declarations()
             "expected a raised type after `raises`",
         ),
         (
-            "fn bad() -> nil noraise string do nil end\nlet after = 1",
-            "`noraise` does not accept a type",
+            "fn bad() -> nil raises [..] do nil end\nlet after = 1",
+            "expected type, found `]`",
         ),
         (
             "let bad: (value: integer) = nil\nlet after = 1",
