@@ -365,6 +365,17 @@ impl Builder {
                 for field in support::children::<syntax::MapPatternField>(node.syntax()) {
                     if let Some(child) = support::child::<syntax::Pattern>(field.syntax()) {
                         self.pattern(child, scope, activation, false);
+                    } else if let Some(token) = direct_token(field.syntax(), K::IDENT)
+                        && !token.text().starts_with('_')
+                    {
+                        self.declare(
+                            scope,
+                            token.text().to_string(),
+                            SymbolKind::Pattern,
+                            Some(token_span(&token)),
+                            None,
+                            activation,
+                        );
                     }
                 }
                 self.rest_pattern(node.syntax(), scope, activation);

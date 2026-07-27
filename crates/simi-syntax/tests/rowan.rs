@@ -318,6 +318,30 @@ fn map_local_binding_shorthand_is_a_map_entry_without_pattern_changes() {
 }
 
 #[test]
+fn map_pattern_binding_shorthand_is_accepted() {
+    let source = "let {first, source = renamed, ..rest} = record";
+    let parse = parse_source(source);
+    assert!(parse.diagnostics().is_empty(), "{:?}", parse.diagnostics());
+    assert_eq!(parse.syntax().to_string(), source);
+    let fields = parse
+        .syntax()
+        .descendants()
+        .filter(|node| node.kind() == SyntaxKind::MAP_PATTERN_FIELD)
+        .collect::<Vec<_>>();
+    assert_eq!(fields.len(), 2);
+    assert!(
+        fields[0]
+            .children()
+            .all(|child| child.kind() != SyntaxKind::BINDING_PATTERN)
+    );
+    assert!(
+        fields[1]
+            .children()
+            .any(|child| child.kind() == SyntaxKind::BINDING_PATTERN)
+    );
+}
+
+#[test]
 fn callable_post_state_syntax_is_rejected() {
     let parse = parse_source("fn append(xs: [..integer] => [..integer]) -> nil do nil end\n");
     assert!(parse.diagnostics().iter().any(|diagnostic| {

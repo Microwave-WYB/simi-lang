@@ -1256,6 +1256,112 @@ fn rename_expands_map_local_binding_shorthand_without_renaming_its_key() {
 }
 
 #[test]
+fn map_destructuring_hover_reports_optional_binding_type() {
+    let source = r#"fn extract(values: {[string]: integer}) do
+    let {value, ..} = values
+    value
+end"#;
+    let mut backend = Backend::new();
+    let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
+    assert!(diagnostics.diagnostics.is_empty(), "{diagnostics:?}");
+    let hover: Option<Hover> = serde_json::from_value(
+        request(
+            &mut backend,
+            HoverRequest::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": text_position(source, "value", 1),
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let HoverContents::Markup(markup) = hover.expect("value hover").contents else {
+        panic!("expected markup")
+    };
+    assert_simi_hover(&markup, "integer | nil");
+}
+
+#[test]
+fn structural_map_pattern_shorthand_reports_absence_and_present_binding_types() {
+    let source = r#"let case_absent = case {}
+of {case_missing} do "wrong"
+of _ do 0
+end
+let case_present = case {case_value = 1}
+of {case_value} do case_value
+of _ do "wrong"
+end
+let catch_absent = try
+    raise {}
+catch {catch_missing} do
+    "wrong"
+catch _ do
+    0
+end
+let catch_present = try
+    raise {catch_value = 2}
+catch {catch_value} do
+    catch_value
+end"#;
+    let mut backend = Backend::new();
+    let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
+    assert!(diagnostics.diagnostics.is_empty(), "{diagnostics:?}");
+
+    let mut hover_at = |needle: &str, occurrence: usize| {
+        let hover: Option<Hover> = serde_json::from_value(
+            request(
+                &mut backend,
+                HoverRequest::METHOD,
+                json!({
+                    "textDocument": { "uri": uri() },
+                    "position": text_position(source, needle, occurrence),
+                }),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let HoverContents::Markup(markup) = hover.expect("pattern hover").contents else {
+            panic!("expected markup")
+        };
+        markup
+    };
+    for (needle, occurrence) in [
+        ("case_absent", 0),
+        ("case_value", 1),
+        ("catch_absent", 0),
+        ("catch_value", 1),
+    ] {
+        assert_simi_hover(&hover_at(needle, occurrence), "integer");
+    }
+}
+
+#[test]
+fn rename_expands_map_pattern_binding_shorthand_without_renaming_its_key() {
+    let source = "let record = {} let {name} = record name";
+    let mut backend = Backend::new();
+    open(&mut backend, source);
+    let edit: Option<WorkspaceEdit> = serde_json::from_value(
+        request(
+            &mut backend,
+            Rename::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": text_position(source, "name", 0),
+                "newName": "renamed"
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let mut edits = edit.unwrap().changes.unwrap()[&uri()].clone();
+    edits.sort_by_key(|edit| (edit.range.start.line, edit.range.start.character));
+    assert_eq!(edits.len(), 2);
+    assert_eq!(edits[0].new_text, "name = renamed");
+    assert_eq!(edits[1].new_text, "renamed");
+}
+
+#[test]
 fn real_string_module_hover_wraps_export_map_at_presentation_width() {
     let module = include_str!("../../../../stdlib/string.simi");
     let source = "let string = require(\"std/string\")\nstring";
@@ -1280,6 +1386,37 @@ fn real_string_module_hover_wraps_export_map_at_presentation_width() {
         &markup,
         "{\n    to_number: (text: string) -> integer | float | nil noraise,\n    concat: (left: string, right: string) -> string noraise,\n    length: (text: string) -> integer noraise,\n    slice: (text: string, start: integer, stop: integer) -> string noraise,\n    contains: (text: string, needle: string) -> boolean noraise,\n    starts_with: (text: string, prefix: string) -> boolean noraise,\n    ends_with: (text: string, suffix: string) -> boolean noraise,\n    split: (text: string, separator: string) -> [..string] noraise,\n    trim: (text: string) -> string noraise,\n    lower: (text: string) -> string noraise,\n    upper: (text: string) -> string noraise,\n}\n\nUnicode-aware string inspection, transformation, and conversion.",
     );
+}
+
+#[test]
+fn closed_map_destructuring_over_unknown_keys_publishes_extra_key_warnings() {
+    let source = r#"fn indexed_closed(values: {[string]: integer}) do
+    let {value} = values
+    value
+end
+fn indexed_rest(values: {[string]: integer}) do
+    let {value, ..} = values
+    value
+end
+fn open_closed(values: {..}) do
+    let {value} = values
+    value
+end
+fn open_rest(values: {..}) do
+    let {value, ..rest} = values
+    [value, rest]
+end"#;
+    let mut backend = Backend::new();
+    let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
+    assert_eq!(diagnostics.diagnostics.len(), 2, "{diagnostics:?}");
+    assert!(diagnostics.diagnostics.iter().all(|diagnostic| {
+        diagnostic.code
+            == Some(lsp_types::NumberOrString::String(
+                "destructuring_let_may_fail".to_owned(),
+            ))
+            && diagnostic.severity == Some(lsp_types::DiagnosticSeverity::WARNING)
+            && diagnostic.message.contains("Use `case`")
+    }));
 }
 
 #[test]

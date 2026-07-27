@@ -21,7 +21,8 @@ let add_one = fn(value) do value + 1 end
     (identifier)
     (declared_parameters
       (declared_parameter
-        (identifier))
+        (identifier)
+      )
       (declared_parameter
         (identifier)))
     (block
@@ -168,3 +169,23 @@ let second = 2
       (map_computed_entry
         (identifier)
         (identifier)))))
+
+==================
+Map pattern binding shorthand
+==================
+
+let {name, source = renamed, ..rest} = record
+
+---
+
+(program
+  (let_statement
+    (map_pattern
+      (map_pattern_field
+        (identifier))
+      (map_pattern_field
+        (identifier)
+        (identifier))
+      (rest_pattern
+        (identifier)))
+    (identifier)))

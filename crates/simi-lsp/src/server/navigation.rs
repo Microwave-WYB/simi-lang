@@ -131,12 +131,18 @@ impl Backend {
         parsed
             .syntax()
             .descendants()
-            .filter_map(syntax::MapEntry::cast)
-            .filter_map(|entry| {
-                let token = support::token(entry.syntax(), K::IDENT)?;
-                (support::token(entry.syntax(), K::EQ).is_none()
-                    && support::child::<syntax::Expr>(entry.syntax()).is_none())
-                .then(|| {
+            .filter_map(|node| {
+                let is_shorthand = if let Some(entry) = syntax::MapEntry::cast(node.clone()) {
+                    support::token(entry.syntax(), K::EQ).is_none()
+                        && support::child::<syntax::Expr>(entry.syntax()).is_none()
+                } else if let Some(field) = syntax::MapPatternField::cast(node.clone()) {
+                    support::token(field.syntax(), K::EQ).is_none()
+                        && support::child::<syntax::Pattern>(field.syntax()).is_none()
+                } else {
+                    return None;
+                };
+                let token = support::token(&node, K::IDENT)?;
+                is_shorthand.then(|| {
                     Span::new(
                         token.text_range().start().into(),
                         token.text_range().end().into(),

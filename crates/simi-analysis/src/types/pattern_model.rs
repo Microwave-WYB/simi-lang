@@ -197,17 +197,36 @@ pub(super) enum MatchCertainty {
     Never,
 }
 
-pub(super) fn pattern_match_certainty(source: Type, pattern: &syntax::Pattern) -> MatchCertainty {
+pub(super) fn let_pattern_match_certainty(
+    source: Type,
+    pattern: &syntax::Pattern,
+) -> MatchCertainty {
+    match_certainty(source, pattern, let_pattern_partition)
+}
+
+fn match_certainty(
+    source: Type,
+    pattern: &syntax::Pattern,
+    partition: fn(Type, &syntax::Pattern) -> (Type, Type),
+) -> MatchCertainty {
     if source == Type::Never {
         return MatchCertainty::Always;
     }
-    let (matched, unmatched) = pattern_partition(source, pattern);
+    let (matched, unmatched) = partition(source, pattern);
     if matched == Type::Never {
         MatchCertainty::Never
     } else if unmatched == Type::Never {
         MatchCertainty::Always
     } else {
         MatchCertainty::Sometimes
+    }
+}
+
+fn let_pattern_partition(source: Type, pattern: &syntax::Pattern) -> (Type, Type) {
+    match pattern {
+        syntax::Pattern::List(list) => partition_let_list_pattern(source, list),
+        syntax::Pattern::Map(map) => partition_let_map_pattern(source, map),
+        _ => pattern_partition(source, pattern),
     }
 }
 
@@ -255,8 +274,10 @@ pub(super) fn unresolved_pattern_shape(pattern: &syntax::Pattern) -> Type {
             fields: support::children::<syntax::MapPatternField>(map.syntax())
                 .filter_map(|field| {
                     let name = direct_token(field.syntax(), K::IDENT)?;
-                    let child = support::child::<syntax::Pattern>(field.syntax())?;
-                    Some((name.text().to_owned(), unresolved_pattern_shape(&child)))
+                    let field_type = support::child::<syntax::Pattern>(field.syntax())
+                        .map(|child| unresolved_pattern_shape(&child))
+                        .unwrap_or(Type::Unknown);
+                    Some((name.text().to_owned(), field_type))
                 })
                 .collect(),
             index: None,
@@ -265,10 +286,22 @@ pub(super) fn unresolved_pattern_shape(pattern: &syntax::Pattern) -> Type {
     }
 }
 pub(super) fn partition_list_pattern(source: Type, pattern: &syntax::ListPattern) -> (Type, Type) {
+    partition_list_pattern_with(source, pattern, pattern_partition)
+}
+
+fn partition_let_list_pattern(source: Type, pattern: &syntax::ListPattern) -> (Type, Type) {
+    partition_list_pattern_with(source, pattern, let_pattern_partition)
+}
+
+fn partition_list_pattern_with(
+    source: Type,
+    pattern: &syntax::ListPattern,
+    partition: fn(Type, &syntax::Pattern) -> (Type, Type),
+) -> (Type, Type) {
     if let Type::Union(items) = source {
         let (matched, unmatched): (Vec<_>, Vec<_>) = items
             .into_iter()
-            .map(|item| partition_list_pattern(item, pattern))
+            .map(|item| partition_list_pattern_with(item, pattern, partition))
             .unzip();
         return (union(matched), union(unmatched));
     }
@@ -281,7 +314,7 @@ pub(super) fn partition_list_pattern(source: Type, pattern: &syntax::ListPattern
         {
             let original = Type::ListExact(items.clone());
             for (index, child) in children.iter().enumerate() {
-                let (matched, _) = pattern_partition(items[index].clone(), child);
+                let (matched, _) = partition(items[index].clone(), child);
                 if matched == Type::Never {
                     return (Type::Never, original);
                 }
@@ -301,7 +334,7 @@ pub(super) fn partition_list_pattern(source: Type, pattern: &syntax::ListPattern
                 return (original.clone(), original);
             }
             for child in children {
-                let (matched, _) = pattern_partition((*item).clone(), &child);
+                let (matched, _) = partition((*item).clone(), &child);
                 if matched == Type::Never {
                     return (Type::Never, original);
                 }
@@ -315,6 +348,75 @@ pub(super) fn partition_list_pattern(source: Type, pattern: &syntax::ListPattern
         other => (Type::Never, other),
     }
 }
+fn partition_let_map_pattern(source: Type, pattern: &syntax::MapPattern) -> (Type, Type) {
+    if let Type::Union(items) = source {
+        let (matched, unmatched): (Vec<_>, Vec<_>) = items
+            .into_iter()
+            .map(|item| partition_let_map_pattern(item, pattern))
+            .unzip();
+        return (union(matched), union(unmatched));
+    }
+    if matches!(source, Type::Infer(_) | Type::Unknown | Type::Any) {
+        let shape = unresolved_pattern_shape(&syntax::Pattern::Map(pattern.clone()));
+        return (shape, source);
+    }
+    let has_rest = support::child::<syntax::RestPattern>(pattern.syntax()).is_some();
+    if !has_rest
+        && let Type::Map {
+            fields,
+            index: None,
+            open: false,
+        } = &source
+    {
+        let pattern_fields = support::children::<syntax::MapPatternField>(pattern.syntax())
+            .filter_map(|field| direct_token(field.syntax(), K::IDENT))
+            .map(|name| name.text().to_owned())
+            .collect::<HashSet<_>>();
+        if fields
+            .iter()
+            .any(|(name, _)| !pattern_fields.contains(name))
+        {
+            return (Type::Never, source);
+        }
+    }
+
+    let mut matched = source;
+    let mut failures = if !has_rest
+        && matches!(
+            &matched,
+            Type::Map { index: Some(_), .. } | Type::Map { open: true, .. }
+        ) {
+        vec![matched.clone()]
+    } else {
+        Vec::new()
+    };
+    for field in support::children::<syntax::MapPatternField>(pattern.syntax()) {
+        let Some(name) = direct_token(field.syntax(), K::IDENT) else {
+            continue;
+        };
+        let child = support::child::<syntax::Pattern>(field.syntax());
+        if child
+            .as_ref()
+            .is_none_or(|child| matches!(child, syntax::Pattern::Binding(_)))
+        {
+            continue;
+        }
+        let (field_match, field_failure) =
+            partition_let_required_map_field(matched, name.text(), &child.expect("checked above"));
+        failures.push(field_failure);
+        matched = field_match;
+        if matched == Type::Never {
+            break;
+        }
+    }
+    let unmatched = if failures.is_empty() {
+        Type::Never
+    } else {
+        union(failures)
+    };
+    (matched, unmatched)
+}
+
 pub(super) fn partition_map_pattern(source: Type, pattern: &syntax::MapPattern) -> (Type, Type) {
     if let Type::Union(items) = source {
         let (matched, unmatched): (Vec<_>, Vec<_>) = items
@@ -353,11 +455,12 @@ pub(super) fn partition_map_pattern(source: Type, pattern: &syntax::MapPattern) 
         let Some(name) = direct_token(field.syntax(), K::IDENT) else {
             continue;
         };
-        let Some(child) = support::child::<syntax::Pattern>(field.syntax()) else {
-            continue;
-        };
         let (field_match, field_failure) =
-            partition_required_map_field(matched, name.text(), &child);
+            if let Some(child) = support::child::<syntax::Pattern>(field.syntax()) {
+                partition_required_map_field(matched, name.text(), &child)
+            } else {
+                partition_required_map_binding_field(matched, name.text())
+            };
         failures.push(field_failure);
         matched = field_match;
         if matched == Type::Never {
@@ -375,6 +478,41 @@ pub(super) fn partition_required_map_field(
     source: Type,
     field: &str,
     pattern: &syntax::Pattern,
+) -> (Type, Type) {
+    partition_required_map_field_with(source, field, pattern, pattern_partition)
+}
+
+fn partition_required_map_binding_field(source: Type, field: &str) -> (Type, Type) {
+    let Type::Map {
+        fields,
+        index,
+        open,
+    } = &source
+    else {
+        return (Type::Never, source);
+    };
+    if fields.iter().any(|(name, _)| name == field) {
+        return (source, Type::Never);
+    }
+    if *open || index.is_some() {
+        return (source.clone(), source);
+    }
+    (Type::Never, source)
+}
+
+fn partition_let_required_map_field(
+    source: Type,
+    field: &str,
+    pattern: &syntax::Pattern,
+) -> (Type, Type) {
+    partition_required_map_field_with(source, field, pattern, let_pattern_partition)
+}
+
+fn partition_required_map_field_with(
+    source: Type,
+    field: &str,
+    pattern: &syntax::Pattern,
+    partition: fn(Type, &syntax::Pattern) -> (Type, Type),
 ) -> (Type, Type) {
     if let syntax::Pattern::Literal(literal) = pattern
         && direct_token(literal.syntax(), K::NIL_KW).is_some()
@@ -394,7 +532,7 @@ pub(super) fn partition_required_map_field(
         return (Type::Never, source);
     };
     if let Some((_, field_ty)) = fields.iter().find(|(name, _)| name == field) {
-        let (matched_field, unmatched_field) = pattern_partition(field_ty.clone(), pattern);
+        let (matched_field, unmatched_field) = partition(field_ty.clone(), pattern);
         let matched = replace_required_map_field(source.clone(), field, matched_field);
         let unmatched = replace_required_map_field(source, field, unmatched_field);
         return (matched, unmatched);
@@ -404,7 +542,7 @@ pub(super) fn partition_required_map_field(
             .as_ref()
             .map(|(_, value)| (**value).clone())
             .unwrap_or(Type::Any);
-        let (matched_field, _) = pattern_partition(possible, pattern);
+        let (matched_field, _) = partition(possible, pattern);
         // Open/index maps do not establish presence. Even if a present value can
         // match, absence must remain in the failure partition.
         let matched = if matched_field == Type::Never {

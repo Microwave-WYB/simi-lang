@@ -117,17 +117,19 @@ end
 
 ### Destructuring with `let`
 
-The left side of `let` may use the same structural patterns:
+The left side of `let` may use structural patterns. Direct named map bindings default an absent key to `nil`; shorthand `{name}` binds the `name` key to the `name` local, while `{source = name}` keeps a distinct lookup key and local name:
 
 ```simi
 let values = [10, 20, 30, 40]
 let [first, second, ..rest] = values
 
 let user = {name = "Ada", role = "admin", active = true}
-let {name = name, ..details} = user
+let {name, nickname, role = account_role, ..details} = user
 
-[first, second, rest, name, details]
+[first, second, rest, name, nickname, account_role, details]
 ```
+
+This default applies only to direct binding fields. Other field patterns, and every map field in `case` and `catch`, continue to require presence (except for the existing literal `nil` rule above). Map patterns remain closed: without `..` or `..rest`, unrelated keys still make a `let` pattern fail.
 
 The right side is evaluated once, and matching is atomic: no bindings are installed unless the entire pattern succeeds. A mismatch in `let` is a hard diagnostic. Use `case` instead when mismatch is an ordinary possibility.
 
