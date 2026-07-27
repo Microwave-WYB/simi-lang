@@ -10,6 +10,7 @@ async function json(path) {
 
 test("extension manifest associates .simi files with the TextMate grammar", async () => {
   const manifest = await json("package.json");
+  const lockfile = await json("package-lock.json");
   const language = manifest.contributes.languages.find(({ id }) => id === "simi");
   const grammar = manifest.contributes.grammars.find(({ language }) => language === "simi");
 
@@ -23,6 +24,9 @@ test("extension manifest associates .simi files with the TextMate grammar", asyn
     { language: "simi", path: "./snippets/simi.json" },
   ]);
   assert.equal(manifest.main, "./src/extension.js");
+  assert.equal(manifest.version, "0.1.0-alpha.1");
+  assert.equal(lockfile.version, manifest.version);
+  assert.equal(lockfile.packages[""].version, manifest.version);
   assert.equal(manifest.license, "MIT");
   assert.equal(manifest.repository.url, "https://github.com/Microwave-WYB/simi-lang.git");
   assert.equal(manifest.repository.directory, "editors/vscode");

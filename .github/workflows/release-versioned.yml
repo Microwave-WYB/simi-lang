@@ -149,6 +149,7 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --target "$SHA" \
             --verify-tag \
+            --prerelease \
             --title "Simi $TAG" \
             --latest=false \
             --notes "Simi prerelease $TAG built from immutable Git commit $SHA."

@@ -50,7 +50,7 @@ From this directory:
 npm ci
 npm test
 npm run package
-code --install-extension --force simi-language-0.1.0.vsix
+code --install-extension --force simi-language-0.1.0-alpha.1.vsix
 ```
 
 Or use the component-owned recipes:
