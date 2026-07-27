@@ -86,8 +86,11 @@ pub(super) fn map_pattern(p: &mut Parser<'_>, bindings: &mut HashSet<String>) {
             {
                 p.error_at(span, format!("duplicate map pattern field `{name}`"));
             }
-            p.expect(K::EQ, "`=` after map pattern field name");
-            pattern(p, bindings);
+            if p.bump_if(K::EQ) {
+                pattern(p, bindings);
+            } else if !name.starts_with('_') && !bindings.insert(name.clone()) {
+                p.error_at(span, format!("duplicate binding `{name}` in pattern"));
+            }
             field.complete(&mut p.events, K::MAP_PATTERN_FIELD);
             if !p.bump_if(K::COMMA) || p.at(K::R_BRACE) {
                 break;

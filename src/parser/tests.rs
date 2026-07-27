@@ -515,7 +515,7 @@ fn accepts_discarded_pattern_rests_and_rejects_malformed_positions_and_keys() {
         ),
         (
             "case {} of {field value} do nil end",
-            "expected `=` after map pattern field name, found `identifier`",
+            "expected `}` after map pattern, found `identifier`",
         ),
     ] {
         let error = parse_source(source).unwrap_err();

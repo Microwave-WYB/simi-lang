@@ -569,8 +569,10 @@ module.exports = grammar({
 
     map_pattern_field: ($) => seq(
       field("name", $.identifier),
-      "=",
-      field("pattern", $._pattern),
+      optional(seq(
+        "=",
+        field("pattern", $._pattern),
+      )),
     ),
 
     rest_pattern: ($) => seq(

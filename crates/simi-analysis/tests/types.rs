@@ -968,6 +968,52 @@ end
 }
 
 #[test]
+fn structural_map_pattern_shorthand_requires_presence_and_binds_present_fields() {
+    let source = r#"
+let case_absent = case {}
+of {case_missing} do "wrong"
+of _ do 0
+end
+let case_present = case {case_value = 1}
+of {case_value} do case_value
+of _ do "wrong"
+end
+let catch_absent = try
+    raise {}
+catch {catch_missing} do
+    "wrong"
+catch _ do
+    0
+end
+let catch_present = try
+    raise {catch_value = 2}
+catch {catch_value} do
+    catch_value
+end
+"#;
+    let (inference, resolution) = inferred(source);
+    assert!(
+        inference.diagnostics.is_empty(),
+        "{:?}",
+        inference.diagnostics
+    );
+    for name in [
+        "case_absent",
+        "case_present",
+        "case_value",
+        "catch_absent",
+        "catch_present",
+        "catch_value",
+    ] {
+        assert_eq!(
+            type_of(&inference, &resolution, name).display(),
+            "integer",
+            "{name}"
+        );
+    }
+}
+
+#[test]
 fn map_patterns_respect_optional_presence_and_all_required_fields() {
     let source = r#"
 let absent = {missing = nil}
@@ -1054,7 +1100,7 @@ fn first_or_nil(values) do
 end
 fn read_value(record) do
     case record
-    of {value=value} do value
+    of {value} do value
     end
 end
 "#;
@@ -1526,7 +1572,7 @@ end
             .iter()
             .filter(|(code, _, _)| *code == AnalysisDiagnosticCode::DestructuringLetNeverMatches)
             .count(),
-        3,
+        2,
         "{reported:?}"
     );
     assert_eq!(
@@ -1553,7 +1599,83 @@ end
         type_of(&inference, &resolution, "first").display(),
         "integer"
     );
-    assert_eq!(type_of(&inference, &resolution, "value").display(), "any");
+    assert_eq!(type_of(&inference, &resolution, "value").display(), "nil");
+}
+
+#[test]
+fn map_destructuring_let_binding_fields_infer_absence_as_nil() {
+    let source = r#"
+let {present, missing, source = renamed} = {present = 1}
+let {nested = {nested_missing}} = {nested = {}}
+let [{list_missing}] = [{}]
+fn indexed(values: {[string]: integer}) do
+    let {value, ..} = values
+    value
+end
+"#;
+    let (inference, resolution) = inferred(source);
+    assert!(
+        inference.diagnostics.is_empty(),
+        "{:?}",
+        inference.diagnostics
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "present").display(),
+        "integer"
+    );
+    assert_eq!(type_of(&inference, &resolution, "missing").display(), "nil");
+    assert_eq!(type_of(&inference, &resolution, "renamed").display(), "nil");
+    assert_eq!(
+        type_of(&inference, &resolution, "nested_missing").display(),
+        "nil"
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "list_missing").display(),
+        "nil"
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "indexed").display(),
+        "(values: { [string]: integer }) -> integer | nil"
+    );
+}
+
+#[test]
+fn closed_map_destructuring_over_unknown_keys_retains_extra_key_failure() {
+    let closed_source = r#"
+fn indexed(values: {[string]: integer}) do
+    let {value} = values
+    value
+end
+fn open(values: {..}) do
+    let {value} = values
+    value
+end
+"#;
+    let db = AnalysisDatabase::default();
+    let file = db.add_file(closed_source);
+    let reported = diagnostics(&db, file);
+    assert_eq!(reported.len(), 2, "{reported:?}");
+    assert!(reported.iter().all(|diagnostic| {
+        diagnostic.code == AnalysisDiagnosticCode::DestructuringLetMayFail
+            && diagnostic.severity == AnalysisDiagnosticSeverity::Warning
+    }));
+
+    let rest_source = r#"
+fn indexed(values: {[string]: integer}) do
+    let {value, ..} = values
+    value
+end
+fn open(values: {..}) do
+    let {value, ..rest} = values
+    [value, rest]
+end
+"#;
+    let (inference, _) = inferred(rest_source);
+    assert!(
+        inference.diagnostics.is_empty(),
+        "{:?}",
+        inference.diagnostics
+    );
 }
 
 #[test]

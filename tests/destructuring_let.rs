@@ -25,6 +25,78 @@ fn destructuring_let_reuses_nested_list_and_map_patterns() {
 }
 
 #[test]
+fn map_destructuring_let_defaults_direct_bindings_to_nil() {
+    let value = evaluate(
+        r#"
+        let {present, missing, source = renamed} = {present = 1}
+        [present, missing, renamed]
+        "#,
+    );
+
+    assert_eq!(value.render(), "[1, nil, nil]");
+    assert_eq!(
+        evaluate("let {source = renamed} = {source = 1} renamed").render(),
+        "1"
+    );
+    assert_eq!(
+        evaluate("let {nested = {missing}} = {nested = {}} missing").render(),
+        "nil"
+    );
+    match eval("let {present} = {present = 1, extra = 2}") {
+        Err(SimiError::Runtime(error)) => {
+            assert_eq!(error.message, "let pattern did not match");
+        }
+        _ => panic!("closed shorthand map destructuring must reject extra fields"),
+    }
+    assert_eq!(
+        evaluate("let {present, ..} = {present = 1, extra = 2} present").render(),
+        "1"
+    );
+}
+
+#[test]
+fn map_destructuring_let_defaults_do_not_relax_structural_patterns() {
+    assert_eq!(evaluate("let {missing = nil} = {} 1").render(), "1");
+
+    for source in [
+        "let {missing = _} = {}",
+        "let {missing = 1} = {}",
+        "let {missing = {value}} = {}",
+    ] {
+        match eval(source) {
+            Err(SimiError::Runtime(error)) => {
+                assert_eq!(error.message, "let pattern did not match");
+            }
+            _ => panic!("expected structural mismatch for {source}"),
+        }
+    }
+    assert_eq!(
+        evaluate("case {} of {missing = value} do 1 of _ do 2 end").render(),
+        "2"
+    );
+    assert_eq!(
+        evaluate("case {} of {missing} do 1 of _ do 2 end").render(),
+        "2"
+    );
+    assert_eq!(
+        evaluate("case {value = 1} of {value} do value of _ do 2 end").render(),
+        "1"
+    );
+    assert_eq!(
+        evaluate("try raise {} catch {missing = value} do 1 catch _ do 2 end").render(),
+        "2"
+    );
+    assert_eq!(
+        evaluate("try raise {} catch {missing} do 1 catch _ do 2 end").render(),
+        "2"
+    );
+    assert_eq!(
+        evaluate("try raise {value = 1} catch {value} do value end").render(),
+        "1"
+    );
+}
+
+#[test]
 fn destructuring_let_rest_is_cow_and_nested_values_remain_aliased() {
     let value = evaluate(
         r#"

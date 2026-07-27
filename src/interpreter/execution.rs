@@ -1,6 +1,6 @@
 use gc::{Gc, GcCell};
 
-use super::{EvaluationError, EvaluationResult, Interpreter, pattern::match_pattern};
+use super::{EvaluationError, EvaluationResult, Interpreter, pattern::match_let_pattern};
 use crate::ast::{BinaryOp, Block, Expr, ExprKind, Stmt, StmtKind};
 use crate::runtime::{Environment, List, MapKey, Raised, RuntimeError, UserFunction, Value};
 
@@ -75,7 +75,7 @@ impl Interpreter {
             StmtKind::Let { pattern, value } => {
                 let value = self.evaluate_expression(value, env)?;
                 let mut bindings = Vec::new();
-                if !match_pattern(pattern, &value, &mut bindings)? {
+                if !match_let_pattern(pattern, &value, &mut bindings)? {
                     return Err(EvaluationError::Runtime(RuntimeError::new(
                         pattern.span,
                         "let pattern did not match",

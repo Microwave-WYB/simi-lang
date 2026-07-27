@@ -338,8 +338,17 @@ fn lower_pattern(node: syntax::Pattern) -> ast::Pattern {
                         .expect("map pattern name")
                         .text()
                         .to_string();
-                    let pattern =
-                        lower_pattern(support::child(field.syntax()).expect("map field pattern"));
+                    let pattern = support::child(field.syntax()).map_or_else(
+                        || ast::Pattern {
+                            kind: if name.starts_with('_') {
+                                ast::PatternKind::Wildcard
+                            } else {
+                                ast::PatternKind::Binding(name.clone())
+                            },
+                            span: span(field.syntax()),
+                        },
+                        lower_pattern,
+                    );
                     (name, pattern)
                 })
                 .collect();

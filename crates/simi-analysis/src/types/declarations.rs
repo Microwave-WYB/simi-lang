@@ -111,7 +111,7 @@ impl Context<'_> {
                     .and_then(|expression| self.callable_assignment_effects(expression));
                 if let Some(pattern) = support::child::<syntax::Pattern>(statement.syntax()) {
                     let resolved_value = self.resolve_type(final_ty.clone());
-                    match pattern_match_certainty(resolved_value.clone(), &pattern) {
+                    match let_pattern_match_certainty(resolved_value.clone(), &pattern) {
                         MatchCertainty::Always => {}
                         MatchCertainty::Sometimes => self.warning(
                             AnalysisDiagnosticCode::DestructuringLetMayFail,
@@ -151,7 +151,7 @@ impl Context<'_> {
                             self.callable_assignment_effects.insert(symbol, effects);
                         }
                     }
-                    self.bind_pattern(pattern, final_ty);
+                    self.bind_let_pattern(pattern, final_ty);
                 }
                 value
             }

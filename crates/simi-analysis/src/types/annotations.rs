@@ -2,6 +2,19 @@ use super::*;
 
 impl Context<'_> {
     pub(super) fn bind_pattern(&mut self, pattern: syntax::Pattern, ty: Type) {
+        self.bind_pattern_with_mode(pattern, ty, false);
+    }
+
+    pub(super) fn bind_let_pattern(&mut self, pattern: syntax::Pattern, ty: Type) {
+        self.bind_pattern_with_mode(pattern, ty, true);
+    }
+
+    fn bind_pattern_with_mode(
+        &mut self,
+        pattern: syntax::Pattern,
+        ty: Type,
+        let_destructure: bool,
+    ) {
         self.pattern_types
             .push((span(pattern.syntax()), ty.clone()));
         match pattern {
@@ -25,7 +38,7 @@ impl Context<'_> {
                         Type::ListRest(item) => (**item).clone(),
                         _ => Type::Unknown,
                     };
-                    self.bind_pattern(child, item);
+                    self.bind_pattern_with_mode(child, item, let_destructure);
                 }
                 if let Some(rest) = support::child::<syntax::RestPattern>(node.syntax())
                     && let Some(token) = direct_token(rest.syntax(), K::IDENT)
@@ -43,23 +56,54 @@ impl Context<'_> {
                 }
             }
             syntax::Pattern::Map(node) => {
-                let fields = match self.resolve_type(ty) {
-                    Type::Map { fields, .. } => fields,
-                    _ => Vec::new(),
+                let resolved = self.resolve_type(ty);
+                let (fields, index, open, is_map) = match &resolved {
+                    Type::Map {
+                        fields,
+                        index,
+                        open,
+                    } => (fields.clone(), index.clone(), *open, true),
+                    _ => (Vec::new(), None, false, false),
                 };
                 for field in support::children::<syntax::MapPatternField>(node.syntax()) {
-                    let field_name =
-                        direct_token(field.syntax(), K::IDENT).map(|token| token.text().to_owned());
-                    if let Some(child) = support::child::<syntax::Pattern>(field.syntax()) {
-                        let ty = field_name
-                            .and_then(|name| {
-                                fields
-                                    .iter()
-                                    .find(|(field, _)| field == &name)
-                                    .map(|(_, ty)| ty.clone())
-                            })
-                            .unwrap_or(Type::Unknown);
-                        self.bind_pattern(child, ty);
+                    let Some(name) = direct_token(field.syntax(), K::IDENT) else {
+                        continue;
+                    };
+                    let child = support::child::<syntax::Pattern>(field.syntax());
+                    let direct_binding = child
+                        .as_ref()
+                        .is_none_or(|child| matches!(child, syntax::Pattern::Binding(_)));
+                    let field_ty = fields
+                        .iter()
+                        .find(|(field, _)| field == name.text())
+                        .map(|(_, ty)| ty.clone())
+                        .unwrap_or_else(|| {
+                            if direct_binding && is_map {
+                                let possible = index
+                                    .as_ref()
+                                    .map(|(_, ty)| (**ty).clone())
+                                    .unwrap_or(Type::Any);
+                                if let_destructure {
+                                    if open || index.is_some() {
+                                        union(vec![possible, Type::Nil])
+                                    } else {
+                                        Type::Nil
+                                    }
+                                } else if open || index.is_some() {
+                                    possible
+                                } else {
+                                    Type::Unknown
+                                }
+                            } else {
+                                Type::Unknown
+                            }
+                        });
+                    if let Some(child) = child {
+                        self.bind_pattern_with_mode(child, field_ty, let_destructure);
+                    } else if let Some(symbol) = self.resolution.symbol_at(token_span(&name).start)
+                    {
+                        self.symbol_types.insert(symbol, field_ty.clone());
+                        self.symbol_bounds.insert(symbol, field_ty);
                     }
                 }
             }
