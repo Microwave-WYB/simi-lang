@@ -82,7 +82,7 @@ each
 count
 ```
 
-Consumers advance the iterator they receive. `to_list` consumes all remaining values. `fold` threads an accumulator. `find` and `find_index` return `nil` when there is no match, and `each` always returns `nil` after successful traversal.
+Consumers advance the iterator they receive. `to_list` consumes all remaining values. `fold` threads an accumulator. `find` and `find_index` return `nil` when there is no match, and `each` always returns `nil` after successful traversal. Iterator item types propagate through adapters and consumers, while source and callback raised effects remain part of the resulting iterator or consumer type.
 
 ```simi
 
@@ -92,7 +92,7 @@ let values = [1, 2, 3, 4]
 let total =
     values
     |> list.iter()
-    |> iter.fold(0) <| fn(sum: integer, value: integer) -> integer noraise do
+    |> iter.fold(0) <| fn(sum, value) do
         sum + value
     end
 
@@ -101,6 +101,17 @@ let even_count = iter.count(list.iter(values), fn(value: integer) -> boolean nor
 end)
 
 [total, even_count]
+```
+
+The initial accumulator supplies the stable state type for `fold`. A mixed integer/float source can use a float initial value, and the unannotated callback parameters are inferred accordingly:
+
+```simi
+
+let iter = require("std/iter")
+
+iter.fold(list.iter([1, 2.5]), 0.0, fn(total, value) do
+    total + value
+end)
 ```
 
 Predicates passed to `find`, `find_index`, `any`, `all`, and predicate-based `count` must return booleans. Searches and boolean queries short-circuit, leaving later values unconsumed.

@@ -431,15 +431,11 @@ fn annotated_generic_stdlib_calls_infer_through_nested_type_variables() {
     let db = AnalysisDatabase::default();
     let list_file = db.add_file(include_str!("../../../stdlib/list.simi"));
     let iter_file = db.add_file(include_str!("../../../stdlib/iter.simi"));
+    let list_shape = simi_analysis::module_shape(&db, list_file);
+    let iter_shape = simi_analysis::module_shape(&db, iter_file);
     let modules = HashMap::from([
-        (
-            "std/list".to_owned(),
-            simi_analysis::module_shape(&db, list_file),
-        ),
-        (
-            "std/iter".to_owned(),
-            simi_analysis::module_shape(&db, iter_file),
-        ),
+        ("std/list".to_owned(), list_shape),
+        ("std/iter".to_owned(), iter_shape),
     ]);
     let file = db.add_file(concat!(
         "\n",
@@ -456,9 +452,155 @@ fn annotated_generic_stdlib_calls_infer_through_nested_type_variables() {
     );
     assert_eq!(
         type_of(&inference, &resolution, "mapped").display(),
-        "[..any]"
+        "[..integer]"
     );
-    assert_eq!(type_of(&inference, &resolution, "found").display(), "any");
+    assert_eq!(
+        type_of(&inference, &resolution, "found").display(),
+        "integer | nil"
+    );
+}
+
+#[test]
+fn iterator_items_contextualize_callbacks_across_call_forms() {
+    let db = AnalysisDatabase::default();
+    let modules = [
+        ("std/list", include_str!("../../../stdlib/list.simi")),
+        ("std/map", include_str!("../../../stdlib/map.simi")),
+        ("std/iter", include_str!("../../../stdlib/iter.simi")),
+    ]
+    .into_iter()
+    .map(|(name, source)| {
+        let file = db.add_file(source);
+        (name.to_owned(), simi_analysis::module_shape(&db, file))
+    })
+    .collect::<HashMap<_, _>>();
+    let source = r#"
+let iter = require("std/iter")
+let folded = iter.fold(list.iter([1, 2, 3]), 0, fn(acc, fold_item) do acc + fold_item end)
+let piped =
+    [1, 2, 3]
+    |> list.iter()
+    |> iter.map(fn(pipeline_item) do pipeline_item + 1 end)
+    |> iter.to_list()
+let trailing_iterator =
+    iter.map(list.iter([1, 2, 3])) <| fn(trailing_item) do trailing_item + 1 end
+let trailing = iter.to_list(trailing_iterator)
+let mixed = iter.fold(list.iter([1, 2.0]), 0.0, fn(mixed_acc, mixed_item) do
+    mixed_acc + mixed_item
+end)
+let mapped = iter.to_list(iter.map(list.iter([1, 2]), fn(map_item) do map_item + 1 end))
+let filtered = iter.to_list(iter.filter(list.iter([1, 2]), fn(filter_item) do filter_item > 1 end))
+let found = iter.find(list.iter([1, 2]), fn(find_item) do find_item > 1 end)
+let nil_items = iter.to_list(iter.map(list.iter([1, nil, 3]), fn(nil_item) do nil_item end))
+let keys =
+    map.iter({first = 1})
+    |> iter.map(fn(entry) do entry.key end)
+    |> iter.to_list()
+fn transform<'a, 'b, 'e>(value: 'a, callback: 'a -> 'b raises 'e) -> 'b raises 'e do
+    callback(value)
+end
+let generic_result = transform(1, fn(generic_item) do generic_item + 1 end)
+let parenthesized = transform(1, (fn(parenthesized_item) do parenthesized_item + 1 end))
+fn raising_source() -> { done: boolean, value: integer, .. } raises "source" do
+    raise "source"
+end
+let effect_iterator = iter.map(raising_source, fn(effect_item) do
+    if effect_item > 0 then raise "callback" else effect_item end
+end)
+"#;
+    let file = db.add_file(source);
+    let resolution = resolve(&db, file);
+    let inference = infer_types(&db, file, &modules);
+    assert!(
+        inference.diagnostics.is_empty(),
+        "{:?}",
+        inference.diagnostics
+    );
+    for name in ["folded", "generic_result", "parenthesized"] {
+        assert_eq!(type_of(&inference, &resolution, name).display(), "integer");
+    }
+    assert_eq!(type_of(&inference, &resolution, "mixed").display(), "float");
+    for name in ["piped", "trailing", "mapped", "filtered"] {
+        assert_eq!(
+            type_of(&inference, &resolution, name).display(),
+            "[..integer]"
+        );
+    }
+    assert_eq!(
+        type_of(&inference, &resolution, "found").display(),
+        "integer | nil"
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "nil_items").display(),
+        "[..(integer | nil)]"
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "keys").display(),
+        "[..(boolean | integer | float | string)]"
+    );
+    for name in [
+        "acc",
+        "fold_item",
+        "pipeline_item",
+        "trailing_item",
+        "map_item",
+        "filter_item",
+        "find_item",
+        "generic_item",
+        "parenthesized_item",
+        "effect_item",
+    ] {
+        assert_eq!(type_of(&inference, &resolution, name).display(), "integer");
+    }
+    assert_eq!(
+        type_of(&inference, &resolution, "nil_item").display(),
+        "integer | nil"
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "effect_iterator").display(),
+        "() -> { done: boolean, value: integer, .. } raises \"source\" | \"callback\""
+    );
+}
+
+#[test]
+fn contextual_callbacks_still_check_explicit_annotations() {
+    let db = AnalysisDatabase::default();
+    let modules = [
+        ("std/list", include_str!("../../../stdlib/list.simi")),
+        ("std/iter", include_str!("../../../stdlib/iter.simi")),
+    ]
+    .into_iter()
+    .map(|(name, source)| {
+        let file = db.add_file(source);
+        (name.to_owned(), simi_analysis::module_shape(&db, file))
+    })
+    .collect::<HashMap<_, _>>();
+    let source = r#"
+let iter = require("std/iter")
+let compatible = iter.to_list(iter.map(list.iter([1, 2]), fn(item: integer) -> integer noraise do
+    item + 1
+end))
+iter.fold(list.iter([1, 2]), 0, fn(acc: string, item: integer) do acc end)
+iter.map(list.iter([1, 2]), fn(item: integer) -> string do item + 1 end)
+iter.map(list.iter([1, 2]), fn(item: integer) -> any noraise do raise "nope" end)
+"#;
+    let file = db.add_file(source);
+    let resolution = resolve(&db, file);
+    let inference = infer_types(&db, file, &modules);
+    assert_eq!(
+        type_of(&inference, &resolution, "compatible").display(),
+        "[..integer]"
+    );
+    assert!(
+        inference
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code == AnalysisDiagnosticCode::TypeMismatch)
+            .count()
+            == 4,
+        "{:?}",
+        inference.diagnostics
+    );
 }
 
 #[test]

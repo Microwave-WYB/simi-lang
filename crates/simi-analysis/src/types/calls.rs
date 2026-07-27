@@ -19,14 +19,11 @@ impl Context<'_> {
             .map(|list| expr_children(list.syntax()).collect::<Vec<_>>())
             .unwrap_or_default();
         argument_nodes.extend(expr_children(stage.syntax()).skip(1));
+        let call_span = span(stage.syntax());
         let mut arguments = vec![incoming.clone()];
-        arguments.extend(
-            argument_nodes
-                .iter()
-                .cloned()
-                .map(|argument| self.expression(argument)),
-        );
-        let (result, raised) = self.apply_call_type(callee, &arguments, span(stage.syntax()));
+        self.constrain_call_argument(&callee, 0, &incoming, call_span);
+        arguments.extend(self.infer_call_arguments(&callee, &argument_nodes, 1));
+        let (result, raised) = self.apply_call_type(callee, &arguments, call_span);
         let raised_entry = self.flow_state();
         let known_tap_result = member.as_ref().and_then(|(module, field)| {
             (tap && module == "std/list" && field == "append" && arguments.len() == 2).then(|| {
@@ -100,11 +97,7 @@ impl Context<'_> {
             .map(|list| expr_children(list.syntax()).collect::<Vec<_>>())
             .unwrap_or_default();
         argument_nodes.push(trailing);
-        let arguments = argument_nodes
-            .iter()
-            .cloned()
-            .map(|argument| self.expression(argument))
-            .collect::<Vec<_>>();
+        let arguments = self.infer_call_arguments(&callee, &argument_nodes, 0);
         let (result, raised) = self.apply_call_type(callee, &arguments, span(node.syntax()));
         let raised_entry = self.flow_state();
         if result != Type::Never
@@ -138,6 +131,60 @@ impl Context<'_> {
         );
         result
     }
+    fn infer_call_arguments(
+        &mut self,
+        callee: &Type,
+        arguments: &[syntax::Expr],
+        parameter_offset: usize,
+    ) -> Vec<Type> {
+        arguments
+            .iter()
+            .enumerate()
+            .map(|(index, argument)| {
+                let parameter_index = parameter_offset + index;
+                let expected = self.call_parameter_type(callee, parameter_index);
+                let actual = self.infer_call_argument(argument.clone(), expected.as_ref());
+                self.constrain_call_argument(
+                    callee,
+                    parameter_index,
+                    &actual,
+                    span(argument.syntax()),
+                );
+                actual
+            })
+            .collect()
+    }
+
+    fn infer_call_argument(&mut self, argument: syntax::Expr, expected: Option<&Type>) -> Type {
+        match (argument, expected) {
+            (syntax::Expr::Function(function), Some(Type::Function(callable))) => {
+                self.infer_anonymous_expected(function, callable)
+            }
+            (syntax::Expr::Paren(paren), Some(expected @ Type::Function(_))) => {
+                child_expr(paren.syntax(), 0).map_or(Type::Unknown, |inner| {
+                    self.infer_call_argument(inner, Some(expected))
+                })
+            }
+            (argument, _) => self.expression(argument),
+        }
+    }
+
+    fn call_parameter_type(&self, callee: &Type, index: usize) -> Option<Type> {
+        let Type::Function(callable) = self.resolve_type(callee.clone()) else {
+            return None;
+        };
+        callable
+            .parameters
+            .get(index)
+            .map(|parameter| self.resolve_type(parameter.ty.clone()))
+    }
+
+    fn constrain_call_argument(&mut self, callee: &Type, index: usize, actual: &Type, at: Span) {
+        if let Some(expected) = self.call_parameter_type(callee, index) {
+            self.constrain(&expected, actual, at);
+        }
+    }
+
     pub(super) fn apply_call_type(
         &mut self,
         callee: Type,
@@ -157,9 +204,6 @@ impl Context<'_> {
                         ),
                         at,
                     );
-                }
-                for (actual, expected) in arguments.iter().zip(&callable.parameters) {
-                    self.constrain(&expected.ty, actual, at);
                 }
                 let raised = if callable.parameters.len() == arguments.len() {
                     (*callable.raised).clone()
@@ -195,11 +239,7 @@ impl Context<'_> {
         let arguments = support::child::<syntax::ArgList>(node.syntax())
             .map(|list| expr_children(list.syntax()).collect::<Vec<_>>())
             .unwrap_or_default();
-        let argument_types = arguments
-            .iter()
-            .cloned()
-            .map(|argument| self.expression(argument))
-            .collect::<Vec<_>>();
+        let argument_types = self.infer_call_arguments(&callee, &arguments, 0);
         let (mut result, raised) =
             self.apply_call_type(callee, &argument_types, span(node.syntax()));
         if let Some(required_type) = required_type {

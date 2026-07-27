@@ -892,8 +892,73 @@ fn real_annotated_stdlib_facade_supplies_generic_member_types() {
     };
     assert_simi_hover(
         &markup,
-        "<'a, 'b, 'c, 'd> (\n    iterator: () -> { done: boolean, .. } raises 'c,\n    transform: 'a -> 'b raises 'd,\n) -> () -> { done: boolean, .. } raises 'c | 'd noraise",
+        "<'a, 'b, 'c, 'd> (\n    iterator: () -> { done: boolean, value: 'a, .. } raises 'c,\n    transform: 'a -> 'b raises 'd,\n) -> () -> { done: boolean, value: 'b, .. } raises 'c | 'd noraise",
     );
+}
+
+#[test]
+fn real_iterator_pipeline_contextualizes_unannotated_fold_callback() {
+    let source = r#"let iter = require("std/iter")
+let number = require("std/number")
+let total =
+    [1, 2, 3]
+    |> list.iter()
+    |> iter.fold(0, fn(acc, item) do acc + item end)
+let rendered = total |> number.to_string()
+let mapped =
+    [1, 2, 3]
+    |> list.iter()
+    |> iter.map(fn(mapped_item) do mapped_item + 1 end)
+    |> iter.to_list()
+let keys =
+    map.iter({first = 1})
+    |> iter.map(fn(entry) do entry.key end)
+    |> iter.to_list()
+"#;
+    let mut backend = Backend::with_module_sources([
+        ("std/list", include_str!("../../../../stdlib/list.simi")),
+        ("std/iter", include_str!("../../../../stdlib/iter.simi")),
+        ("std/map", include_str!("../../../../stdlib/map.simi")),
+        ("std/number", include_str!("../../../../stdlib/number.simi")),
+    ]);
+    let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
+    assert!(
+        diagnostics.diagnostics.is_empty(),
+        "{:?}",
+        diagnostics.diagnostics
+    );
+
+    for (name, occurrence, expected) in [
+        ("total", 0, "integer"),
+        ("acc", 0, "integer"),
+        ("item", 0, "integer"),
+        ("rendered", 0, "string"),
+        ("mapped", 0, "[..integer]"),
+        ("mapped_item", 0, "integer"),
+        (
+            "entry",
+            0,
+            "{ key: boolean | integer | float | string, value: any, .. }",
+        ),
+        ("keys", 0, "[..(boolean | integer | float | string)]"),
+    ] {
+        let hover: Option<Hover> = serde_json::from_value(
+            request(
+                &mut backend,
+                HoverRequest::METHOD,
+                json!({
+                    "textDocument": { "uri": uri() },
+                    "position": text_position(source, name, occurrence),
+                }),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let HoverContents::Markup(markup) = hover.expect("iterator hover").contents else {
+            panic!("expected markup")
+        };
+        assert_simi_hover(&markup, expected);
+    }
 }
 
 #[test]

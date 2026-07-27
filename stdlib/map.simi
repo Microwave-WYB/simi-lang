@@ -1,5 +1,13 @@
 ---- Operations for mutable insertion-ordered maps.
 
+alias Entry = {
+    key: string | integer | float | boolean,
+    value: any,
+    ..
+}
+alias Step = { done: boolean, value: Entry, .. }
+alias Iterator = () -> Step noraise
+
 --- Return the number of entries in a map.
 let length: (entries: { .. }) -> integer noraise = host.length
 
@@ -10,7 +18,7 @@ let copy: (entries: { .. }) -> { .. } noraise = host.copy
 let has: (entries: { .. }, key: string | integer | float | boolean) -> boolean noraise = host.has
 
 --- Create an insertion-ordered iterator over map entries.
-fn iter(entries: { .. }) do
+fn iter(entries: { .. }) -> Iterator noraise do
     let snapshot = host.iter(entries)
     let index = 0
     fn() do

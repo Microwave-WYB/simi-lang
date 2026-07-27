@@ -6,6 +6,46 @@ use simi_analysis::{
 };
 
 #[test]
+fn iterator_facades_export_item_and_effect_relationships() {
+    let db = AnalysisDatabase::default();
+    let list_file = db.add_file(include_str!("../../../stdlib/list.simi"));
+    let map_file = db.add_file(include_str!("../../../stdlib/map.simi"));
+    let iter_file = db.add_file(include_str!("../../../stdlib/iter.simi"));
+    for file in [list_file, map_file, iter_file] {
+        assert!(simi_analysis::parse(&db, file).diagnostics.is_empty());
+    }
+    let list = module_shape(&db, list_file);
+    let map = module_shape(&db, map_file);
+    let iter = module_shape(&db, iter_file);
+
+    let displayed = |shape: &simi_analysis::ModuleShape, name: &str| {
+        shape
+            .fields
+            .iter()
+            .find(|field| field.name == name)
+            .and_then(|field| field.ty.as_ref())
+            .expect("typed facade export")
+            .display()
+    };
+    assert_eq!(
+        displayed(&list, "iter"),
+        "<'a> (xs: [..'a]) -> () -> { done: boolean, value: 'a, .. } noraise noraise"
+    );
+    assert_eq!(
+        displayed(&map, "iter"),
+        "(entries: { .. }) -> () -> { done: boolean, value: { key: boolean | integer | float | string, value: any, .. }, .. } noraise noraise"
+    );
+    assert_eq!(
+        displayed(&iter, "to_list"),
+        "<'a, 'b> (iterator: () -> { done: boolean, value: 'a, .. } raises 'b) -> [..'a] raises 'b"
+    );
+    assert_eq!(
+        displayed(&iter, "find"),
+        "<'a, 'b, 'c> (iterator: () -> { done: boolean, value: 'a, .. } raises 'b, predicate: 'a -> boolean raises 'c) -> 'a | nil raises 'b | 'c"
+    );
+}
+
+#[test]
 fn documented_typed_native_aliases_keep_callable_module_metadata() {
     let source = r#"
 --- Return the text length.

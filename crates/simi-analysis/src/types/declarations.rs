@@ -365,6 +365,22 @@ impl Context<'_> {
         union(vec![result, Type::Nil])
     }
     pub(super) fn infer_anonymous(&mut self, node: syntax::FunctionExpr) -> Type {
+        self.infer_anonymous_with_expected(node, None)
+    }
+
+    pub(super) fn infer_anonymous_expected(
+        &mut self,
+        node: syntax::FunctionExpr,
+        expected: &CallableType,
+    ) -> Type {
+        self.infer_anonymous_with_expected(node, Some(expected))
+    }
+
+    fn infer_anonymous_with_expected(
+        &mut self,
+        node: syntax::FunctionExpr,
+        expected_callable: Option<&CallableType>,
+    ) -> Type {
         let outer_flow = self.flow_state();
         let outer_nil_aborts = std::mem::take(&mut self.nil_abort_states);
         let function_span = span(node.syntax());
@@ -379,20 +395,31 @@ impl Context<'_> {
         let parameters = support::child::<syntax::ParamList>(node.syntax())
             .map(|list| {
                 support::children::<syntax::Param>(list.syntax())
-                    .map(|parameter| {
-                        let ty = support::child::<syntax::TypeAnnotation>(parameter.syntax())
+                    .enumerate()
+                    .map(|(index, parameter)| {
+                        let annotation =
+                            support::child::<syntax::TypeAnnotation>(parameter.syntax());
+                        let ty = annotation
+                            .as_ref()
                             .and_then(|annotation| {
                                 support::child::<syntax::TypeExpr>(annotation.syntax())
                             })
                             .map(|annotation| self.parse_type(annotation.syntax(), &mut generics))
-                            .unwrap_or_else(|| self.fresh());
+                            .unwrap_or_else(|| {
+                                expected_callable
+                                    .and_then(|callable| callable.parameters.get(index))
+                                    .map(|parameter| self.resolve_type(parameter.ty.clone()))
+                                    .filter(|ty| {
+                                        !contains_infer(ty)
+                                            && !matches!(ty, Type::Any | Type::Unknown)
+                                    })
+                                    .unwrap_or_else(|| self.fresh())
+                            });
                         if let Some(token) = direct_token(parameter.syntax(), K::IDENT)
                             && let Some(symbol) =
                                 self.resolution.symbol_at(token_span(&token).start)
                         {
-                            if support::child::<syntax::TypeAnnotation>(parameter.syntax())
-                                .is_some()
-                            {
+                            if annotation.is_some() {
                                 self.annotated_symbols.insert(symbol);
                             }
                             self.symbol_types.insert(symbol, ty.clone());
