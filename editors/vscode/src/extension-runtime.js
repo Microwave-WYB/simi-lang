@@ -139,8 +139,8 @@ function createExtensionRuntime({ vscode, LanguageClient, resolveServerCommand, 
     extensionPath = context.extensionPath;
     context.subscriptions.push(
       vscode.commands.registerCommand("simi.restartLanguageServer", queueRestart),
-      vscode.commands.registerCommand("type", typing.type),
       vscode.workspace.onDidChangeTextDocument(typing.onDidChangeTextDocument),
+      vscode.window.onDidChangeTextEditorSelection(typing.onDidChangeTextEditorSelection),
       vscode.workspace.onDidChangeConfiguration((event) => {
         if (event.affectsConfiguration("simi.languageServer.path")) {
           return queueRestart();

@@ -123,90 +123,124 @@ class GeneratedCloserStore {
 
 function createDoEndTypingController({ vscode }) {
   const closers = new GeneratedCloserStore();
+  const internalEdits = new WeakSet();
+  let pendingEnterPlans = new WeakMap();
 
-  function eligibleEnter(editor, text) {
-    if (text !== "\n" && text !== "\r\n") {
+  function activeSingleCursorEditor(document) {
+    const editor = vscode.window.activeTextEditor;
+    if (
+      !editor
+      || editor.document !== document
+      || document.languageId !== "simi"
+      || editor.selections.length !== 1
+      || !editor.selection.isEmpty
+    ) {
       return undefined;
     }
-    if (editor.document.languageId !== "simi" || editor.selections.length !== 1) {
+    return editor;
+  }
+
+  function observedEnterPlan(document, contentChanges) {
+    if (contentChanges.length !== 1) {
       return undefined;
     }
+    const change = contentChanges[0];
+    const insertedLineBreak = /^(?:\r\n|\n)([ \t]*)$/.exec(change.text);
+    if (change.rangeLength !== 0 || !insertedLineBreak) {
+      return undefined;
+    }
+
+    const editor = activeSingleCursorEditor(document);
+    if (!editor) {
+      return undefined;
+    }
+    const line = document.lineAt(change.range.start.line);
+    const prefix = line.text.slice(0, change.range.start.character);
+    if (line.text !== prefix || !lineEndsWithCodeDo(prefix, prefix.length)) {
+      return undefined;
+    }
+
     const selection = editor.selection;
-    if (!selection.isEmpty) {
+    if (
+      selection.active.line !== change.range.start.line
+      || selection.active.character !== change.range.start.character
+    ) {
       return undefined;
     }
-    const line = editor.document.lineAt(selection.active.line);
-    if (!lineEndsWithCodeDo(line.text, selection.active.character)) {
-      return undefined;
-    }
-    const baseIndent = leadingWhitespace(line.text);
+
+    const baseIndent = leadingWhitespace(prefix);
+    const bodyLine = change.range.start.line + 1;
+    const insertedIndent = insertedLineBreak[1];
     return {
-      document: editor.document,
+      document,
       editor,
-      line: selection.active.line,
+      bodyLine,
+      insertedIndent,
       baseIndent,
       childIndent: baseIndent + indentationUnit(editor.options),
     };
   }
 
-  function eligibleOvertype(editor, text) {
-    if (editor.document.languageId !== "simi" || editor.selections.length !== 1) {
+  function observedOvertypePlan(document, contentChanges) {
+    if (contentChanges.length !== 1) {
       return undefined;
     }
-    if (text.length === 0 || text.includes("\n") || text.includes("\r")) {
+    const change = contentChanges[0];
+    if (
+      change.rangeLength !== 0
+      || change.text.length === 0
+      || change.text.includes("\n")
+      || change.text.includes("\r")
+    ) {
       return undefined;
     }
-    const selection = editor.selection;
-    if (!selection.isEmpty) {
+
+    const editor = activeSingleCursorEditor(document);
+    if (!editor) {
       return undefined;
     }
-    const offset = editor.document.offsetAt(selection.active);
-    const marker = closers.at(editor.document, offset);
-    if (!marker || offset + text.length > marker.end) {
+    const insertionEnd = change.rangeOffset + change.text.length;
+    const marker = closers.at(document, insertionEnd);
+    if (!marker || insertionEnd + change.text.length > marker.end) {
       return undefined;
     }
     const range = new vscode.Range(
-      editor.document.positionAt(offset),
-      editor.document.positionAt(offset + text.length),
+      document.positionAt(insertionEnd),
+      document.positionAt(insertionEnd + change.text.length),
     );
-    if (editor.document.getText(range) !== text) {
+    if (document.getText(range) !== change.text) {
       return undefined;
     }
-    return { document: editor.document, editor, marker, length: text.length, text };
+    return { document, editor, marker, length: change.text.length, range };
   }
 
   async function consumeGeneratedCloser(plan) {
-    const { document, editor, marker, length, text } = plan;
+    const { document, editor, marker, length, range } = plan;
     if (vscode.window.activeTextEditor !== editor || !closers.contains(document, marker)) {
-      return;
-    }
-    const originalStart = marker.start;
-    const originalEnd = originalStart + length;
-    const range = new vscode.Range(
-      document.positionAt(originalStart),
-      document.positionAt(originalEnd),
-    );
-    if (document.getText(range) !== text) {
-      closers.remove(document, marker);
       return;
     }
 
     closers.prepareConsumption(marker, length);
-    const edited = await editor.edit(
-      (builder) => builder.delete(range),
-      { undoStopBefore: false, undoStopAfter: false },
-    );
-    if (!edited || !closers.contains(document, marker)) {
-      closers.remove(document, marker);
-      return;
-    }
-    if (marker.start === marker.end) {
-      closers.remove(document, marker);
+    internalEdits.add(document);
+    try {
+      const edited = await editor.edit(
+        (builder) => builder.delete(range),
+        { undoStopBefore: false, undoStopAfter: false },
+      );
+      if (!edited || !closers.contains(document, marker)) {
+        closers.remove(document, marker);
+        return;
+      }
+      if (marker.start === marker.end) {
+        closers.remove(document, marker);
+      }
+    } finally {
+      internalEdits.delete(document);
     }
   }
 
   async function insertBlockShell(plan) {
-    const { document, editor, line, baseIndent, childIndent } = plan;
+    const { document, editor, bodyLine, insertedIndent, baseIndent, childIndent } = plan;
     if (vscode.window.activeTextEditor !== editor || editor.document !== document) {
       return;
     }
@@ -214,57 +248,90 @@ function createDoEndTypingController({ vscode }) {
     if (
       editor.selections.length !== 1
       || !selection.isEmpty
-      || selection.active.line !== line + 1
+      || selection.active.line !== bodyLine
+      || selection.active.character !== insertedIndent.length
     ) {
       return;
     }
 
-    const bodyLine = document.lineAt(selection.active.line);
-    const bodyPrefix = bodyLine.text.slice(0, selection.active.character);
-    if (!/^[ \t]*$/.test(bodyPrefix)) {
+    const bodyLineText = document.lineAt(bodyLine).text;
+    if (bodyLineText !== insertedIndent) {
       return;
     }
 
-    const bodyStart = new vscode.Position(selection.active.line, 0);
-    const replaceRange = new vscode.Range(bodyStart, selection.active);
-    const replacement = `${childIndent}\n${baseIndent}end`;
-    const edited = await editor.edit(
-      (builder) => builder.replace(replaceRange, replacement),
-      { undoStopBefore: false, undoStopAfter: false },
+    const bodyStart = new vscode.Position(bodyLine, 0);
+    const replaceRange = new vscode.Range(
+      bodyStart,
+      new vscode.Position(bodyLine, insertedIndent.length),
     );
-    if (!edited) {
-      return;
+    const replacement = `${childIndent}\n${baseIndent}end`;
+    internalEdits.add(document);
+    try {
+      const edited = await editor.edit(
+        (builder) => builder.replace(replaceRange, replacement),
+        { undoStopBefore: false, undoStopAfter: false },
+      );
+      if (!edited) {
+        return;
+      }
+    } finally {
+      internalEdits.delete(document);
     }
 
-    const bodyCursor = new vscode.Position(bodyStart.line, childIndent.length);
+    const bodyCursor = new vscode.Position(bodyLine, childIndent.length);
     editor.selection = new vscode.Selection(bodyCursor, bodyCursor);
-    const closeStart = new vscode.Position(bodyStart.line + 1, baseIndent.length);
+    const closeStart = new vscode.Position(bodyLine + 1, baseIndent.length);
     closers.add(document, document.offsetAt(closeStart), document.offsetAt(closeStart) + 3);
   }
 
-  async function type(args) {
-    const text = args && typeof args.text === "string" ? args.text : undefined;
-    const editor = vscode.window.activeTextEditor;
-    const enterPlan = editor && text !== undefined ? eligibleEnter(editor, text) : undefined;
-    const overtypePlan = editor && text !== undefined ? eligibleOvertype(editor, text) : undefined;
+  async function onDidChangeTextDocument(event) {
+    closers.applyChanges(event.document, event.contentChanges);
+    pendingEnterPlans.delete(event.document);
+    if (internalEdits.has(event.document)) {
+      return;
+    }
 
-    await vscode.commands.executeCommand("default:type", args);
-
+    const overtypePlan = observedOvertypePlan(event.document, event.contentChanges);
     if (overtypePlan) {
       await consumeGeneratedCloser(overtypePlan);
-    } else if (enterPlan) {
-      await insertBlockShell(enterPlan);
+      return;
+    }
+
+    const enterPlan = observedEnterPlan(event.document, event.contentChanges);
+    if (enterPlan) {
+      pendingEnterPlans.set(event.document, enterPlan);
     }
   }
 
-  function onDidChangeTextDocument(event) {
-    closers.applyChanges(event.document, event.contentChanges);
+  async function onDidChangeTextEditorSelection(event) {
+    const { textEditor: editor } = event;
+    const { document } = editor;
+    const plan = pendingEnterPlans.get(document);
+    if (!plan || plan.editor !== editor) {
+      return;
+    }
+
+    pendingEnterPlans.delete(document);
+    const selection = event.selections[0];
+    if (
+      event.selections.length !== 1
+      || !selection.isEmpty
+      || selection.active.line !== plan.bodyLine
+      || selection.active.character !== plan.insertedIndent.length
+    ) {
+      return;
+    }
+
+    await insertBlockShell(plan);
   }
 
   return {
-    clear: () => closers.clear(),
+    clear() {
+      closers.clear();
+      pendingEnterPlans = new WeakMap();
+    },
     onDidChangeTextDocument,
-    type,
+    onDidChangeTextEditorSelection,
   };
 }
 

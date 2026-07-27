@@ -20,6 +20,8 @@ function harness(plans) {
   const clients = [];
   const watchers = [];
   let configurationListener;
+  let textDocumentListener;
+  let textEditorSelectionListener;
   let configuredPath = "";
 
   const vscode = {
@@ -32,6 +34,10 @@ function harness(plans) {
     window: {
       async showErrorMessage(message) {
         errors.push(message);
+      },
+      onDidChangeTextEditorSelection(callback) {
+        textEditorSelectionListener = callback;
+        return { dispose() {} };
       },
     },
     workspace: {
@@ -59,7 +65,8 @@ function harness(plans) {
         configurationListener = callback;
         return { dispose() {} };
       },
-      onDidChangeTextDocument() {
+      onDidChangeTextDocument(callback) {
+        textDocumentListener = callback;
         return { dispose() {} };
       },
     },
@@ -121,6 +128,12 @@ function harness(plans) {
         },
       });
     },
+    get textDocumentListener() {
+      return textDocumentListener;
+    },
+    get textEditorSelectionListener() {
+      return textEditorSelectionListener;
+    },
   };
 }
 
@@ -137,7 +150,9 @@ test("activation remains successful when simi lsp cannot start", async () => {
   assert.match(app.errors[0], /Unable to start simi lsp/);
   assert.match(app.errors[0], /simi\.languageServer\.path/);
   assert.ok(app.commands.has("simi.restartLanguageServer"));
-  assert.ok(app.commands.has("type"));
+  assert.equal(app.commands.has("type"), false, "activation must not intercept global typing");
+  assert.equal(typeof app.textDocumentListener, "function");
+  assert.equal(typeof app.textEditorSelectionListener, "function");
   assert.equal(app.context.subscriptions.length, 4);
 });
 
