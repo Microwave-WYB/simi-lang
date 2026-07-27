@@ -1,6 +1,9 @@
 "use strict";
 
+const { createDoEndTypingController } = require("./typing");
+
 function createExtensionRuntime({ vscode, LanguageClient, resolveServerCommand, environment }) {
+  const typing = createDoEndTypingController({ vscode });
   let active;
   let starting;
   let restartQueue = Promise.resolve();
@@ -136,6 +139,8 @@ function createExtensionRuntime({ vscode, LanguageClient, resolveServerCommand, 
     extensionPath = context.extensionPath;
     context.subscriptions.push(
       vscode.commands.registerCommand("simi.restartLanguageServer", queueRestart),
+      vscode.commands.registerCommand("type", typing.type),
+      vscode.workspace.onDidChangeTextDocument(typing.onDidChangeTextDocument),
       vscode.workspace.onDidChangeConfiguration((event) => {
         if (event.affectsConfiguration("simi.languageServer.path")) {
           return queueRestart();
@@ -148,6 +153,7 @@ function createExtensionRuntime({ vscode, LanguageClient, resolveServerCommand, 
 
   async function deactivate() {
     deactivated = true;
+    typing.clear();
     await restartQueue;
     await stopActive();
   }

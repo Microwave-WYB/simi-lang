@@ -61,6 +61,12 @@ test("language configuration covers comments, pairs, indentation, and folding", 
   assert.doesNotThrow(() => new RegExp(configuration.folding.markers.start));
   assert.doesNotThrow(() => new RegExp(configuration.folding.markers.end));
 
+  assert.ok(
+    configuration.autoClosingPairs.every(({ open, close }) => open.length === 1 && close.length === 1),
+    "multi-character pairs require extension-managed token and close handling",
+  );
+  assert.equal(configuration.onEnterRules, undefined);
+
   const increase = new RegExp(configuration.indentationRules.increaseIndentPattern);
   const decrease = new RegExp(configuration.indentationRules.decreaseIndentPattern);
   const indentNext = new RegExp(configuration.indentationRules.indentNextLinePattern);
