@@ -318,6 +318,10 @@
           "match": "<>"
         },
         {
+          "name": "keyword.operator.arm.simi",
+          "match": "=>"
+        },
+        {
           "name": "keyword.operator.comparison.simi",
           "match": "==|!=|<=|>=|<|>"
         },

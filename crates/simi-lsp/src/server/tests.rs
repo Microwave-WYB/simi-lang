@@ -1235,10 +1235,10 @@ fn partition(ns: [..number], pivot: number)
     ns
     |> list.iter()
     |> iter.fold({lower=[], higher=[]}) <| fn(acc, n) do
-        case acc
-            of {lower, higher} when n < pivot
+        case acc of
+            {lower, higher} when n < pivot =>
                 {lower=lower |> tap list.append(n), higher}
-            of {lower, higher}
+            {lower, higher} =>
                 {lower, higher=higher |> tap list.append(n)}
         end
     end
@@ -1722,30 +1722,30 @@ end"#;
 
 #[test]
 fn structural_map_pattern_shorthand_reports_absence_and_present_binding_types() {
-    let source = r#"let case_absent = case {}
-of {case_missing}
+    let source = r#"let case_absent = case {} of
+{case_missing} =>
     "wrong"
-of _
+_ =>
     0
 end
-let case_present = case {case_value = 1}
-of {case_value}
+let case_present = case {case_value = 1} of
+{case_value} =>
     case_value
-of _
+_ =>
     "wrong"
 end
 let catch_absent = do
     raise {}
-catch
-    of {catch_missing}
+catch of
+    {catch_missing} =>
         "wrong"
-    of _
+    _ =>
         0
 end
 let catch_present = do
     raise {catch_value = 2}
-catch
-    of {catch_value}
+catch of
+    {catch_value} =>
         catch_value
 end"#;
     let mut backend = Backend::new();

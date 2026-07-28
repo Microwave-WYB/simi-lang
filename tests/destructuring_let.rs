@@ -71,24 +71,27 @@ fn map_destructuring_let_defaults_do_not_relax_structural_patterns() {
         }
     }
     assert_eq!(
-        evaluate("case {} of {missing = value} 1 of _ 2 end").render(),
+        evaluate("case {} of {missing = value} => 1 _ => 2 end").render(),
         "2"
     );
-    assert_eq!(evaluate("case {} of {missing} 1 of _ 2 end").render(), "2");
     assert_eq!(
-        evaluate("case {value = 1} of {value} value of _ 2 end").render(),
+        evaluate("case {} of {missing} => 1 _ => 2 end").render(),
+        "2"
+    );
+    assert_eq!(
+        evaluate("case {value = 1} of {value} => value _ => 2 end").render(),
         "1"
     );
     assert_eq!(
-        evaluate("do raise {} catch of {missing = value} 1 of _ 2 end").render(),
+        evaluate("do raise {} catch of {missing = value} => 1 _ => 2 end").render(),
         "2"
     );
     assert_eq!(
-        evaluate("do raise {} catch of {missing} 1 of _ 2 end").render(),
+        evaluate("do raise {} catch of {missing} => 1 _ => 2 end").render(),
         "2"
     );
     assert_eq!(
-        evaluate("do raise {value = 1} catch of {value} value end").render(),
+        evaluate("do raise {value = 1} catch of {value} => value end").render(),
         "1"
     );
 }
@@ -153,7 +156,7 @@ fn mismatch_is_a_hard_runtime_error_at_the_pattern_span() {
             x + y
         end
         do unpack([1])
-            catch of _
+            catch of _ =>
                 0
         end
     "#;

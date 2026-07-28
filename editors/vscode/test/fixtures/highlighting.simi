@@ -7,10 +7,10 @@ fn classify(value, limit) do
     elseif value == nil or value < limit then
         value ?> tap inspect()
     else
-        case [value, message]
-            of [head, ..tail] when true
+        case [value, message] of
+            [head, ..tail] when true =>
                 { result = head, rest = tail }
-            of _
+            _ =>
                 "small"
         end
     end
@@ -27,8 +27,8 @@ let mapped = iter.map(list.iter([1, 2])) <| mapper
 let handled = do
     let attempted = { error = "bad" }
     raise attempted
-catch
-    of { error = reason }
+catch of
+    { error = reason } =>
         reason
 end
 let optional = do mapped? end

@@ -169,7 +169,7 @@ end
 fn recover() -> integer noraise do
     do
         fail("missing")
-    catch of "missing"
+    catch of "missing" =>
         0
     end
 end
@@ -232,10 +232,10 @@ alias result<'value, 'error> =
 
 let outcome: result<integer, string> = {kind = "ok", value = 42}
 
-case outcome
-of {kind = "ok", value = value}
+case outcome of
+{kind = "ok", value = value} =>
     value
-of {kind = "error", error = error}
+{kind = "error", error = error} =>
     error
 end
 ```

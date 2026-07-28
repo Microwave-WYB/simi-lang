@@ -886,10 +886,10 @@ fn partition(ns: [..number], pivot: number)
     ns
     |> list.iter()
     |> iter.fold({lower=[], higher=[]}) <| fn(acc, n) do
-        case acc
-            of {lower, higher} when n < pivot
+        case acc of
+            {lower, higher} when n < pivot =>
                 {lower=lower |> tap list.append(n), higher}
-            of {lower, higher}
+            {lower, higher} =>
                 {lower, higher=higher |> tap list.append(n)}
         end
     end
@@ -1230,10 +1230,10 @@ fn case_patterns_narrow_structural_union_and_bind_payloads() {
     let source = r#"
 alias result = { kind: "ok", value: integer } | { kind: "error", error: string }
 fn unwrap(result: result) do
-    case result
-    of { kind = "ok", value = payload }
+    case result of
+    { kind = "ok", value = payload } =>
         payload
-    of { kind = "error", error = message }
+    { kind = "error", error = message } =>
         message
     end
 end
@@ -1269,9 +1269,9 @@ fn boundaries(value: integer | nil) do
     let standalone = do value? 1 end
     let selected_if = if true then value? 1 else 2 end
     let selected_else = if false then 1 else value? 2 end
-    let selected_case = case 1 of 1 do value? 1 end end
-    let protected = do value? 1 catch of _ 2 end
-    let caught = do raise "failure" catch of _ do value? 1 end end
+    let selected_case = case 1 of 1 => do value? 1 end end
+    let protected = do value? 1 catch of _ => 2 end
+    let caught = do raise "failure" catch of _ => do value? 1 end end
     [standalone, selected_if, selected_else, selected_case, protected, caught]
     "continued"
 end
@@ -1507,30 +1507,30 @@ dynamic
 fn structural_patterns_keep_heterogeneous_rest_and_require_closed_map_fields() {
     let source = r#"
 let values: [..(integer | string)] = [1, "two"]
-let tail = case values
-of [1, ..rest]
+let tail = case values of
+[1, ..rest] =>
     rest
-of _
+_ =>
     []
 end
 let closed = {present = 1}
-let result = case closed
-of {missing = missing}
+let result = case closed of
+{missing = missing} =>
     missing
-of _
+_ =>
     "fallback"
 end
 let extra = {x = 1, y = 2}
-let closed_result = case extra
-of {x = 1}
+let closed_result = case extra of
+{x = 1} =>
     "wrong"
-of _
+_ =>
     "closed"
 end
-let open_result = case extra
-of {x = value, ..}
+let open_result = case extra of
+{x = value, ..} =>
     "open"
-of _
+_ =>
     "wrong"
 end
 "#;
@@ -1565,30 +1565,30 @@ end
 #[test]
 fn structural_map_pattern_shorthand_requires_presence_and_binds_present_fields() {
     let source = r#"
-let case_absent = case {}
-of {case_missing}
+let case_absent = case {} of
+{case_missing} =>
     "wrong"
-of _
+_ =>
     0
 end
-let case_present = case {case_value = 1}
-of {case_value}
+let case_present = case {case_value = 1} of
+{case_value} =>
     case_value
-of _
+_ =>
     "wrong"
 end
 let catch_absent = do
     raise {}
-catch
-    of {catch_missing}
+catch of
+    {catch_missing} =>
         "wrong"
-    of _
+    _ =>
         0
 end
 let catch_present = do
     raise {catch_value = 2}
-catch
-    of {catch_value}
+catch of
+    {catch_value} =>
         catch_value
 end
 "#;
@@ -1618,48 +1618,48 @@ end
 fn map_patterns_respect_optional_presence_and_all_required_fields() {
     let source = r#"
 let absent = {missing = nil}
-let absent_binding = case absent
-of {missing = value}
+let absent_binding = case absent of
+{missing = value} =>
     "present"
-of _
+_ =>
     "absent"
 end
-let absent_nil = case absent
-of {missing = nil}
+let absent_nil = case absent of
+{missing = nil} =>
     "nil"
-of _
+_ =>
     "other"
 end
 fn maybe(value: string | nil) do
     let record = {maybe = value}
-    case record
-    of {maybe = present}
+    case record of
+    {maybe = present} =>
         "present"
-    of _
+    _ =>
         "absent"
     end
 end
 fn indexed(record: {[string]: integer}) do
-    case record
-    of {missing = value}
+    case record of
+    {missing = value} =>
         "present"
-    of _
+    _ =>
         "absent"
     end
 end
 fn opened(record: {..}) do
-    case record
-    of {missing = value}
+    case record of
+    {missing = value} =>
         "present"
-    of _
+    _ =>
         "absent"
     end
 end
 fn multiple(record: {first: "yes", second: "ok" | "no"}) do
-    case record
-    of {first = "yes", second = "ok"}
+    case record of
+    {first = "yes", second = "ok"} =>
         "matched"
-    of _
+    _ =>
         "fallback"
     end
 end
@@ -1706,16 +1706,16 @@ end
 fn unannotated_case_patterns_seed_body_stable_list_and_map_domains() {
     let source = r#"
 fn first_or_nil(values) do
-    case values
-    of [value, ..rest]
+    case values of
+    [value, ..rest] =>
         value
-    of []
+    [] =>
         nil
     end
 end
 fn read_value(record) do
-    case record
-    of {value}
+    case record of
+    {value} =>
         value
     end
 end
@@ -1992,8 +1992,8 @@ let callback = fn() do
 end
 let observed = do
     callback()
-catch
-    of "bad"
+catch of
+    "bad" =>
         values
 end
 "#;
@@ -2023,8 +2023,8 @@ end
 fn recovered() do
     do
         fail("bad")
-    catch
-        of "bad"
+    catch of
+        "bad" =>
             1
     end
 end

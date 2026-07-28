@@ -55,18 +55,18 @@ result
 
 ## Structural pattern matching
 
-A `case` evaluates its input once, then selects the first matching `of` clause whose optional guard succeeds. The selected clause's block supplies the value of the whole expression:
+A `case` evaluates its input once, then selects the first matching arm whose optional guard succeeds. The selected arm's result supplies the value of the whole expression:
 
 ```simi
 let response = {kind = "ok", value = "profile"}
 
-let message = case response
-of {kind = "ok", value = value}
-    "received " <> value
-of {kind = "error", error = error} when error != nil
-    "failed: " <> error
-of _
-    "unknown response"
+let message = case response of
+    {kind = "ok", value = value} =>
+        "received " <> value
+    {kind = "error", error = error} when error != nil =>
+        "failed: " <> error
+    _ =>
+        "unknown response"
 end
 
 message
@@ -85,15 +85,15 @@ Patterns include:
 ```simi
 let input = {kind = "point", coordinates = [3, 4, 5], color = "blue"}
 
-case input
-of {
-    kind = "point",
-    coordinates = [x, y, ..remaining],
-    ..metadata
-}
-    [x, y, remaining, metadata]
-of _
-    nil
+case input of
+    {
+        kind = "point",
+        coordinates = [x, y, ..remaining],
+        ..metadata
+    } =>
+        [x, y, remaining, metadata]
+    _ =>
+        nil
 end
 ```
 
@@ -106,11 +106,11 @@ Named map fields normally require the key to be present. The literal `nil` field
 ```simi
 let settings = {theme = "dark"}
 
-case settings
-of {nickname = nil, ..}
-    "no nickname"
-of _
-    "has a nickname"
+case settings of
+    {nickname = nil, ..} =>
+        "no nickname"
+    _ =>
+        "has a nickname"
 end
 ```
 
@@ -189,14 +189,15 @@ result
 
 ### Protected catch boundaries
 
-A protected `do` has a protected block, followed by one `catch` section containing `of` arms. `catch` matches raised values; it does **not** catch postfix nil propagation. If `?` sees `nil` in the protected block, that block simply evaluates to `nil` and catch selection never begins:
+A protected `do` has a protected block, followed by `catch of` and `pattern [when guard] => expression` arms. `catch` matches raised values; it does **not** catch postfix nil propagation. If `?` sees `nil` in the protected block, that block simply evaluates to `nil` and catch selection never begins:
 
 ```simi
 let selected = do
     nil?
     "unreachable"
-catch of _
-    "not caught"
+catch of
+    _ =>
+        "not caught"
 end
 
 [selected, "execution continues after the protected expression"]
@@ -207,12 +208,12 @@ Likewise, `?` inside a selected catch arm stops that arm as `nil`; later arms ar
 ```simi
 let selected = do
     raise "missing"
-catch
-    of "missing" do
+catch of
+    "missing" => do
         nil?
         "unreachable"
     end
-    of _
+    _ =>
         "not selected"
 end
 

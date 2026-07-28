@@ -225,15 +225,15 @@ A missing module raises `{ error = "module_not_found", module = name }`. Circula
 Simi has structural, expression-valued matching:
 
 ```simi
-case value
-    of pattern when guard
+case value of
+    pattern when guard =>
         body
-    of _
+    _ =>
         fallback
 end
 ```
 
-The canonical case grammar requires one or more `of` clauses and one final `end` for the whole expression. A direct arm body is exactly one complete expression; write it on the following indented line, although newlines and indentation are syntactically insignificant. Use `of pattern do ... end` for a zero- or multi-item lexical body. Patterns support literals, bindings, wildcards, nested list/map patterns, and list/map rests. Guards must evaluate to booleans. Bindings are scoped to the selected clause.
+The canonical case grammar uses one `of` to introduce one or more `pattern [when guard] => expression` arms and one final `end` for the whole expression. A direct arm result is exactly one complete expression; write it on the following indented line, although newlines and indentation are syntactically insignificant. Use `pattern => do ... end` for a zero- or multi-item lexical result. Patterns support literals, bindings, wildcards, nested list/map patterns, and list/map rests. Guards must evaluate to booleans. Bindings are scoped to the selected clause.
 
 Map patterns are closed by default: `{field = pattern}` rejects maps with any additional string or computed keys. Add `..` to allow additional keys or `..rest` to capture them. Named fields normally require key presence. The literal nil field pattern is the exception: `{missing = nil}` matches an absent field, consistent with map lookup and deletion semantics; without a rest marker, unrelated keys still make that closed pattern fail.
 
@@ -249,15 +249,15 @@ raise { error = "invalid_input", value = input }
 do
     prepare()
     operation()
-catch
-    of { error = "invalid_input", value = value }
+catch of
+    { error = "invalid_input", value = value } =>
         recover(value)
-    of error
+    error =>
         raise error
 end
 ```
 
-A protected `do` expression requires one or more protected items followed by a `catch` section containing one or more repeated `of pattern [when guard] body` arms, then one final `end`. Direct catch bodies are written on the following indented line; whitespace is not syntactically significant. Use `of pattern do ... end` for a zero- or multi-item lexical handler body. The protected items evaluate in a fresh child scope. Only a raise from that protected body is matched by the catches: nil propagation and hard diagnostics bypass them, while raises from catch guards or handler bodies escape rather than being considered by later catches.
+A protected `do` expression requires one or more protected items followed by `catch of` and one or more `pattern [when guard] => expression` arms, then one final `end`. Direct catch results are written on the following indented line; whitespace is not syntactically significant. Use `pattern => do ... end` for a zero- or multi-item lexical handler result. The protected items evaluate in a fresh child scope. Only a raise from that protected body is matched by the catches: nil propagation and hard diagnostics bypass them, while raises from catch guards or handler bodies escape rather than being considered by later catches.
 
 Generated structural errors use an `error` discriminator and may gain additional fields over time. Preserve stable discriminator strings.
 
@@ -302,7 +302,7 @@ Canonical source examples use compact delimiters with spaces after commas and ar
 
 Empty forms remain `{}` and `[]`. Trailing commas are accepted in comma-separated constructs. Write single-line type unions without a leading `|`. For multiline type unions, put every member—including the first—on its own line beginning with `|`.
 
-When a function, `case of`, or `catch of` arm has an elided single-expression body, put that body on the following indented line. This is canonical formatting only: newlines and indentation never terminate syntax. Use an explicit `do ... end` body for zero or multiple items.
+When a function, case arm, or catch arm has an elided single-expression body, put that body on the following indented line. This is canonical formatting only: newlines and indentation never terminate syntax. Use an explicit `do ... end` body for zero or multiple items.
 
 When a multiline pipeline is the right-hand side of a binding, break after `=` and indent the continuation:
 

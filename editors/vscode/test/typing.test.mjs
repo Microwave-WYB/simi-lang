@@ -308,12 +308,12 @@ test("ordinary changes and untracked end text are not intercepted", async () => 
 });
 
 test("parser-backed typing indents successive direct case arms and the final end", async () => {
-  const app = await structuralHarness("case value\nof first");
+  const app = await structuralHarness("case value of\nfirst =>");
 
   await app.insert("\n");
   await app.insert("first()");
   await app.insert("\n");
-  await app.insert("of second");
+  await app.insert("second =>");
   await app.insert("\n");
   await app.insert("second()");
   await app.insert("\n");
@@ -322,10 +322,10 @@ test("parser-backed typing indents successive direct case arms and the final end
   await app.insert("\n");
 
   assert.equal(app.document.text, [
-    "case value",
-    "  of first",
+    "case value of",
+    "  first =>",
     "    first()",
-    "  of second",
+    "  second =>",
     "    second()",
     "end",
     "",
@@ -344,14 +344,14 @@ test("parser-backed typing indents successive catch arms", async () => {
   const app = await structuralHarness([
     "do",
     "  prepare()",
-    "catch",
-    "of first",
+    "catch of",
+    "first =>",
   ].join("\n"));
 
   await app.insert("\n");
   await app.insert("recover_first()");
   await app.insert("\n");
-  await app.insert("of second");
+  await app.insert("second =>");
   await app.insert("\n");
   await app.insert("recover_second()");
   await app.insert("\n");
@@ -364,26 +364,26 @@ test("parser-backed typing indents successive catch arms", async () => {
 });
 
 test("parser-backed typing preserves the generated do shell used as a direct arm expression", async () => {
-  const app = await structuralHarness("case value\nof _ do");
+  const app = await structuralHarness("case value of\n_ => do");
 
   await app.insert("\n");
 
-  assert.equal(app.document.text, "case value\n  of _ do\n    \n  end");
+  assert.equal(app.document.text, "case value of\n  _ => do\n    \n  end");
   assert.deepEqual(app.editor.selection.active, new Position(2, 4));
   assert.equal(app.editor.editCount, 2, "the do shell and structural indent are separate joined edits");
   app.parser.delete();
 });
 
 test("parser-backed typing treats a multiline do block as an ordinary direct arm expression", async () => {
-  const app = await structuralHarness("case value\nof _");
+  const app = await structuralHarness("case value of\n_ =>");
 
   await app.insert("\n");
   await app.insert("do");
   await app.insert("\n");
 
   assert.equal(app.document.text, [
-    "case value",
-    "  of _",
+    "case value of",
+    "  _ =>",
     "    do",
     "      ",
     "    end",
@@ -392,28 +392,30 @@ test("parser-backed typing treats a multiline do block as an ordinary direct arm
   app.parser.delete();
 });
 
-test("parser-backed typing keeps same-line direct arms and do expressions valid", async () => {
-  for (const header of ["of first first()", "of _ do value end"]) {
-    const app = await structuralHarness(`case value\n${header}`);
+test("parser-backed typing leaves complete same-line arm expressions unchanged", async () => {
+  for (const arm of ["first => first()", "_ => do value end"]) {
+    const source = `case value of\n${arm}`;
+    const app = await structuralHarness(source);
 
     await app.insert("\n");
 
-    assert.equal(app.document.text, `case value\n  ${header}\n  `);
+    assert.equal(app.document.text, `${source}\n`);
+    assert.equal(app.editor.editCount, 0);
     app.parser.delete();
   }
 });
 
 test("parser-backed typing uses the nearest nested case owner", async () => {
   const app = await structuralHarness([
-    "case outer",
-    "  of _",
-    "    case inner",
-    "of first",
+    "case outer of",
+    "  _ =>",
+    "    case inner of",
+    "first =>",
   ].join("\n"));
 
   await app.insert("\n");
 
-  assert.equal(app.document.lineAt(3).text, "      of first");
+  assert.equal(app.document.lineAt(3).text, "      first =>");
   assert.equal(app.document.lineAt(4).text, "        ");
   app.parser.delete();
 });
@@ -422,17 +424,17 @@ test("parser-backed typing has no fixed nesting-depth completion cap", async () 
   const lines = [];
   const depth = 12;
   for (let level = 0; level < depth; level += 1) {
-    lines.push(`${"  ".repeat(level * 2)}case ${level}`);
+    lines.push(`${"  ".repeat(level * 2)}case ${level} of`);
     if (level < depth - 1) {
-      lines.push(`${"  ".repeat(level * 2 + 1)}of _`);
+      lines.push(`${"  ".repeat(level * 2 + 1)}_ =>`);
     }
   }
-  lines.push("of target");
+  lines.push("target =>");
   const app = await structuralHarness(lines.join("\n"));
 
   await app.insert("\n");
 
-  assert.equal(app.document.lineAt(depth * 2 - 1).text, `${"  ".repeat(depth * 2 - 1)}of target`);
+  assert.equal(app.document.lineAt(depth * 2 - 1).text, `${"  ".repeat(depth * 2 - 1)}target =>`);
   assert.equal(app.document.lineAt(depth * 2).text, "  ".repeat(depth * 2));
   app.parser.delete();
 });
@@ -449,28 +451,28 @@ test("parser-backed typing fails open when a parse exceeds its budget", () => {
     },
   };
 
-  assert.equal(parsedArmTarget(parser, "case value\nof _\n", 1, 16), undefined);
+  assert.equal(parsedArmTarget(parser, "case value of\n_ =>\n", 1, 20), undefined);
   assert.equal(parser.resets, 3, "each canceled candidate parse must reset parser state");
 });
 
 test("parser-backed typing respects hard tabs and non-default tab settings", async () => {
-  const app = await structuralHarness("\tcase value\nof _", undefined, {
+  const app = await structuralHarness("\tcase value of\n_ =>", undefined, {
     insertSpaces: false,
     tabSize: 8,
   });
 
   await app.insert("\n");
 
-  assert.equal(app.document.text, "\tcase value\n\t\tof _\n\t\t\t");
+  assert.equal(app.document.text, "\tcase value of\n\t\t_ =>\n\t\t\t");
   app.parser.delete();
 });
 
 test("parser-backed typing ignores comments, strings, invalid syntax, and one-line forms", async () => {
   for (const source of [
-    "case value\n-- of fake",
-    "case value\n\"of fake\"",
-    "case value\nof )",
-    "case value of _ do value end",
+    "case value of\n-- fake =>",
+    "case value of\n\"fake =>\"",
+    "case value of\n) =>",
+    "case value of _ => do value end",
   ]) {
     const app = await structuralHarness(source);
 
@@ -483,7 +485,7 @@ test("parser-backed typing ignores comments, strings, invalid syntax, and one-li
 });
 
 test("parser-backed typing leaves multi-cursor documents unmodified", async () => {
-  const app = await structuralHarness("case value\nof first");
+  const app = await structuralHarness("case value of\nfirst =>");
   const cursor = app.editor.selection.active;
   app.editor.selections = [
     new Selection(cursor, cursor),
@@ -496,7 +498,7 @@ test("parser-backed typing leaves multi-cursor documents unmodified", async () =
   }]);
   await app.document.changeListener(event);
 
-  assert.equal(app.document.text, "case value\nof first\n");
+  assert.equal(app.document.text, "case value of\nfirst =>\n");
   assert.equal(app.editor.editCount, 0);
   app.parser.delete();
 });

@@ -36,8 +36,6 @@ module.exports = grammar({
     [$.parenthesized_call, $._postfix_expression],
     [$._primary_expression, $.function_expression],
     [$._primary_expression, $.function_declaration],
-    [$._primary_expression, $.case_clause],
-    [$._primary_expression, $.catch_arm],
   ],
 
   rules: {
@@ -484,30 +482,32 @@ module.exports = grammar({
     case_expression: ($) => seq(
       "case",
       field("value", $._expression),
+      "of",
       repeat1($.case_clause),
       "end",
     ),
 
     case_clause: ($) => seq(
-      "of",
       field("pattern", $._pattern),
       optional(seq("when", field("guard", $._expression))),
-      field("body", choice($.block_expression, $._expression)),
+      "=>",
+      field("body", $._expression),
     ),
 
     protected_expression: ($) => seq(
       "do",
       field("protected", $.block),
       "catch",
+      "of",
       repeat1($.catch_arm),
       "end",
     ),
 
     catch_arm: ($) => seq(
-      "of",
       field("pattern", $._pattern),
       optional(seq("when", field("guard", $._expression))),
-      field("body", choice($.block_expression, $._expression)),
+      "=>",
+      field("body", $._expression),
     ),
 
     raise_expression: ($) => seq(

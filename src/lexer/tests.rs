@@ -13,7 +13,7 @@ fn kinds(source: &str) -> Vec<TokenKind> {
 fn lexes_every_keyword_operator_and_delimiter() {
     assert_eq!(
         kinds(
-            "fn do end if then elseif else let tap nil true false and or not case of when raise try catch ( ) [ ] { } , . .. = == != + - * / // % < <= > >= ? ?> |> <|"
+            "fn do end if then elseif else let tap nil true false and or not case of when raise try catch ( ) [ ] { } , : ' -> => | . .. = == != + - * / // % < <= > >= ? ?> |> <|"
         ),
         vec![
             TokenKind::Fn,
@@ -44,6 +44,11 @@ fn lexes_every_keyword_operator_and_delimiter() {
             TokenKind::LBrace,
             TokenKind::RBrace,
             TokenKind::Comma,
+            TokenKind::Colon,
+            TokenKind::Apostrophe,
+            TokenKind::Arrow,
+            TokenKind::FatArrow,
+            TokenKind::Pipe,
             TokenKind::Dot,
             TokenKind::DotDot,
             TokenKind::Equal,
@@ -120,7 +125,7 @@ fn lexes_anonymous_function_expression_tokens_with_exact_spans() {
 #[test]
 fn lexes_case_expression_tokens() {
     assert_eq!(
-        kinds("case value of [x, ..xs] when true do x end"),
+        kinds("case value of [x, ..xs] when true => do x end"),
         vec![
             TokenKind::Case,
             TokenKind::Ident("value".to_owned()),
@@ -133,6 +138,7 @@ fn lexes_case_expression_tokens() {
             TokenKind::RBracket,
             TokenKind::When,
             TokenKind::True,
+            TokenKind::FatArrow,
             TokenKind::Do,
             TokenKind::Ident("x".to_owned()),
             TokenKind::End,

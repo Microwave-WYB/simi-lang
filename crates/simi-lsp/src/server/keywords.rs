@@ -109,20 +109,20 @@ const KEYWORDS: &[KeywordHelp] = &[
     },
     KeywordHelp {
         word: "case",
-        syntax: "case value of pattern expression … end",
-        documentation: "Begins expression-valued structural pattern matching with one or more `of` arms.",
+        syntax: "case value of pattern => expression … end",
+        documentation: "Begins expression-valued structural pattern matching. One `of` introduces one or more pattern-result arms.",
         contextual: false,
     },
     KeywordHelp {
         word: "of",
-        syntax: "of pattern when guard expression",
-        documentation: "Begins a `case` or `catch` arm. Its optional guard must evaluate to boolean.",
+        syntax: "of pattern when guard => expression",
+        documentation: "Introduces the arm list for a `case` or `catch`. Every arm uses `=>`, and an optional guard must evaluate to boolean.",
         contextual: false,
     },
     KeywordHelp {
         word: "when",
-        syntax: "pattern when guard do …",
-        documentation: "Adds a boolean guard to a `case` or `catch` pattern.",
+        syntax: "pattern when guard => expression",
+        documentation: "Adds a boolean guard before a `case` or `catch` arm's `=>`.",
         contextual: false,
     },
     KeywordHelp {
@@ -145,8 +145,8 @@ const KEYWORDS: &[KeywordHelp] = &[
     },
     KeywordHelp {
         word: "catch",
-        syntax: "do … catch of pattern expression … end",
-        documentation: "Begins the catch section for values raised by the protected `do` body. Its handlers are repeated `of` arms.",
+        syntax: "do … catch of pattern => expression … end",
+        documentation: "Begins the catch section for values raised by the protected `do` body. One `of` introduces its pattern-result arms.",
         contextual: false,
     },
     KeywordHelp {

@@ -374,18 +374,18 @@ fn public_iterator_controls_support_stateful_case_and_catch_workflows() {
             readings,
             { sum = 0, count = 0 },
             fn(state, value) do
-                case value
-                    of value when value >= 9
+                case value of
+                    value when value >= 9 =>
                         iter.break({ status = "threshold", sum = state.sum, value = value })
-                    of value
+                    value =>
                         iter.continue({ sum = state.sum + value, count = state.count + 1 })
                 end
             end,
         )
         let recovered = do
             iter.next(readings)
-        catch
-            of { error = "sensor_failed", attempt = attempt }
+        catch of
+            { error = "sensor_failed", attempt = attempt } =>
                 { status = "recovered", attempt = attempt }
         end
         [summary, recovered, attempts]

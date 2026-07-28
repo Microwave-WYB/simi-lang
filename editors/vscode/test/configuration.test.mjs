@@ -81,25 +81,26 @@ test("language configuration covers comments, pairs, indentation, and folding", 
     "fn add(a, b)",
     "fn add(a, b) do",
     "if ready then",
-    "of [head, ..tail] when ready",
-    "of [head, ..tail] when ready do",
-    "catch",
+    "case value of",
+    "[head, ..tail] when ready =>",
+    "[head, ..tail] when ready => do",
+    "catch of",
     "else",
   ]) {
     assert.match(line, increase);
   }
-  for (const line of ["end", "elseif ready then", "else", "of _", "catch"]) {
+  for (const line of ["end", "elseif ready then", "else", "catch"]) {
     assert.match(line, decrease);
   }
-  for (const line of ["case n", "    case n -- comment", 'case "x of y"']) {
+  for (const line of ["case n of", "    case n of -- comment", "catch of", "_ =>"]) {
     assert.match(line, indentNext);
-    assert.doesNotMatch(line, increase, "case indentation must affect only its next line");
+    assert.match(line, increase);
   }
   for (const oneLine of [
     "fn add(a, b) do a + b end",
-    "of _ do value end",
-    "case n of _ do n end",
-    'case "x of y" of _ do 1 end',
+    "_ => do value end",
+    "case n of _ => do n end",
+    'case "x of y" of _ => do 1 end',
   ]) {
     assert.doesNotMatch(oneLine, increase, "one-line forms must not indent the following line");
     assert.doesNotMatch(oneLine, indentNext, "complete cases must not indent the following line");
@@ -111,10 +112,10 @@ test("language configuration covers comments, pairs, indentation, and folding", 
     return Math.max(0, inherited - (decrease.test(currentLine) ? 1 : 0));
   };
   const lines = [
-    "case value",
-    "of 1",
+    "case value of",
+    "1 =>",
     "    first()",
-    "of 2",
+    "2 =>",
     "    second()",
     "end",
   ];
@@ -124,7 +125,7 @@ test("language configuration covers comments, pairs, indentation, and folding", 
   }
   assert.deepEqual(
     levels,
-    [0, 0, 1, 0, 1, 0],
+    [0, 1, 2, 2, 3, 2],
     "line-regex fallback cannot retain the enclosing case contribution",
   );
   const structuralCaseTarget = [0, 1, 2, 1, 2, 0];
@@ -137,10 +138,10 @@ test("language configuration covers comments, pairs, indentation, and folding", 
   const protectedLines = [
     "do",
     "    prepare()",
-    "catch",
-    "of first",
+    "catch of",
+    "first =>",
     "    recover_first()",
-    "of second",
+    "second =>",
     "    recover_second()",
     "end",
   ];
@@ -150,7 +151,7 @@ test("language configuration covers comments, pairs, indentation, and folding", 
   }
   assert.deepEqual(
     protectedLevels,
-    [0, 1, 0, 0, 1, 0, 1, 0],
+    [0, 1, 0, 1, 2, 2, 3, 2],
     "line-regex fallback likewise cannot retain the protected-expression contribution",
   );
   const structuralCatchTarget = [0, 1, 0, 1, 2, 1, 2, 0];
@@ -160,11 +161,12 @@ test("language configuration covers comments, pairs, indentation, and folding", 
     "declarative indentation must not be represented as sufficient for catch arms",
   );
 
-  assert.match('of "text containing of"', increase);
-  assert.doesNotMatch("-- of comment", increase);
-  assert.match("of _ do", increase);
-  assert.match("    case nested", indentNext);
-  assert.doesNotMatch("do operation() catch of _ value end", increase);
+  assert.match("_ =>", increase);
+  assert.doesNotMatch("-- fake =>", increase);
+  assert.doesNotMatch("value -- fake =>", increase);
+  assert.match("_ => do", increase);
+  assert.match("    case nested of", indentNext);
+  assert.doesNotMatch("do operation() catch of _ => value end", increase);
 
   for (const legacyLine of ["match value with", "case value ->"]) {
     assert.doesNotMatch(legacyLine, increase);
@@ -183,10 +185,10 @@ test("control-flow snippets use construct-specific final ends", async () => {
     "case", "catch", "do", "fn", "fnexpr", "if", "ifelse",
   ]);
   assert.deepEqual(byPrefix.case.body, [
-    "case $1",
-    "    of $2",
+    "case $1 of",
+    "    $2 =>",
     "        $3",
-    "    of _",
+    "    _ =>",
     "        $0",
     "end",
   ]);
@@ -194,8 +196,8 @@ test("control-flow snippets use construct-specific final ends", async () => {
   assert.deepEqual(byPrefix.catch.body, [
     "do",
     "    $1",
-    "catch",
-    "    of $2",
+    "catch of",
+    "    $2 =>",
     "        $0",
     "end",
   ]);
@@ -234,6 +236,7 @@ test("grammar keyword inventory follows the current Simi lexer", async () => {
     .join("\n")
     .replaceAll("\\b", "");
   assert.ok(operatorInventory.includes("->"), "type return arrow must be scoped");
+  assert.ok(operatorInventory.includes("=>"), "pattern-result arrow must be scoped");
   assert.match(operatorInventory, /\\\?>/, "nil-aware pipeline must be scoped");
   assert.match(operatorInventory, /\\\?/, "nil propagation must be scoped");
   assert.doesNotMatch(

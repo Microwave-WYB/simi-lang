@@ -122,13 +122,25 @@ fn identity(value)
   value
 
 fn classify(value)
-  case value
-    of 1
+  case value of
+    1 =>
       "one"
-    of _
+    _ =>
       do
         let fallback = "other"
         fallback
+      end
+  end
+
+fn recover()
+  do
+    raise "failure"
+  catch of
+    "failure" =>
+      "recovered"
+    _ =>
+      do
+        "fallback"
       end
   end
 
@@ -160,4 +172,23 @@ fn classify(value)
               (identifier)
               (string
                 (string_content)))
-            (identifier)))))))
+            (identifier))))))
+  (function_declaration
+    (identifier)
+    (declared_parameters)
+    (protected_expression
+      (block
+        (raise_expression
+          (string
+            (string_content))))
+      (catch_arm
+        (string
+          (string_content))
+        (string
+          (string_content)))
+      (catch_arm
+        (wildcard_pattern)
+        (block_expression
+          (block
+            (string
+              (string_content))))))))

@@ -34,7 +34,7 @@ NameExpr = 'ident'
 FunctionExpr = 'fn' CallableTypeParamList? ParamList (ReturnAnnotation EffectAnnotation?)? Body
 Body = Block | Expr
 BlockExpr = 'do' Block 'end'
-ProtectedExpr = 'do' Block 'catch' CatchArm CatchArm* 'end'
+ProtectedExpr = 'do' Block 'catch' 'of' CatchArm CatchArm* 'end'
 ParenExpr = '(' Expr ')'
 ListExpr = '[' (Expr (',' Expr)* ','?)? ']'
 MapExpr = '{' (MapEntry (',' MapEntry)* ','?)? '}'
@@ -53,9 +53,9 @@ TrailingArgumentExpr = Expr '<|' Expr
 RaiseExpr = 'raise' Expr
 PanicExpr = 'panic' 'string'?
 TodoExpr = 'todo' 'string'?
-CatchArm = 'of' Pattern ('when' Expr)? Body
-CaseExpr = 'case' Expr CaseClause CaseClause* 'end'
-CaseClause = 'of' Pattern ('when' Expr)? Body
+CatchArm = Pattern ('when' Expr)? '=>' Body
+CaseExpr = 'case' Expr 'of' CaseClause CaseClause* 'end'
+CaseClause = Pattern ('when' Expr)? '=>' Body
 IfExpr = 'if' IfBranch ('elseif' IfBranch)* ElseBranch? 'end'
 IfBranch = Expr 'then' Block
 ElseBranch = 'else' Block

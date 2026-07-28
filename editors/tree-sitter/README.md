@@ -29,7 +29,7 @@ npm exec -- tree-sitter parse path/to/file.simi
 
 ## Coverage and editor queries
 
-The grammar follows the Rust lexer and parser in `../../src/`, including ASCII identifiers, `--` line comments, string escapes, decimal/exponent numbers, standalone `do ... end` block expressions, destructuring patterns, direct or explicit case/catch arm bodies, protected `do ... catch of ... end` regions, postfix calls/fields/adjacent indexes and `?`, assignment, `|>`/`?>` pipelines, and right-associative trailing arguments. Runtime-category checks use ordinary calls and equality, such as `type(value) == "integer"`; `is` is an ordinary identifier and has no operator or keyword role.
+The grammar follows the Rust lexer and parser in `../../src/`, including ASCII identifiers, `--` line comments, string escapes, decimal/exponent numbers, standalone `do ... end` block expressions, destructuring patterns, `case ... of pattern => expression ... end` dispatch, protected `do ... catch of pattern => expression ... end` regions, postfix calls/fields/adjacent indexes and `?`, assignment, `|>`/`?>` pipelines, and right-associative trailing arguments. Runtime-category checks use ordinary calls and equality, such as `type(value) == "integer"`; `is` is an ordinary identifier and has no operator or keyword role.
 
 Queries are provided for syntax highlighting (`queries/highlights.scm`), Neovim-style indentation captures (`queries/indents.scm`), and folding (`queries/folds.scm`). Consumers may need to map capture names to their editor's conventions.
 

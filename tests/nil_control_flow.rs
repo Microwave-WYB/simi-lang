@@ -130,8 +130,8 @@ fn nil_propagation_evaluates_each_kind_of_current_block_as_nil() {
             [selected, "outer continued"]
         end
         let from_case = do
-            let selected = case 1
-            of 1
+            let selected = case 1 of
+            1 =>
                 nil?
             end
             [selected, "outer continued"]
@@ -139,7 +139,7 @@ fn nil_propagation_evaluates_each_kind_of_current_block_as_nil() {
         let from_protected = do
             let selected = do
                 nil?
-            catch of _
+            catch of _ =>
                 "must not catch"
             end
             [selected, "outer continued"]
@@ -147,10 +147,10 @@ fn nil_propagation_evaluates_each_kind_of_current_block_as_nil() {
         let from_catch = do
             let selected = do
                 raise "failure"
-            catch
-            of "failure"
+            catch of
+            "failure" =>
                 nil?
-            of _
+            _ =>
                 "must not run"
             end
             [selected, "outer continued"]
@@ -186,15 +186,15 @@ fn multi_item_protected_body_returns_last_value_and_uses_a_fresh_scope() {
             let local = "protected"
             local
             42
-        catch of _
+        catch of _ =>
             "wrong"
         end
         let raised = do
             let hidden = "protected"
             raise hidden
             "unreachable"
-        catch
-        of value
+        catch of
+        value =>
             value
         end
         let hidden = "outside"
@@ -214,7 +214,7 @@ fn protected_expression_does_not_catch_hard_diagnostics_or_nil_propagation() {
         do
             let selected = do
                 nil?
-            catch of _
+            catch of _ =>
                 "caught"
             end
             [selected, "enclosing block continued"]
@@ -224,7 +224,7 @@ fn protected_expression_does_not_catch_hard_diagnostics_or_nil_propagation() {
     assert_eq!(propagated.render(), "[nil, \"enclosing block continued\"]");
 
     assert!(matches!(
-        eval("do let local = 1 missing catch of _ nil end"),
+        eval("do let local = 1 missing catch of _ => nil end"),
         Err(SimiError::Runtime(_))
     ));
 }
@@ -246,24 +246,24 @@ fn raised_nil_and_active_stage_errors_are_not_converted_to_absence() {
 fn direct_and_explicit_case_and_catch_arms_preserve_body_ownership() {
     let result = value(
         r#"
-        let selected = case 2
-        of 1
+        let selected = case 2 of
+        1 =>
             "one"
-        of n when n == 2 do
+        n when n == 2 => do
             let local = n + 1
             local
         end
-        of _
+        _ =>
             "other"
         end
         let handled = do
             let first = "protected"
             raise 2
-        catch of 1
+        catch of 1 =>
             "one"
-        of n when n == 2
+        n when n == 2 =>
             [n, selected]
-        of _
+        _ =>
             "other"
         end
         [selected, handled]
@@ -291,12 +291,12 @@ fn missing_explicit_body_ends_and_unmarked_siblings_are_rejected() {
 fn protected_expression_requires_items_arms_and_complete_delimiters() {
     for (source, message) in [
         (
-            "do catch of _ nil end",
+            "do catch of _ => nil end",
             "expected at least one protected block item",
         ),
         ("do 1 catch end", "expected `of` after `catch`"),
         (
-            "do 1 catch of _ do nil end",
+            "do 1 catch of _ => do nil end",
             "expected `end` after protected expression",
         ),
     ] {

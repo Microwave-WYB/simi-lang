@@ -162,7 +162,7 @@ fn missing_modules_raise_exact_values_at_the_call_span_and_are_catchable() {
         .eval(
             r#"
             do require("missing")
-                catch of {error="module_not_found", module=module, ..}
+                catch of {error="module_not_found", module=module, ..} =>
                     module
             end
             "#,

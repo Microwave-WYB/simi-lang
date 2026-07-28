@@ -152,14 +152,14 @@ fn lowers_destructuring_case_and_catch_bindings() {
 let input = [1, {name = "Ada"}, 2]
 let [first, { name = nested }, ..rest] = input
 let candidate: any = input
-case candidate
-    of item when item != nil
+case candidate of
+    item when item != nil =>
         item
 end
 do
     raise candidate
-catch
-    of error when error != nil
+catch of
+    error when error != nil =>
         error
 end
 "#;
