@@ -409,6 +409,13 @@ impl Context<'_> {
         node: syntax::FunctionExpr,
         expected_callable: Option<&CallableType>,
     ) -> Type {
+        let mut contextual_infers = HashSet::new();
+        if let Some(expected) = expected_callable {
+            collect_infers(
+                &Type::Function(Box::new(expected.clone())),
+                &mut contextual_infers,
+            );
+        }
         let outer_flow = self.flow_state();
         let outer_nil_aborts = std::mem::take(&mut self.nil_abort_states);
         let function_span = span(node.syntax());
@@ -438,8 +445,7 @@ impl Context<'_> {
                                     .and_then(|callable| callable.parameters.get(index))
                                     .map(|parameter| self.resolve_type(parameter.ty.clone()))
                                     .filter(|ty| {
-                                        !contains_infer(ty)
-                                            && !matches!(ty, Type::Any | Type::Unknown)
+                                        !matches!(ty, Type::Infer(_) | Type::Any | Type::Unknown)
                                     })
                                     .unwrap_or_else(|| self.fresh())
                             });
@@ -526,7 +532,8 @@ impl Context<'_> {
             raised: Box::new(raised),
             raised_annotation,
         };
-        let function_ty = self.generalize(Type::Function(Box::new(callable)));
+        let function_ty =
+            self.generalize_excluding(Type::Function(Box::new(callable)), &contextual_infers);
         self.restore_outer_flow(&outer_flow);
         self.nil_abort_states = outer_nil_aborts;
         self.anonymous_capture_effects

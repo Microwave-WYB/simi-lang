@@ -125,6 +125,18 @@ impl Context<'_> {
             _ => self.require_subtype(&actual, &expected, at),
         }
     }
+    pub(super) fn finalize_deferred_empty_lists(
+        &mut self,
+        variables: impl IntoIterator<Item = u32>,
+    ) {
+        for variable in variables {
+            if self.deferred_empty_list_infers.contains(&variable)
+                && matches!(self.resolve_type(Type::Infer(variable)), Type::Infer(_))
+            {
+                self.exact_empty_list_infers.insert(variable);
+            }
+        }
+    }
     pub(super) fn bind_infer(&mut self, variable: Type, ty: Type) {
         let Type::Infer(id) = variable else {
             return;
@@ -168,7 +180,16 @@ impl Context<'_> {
                     .collect(),
             ),
             Type::ListRest(item) => {
-                Type::ListRest(Box::new(self.resolve_type_inner(*item, resolving)))
+                let deferred_empty = match item.as_ref() {
+                    Type::Infer(id) => self.exact_empty_list_infers.contains(id),
+                    _ => false,
+                };
+                let item = self.resolve_type_inner(*item, resolving);
+                if deferred_empty && matches!(item, Type::Infer(_)) {
+                    Type::ListExact(Vec::new())
+                } else {
+                    Type::ListRest(Box::new(item))
+                }
             }
             Type::Map {
                 fields,
@@ -219,10 +240,23 @@ impl Context<'_> {
         }
     }
     pub(super) fn generalize(&self, ty: Type) -> Type {
+        self.generalize_excluding(ty, &HashSet::new())
+    }
+    pub(super) fn generalize_excluding(&self, ty: Type, excluded: &HashSet<u32>) -> Type {
         let resolved = self.resolve_type(ty);
         let mut next = max_generic(&resolved).map_or(0, |index| index + 1);
         let mut variables = HashMap::new();
-        generalize_type(resolved, &mut variables, &mut next)
+        map_type(resolved, &mut |candidate| match candidate {
+            Type::Infer(id) if !excluded.contains(&id) => {
+                let generic = *variables.entry(id).or_insert_with(|| {
+                    let generic = next;
+                    next += 1;
+                    generic
+                });
+                Type::Generic(generic)
+            }
+            other => other,
+        })
     }
     pub(super) fn instantiate(&mut self, ty: Type) -> Type {
         let instantiated = instantiate_type(ty, self);
@@ -234,17 +268,27 @@ impl Context<'_> {
         let expected = self.resolve_type(expected.clone());
         let checked_actual = self.upper_bound_view(actual.clone());
         if !is_subtype(&actual, &expected) && !is_subtype(&checked_actual, &expected) {
+            let displayed_expected = self.display_deferred_empty_lists(expected.clone());
+            let displayed_actual = self.display_deferred_empty_lists(actual.clone());
             self.diagnostic(
                 AnalysisDiagnosticCode::TypeMismatch,
                 "Type mismatch",
                 format!(
                     "Expected `{}`, but found `{}`.",
-                    expected.display(),
-                    actual.display()
+                    displayed_expected.display(),
+                    displayed_actual.display()
                 ),
                 at,
             );
         }
+    }
+    fn display_deferred_empty_lists(&self, ty: Type) -> Type {
+        map_type(ty, &mut |candidate| match candidate {
+            Type::ListRest(item) if matches!(item.as_ref(), Type::Infer(id) if self.deferred_empty_list_infers.contains(id)) => {
+                Type::ListExact(Vec::new())
+            }
+            other => other,
+        })
     }
     pub(super) fn invalid_operator(&mut self, at: Span, left: &Type, right: Option<&Type>) {
         let detail = right.map_or_else(
