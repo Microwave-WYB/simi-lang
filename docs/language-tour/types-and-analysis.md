@@ -89,12 +89,12 @@ Direct named map fields are the narrow Boolean inference exception: `{done = fal
 
 ## Function types and generics
 
-Function types use arrows:
+Callable types use explicit `fn(parameters) -> result` syntax:
 
 ```simi
-alias transform = integer -> integer
-alias predicate = (integer, string) -> boolean
-alias supplier = () -> integer
+alias transform = fn(integer) -> integer
+alias predicate = fn(integer, string) -> boolean
+alias supplier = fn() -> integer
 
 let double: transform = fn(value: integer) -> integer do
     value * 2
@@ -103,7 +103,7 @@ end
 double(21)
 ```
 
-Arrows associate to the right, so `integer -> string -> boolean` means a function taking an integer and returning a function from string to Boolean. Parentheses distinguish a fixed parameter list from one parameter.
+Callable parameter lists always use parentheses. `fn(integer) -> fn(string) -> boolean` means a function taking an integer and returning a function from string to Boolean. Legacy bare arrow forms are rejected.
 
 Generic variables begin with an apostrophe. Alias parameters are declared explicitly and applied with angle brackets:
 
@@ -123,7 +123,7 @@ fn identity(value: 'a) -> 'a do
     value
 end
 
-fn transform(value: 'a, callback: 'a -> 'b) -> 'b do
+fn transform(value: 'a, callback: fn('a) -> 'b) -> 'b do
     callback(value)
 end
 
@@ -151,7 +151,7 @@ The leading `|` is optional for every union and is convenient when variants are 
 Callable parameter labels improve signatures while calls remain positional:
 
 ```simi
-let compare: (left: integer, right: integer) -> boolean ! never =
+let compare: fn(left: integer, right: integer) -> boolean ! never =
     fn(left: integer, right: integer) -> boolean ! never do
         left < right
     end
@@ -177,7 +177,7 @@ end
 recover()
 ```
 
-Omitting the raised-error contract infers it. `! E` declares an upper bound, and `! never` forbids language raises. Raised-type variables propagate through callback signatures, while hard diagnostics and postfix `?` remain outside the raised channel. A raised-error contract after a chained arrow belongs to the nearest right-hand callable; parentheses select an outer callable explicitly.
+Omitting the contract infers the raised type. `! E` declares an upper bound, and `! never` forbids language raises. Raised-type variables propagate through callback signatures, while hard diagnostics and postfix `?` remain outside the raised channel. In nested callable types, a raised-error contract belongs to the callable immediately before it.
 
 ## Structural list types
 

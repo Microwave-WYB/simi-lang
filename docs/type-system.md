@@ -23,7 +23,7 @@ fn display(value: number) -> string do
     number.to_string(value)
 end
 
-let callback: (integer, integer) -> integer = add
+let callback: fn(integer, integer) -> integer = add
 ```
 
 The initial primitive vocabulary includes:
@@ -55,17 +55,16 @@ same spelling.
 
 ## Functions and generics
 
-Function types use arrows:
+Callable types use explicit `fn(parameters) -> result` syntax:
 
 ```simi
-integer -> integer
-(integer, integer) -> integer
-() -> integer
-integer -> string -> boolean
+fn(integer) -> integer
+fn(integer, integer) -> integer
+fn() -> integer
+fn(integer) -> fn(string) -> boolean
 ```
 
-Arrows associate to the right. Parentheses distinguish fixed parameter lists
-from a single parameter.
+Callable parameter lists always use parentheses. Results may themselves be callable types, so nesting remains explicit and right-associative. Legacy bare arrow forms such as `integer -> integer` are rejected.
 
 Generic variables begin with an apostrophe. Alias parameters are explicit, and
 type application uses angle brackets:
@@ -90,7 +89,7 @@ end
 
 fn transform<'e>(
     value: 'a,
-    callback: (input: 'a) -> 'b ! 'e,
+    callback: fn(input: 'a) -> 'b ! 'e,
 ) -> 'b ! 'e do
     callback(value)
 end
@@ -105,12 +104,12 @@ Callers never supply explicit generic arguments. Forms such as `identity<string>
 A callable has a normal result type and a separate raised type:
 
 ```simi
-string -> integer
-string -> integer ! {error: "invalid_input", ..}
-string -> integer ! never
+fn(string) -> integer
+fn(string) -> integer ! {error: "invalid_input", ..}
+fn(string) -> integer ! never
 ```
 
-Omitting a raised-error contract asks the analyzer to infer it. `! E` declares and checks an upper bound; `! never` forbids language raises. Raised-error contracts may use the callable's generics and propagate through callbacks. Hard diagnostics and postfix `?` are outside this channel. In chained shorthand, a raised-error contract belongs to the nearest right-hand arrow; use parentheses to put a raised-error contract on an outer callable.
+Omitting a raised-error contract asks the analyzer to infer it. `! E` declares and checks an upper bound; `! never` forbids language raises. Raised-error contracts may use the callable's generics and propagate through callbacks. Hard diagnostics and postfix `?` are outside this channel. In nested callable types, a raised-error contract belongs to the callable immediately before it.
 
 ## Unions and literal types
 

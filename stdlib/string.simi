@@ -1,37 +1,37 @@
 ---- Unicode-aware string inspection, transformation, and conversion.
 
 --- Parse a complete decimal number, or return nil.
-let to_number: (text: string) -> integer | float | nil ! never = host.to_number
+let to_number: fn(text: string) -> integer | float | nil ! never = host.to_number
 
 --- Concatenate two strings.
-let concat: (left: string, right: string) -> string ! never = host.concat
+let concat: fn(left: string, right: string) -> string ! never = host.concat
 
 --- Return the number of Unicode scalar values in a string.
-let length: (text: string) -> integer ! never = host.length
+let length: fn(text: string) -> integer ! never = host.length
 
 --- Return a substring over a scalar-value range.
-let slice: (text: string, start: integer, stop: integer) -> string ! never = host.slice
+let slice: fn(text: string, start: integer, stop: integer) -> string ! never = host.slice
 
 --- Return whether text contains a substring.
-let contains: (text: string, needle: string) -> boolean ! never = host.contains
+let contains: fn(text: string, needle: string) -> boolean ! never = host.contains
 
 --- Return whether text starts with a prefix.
-let starts_with: (text: string, prefix: string) -> boolean ! never = host.starts_with
+let starts_with: fn(text: string, prefix: string) -> boolean ! never = host.starts_with
 
 --- Return whether text ends with a suffix.
-let ends_with: (text: string, suffix: string) -> boolean ! never = host.ends_with
+let ends_with: fn(text: string, suffix: string) -> boolean ! never = host.ends_with
 
 --- Split text around a separator.
-let split: (text: string, separator: string) -> [..string] ! never = host.split
+let split: fn(text: string, separator: string) -> [..string] ! never = host.split
 
 --- Remove surrounding whitespace.
-let trim: (text: string) -> string ! never = host.trim
+let trim: fn(text: string) -> string ! never = host.trim
 
 --- Convert text to lowercase.
-let lower: (text: string) -> string ! never = host.lower
+let lower: fn(text: string) -> string ! never = host.lower
 
 --- Convert text to uppercase.
-let upper: (text: string) -> string ! never = host.upper
+let upper: fn(text: string) -> string ! never = host.upper
 
 {
     to_number = to_number,

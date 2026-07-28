@@ -165,6 +165,23 @@ impl Context<'_> {
         };
         (raised, annotation)
     }
+    fn parse_callable_parameters(
+        &mut self,
+        node: &SyntaxNode,
+        generics: &mut HashMap<String, u32>,
+    ) -> Vec<CallableParameter> {
+        support::children::<syntax::TypeFunctionParam>(node)
+            .filter_map(|parameter| {
+                let ty = support::child::<syntax::TypeExpr>(parameter.syntax())
+                    .map(|ty| self.parse_type(ty.syntax(), generics))?;
+                Some(CallableParameter {
+                    name: direct_token(parameter.syntax(), K::IDENT)
+                        .map(|token| token.text().to_owned()),
+                    ty,
+                })
+            })
+            .collect()
+    }
     pub(super) fn parse_type(
         &mut self,
         node: &SyntaxNode,
@@ -180,50 +197,53 @@ impl Context<'_> {
                     .collect(),
             ),
             K::TYPE_FUNCTION => {
-                let mut scoped_generics = generics.clone();
-                let header = support::child::<syntax::CallableTypeParamList>(node);
-                let constraints = header
-                    .as_ref()
-                    .map(|header| {
-                        self.parse_callable_constraints(header.syntax(), &mut scoped_generics)
-                    })
-                    .unwrap_or_default();
-                let active_generics = if header.is_some() {
-                    &mut scoped_generics
-                } else {
-                    generics
-                };
-                let left = support::child::<syntax::TypeUnion>(node)
-                    .map(|child| self.parse_type(child.syntax(), active_generics))
-                    .unwrap_or(Type::Unknown);
-                if let Some(right) = support::child::<syntax::TypeFunction>(node) {
-                    let parameters = match left {
-                        Type::FunctionArgs(items) => items,
-                        other => vec![CallableParameter {
-                            name: None,
-                            ty: other,
-                        }],
+                if direct_token(node, K::FN_KW).is_some() {
+                    let mut scoped_generics = generics.clone();
+                    let header = support::child::<syntax::CallableTypeParamList>(node);
+                    let constraints = header
+                        .as_ref()
+                        .map(|header| {
+                            self.parse_callable_constraints(header.syntax(), &mut scoped_generics)
+                        })
+                        .unwrap_or_default();
+                    let active_generics = if header.is_some() {
+                        &mut scoped_generics
+                    } else {
+                        generics
                     };
+                    let parameters = support::child::<syntax::TypeParen>(node)
+                        .map(|parameters| {
+                            self.parse_callable_parameters(parameters.syntax(), active_generics)
+                        })
+                        .unwrap_or_default();
+                    let result = support::child::<syntax::TypeFunction>(node)
+                        .map(|result| self.parse_type(result.syntax(), active_generics))
+                        .unwrap_or(Type::Unknown);
                     let (raised, raised_annotation) =
                         self.parse_effect_annotation(node, active_generics);
                     Type::Function(Box::new(CallableType {
                         constraints,
                         parameters,
-                        result: Box::new(self.parse_type(right.syntax(), active_generics)),
+                        result: Box::new(result),
                         raised: Box::new(raised),
                         raised_annotation,
                     }))
-                } else if matches!(left, Type::FunctionArgs(_)) {
-                    self.diagnostic(
-                        AnalysisDiagnosticCode::InvalidType,
-                        "Invalid type",
-                        "Parenthesized type lists are only valid as function parameters."
-                            .to_owned(),
-                        span(node),
-                    );
-                    Type::Unknown
                 } else {
-                    left
+                    let value = support::child::<syntax::TypeUnion>(node)
+                        .map(|child| self.parse_type(child.syntax(), generics))
+                        .unwrap_or(Type::Unknown);
+                    if matches!(value, Type::FunctionArgs(_)) {
+                        self.diagnostic(
+                            AnalysisDiagnosticCode::InvalidType,
+                            "Invalid type",
+                            "Parenthesized type lists are only valid as `fn(...)` parameters."
+                                .to_owned(),
+                            span(node),
+                        );
+                        Type::Unknown
+                    } else {
+                        value
+                    }
                 }
             }
             K::TYPE_NAME => {
@@ -257,17 +277,7 @@ impl Context<'_> {
             }
             K::TYPE_LITERAL => type_literal_type(node),
             K::TYPE_PAREN => {
-                let items = support::children::<syntax::TypeFunctionParam>(node)
-                    .filter_map(|parameter| {
-                        let ty = support::child::<syntax::TypeExpr>(parameter.syntax())
-                            .map(|ty| self.parse_type(ty.syntax(), generics))?;
-                        Some(CallableParameter {
-                            name: direct_token(parameter.syntax(), K::IDENT)
-                                .map(|token| token.text().to_owned()),
-                            ty,
-                        })
-                    })
-                    .collect::<Vec<_>>();
+                let items = self.parse_callable_parameters(node, generics);
                 match items.as_slice() {
                     [one] if one.name.is_none() => one.ty.clone(),
                     _ => Type::FunctionArgs(items),

@@ -540,7 +540,7 @@ fn source_facades_evaluate_with_generated_functions_and_data_in_private_host() {
     let module = Module::source(
         "generated",
         r#"
-            let add: (integer, integer) -> integer = host.add
+            let add: fn(integer, integer) -> integer = host.add
             let answer: integer = host.answer
             fn doubled_answer() do add(answer, answer) end
             {add = add, answer = answer, doubled_answer = doubled_answer}
@@ -834,7 +834,7 @@ fn source_modules_cache_exports_and_capture_private_host_values() {
     let module = Module::source(
         "source",
         r#"
-        let next: () -> integer = host.next
+        let next: fn() -> integer = host.next
         {next = next}
         "#,
     )

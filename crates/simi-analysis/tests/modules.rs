@@ -6,7 +6,7 @@ use simi_analysis::{
 };
 
 #[test]
-fn iterator_facades_export_item_and_raised_contract_relationships() {
+fn iterator_facades_export_item_and_effect_relationships() {
     let db = AnalysisDatabase::default();
     let list_file = db.add_file(include_str!("../../../stdlib/list.simi"));
     let map_file = db.add_file(include_str!("../../../stdlib/map.simi"));
@@ -30,30 +30,31 @@ fn iterator_facades_export_item_and_raised_contract_relationships() {
     };
     assert_eq!(
         displayed(&list, "iter"),
-        "<'a> (xs: [..'a]) -> () -> { done: true, .. } | { done: false, value: 'a, .. } ! never ! never"
+        "fn<'a>(xs: [..'a]) -> fn() -> { done: true, .. } | { done: false, value: 'a, .. } ! never ! never"
     );
     assert_eq!(
         displayed(&map, "iter"),
-        "(entries: { .. }) -> () -> { done: true, .. } | { done: false, value: { key: boolean | integer | float | string, value: any, .. }, .. } ! never ! never"
+        "fn(entries: { .. }) -> fn() -> { done: true, .. } | { done: false, value: { key: boolean | integer | float | string, value: any, .. }, .. } ! never ! never"
     );
     assert_eq!(
         displayed(&iter, "to_list"),
-        "<'a, 'b> (iterator: () -> { done: true, .. } | { done: false, value: 'a, .. } ! 'b) -> [..'a] ! 'b"
+        "fn<'a, 'b>(iterator: fn() -> { done: true, .. } | { done: false, value: 'a, .. } ! 'b) -> [..'a] ! 'b"
     );
     assert_eq!(
         displayed(&iter, "find"),
-        "<'a, 'b, 'c> (iterator: () -> { done: true, .. } | { done: false, value: 'a, .. } ! 'b, predicate: 'a -> boolean ! 'c) -> 'a | nil ! 'b | 'c"
+        "fn<'a, 'b, 'c>(iterator: fn() -> { done: true, .. } | { done: false, value: 'a, .. } ! 'b, predicate: fn('a) -> boolean ! 'c) -> 'a | nil ! 'b | 'c"
     );
 
     let break_control = displayed(&iter, "break");
     assert!(
-        break_control.contains("(value: 'a) -> { control: \"break\", value: 'a, .. } ! never"),
+        break_control
+            .contains("fn<'a>(value: 'a) -> { control: \"break\", value: 'a, .. } ! never"),
         "{break_control}"
     );
     let continue_control = displayed(&iter, "continue");
     assert!(
         continue_control
-            .contains("(value: 'a) -> { control: \"continue\", value: 'a, .. } ! never"),
+            .contains("fn<'a>(value: 'a) -> { control: \"continue\", value: 'a, .. } ! never"),
         "{continue_control}"
     );
 
@@ -70,18 +71,18 @@ fn iterator_facades_export_item_and_raised_contract_relationships() {
 
     let repeat_with = displayed(&iter, "repeat_with");
     assert!(
-        repeat_with.contains("producer: () -> 'a ! 'b"),
+        repeat_with.contains("producer: fn() -> 'a ! 'b"),
         "{repeat_with}"
     );
     assert!(repeat_with.contains("value: 'a"), "{repeat_with}");
     assert!(repeat_with.ends_with("! 'b ! never"), "{repeat_with}");
 
     let empty = displayed(&iter, "empty");
-    assert!(empty.starts_with("<'a> () -> () ->"), "{empty}");
+    assert!(empty.starts_with("fn<'a>() -> fn() ->"), "{empty}");
     assert!(empty.ends_with("! never ! never"), "{empty}");
 
     let once = displayed(&iter, "once");
-    assert!(once.contains("(value: 'a)"), "{once}");
+    assert!(once.contains("fn<'a>(value: 'a)"), "{once}");
     assert!(once.contains("value: 'a"), "{once}");
 
     let repeat = displayed(&iter, "repeat");
@@ -120,9 +121,9 @@ fn iterator_facades_export_item_and_raised_contract_relationships() {
 fn documented_typed_native_aliases_keep_callable_module_metadata() {
     let source = r#"
 --- Return the text length.
-let length: string -> integer = host.length
+let length: fn(string) -> integer = host.length
 --- Append a value.
-let append: ([..'a], 'b) -> nil = host.append
+let append: fn([..'a], 'b) -> nil = host.append
 {length = length, append = append}
 "#;
     let db = AnalysisDatabase::default();
@@ -151,7 +152,7 @@ let append: ([..'a], 'b) -> nil = host.append
 #[test]
 fn function_type_aliases_preserve_callable_alias_metadata() {
     let source = r#"
-alias appender<'a, 'b> = ([..'a], 'b) -> nil
+alias appender<'a, 'b> = fn([..'a], 'b) -> nil
 let append: appender<integer, string> = host.append
 let wrapped: ((appender<integer, string>)) = host.append
 {append = append, wrapped = wrapped}
@@ -413,7 +414,7 @@ fn println(value) do nil end
 #[test]
 fn annotated_exported_functions_carry_types_and_trailing_aliases_are_erased() {
     let source = r#"
-fn map(xs: [..'a], transform: 'a -> 'b) -> [..'b] do [] end
+fn map(xs: [..'a], transform: fn('a) -> 'b) -> [..'b] do [] end
 { map = map, identity = fn(value) do value end }
 alias option<'a> = 'a | nil
 "#;
@@ -427,7 +428,7 @@ alias option<'a> = 'a | nil
         .unwrap();
     assert_eq!(
         map.ty.as_ref().map(simi_analysis::Type::display).as_deref(),
-        Some("(xs: [..'a], transform: 'a -> 'b) -> [..'b]")
+        Some("fn(xs: [..'a], transform: fn('a) -> 'b) -> [..'b]")
     );
     let identity = shape
         .fields
@@ -440,7 +441,40 @@ alias option<'a> = 'a | nil
             .as_ref()
             .map(simi_analysis::Type::display)
             .as_deref(),
-        Some("(value: 'a) -> 'a")
+        Some("fn(value: 'a) -> 'a")
+    );
+}
+
+#[test]
+fn callable_union_display_compact_and_pretty_preserve_parenthesization() {
+    let source = r#"
+--- Optionally callable.
+fn optional(flag: boolean) do
+    if flag then fn(value: integer) do value end end
+end
+{ optional = optional }
+"#;
+    let db = AnalysisDatabase::default();
+    let file = db.add_file(source);
+    let shape = module_shape(&db, file);
+    let optional = &shape.fields[0];
+    let ty = optional.ty.as_ref().unwrap();
+    assert_eq!(
+        ty.display(),
+        "fn(flag: boolean) -> (fn(value: integer) -> integer) | nil"
+    );
+    let pretty_wide = ty.pretty_display(80);
+    assert!(
+        pretty_wide.contains("(fn(value: integer) -> integer)"),
+        "wide pretty must include parenthesized callable, got {pretty_wide:?}"
+    );
+    assert!(
+        pretty_wide.ends_with("| nil"),
+        "wide pretty must end with union nil tail, got {pretty_wide:?}"
+    );
+    assert_eq!(
+        ty.pretty_display(20),
+        "fn(\n    flag: boolean,\n) -> | (fn(\n    value: integer,\n) -> integer)\n| nil"
     );
 }
 

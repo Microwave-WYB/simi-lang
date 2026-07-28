@@ -88,11 +88,11 @@ pub enum SyntaxKind {
     TYPE_VARIABLE,
     TYPE_CONSTRAINT,
     TYPE_FUNCTION,
+    TYPE_PAREN,
     TYPE_UNION,
     TYPE_PRIMARY,
     TYPE_NAME,
     TYPE_LITERAL,
-    TYPE_PAREN,
     TYPE_LIST,
     TYPE_MAP,
     TYPE_ARGUMENT_LIST,
@@ -183,11 +183,11 @@ ast_node!(Param, PARAM);
 ast_node!(TypeVariable, TYPE_VARIABLE);
 ast_node!(TypeConstraint, TYPE_CONSTRAINT);
 ast_node!(TypeFunction, TYPE_FUNCTION);
+ast_node!(TypeParen, TYPE_PAREN);
 ast_node!(TypeUnion, TYPE_UNION);
 ast_node!(TypePrimary, TYPE_PRIMARY);
 ast_node!(TypeName, TYPE_NAME);
 ast_node!(TypeLiteral, TYPE_LITERAL);
-ast_node!(TypeParen, TYPE_PAREN);
 ast_node!(TypeList, TYPE_LIST);
 ast_node!(TypeMap, TYPE_MAP);
 ast_node!(TypeArgumentList, TYPE_ARGUMENT_LIST);

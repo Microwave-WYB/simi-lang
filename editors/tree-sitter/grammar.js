@@ -36,6 +36,11 @@ module.exports = grammar({
     [$.parenthesized_call, $._postfix_expression],
     [$._primary_expression, $.function_expression],
     [$._primary_expression, $.function_declaration],
+    [$.parameters, $.callable_type_parameters],
+    [$.declared_parameters, $.callable_type_parameters],
+    [$.callable_type_parameter, $.type_annotation],
+    [$.callable_type_parameter, $.declared_parameter],
+    [$.callable_type_parameter, $.parameter],
   ],
 
   rules: {
@@ -287,25 +292,31 @@ module.exports = grammar({
       optional(seq(":", field("constraint", $._type))),
     ),
 
-    _type: ($) => $.function_type,
+    _type: ($) => $.callable_type,
 
-    function_type: ($) => prec.right(choice(
+    callable_type: ($) => prec.right(choice(
       seq(
-        field("type_parameters", $.callable_type_parameters),
-        field("parameter", $.union_type),
+        "fn",
+        optional(field("type_parameters", $.callable_type_parameters)),
+        field("parameters", $.callable_type_params),
         "->",
-        field("result", $.function_type),
+        field("result", $._type),
         optional(field("effect", $.effect_annotation)),
       ),
-      seq(
-        $.union_type,
-        optional(seq(
-          "->",
-          field("result", $.function_type),
-          optional(field("effect", $.effect_annotation)),
-        )),
-      ),
+      $.union_type,
     )),
+
+    callable_type_params: ($) => seq(
+      "(",
+      optional(commaSep1($.callable_type_parameter)),
+      optional(","),
+      ")",
+    ),
+
+    callable_type_parameter: ($) => seq(
+      optional(seq(field("label", $.identifier), ":")),
+      $._type,
+    ),
 
     effect_annotation: ($) => seq(
       "!",
@@ -350,14 +361,8 @@ module.exports = grammar({
 
     parenthesized_type: ($) => seq(
       "(",
-      optional(commaSep1($.function_type_parameter)),
-      optional(","),
-      ")",
-    ),
-
-    function_type_parameter: ($) => seq(
-      optional(seq(field("label", $.identifier), ":")),
       $._type,
+      ")",
     ),
 
     list_type: ($) => seq(

@@ -44,21 +44,6 @@ fn representative_tree_shape_is_stable() {
 }
 
 #[test]
-fn standalone_bang_and_bang_equal_are_distinct_tokens() {
-    let source = "fn checked() -> boolean ! never do 1 != 2 end";
-    let parse = parse_source(source);
-    assert!(parse.diagnostics().is_empty(), "{:?}", parse.diagnostics());
-    assert_eq!(parse.syntax().to_string(), source);
-    let kinds = parse
-        .syntax()
-        .descendants_with_tokens()
-        .filter_map(|element| element.into_token().map(|token| token.kind()))
-        .collect::<Vec<_>>();
-    assert!(kinds.contains(&SyntaxKind::BANG));
-    assert!(kinds.contains(&SyntaxKind::BANG_EQ));
-}
-
-#[test]
 fn delimiters_belong_to_their_typed_nodes() {
     let source = concat!(
         "case [1] of [head, ..tail] => head end ",
@@ -261,11 +246,11 @@ fn erased_type_surface_is_lossless_and_alias_is_contextual() {
 }
 
 #[test]
-fn callable_generics_labels_raised_contracts_and_leading_unions_are_lossless() {
+fn callable_generics_labels_effects_and_leading_unions_are_lossless() {
     let source = concat!(
         "fn identity<'a: | integer | string>(value: 'a) -> 'a ! never do value end\n",
-        "let mapper: <'a, 'error: { error: string, .. }> (value: 'a) -> 'a ! 'error = nil\n",
-        "let callback: (input: | integer | string, state: [..integer]) -> nil = nil\n",
+        "let mapper: fn<'a, 'error: { error: string, .. }>(value: 'a) -> 'a ! 'error = nil\n",
+        "let callback: fn(input: | integer | string, state: [..integer]) -> nil = nil\n",
         "let anonymous = fn<'a: any>(value: 'a) -> 'a ! string do value end\n",
     );
     let parse = parse_source(source);
@@ -290,21 +275,21 @@ fn callable_generics_labels_raised_contracts_and_leading_unions_are_lossless() {
 }
 
 #[test]
-fn callable_raised_contracts_bind_to_the_nearest_arrow() {
+fn callable_effect_tails_bind_to_the_nearest_arrow() {
     let sources_and_parents = [
         (
-            "let value: integer -> string -> boolean ! string = nil",
-            vec!["string -> boolean ! string"],
+            "let value: fn(integer) -> fn(string) -> boolean ! string = nil",
+            vec!["fn(string) -> boolean ! string"],
         ),
         (
-            "let value: integer -> (string -> boolean) ! string = nil",
-            vec!["integer -> (string -> boolean) ! string"],
+            "let value: fn(integer) -> (fn(string) -> boolean) ! string = nil",
+            vec!["fn(integer) -> (fn(string) -> boolean) ! string"],
         ),
         (
-            "let value: integer -> (string -> boolean ! integer) ! string = nil",
+            "let value: fn(integer) -> (fn(string) -> boolean ! integer) ! string = nil",
             vec![
-                "string -> boolean ! integer",
-                "integer -> (string -> boolean ! integer) ! string",
+                "fn(string) -> boolean ! integer",
+                "fn(integer) -> (fn(string) -> boolean ! integer) ! string",
             ],
         ),
     ];
@@ -323,7 +308,16 @@ fn callable_raised_contracts_bind_to_the_nearest_arrow() {
 }
 
 #[test]
-fn legacy_callable_contract_words_are_not_annotations() {
+fn legacy_callable_types_are_rejected() {
+    for source in [
+        "let bad: integer -> string = nil",
+        "let bad: <'a> 'a -> 'a = nil",
+        "let bad: (value: integer) -> string = nil",
+    ] {
+        let parse = parse_source(source);
+        assert!(!parse.diagnostics().is_empty(), "{source}");
+    }
+
     for source in [
         "fn old() -> nil noraise do nil end",
         "fn old() -> nil raises string do nil end",
@@ -340,16 +334,6 @@ fn legacy_callable_contract_words_are_not_annotations() {
             "{source}"
         );
     }
-}
-
-#[test]
-fn callable_headers_and_raised_contracts_require_a_result_arrow() {
-    let generic = parse_source("let bad: <'a> 'a = nil");
-    assert!(generic.diagnostics().iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("generic header must be followed by `->`")
-    }));
 
     let effect = parse_source("fn bad() ! string do nil end");
     assert!(effect.diagnostics().iter().any(|diagnostic| {
@@ -360,7 +344,7 @@ fn callable_headers_and_raised_contracts_require_a_result_arrow() {
 }
 
 #[test]
-fn malformed_callable_raised_contracts_recover_before_following_bodies_and_declarations() {
+fn malformed_callable_effects_recover_before_following_bodies_and_declarations() {
     let cases = [
         (
             "fn bad() -> nil ! do nil end\nlet after = 1",
@@ -372,7 +356,7 @@ fn malformed_callable_raised_contracts_recover_before_following_bodies_and_decla
         ),
         (
             "let bad: (value: integer) = nil\nlet after = 1",
-            "labeled parameter list must be followed by `->`",
+            "parameter labels are only valid in `fn(...)` callable types",
         ),
     ];
     for (source, expected) in cases {

@@ -71,7 +71,7 @@
 
 (type_variable) @type.parameter
 
-(function_type_parameter
+(callable_type_parameter
   label: (identifier) @variable.parameter)
 
 (parameter

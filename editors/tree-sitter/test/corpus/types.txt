@@ -16,29 +16,29 @@ fn mutate(
       (declared_parameter
         (identifier)
         (type_annotation
-          (function_type
+          (callable_type
             (union_type
               (list_type
-                (function_type
+                (callable_type
                   (union_type
                     (named_type
                       (identifier)))))))))
       (declared_parameter
         (identifier)
         (type_annotation
-          (function_type
+          (callable_type
             (union_type
               (list_type
-                (function_type
+                (callable_type
                   (union_type
                     (named_type
                       (identifier))))
-                (function_type
+                (callable_type
                   (union_type
                     (named_type
                       (identifier))))))))))
     (return_annotation
-      (function_type
+      (callable_type
         (union_type
           (literal_type
             (nil)))))
@@ -61,25 +61,25 @@ alias Step<'a> =
     (identifier)
     (type_parameters
       (type_variable))
-    (function_type
+    (callable_type
       (union_type
         (map_type
           (map_type_entry
             (identifier)
-            (function_type
+            (callable_type
               (union_type
                 (literal_type
                   (boolean))))))
         (map_type
           (map_type_entry
             (identifier)
-            (function_type
+            (callable_type
               (union_type
                 (literal_type
                   (boolean)))))
           (map_type_entry
             (identifier)
-            (function_type
+            (callable_type
               (union_type
                 (type_variable)))))))))
 
@@ -94,7 +94,7 @@ alias Literals = nil | true | false | "ready" | 42 | -7 | 1.0 | -0.0
 (program
   (alias_declaration
     (identifier)
-    (function_type
+    (callable_type
       (union_type
         (literal_type
           (nil))

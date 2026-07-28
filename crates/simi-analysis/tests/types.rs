@@ -217,7 +217,7 @@ fn singleton_context_applies_to_function_bodies_and_mutation_rhs() {
 fn direct_true() -> true true
 fn direct_int() -> 42 42
 let anon = fn() -> false false
-let annotated: () -> true ! never = fn() true
+let annotated: fn() -> true ! never = fn() true
 let tagged: {done: true} = {done = true}
 tagged.done = true
 let indexed: {done: true} = {done = true}
@@ -238,19 +238,19 @@ index_union["code"] = 41
     );
     assert_eq!(
         type_of(&inference, &resolution, "direct_true").display(),
-        "() -> true"
+        "fn() -> true"
     );
     assert_eq!(
         type_of(&inference, &resolution, "direct_int").display(),
-        "() -> 42"
+        "fn() -> 42"
     );
     assert_eq!(
         type_of(&inference, &resolution, "anon").display(),
-        "() -> false"
+        "fn() -> false"
     );
     assert_eq!(
         type_of(&inference, &resolution, "annotated").display(),
-        "() -> true ! never"
+        "fn() -> true ! never"
     );
     for name in ["tagged", "indexed"] {
         assert_eq!(
@@ -269,19 +269,19 @@ index_union["code"] = 41
 #[test]
 fn contextual_callable_let_annotations_keep_effect_and_explicit_result_checks() {
     let source = r#"
-let inferred: (value: true) -> true ! never = fn(value) value
-let raised: () -> never ! string = fn() raise "failure"
-let explicit_result_mismatch: () -> true ! never = fn() -> false ! never false
-let effect_mismatch: () -> true ! never = fn() raise "failure"
+let inferred: fn(value: true) -> true ! never = fn(value) value
+let raised: fn() -> never ! string = fn() raise "failure"
+let explicit_result_mismatch: fn() -> true ! never = fn() -> false ! never false
+let effect_mismatch: fn() -> true ! never = fn() raise "failure"
 "#;
     let (inference, resolution) = inferred(source);
     assert_eq!(
         type_of(&inference, &resolution, "inferred").display(),
-        "(value: true) -> true ! never"
+        "fn(value: true) -> true ! never"
     );
     assert_eq!(
         type_of(&inference, &resolution, "raised").display(),
-        "() -> never ! string"
+        "fn() -> never ! string"
     );
     assert_eq!(
         inference
@@ -463,23 +463,23 @@ let record = { name = "Simi", age = 1 }
     );
     assert_eq!(
         type_of(&inference, &resolution, "process").display(),
-        "(n: integer | float) -> integer | float"
+        "fn(n: integer | float) -> integer | float"
     );
     assert_eq!(
         type_of(&inference, &resolution, "increment").display(),
-        "(n: integer) -> integer"
+        "fn(n: integer) -> integer"
     );
     assert_eq!(
         type_of(&inference, &resolution, "identity").display(),
-        "(value: 'a) -> 'a"
+        "fn(value: 'a) -> 'a"
     );
     assert_eq!(
         type_of(&inference, &resolution, "mixed_generics").display(),
-        "(explicit: 'a, inferred: 'b) -> 'b"
+        "fn(explicit: 'a, inferred: 'b) -> 'b"
     );
     assert_eq!(
         type_of(&inference, &resolution, "choose").display(),
-        "(flag: boolean, value: 'a) -> 'a | nil"
+        "fn(flag: boolean, value: 'a) -> 'a | nil"
     );
     assert_eq!(
         type_of(&inference, &resolution, "selected").display(),
@@ -570,7 +570,7 @@ let trailing = combine(1) <| "x"
 fn aliases_and_function_types_are_transparent_and_right_associative() {
     let source = r#"
 alias option<'a> = 'a | nil
-let callback: integer -> string | nil = fn(value: integer) -> string | nil do
+let callback: fn(integer) -> string | nil = fn(value: integer) -> string | nil do
     if value == 0 then nil else "value" end
 end
 let result: option<string> = callback(1)
@@ -583,7 +583,7 @@ let result: option<string> = callback(1)
     );
     assert_eq!(
         type_of(&inference, &resolution, "callback").display(),
-        "integer -> string | nil"
+        "fn(integer) -> string | nil"
     );
     assert_eq!(
         type_of(&inference, &resolution, "result").display(),
@@ -669,11 +669,11 @@ let after_value = fn() do value end"#;
     assert_eq!(inference.symbol_types[&values[1].0].display(), "\"new\"");
     assert_eq!(
         type_of(&inference, &resolution, "before").display(),
-        "() -> integer"
+        "fn() -> integer"
     );
     assert_eq!(
         type_of(&inference, &resolution, "after_value").display(),
-        "() -> \"new\""
+        "fn() -> \"new\""
     );
 }
 
@@ -815,7 +815,7 @@ if map_step.done then
 else
     let live_entry = map_step.value
 end
-fn transform<'a, 'b, 'e>(value: 'a, callback: 'a -> 'b ! 'e) -> 'b ! 'e do
+fn transform<'a, 'b, 'e>(value: 'a, callback: fn('a) -> 'b ! 'e) -> 'b ! 'e do
     callback(value)
 end
 let generic_result = transform(1, fn(generic_item) do generic_item + 1 end)
@@ -897,7 +897,7 @@ end)
     );
     assert_eq!(
         type_of(&inference, &resolution, "effect_iterator").display(),
-        "() -> { done: true, .. } | { done: false, value: integer, .. } ! \"source\" | \"callback\""
+        "fn() -> { done: true, .. } | { done: false, value: integer, .. } ! \"source\" | \"callback\""
     );
     assert_eq!(
         type_of(&inference, &resolution, "while_result").display(),
@@ -909,7 +909,7 @@ end)
     );
     assert_eq!(
         type_of(&inference, &resolution, "repeated").display(),
-        "() -> { done: true, .. } | { done: false, value: integer, .. } ! \"producer\""
+        "fn() -> { done: true, .. } | { done: false, value: integer, .. } ! \"producer\""
     );
     for name in ["while_item", "while_state", "fold_while_item"] {
         assert_eq!(type_of(&inference, &resolution, name).display(), "integer");
@@ -954,7 +954,7 @@ fn partition(ns: [..number], pivot: number)
     );
     assert_eq!(
         type_of(&inference, &resolution, "partition").display(),
-        "(ns: [..(integer | float)], pivot: integer | float) -> { lower: [..(integer | float)], higher: [..(integer | float)] }"
+        "fn(ns: [..(integer | float)], pivot: integer | float) -> { lower: [..(integer | float)], higher: [..(integer | float)] }"
     );
     assert_eq!(
         type_of(&inference, &resolution, "acc").display(),
@@ -970,7 +970,7 @@ fn partition(ns: [..number], pivot: number)
 
 #[test]
 fn generic_callback_without_element_evidence_preserves_exact_empty_list() {
-    let source = r#"fn bridge<'state>(initial: 'state, callback: 'state -> 'state) -> 'state do
+    let source = r#"fn bridge<'state>(initial: 'state, callback: fn('state) -> 'state) -> 'state do
     callback(initial)
 end
 let inferred = bridge([], fn(xs) do xs end)
@@ -1334,15 +1334,15 @@ end
     );
     assert_eq!(
         type_of(&inference, &resolution, "named").display(),
-        "(value: integer | nil) -> integer | nil"
+        "fn(value: integer | nil) -> integer | nil"
     );
     assert_eq!(
         type_of(&inference, &resolution, "anonymous").display(),
-        "(value: integer | nil) -> integer | nil"
+        "fn(value: integer | nil) -> integer | nil"
     );
     assert_eq!(
         type_of(&inference, &resolution, "boundaries").display(),
-        "(value: integer | nil) -> \"continued\""
+        "fn(value: integer | nil) -> \"continued\""
     );
 }
 
@@ -1378,7 +1378,7 @@ end
     );
     assert_eq!(
         type_of(&inference, &resolution, "unwrap").display(),
-        "(value: string | nil) -> string | nil"
+        "fn(value: string | nil) -> string | nil"
     );
 }
 
@@ -1740,15 +1740,15 @@ end
         assert_eq!(
             type_of(&inference, &resolution, name).display(),
             match name {
-                "maybe" => "(value: string | nil) -> \"present\" | \"absent\"",
-                "indexed" => "(record: { [string]: integer }) -> \"present\" | \"absent\"",
-                _ => "(record: { .. }) -> \"present\" | \"absent\"",
+                "maybe" => "fn(value: string | nil) -> \"present\" | \"absent\"",
+                "indexed" => "fn(record: { [string]: integer }) -> \"present\" | \"absent\"",
+                _ => "fn(record: { .. }) -> \"present\" | \"absent\"",
             }
         );
     }
     assert_eq!(
         type_of(&inference, &resolution, "multiple").display(),
-        "(record: { first: \"yes\", second: \"ok\" | \"no\" }) -> \"matched\" | \"fallback\""
+        "fn(record: { first: \"yes\", second: \"ok\" | \"no\" }) -> \"matched\" | \"fallback\""
     );
 }
 
@@ -1778,11 +1778,11 @@ end
     );
     assert_eq!(
         type_of(&inference, &resolution, "first_or_nil").display(),
-        "(values: [..'a]) -> 'a | nil"
+        "fn(values: [..'a]) -> 'a | nil"
     );
     assert_eq!(
         type_of(&inference, &resolution, "read_value").display(),
-        "(record: { value: 'a, .. }) -> 'a"
+        "fn(record: { value: 'a, .. }) -> 'a"
     );
 }
 
@@ -1803,23 +1803,23 @@ fn nested() do [nested()] end
     );
     assert_eq!(
         type_of(&inference, &resolution, "forever").display(),
-        "() -> never"
+        "fn() -> never"
     );
     assert_eq!(
         type_of(&inference, &resolution, "eventually").display(),
-        "(flag: boolean) -> integer"
+        "fn(flag: boolean) -> integer"
     );
     assert_eq!(
         type_of(&inference, &resolution, "left").display(),
-        "() -> never"
+        "fn() -> never"
     );
     assert_eq!(
         type_of(&inference, &resolution, "right").display(),
-        "() -> never"
+        "fn() -> never"
     );
     assert_eq!(
         type_of(&inference, &resolution, "nested").display(),
-        "() -> never"
+        "fn() -> never"
     );
 }
 
@@ -1950,7 +1950,7 @@ let invalid_result = negate("wrong")
     assert!(inference.diagnostics[0].detail.contains("integer | float"));
     assert_eq!(
         type_of(&inference, &resolution, "negate").display(),
-        "<'a: integer | float> (value: 'a) -> 'a ! never"
+        "fn<'a: integer | float>(value: 'a) -> 'a ! never"
     );
 }
 
@@ -1959,7 +1959,7 @@ fn nested_callable_generic_headers_shadow_outer_binders_and_preserve_unbounded_e
     let source = r#"
 fn use<'a: any>(
     value: 'a,
-    callback: <'a: integer> 'a -> 'a ! never,
+    callback: fn<'a: integer>('a) -> 'a ! never,
 ) -> 'a ! never do
     callback(1)
     value
@@ -1974,15 +1974,15 @@ fn marker<'a>() -> integer ! never do 1 end
     );
     assert_eq!(
         type_of(&inference, &resolution, "use").display(),
-        "<'a: any> (value: 'a, callback: <'b: integer> 'b -> 'b ! never) -> 'a ! never"
+        "fn<'a: any>(value: 'a, callback: fn<'b: integer>('b) -> 'b ! never) -> 'a ! never"
     );
     assert_eq!(
         type_of(&inference, &resolution, "marker").display(),
-        "<'a> () -> integer ! never"
+        "fn<'a>() -> integer ! never"
     );
 
     let invalid = r#"
-fn invalid(callback: <'a: integer> 'a -> 'a ! never) -> nil ! never do
+fn invalid(callback: fn<'a: integer>('a) -> 'a ! never) -> nil ! never do
     callback("wrong")
     nil
 end
@@ -1995,7 +1995,7 @@ end
 #[test]
 fn aliases_with_nested_callable_headers_do_not_capture_outer_generics() {
     let source = r#"
-alias handler<'value> = <'item> ('value, 'item) -> 'item ! never
+alias handler<'value> = fn<'item>('value, 'item) -> 'item ! never
 fn hold<'a, 'b>(callback: handler<'a>, other: 'b) -> 'b ! never do other end
 "#;
     let (inference, resolution) = inferred(source);
@@ -2006,7 +2006,7 @@ fn hold<'a, 'b>(callback: handler<'a>, other: 'b) -> 'b ! never do other end
     );
     assert_eq!(
         type_of(&inference, &resolution, "hold").display(),
-        "<'a, 'b> (callback: <'c> ('a, 'c) -> 'c ! never, other: 'b) -> 'b ! never"
+        "fn<'a, 'b>(callback: fn<'c>('a, 'c) -> 'c ! never, other: 'b) -> 'b ! never"
     );
 }
 
@@ -2027,7 +2027,48 @@ let result = add(1, 2)
     assert_eq!(type_of(&inference, &resolution, "result"), Type::Int);
     assert_eq!(
         type_of(&inference, &resolution, "add").display(),
-        "(left: integer, right: integer) -> integer ! never"
+        "fn(left: integer, right: integer) -> integer ! never"
+    );
+}
+
+#[test]
+fn callable_or_nil_display_parenthesizes_function() {
+    let source = r#"
+fn nullable(flag: boolean) do
+    if flag then fn(value: integer) do value end end
+end
+"#;
+    let (inference, resolution) = inferred(source);
+    let ty = type_of(&inference, &resolution, "nullable");
+    let compact = ty.display();
+    assert_eq!(
+        compact,
+        "fn(flag: boolean) -> (fn(value: integer) -> integer) | nil"
+    );
+    let pretty = ty.pretty_display(80);
+    assert!(
+        pretty.contains("(fn(value: integer) -> integer)"),
+        "wide pretty must include parenthesized callable, got {pretty:?}"
+    );
+    assert!(
+        pretty.ends_with("| nil"),
+        "wide pretty ends with union nil tail, got {pretty:?}"
+    );
+}
+
+#[test]
+fn callable_union_displays_roundtrippable_parenthesized_callable() {
+    let source = r#"
+fn choose(flag: boolean, callback: fn(integer) -> integer) do
+    if flag then callback else fn(value: integer) do value end end
+end
+"#;
+    let (inference, resolution) = inferred(source);
+    let ty = type_of(&inference, &resolution, "choose");
+    let compact = ty.display();
+    assert_eq!(
+        compact,
+        "fn(flag: boolean, callback: fn(integer) -> integer) -> fn(integer) -> integer"
     );
 }
 
@@ -2050,7 +2091,7 @@ end
     let (inference, resolution) = inferred(source);
     assert_eq!(
         type_of(&inference, &resolution, "load").display(),
-        "(name: string) -> any ! any"
+        "fn(name: string) -> any ! any"
     );
     assert_eq!(
         type_of(&inference, &resolution, "observed").display(),
@@ -2067,7 +2108,7 @@ end
 fn choose(flag: boolean) do
     if flag then raise "bad" else 1 end
 end
-fn invoke(callback: () -> integer ! 'e) do
+fn invoke(callback: fn() -> integer ! 'e) do
     callback()
 end
 fn recovered() do
@@ -2088,23 +2129,23 @@ end
     let (inference, resolution) = inferred(source);
     assert_eq!(
         type_of(&inference, &resolution, "fail").display(),
-        "(value: 'a) -> never ! 'a"
+        "fn(value: 'a) -> never ! 'a"
     );
     assert_eq!(
         type_of(&inference, &resolution, "choose").display(),
-        "(flag: boolean) -> integer ! \"bad\""
+        "fn(flag: boolean) -> integer ! \"bad\""
     );
     assert_eq!(
         type_of(&inference, &resolution, "invoke").display(),
-        "(callback: () -> integer ! 'a) -> integer ! 'a"
+        "fn(callback: fn() -> integer ! 'a) -> integer ! 'a"
     );
     assert_eq!(
         type_of(&inference, &resolution, "recovered").display(),
-        "() -> integer"
+        "fn() -> integer"
     );
     assert_eq!(
         type_of(&inference, &resolution, "pure").display(),
-        "() -> integer ! never"
+        "fn() -> integer ! never"
     );
     assert_eq!(
         inference.diagnostics.len(),
@@ -2131,13 +2172,13 @@ fn unrelated() -> nil ! never raise "boom"
 "#;
     let (inference, resolution) = inferred(source);
     for (name, expected) in [
-        ("identity", "(value: integer) -> integer ! never"),
-        ("text", "() -> string ! never"),
-        ("values", "() -> [..integer] ! never"),
-        ("nothing", "() -> nil ! never"),
-        ("grouped", "() -> integer ! never"),
-        ("direct", "(xs: [..integer]) -> nil ! never"),
-        ("explicit", "(xs: [..integer]) -> nil ! never"),
+        ("identity", "fn(value: integer) -> integer ! never"),
+        ("text", "fn() -> string ! never"),
+        ("values", "fn() -> [..integer] ! never"),
+        ("nothing", "fn() -> nil ! never"),
+        ("grouped", "fn() -> integer ! never"),
+        ("direct", "fn(xs: [..integer]) -> nil ! never"),
+        ("explicit", "fn(xs: [..integer]) -> nil ! never"),
     ] {
         assert_eq!(type_of(&inference, &resolution, name).display(), expected);
     }
@@ -2195,11 +2236,11 @@ fn unfinished() -> never do todo "finish the decoder" end
     let (inference, resolution) = inferred(source);
     assert_eq!(
         type_of(&inference, &resolution, "panicked").display(),
-        "() -> never"
+        "fn() -> never"
     );
     assert_eq!(
         type_of(&inference, &resolution, "unfinished").display(),
-        "() -> never"
+        "fn() -> never"
     );
     assert_eq!(
         inference.diagnostics.len(),
@@ -2338,7 +2379,7 @@ end
     );
     assert_eq!(
         type_of(&inference, &resolution, "indexed").display(),
-        "(values: { [string]: integer }) -> integer | nil"
+        "fn(values: { [string]: integer }) -> integer | nil"
     );
 }
 

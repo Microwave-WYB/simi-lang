@@ -240,7 +240,7 @@ Calls use a fixed number of positional arguments. Supplying too few or too many 
 Labels in a callable type are documentation metadata, not named call arguments:
 
 ```simi
-let subtract: (left: integer, right: integer) -> integer ! never =
+let subtract: fn(left: integer, right: integer) -> integer ! never =
     fn(left: integer, right: integer) -> integer ! never do
         left - right
     end
