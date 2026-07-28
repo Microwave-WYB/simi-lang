@@ -106,13 +106,19 @@ pub enum BytesSegment {
 }
 
 #[derive(Clone, Debug)]
+pub enum ListElement {
+    Value(Expr),
+    Spread(Expr),
+}
+
+#[derive(Clone, Debug)]
 pub enum ExprKind {
     Int(i64),
     Float(f64),
     String(String),
     Bool(bool),
     Nil,
-    List(Vec<Expr>),
+    List(Vec<ListElement>),
     Bytes(Vec<BytesSegment>),
     Map(Vec<(Expr, Expr)>),
     Variable(String),

@@ -12,7 +12,7 @@ use std::{
 };
 
 use crate::{
-    ast::{Expr, ExprKind, StmtKind},
+    ast::{Expr, ExprKind, ListElement, StmtKind},
     lexer::lex,
     parser::parse,
 };
@@ -68,7 +68,7 @@ impl PackageManifest {
 
         let modules = required_list(&fields, "modules", "package metadata")?
             .iter()
-            .map(|item| static_string(item, "package metadata field `modules`"))
+            .map(|item| static_list_string(item, "package metadata field `modules`"))
             .collect::<Result<Vec<_>, _>>()?;
         if modules.is_empty() {
             return Err(PackageManifestError::new(
@@ -458,7 +458,7 @@ fn required_list<'a>(
     fields: &'a BTreeMap<String, &'a Expr>,
     name: &str,
     context: &str,
-) -> Result<&'a [Expr], PackageManifestError> {
+) -> Result<&'a [ListElement], PackageManifestError> {
     let expression = fields
         .get(name)
         .ok_or_else(|| PackageManifestError::new(format!("{context} requires field `{name}`")))?;
@@ -477,6 +477,18 @@ fn static_string(expression: &Expr, context: &str) -> Result<String, PackageMani
         )));
     };
     Ok(value.clone())
+}
+
+fn static_list_string(
+    element: &ListElement,
+    context: &str,
+) -> Result<String, PackageManifestError> {
+    match element {
+        ListElement::Value(expression) => static_string(expression, context),
+        ListElement::Spread(_) => Err(PackageManifestError::new(format!(
+            "{context} must contain only static string values"
+        ))),
+    }
 }
 
 fn validate_package_name(name: &str) -> Result<(), PackageManifestError> {

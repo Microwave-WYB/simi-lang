@@ -100,9 +100,18 @@ fn lower_expr(node: syntax::Expr) -> ast::Expr {
             inner.span = node_span;
             return inner;
         }
-        syntax::Expr::List(node) => {
-            ast::ExprKind::List(expr_children(node.syntax()).map(lower_expr).collect())
-        }
+        syntax::Expr::List(node) => ast::ExprKind::List(
+            support::children::<syntax::ListElement>(node.syntax())
+                .map(|element| {
+                    let value = lower_expr(child_expr(element.syntax(), 0));
+                    if support::token(element.syntax(), K::DOT_DOT).is_some() {
+                        ast::ListElement::Spread(value)
+                    } else {
+                        ast::ListElement::Value(value)
+                    }
+                })
+                .collect(),
+        ),
         syntax::Expr::Bytes(node) => ast::ExprKind::Bytes(
             expr_children(node.syntax())
                 .map(|segment| {

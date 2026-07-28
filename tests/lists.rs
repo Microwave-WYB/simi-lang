@@ -8,6 +8,39 @@ fn assert_eval(source: &str, expected: &str) {
 }
 
 #[test]
+fn list_spread_evaluates_left_to_right_and_copies_only_the_outer_list() {
+    assert_eval(
+        r#"
+            let order = []
+            fn source(value) do
+                list.append(order, value)
+                [value]
+            end
+            let nested = [7]
+            let original = [nested, 2]
+            let spread = [0, ..source(1), ..original, source(3)]
+            list.set(original, 1, 9)
+            list.append(nested, 8)
+            [order, original, spread]
+        "#,
+        "[[1, 3], [[7, 8], 9], [0, 1, [7, 8], 2, [3]]]",
+    );
+}
+
+#[test]
+fn list_spread_rejects_non_list_operands_as_hard_diagnostics() {
+    let error = match eval("[..1]") {
+        Err(error) => error,
+        Ok(_) => panic!("non-list spread operand should be a hard diagnostic"),
+    };
+    assert!(
+        error
+            .to_string()
+            .contains("list spread requires a list, got integer")
+    );
+}
+
+#[test]
 fn list_copy_is_an_independent_shallow_full_list_copy() {
     assert_eval(
         r#"

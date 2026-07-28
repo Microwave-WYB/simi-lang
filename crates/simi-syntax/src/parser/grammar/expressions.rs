@@ -371,7 +371,10 @@ pub(super) fn list_expr(p: &mut Parser<'_>) -> Parsed {
     p.bump();
     if !p.at(K::R_BRACKET) && !p.at_end() {
         loop {
+            let element = p.start();
+            p.bump_if(K::DOT_DOT);
             expression(p);
+            element.complete(&mut p.events, K::LIST_ELEMENT);
             if !p.bump_if(K::COMMA) || p.at(K::R_BRACKET) {
                 break;
             }

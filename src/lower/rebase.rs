@@ -73,7 +73,11 @@ pub(super) fn rebase_expr(expression: &mut ast::Expr, origins: &simi_syntax::Tok
     match &mut expression.kind {
         ast::ExprKind::List(elements) => {
             for element in elements {
-                rebase_expr(element, origins);
+                match element {
+                    ast::ListElement::Value(value) | ast::ListElement::Spread(value) => {
+                        rebase_expr(value, origins);
+                    }
+                }
             }
         }
         ast::ExprKind::Bytes(segments) => {

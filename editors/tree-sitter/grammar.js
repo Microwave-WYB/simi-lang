@@ -421,9 +421,14 @@ module.exports = grammar({
 
     list: ($) => seq(
       "[",
-      optional(commaSep1($._expression)),
+      optional(commaSep1($._list_element)),
       optional(","),
       "]",
+    ),
+
+    _list_element: ($) => seq(
+      optional(".."),
+      $._expression,
     ),
 
     bytes: ($) => seq(

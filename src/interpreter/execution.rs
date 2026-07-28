@@ -1,7 +1,9 @@
 use gc::{Gc, GcCell};
 
 use super::{EvaluationError, EvaluationResult, Interpreter, pattern::match_let_pattern};
-use crate::ast::{BinaryOp, Block, Body, BytesSegment, Expr, ExprKind, Stmt, StmtKind};
+use crate::ast::{
+    BinaryOp, Block, Body, BytesSegment, Expr, ExprKind, ListElement, Stmt, StmtKind,
+};
 use crate::runtime::{Bytes, Environment, List, MapKey, Raised, RuntimeError, UserFunction, Value};
 
 impl Interpreter {
@@ -127,7 +129,30 @@ impl Interpreter {
             ExprKind::List(elements) => {
                 let mut values = Vec::with_capacity(elements.len());
                 for element in elements {
-                    values.push(self.evaluate_expression(element, env)?);
+                    match element {
+                        ListElement::Value(element) => {
+                            values.push(self.evaluate_expression(element, env)?);
+                        }
+                        ListElement::Spread(element) => {
+                            let source = self.evaluate_expression(element, env)?;
+                            let Value::List(source) = source else {
+                                return Err(EvaluationError::Runtime(RuntimeError::new(
+                                    element.span,
+                                    format!(
+                                        "list spread requires a list, got {}",
+                                        source.type_name()
+                                    ),
+                                )));
+                            };
+                            let source = source.try_borrow().map_err(|_| {
+                                EvaluationError::Runtime(RuntimeError::new(
+                                    element.span,
+                                    "could not borrow list for spread",
+                                ))
+                            })?;
+                            values.extend(source.to_vec());
+                        }
+                    }
                 }
                 Ok(Value::List(List::shared(values)))
             }

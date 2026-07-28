@@ -256,22 +256,28 @@ impl Context<'_> {
     ) -> Type {
         let deferred = match (expression, inferred) {
             (syntax::Expr::List(list), Type::ListExact(items)) => {
-                let children = expr_children(list.syntax()).collect::<Vec<_>>();
-                if children.is_empty() {
+                let elements =
+                    support::children::<syntax::ListElement>(list.syntax()).collect::<Vec<_>>();
+                if elements.is_empty() {
                     let Type::Infer(variable) = self.fresh() else {
                         unreachable!("fresh types are inference variables")
                     };
                     deferred_empty_lists.push(variable);
                     self.deferred_empty_list_infers.insert(variable);
                     Type::ListRest(Box::new(Type::Infer(variable)))
-                } else {
+                } else if elements
+                    .iter()
+                    .all(|element| direct_token(element.syntax(), K::DOT_DOT).is_none())
+                    && elements.len() == items.len()
+                {
                     Type::ListExact(
-                        children
+                        elements
                             .iter()
+                            .filter_map(|element| child_expr(element.syntax(), 0))
                             .zip(items)
                             .map(|(child, item)| {
                                 self.defer_empty_container_literals(
-                                    child,
+                                    &child,
                                     item,
                                     deferred_empty_lists,
                                     deferred_empty_maps,
@@ -279,6 +285,8 @@ impl Context<'_> {
                             })
                             .collect(),
                     )
+                } else {
+                    Type::ListExact(items)
                 }
             }
             (

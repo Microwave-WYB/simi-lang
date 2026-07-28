@@ -51,6 +51,7 @@ let transform = fn(value) do
 end
 
 let values = [1, 2.5e1, 0x_ff, 0b_1010, 1_000.25, 3]
+let spread_values = [0, ..values, 4]
 let result = values ?> list.iter() |> iter.map() <| transform
 let optional = do result? end
 let concatenated = "Simi" <> " language"

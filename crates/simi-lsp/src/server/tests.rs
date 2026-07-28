@@ -633,6 +633,29 @@ fn memory_transport_performs_initialize_shutdown_and_exit_lifecycle() {
 }
 
 #[test]
+fn list_spread_hover_reports_the_flattened_exact_shape() {
+    let source = "let spread = [1, ..[2, 3], \"four\"]";
+    let mut backend = Backend::new();
+    open(&mut backend, source);
+    let hover: Option<Hover> = serde_json::from_value(
+        request(
+            &mut backend,
+            HoverRequest::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": text_position(source, "spread", 0),
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let HoverContents::Markup(markup) = hover.expect("spread hover").contents else {
+        panic!("expected markup")
+    };
+    assert_simi_hover(&markup, "[integer, integer, integer, \"four\"]");
+}
+
+#[test]
 fn module_members_show_source_signatures_and_plain_text_docs() {
     let module = r#"
 --- Append one value.

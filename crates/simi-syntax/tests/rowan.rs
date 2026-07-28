@@ -189,6 +189,45 @@ fn recovery_keeps_later_declarations_typed() {
 }
 
 #[test]
+fn list_spread_elements_are_lossless_and_typed() {
+    let source = "let values = [1, ..[2, 3], 4,]";
+    let parse = parse_source(source);
+    assert!(parse.diagnostics().is_empty(), "{:?}", parse.diagnostics());
+    assert_eq!(parse.syntax().to_string(), source);
+    let elements = parse
+        .syntax()
+        .descendants()
+        .filter(|node| node.kind() == SyntaxKind::LIST_ELEMENT)
+        .collect::<Vec<_>>();
+    assert_eq!(elements.len(), 5);
+    assert!(
+        elements[1]
+            .children_with_tokens()
+            .any(|element| element.kind() == SyntaxKind::DOT_DOT)
+    );
+}
+
+#[test]
+fn malformed_list_spreads_recover_before_later_declarations() {
+    let source = "let broken = [..,]\nfn later() do nil end";
+    let parse = parse_source(source);
+    assert!(
+        parse
+            .diagnostics()
+            .iter()
+            .any(|diagnostic| diagnostic.kind == DiagnosticKind::Parse),
+        "{:?}",
+        parse.diagnostics()
+    );
+    assert_eq!(parse.syntax().to_string(), source);
+    let root = Root::cast(parse.syntax().clone()).expect("root");
+    assert!(
+        root.statements()
+            .any(|statement| matches!(statement, Stmt::FunctionDecl(_)))
+    );
+}
+
+#[test]
 fn malformed_bytes_literals_recover_before_later_declarations() {
     for source in ["#\nfn later() do nil end", "#[1 fn later() do nil end"] {
         let parse = parse_source(source);

@@ -128,6 +128,7 @@ pub enum SyntaxKind {
     CASE_EXPR,
     IF_EXPR,
     CATCH_ARM,
+    LIST_ELEMENT,
     MAP_ENTRY,
     ARG_LIST,
     PIPELINE_STAGE,
@@ -227,6 +228,7 @@ ast_node!(TodoExpr, TODO_EXPR);
 ast_node!(CaseExpr, CASE_EXPR);
 ast_node!(IfExpr, IF_EXPR);
 ast_node!(CatchArm, CATCH_ARM);
+ast_node!(ListElement, LIST_ELEMENT);
 ast_node!(MapEntry, MAP_ENTRY);
 ast_node!(ArgList, ARG_LIST);
 ast_node!(PipelineStage, PIPELINE_STAGE);

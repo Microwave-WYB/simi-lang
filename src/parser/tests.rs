@@ -278,11 +278,34 @@ fn parses_list_and_map_indexing() {
     else {
         panic!("expected list");
     };
-    assert!(
-        elements
-            .iter()
-            .all(|element| matches!(element.kind, ExprKind::Index { .. }))
-    );
+    assert!(elements.iter().all(|element| matches!(
+        element,
+        ListElement::Value(Expr {
+            kind: ExprKind::Index { .. },
+            ..
+        })
+    )));
+}
+
+#[test]
+fn parses_list_spread_elements() {
+    let program = parse_source("[1, ..[2, 3], 4]").unwrap();
+    let StmtKind::Expr(Expr {
+        kind: ExprKind::List(elements),
+        ..
+    }) = &program.items[0].kind
+    else {
+        panic!("expected list");
+    };
+    assert!(matches!(elements[0], ListElement::Value(_)));
+    assert!(matches!(
+        elements[1],
+        ListElement::Spread(Expr {
+            kind: ExprKind::List(_),
+            ..
+        })
+    ));
+    assert!(matches!(elements[2], ListElement::Value(_)));
 }
 
 #[test]

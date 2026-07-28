@@ -130,6 +130,16 @@ An empty list is `[]`. Trailing commas are accepted:
 [1, 2, 3,]
 ```
 
+Use `..` inside a list literal to spread another list. Spread operands evaluate once from left to right; their elements are shallow-copied into a new outer list, so nested mutable values retain their aliases:
+
+```simi
+let prefix = [1, 2]
+let values = [0, ..prefix, 3]
+values
+```
+
+Only lists may be spread. This syntax is limited to list construction; bytes literals remain flat segments and do not support spread.
+
 Reading a nonnegative index beyond the end of a list returns `nil`:
 
 ```simi

@@ -2528,7 +2528,7 @@
               "members": [
                 {
                   "type": "SYMBOL",
-                  "name": "_expression"
+                  "name": "_list_element"
                 },
                 {
                   "type": "REPEAT",
@@ -2541,7 +2541,7 @@
                       },
                       {
                         "type": "SYMBOL",
-                        "name": "_expression"
+                        "name": "_list_element"
                       }
                     ]
                   }
@@ -2568,6 +2568,27 @@
         {
           "type": "STRING",
           "value": "]"
+        }
+      ]
+    },
+    "_list_element": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "STRING",
+              "value": ".."
+            },
+            {
+              "type": "BLANK"
+            }
+          ]
+        },
+        {
+          "type": "SYMBOL",
+          "name": "_expression"
         }
       ]
     },

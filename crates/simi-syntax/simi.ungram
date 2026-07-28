@@ -37,7 +37,8 @@ Body = Block | Expr
 BlockExpr = 'do' Block 'end'
 ProtectedExpr = 'do' Block 'catch' 'of' CatchArm CatchArm* 'end'
 ParenExpr = '(' Expr ')'
-ListExpr = '[' (Expr (',' Expr)* ','?)? ']'
+ListExpr = '[' (ListElement (',' ListElement)* ','?)? ']'
+ListElement = '..'? Expr
 BytesExpr = '#' '[' (Expr (',' Expr)* ','?)? ']'
 MapExpr = '{' (MapEntry (',' MapEntry)* ','?)? '}'
 MapEntry = ('ident' ('=' Expr)? | '[' Expr ']' '=' Expr)

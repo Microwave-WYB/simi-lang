@@ -23,11 +23,38 @@ impl Context<'_> {
             syntax::Expr::Paren(node) => child_expr(node.syntax(), 0)
                 .map(|child| self.expression(child))
                 .unwrap_or(Type::Unknown),
-            syntax::Expr::List(node) => Type::ListExact(
-                expr_children(node.syntax())
-                    .map(|item| self.expression(item))
-                    .collect(),
-            ),
+            syntax::Expr::List(node) => {
+                let mut items = Vec::new();
+                let mut rest = Vec::new();
+                for element in support::children::<syntax::ListElement>(node.syntax()) {
+                    let Some(value) = child_expr(element.syntax(), 0) else {
+                        continue;
+                    };
+                    let value_type = self.expression(value);
+                    if direct_token(element.syntax(), K::DOT_DOT).is_none() {
+                        items.push(value_type);
+                        continue;
+                    }
+                    let item = self.fresh();
+                    self.constrain(
+                        &Type::ListRest(Box::new(item)),
+                        &value_type,
+                        span(element.syntax()),
+                    );
+                    match self.resolve_type(value_type) {
+                        Type::ListExact(values) => items.extend(values),
+                        Type::ListRest(item) => rest.push(*item),
+                        Type::Unknown | Type::Any | Type::Infer(_) => rest.push(Type::Unknown),
+                        _ => rest.push(Type::Unknown),
+                    }
+                }
+                if rest.is_empty() {
+                    Type::ListExact(items)
+                } else {
+                    rest.extend(items);
+                    Type::ListRest(Box::new(union(rest)))
+                }
+            }
             syntax::Expr::Bytes(node) => {
                 for segment in expr_children(node.syntax()) {
                     let literal_string = matches!(

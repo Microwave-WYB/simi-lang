@@ -2851,3 +2851,30 @@ fn shadowed_builtin_uses_user_binding_not_module_shape() {
         "integer"
     );
 }
+
+#[test]
+fn list_spreads_preserve_exact_and_rest_list_shapes() {
+    let source = r#"
+let exact = [1, ..[2, 3], "four"]
+let tail: [..boolean] = []
+let rest = [1, ..tail, "end"]
+let invalid = [..1]
+"#;
+    let (inference, resolution) = inferred(source);
+    assert_eq!(
+        type_of(&inference, &resolution, "exact").display(),
+        "[integer, integer, integer, \"four\"]"
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "rest").display(),
+        "[..(boolean | integer | \"end\")]"
+    );
+    assert!(
+        inference
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == AnalysisDiagnosticCode::TypeMismatch),
+        "{:?}",
+        inference.diagnostics
+    );
+}
