@@ -44,7 +44,15 @@ module.exports = grammar({
   ],
 
   rules: {
-    program: ($) => repeat($._statement),
+    program: ($) => seq(
+      optional($.requires_declaration),
+      repeat($._statement),
+    ),
+
+    requires_declaration: ($) => seq(
+      "requires",
+      field("requirements", $.map),
+    ),
 
     _statement: ($) => choice(
       $.function_declaration,

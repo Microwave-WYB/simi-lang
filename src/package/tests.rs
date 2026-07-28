@@ -125,6 +125,53 @@ fn rejects_missing_or_symlinked_declared_public_sources() {
 }
 
 #[test]
+fn parses_and_rejects_nonstatic_leading_requirements() {
+    let requires = parse_requires(
+        r#"requires {
+            remote = {git = "https://example.invalid/tools.git", rev = "v1"},
+            local = {path = "dev/local"},
+        }
+        42"#,
+    )
+    .unwrap()
+    .expect("requires header");
+    assert_eq!(requires.entries.len(), 2);
+    assert!(matches!(
+        requires.entries[0].source,
+        RequirementSource::Git { ref git, ref rev }
+            if git == "https://example.invalid/tools.git" && rev == "v1"
+    ));
+    assert!(matches!(
+        requires.entries[1].source,
+        RequirementSource::Path { ref path } if path == "dev/local"
+    ));
+
+    for source in [
+        "requires {tools = {git = url, rev = \"v1\"}}",
+        "requires {tools = {git = \"\", rev = \"v1\"}}",
+        "requires {tools = {path = \"../tools\"}}",
+        "requires {tools = {git = \"url\", rev = \"v1\", path = \"tools\"}}",
+        "let value = 1 requires {tools = {path = \"tools\"}}",
+    ] {
+        assert!(parse_requires(source).is_err(), "{source}");
+    }
+}
+
+#[test]
+fn preserves_duplicate_map_diagnostics_outside_requires_metadata() {
+    for source in [
+        "let value = {a = 1, a = 2}",
+        "requires {text = {path = \"dev\"}} let value = {a = 1, a = 2}",
+    ] {
+        let error = parse_requires(source).unwrap_err();
+        assert!(
+            error.message.contains("duplicate map field `a`"),
+            "{source:?}: {error}"
+        );
+    }
+}
+
+#[test]
 fn rejects_noncanonical_or_unsafe_public_metadata() {
     for (source, expected) in [
         (

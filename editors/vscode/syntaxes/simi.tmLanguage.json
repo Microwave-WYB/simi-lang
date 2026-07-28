@@ -252,7 +252,7 @@
         },
         {
           "name": "keyword.declaration.simi",
-          "match": "\\b(?:let|alias)\\b"
+          "match": "\\b(?:let|alias|requires)\\b"
         },
         {
           "name": "storage.type.function.simi",

@@ -131,4 +131,5 @@ test("TextMate grammar assigns semantic scopes to representative Simi syntax", a
   assertScope(lines, 54, "to_number", "variable.other.property.simi");
   assertScope(lines, 55, "!=", "keyword.operator.comparison.simi");
   assertNotScope(lines, 55, "!=", "keyword.operator.type.simi");
+  assertScope(lines, 57, "requires", "keyword.declaration.simi");
 });

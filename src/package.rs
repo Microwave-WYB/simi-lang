@@ -17,6 +17,15 @@ use crate::{
     parser::parse,
 };
 
+mod lock;
+mod requires;
+mod resolver;
+
+pub use requires::{
+    PackageRequirementsError, Requirement, RequirementSource, Requires, parse_requires,
+};
+pub use resolver::{ResolutionMode, ResolvedScript, lock_path, resolve_script};
+
 /// A parsed `simi.package.simi` manifest.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PackageManifest {

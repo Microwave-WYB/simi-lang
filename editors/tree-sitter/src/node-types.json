@@ -2293,6 +2293,10 @@
         {
           "type": "_statement",
           "named": true
+        },
+        {
+          "type": "requires_declaration",
+          "named": true
         }
       ]
     }
@@ -2333,6 +2337,22 @@
         "types": [
           {
             "type": "_expression",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "requires_declaration",
+    "named": true,
+    "fields": {
+      "requirements": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "map",
             "named": true
           }
         ]
@@ -2970,6 +2990,10 @@
   },
   {
     "type": "raise",
+    "named": false
+  },
+  {
+    "type": "requires",
     "named": false
   },
   {

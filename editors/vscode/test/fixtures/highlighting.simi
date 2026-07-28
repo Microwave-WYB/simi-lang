@@ -53,3 +53,7 @@ let typed_no_raise: fn() -> nil ! never = nil
 let literal_raise: fn() -> nil ! "oops" = nil
 let parsed = string.to_number("42")
 let distinct = 1 != 2
+
+requires {
+    local = {path = "packages/local"}
+}

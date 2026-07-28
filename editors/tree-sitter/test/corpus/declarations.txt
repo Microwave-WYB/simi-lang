@@ -1,4 +1,33 @@
 ==================
+Leading requires declaration
+==================
+
+-- Static package metadata precedes executable statements.
+requires {
+  local = {path = "packages/local"},
+}
+let value = local
+
+---
+
+(program
+  (comment)
+  (requires_declaration
+    (map
+      (map_entry
+        (map_field
+          (identifier)
+          (map
+            (map_entry
+              (map_field
+                (identifier)
+                (string
+                  (string_content)))))))))
+  (let_statement
+    (identifier)
+    (identifier)))
+
+==================
 Functions, anonymous functions, and destructuring let
 ==================
 
