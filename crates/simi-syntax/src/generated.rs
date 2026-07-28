@@ -56,6 +56,7 @@ pub enum SyntaxKind {
     EQ_EQ,
     BANG,
     BANG_EQ,
+    HASH,
     PLUS,
     MINUS,
     STAR,
@@ -108,6 +109,7 @@ pub enum SyntaxKind {
     PROTECTED_EXPR,
     PAREN_EXPR,
     LIST_EXPR,
+    BYTES_EXPR,
     MAP_EXPR,
     CALL_EXPR,
     FIELD_EXPR,
@@ -203,6 +205,7 @@ ast_node!(BlockExpr, BLOCK_EXPR);
 ast_node!(ProtectedExpr, PROTECTED_EXPR);
 ast_node!(ParenExpr, PAREN_EXPR);
 ast_node!(ListExpr, LIST_EXPR);
+ast_node!(BytesExpr, BYTES_EXPR);
 ast_node!(MapExpr, MAP_EXPR);
 ast_node!(CallExpr, CALL_EXPR);
 ast_node!(FieldExpr, FIELD_EXPR);
@@ -279,6 +282,7 @@ pub enum Expr {
     Protected(ProtectedExpr),
     Paren(ParenExpr),
     List(ListExpr),
+    Bytes(BytesExpr),
     Map(MapExpr),
     Call(CallExpr),
     Field(FieldExpr),
@@ -308,6 +312,7 @@ impl AstNode for Expr {
             SyntaxKind::PROTECTED_EXPR => Self::Protected(ProtectedExpr::cast(syntax)?),
             SyntaxKind::PAREN_EXPR => Self::Paren(ParenExpr::cast(syntax)?),
             SyntaxKind::LIST_EXPR => Self::List(ListExpr::cast(syntax)?),
+            SyntaxKind::BYTES_EXPR => Self::Bytes(BytesExpr::cast(syntax)?),
             SyntaxKind::MAP_EXPR => Self::Map(MapExpr::cast(syntax)?),
             SyntaxKind::CALL_EXPR => Self::Call(CallExpr::cast(syntax)?),
             SyntaxKind::FIELD_EXPR => Self::Field(FieldExpr::cast(syntax)?),
@@ -337,6 +342,7 @@ impl AstNode for Expr {
             Self::Protected(node) => node.syntax(),
             Self::Paren(node) => node.syntax(),
             Self::List(node) => node.syntax(),
+            Self::Bytes(node) => node.syntax(),
             Self::Map(node) => node.syntax(),
             Self::Call(node) => node.syntax(),
             Self::Field(node) => node.syntax(),

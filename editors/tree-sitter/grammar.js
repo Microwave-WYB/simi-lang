@@ -396,6 +396,7 @@ module.exports = grammar({
       $.nil,
       $.parenthesized_expression,
       $.list,
+      $.bytes,
       $.map,
       $.function_expression,
       $.block_expression,
@@ -410,6 +411,14 @@ module.exports = grammar({
     parenthesized_expression: ($) => seq("(", $._expression, ")"),
 
     list: ($) => seq(
+      "[",
+      optional(commaSep1($._expression)),
+      optional(","),
+      "]",
+    ),
+
+    bytes: ($) => seq(
+      "#",
       "[",
       optional(commaSep1($._expression)),
       optional(","),

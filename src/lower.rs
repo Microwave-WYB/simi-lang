@@ -103,6 +103,19 @@ fn lower_expr(node: syntax::Expr) -> ast::Expr {
         syntax::Expr::List(node) => {
             ast::ExprKind::List(expr_children(node.syntax()).map(lower_expr).collect())
         }
+        syntax::Expr::Bytes(node) => ast::ExprKind::Bytes(
+            expr_children(node.syntax())
+                .map(|segment| {
+                    if let syntax::Expr::Literal(literal) = &segment
+                        && let Some(token) = direct_token(literal.syntax(), K::STRING)
+                    {
+                        ast::BytesSegment::String(decode_string(token.text()))
+                    } else {
+                        ast::BytesSegment::Value(lower_expr(segment))
+                    }
+                })
+                .collect(),
+        ),
         syntax::Expr::Map(node) => {
             let entries = support::children::<syntax::MapEntry>(node.syntax())
                 .map(|entry| lower_map_entry(&entry))

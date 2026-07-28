@@ -105,7 +105,15 @@ The builtin `inspect(value)` can produce a human-readable representation of any 
 
 ## Bytes
 
-Bytes are immutable contiguous octets supplied by an embedding host. Scripts do not currently have a bytes literal or standard-library constructor, so scripts receive them through host-provided values. `type(value)` returns `"bytes"`, equality compares byte contents, and zero-based indexing returns an integer from `0` through `255` or `nil` beyond the end. Negative and non-integer indices are hard diagnostics. `inspect` renders bytes deterministically as hexadecimal, for example `bytes[00 7f ff]`.
+Bytes are immutable contiguous octets. Construct them with a flat `#[]` literal: integer segments encode one byte from `0` through `255`, string literal segments append their UTF-8 bytes, and existing bytes values append their contents. Segments evaluate left to right exactly once. Dynamic strings are not accepted; convert text outside the literal through an encoding module.
+
+```simi
+let header = #["PNG", 13, 10, 26, 10]
+let payload = #[0, 127, 255]
+#[header, payload]
+```
+
+Unsupported segment categories and out-of-range integers are hard diagnostics. `type(value)` returns `"bytes"`, equality compares byte contents, and zero-based indexing returns an integer from `0` through `255` or `nil` beyond the end. Negative and non-integer indices are hard diagnostics. `inspect` renders bytes deterministically as hexadecimal, for example `bytes[00 7f ff]`.
 
 ## Lists
 

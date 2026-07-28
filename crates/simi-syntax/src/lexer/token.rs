@@ -50,6 +50,7 @@ pub enum TokenKind {
     EqualEqual,
     Bang,
     BangEqual,
+    Hash,
     Plus,
     Minus,
     Star,

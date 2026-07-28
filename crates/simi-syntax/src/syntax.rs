@@ -16,6 +16,7 @@ impl SyntaxKind {
                 | Self::BLOCK_EXPR
                 | Self::PAREN_EXPR
                 | Self::LIST_EXPR
+                | Self::BYTES_EXPR
                 | Self::MAP_EXPR
                 | Self::CALL_EXPR
                 | Self::FIELD_EXPR

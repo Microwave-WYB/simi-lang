@@ -1,8 +1,8 @@
 use gc::{Gc, GcCell};
 
 use super::{EvaluationError, EvaluationResult, Interpreter, pattern::match_let_pattern};
-use crate::ast::{BinaryOp, Block, Body, Expr, ExprKind, Stmt, StmtKind};
-use crate::runtime::{Environment, List, MapKey, Raised, RuntimeError, UserFunction, Value};
+use crate::ast::{BinaryOp, Block, Body, BytesSegment, Expr, ExprKind, Stmt, StmtKind};
+use crate::runtime::{Bytes, Environment, List, MapKey, Raised, RuntimeError, UserFunction, Value};
 
 impl Interpreter {
     pub(super) fn evaluate_items(
@@ -130,6 +130,39 @@ impl Interpreter {
                     values.push(self.evaluate_expression(element, env)?);
                 }
                 Ok(Value::List(List::shared(values)))
+            }
+            ExprKind::Bytes(segments) => {
+                let mut values = Vec::new();
+                for segment in segments {
+                    match segment {
+                        BytesSegment::String(text) => values.extend(text.bytes()),
+                        BytesSegment::Value(segment) => {
+                            let value = self.evaluate_expression(segment, env)?;
+                            match value {
+                                Value::Int(value @ 0..=255) => values.push(value as u8),
+                                Value::Int(value) => {
+                                    return Err(EvaluationError::Runtime(RuntimeError::new(
+                                        segment.span,
+                                        format!(
+                                            "bytes integer segment must be within 0 through 255, got {value}"
+                                        ),
+                                    )));
+                                }
+                                Value::Bytes(bytes) => values.extend_from_slice(bytes.as_slice()),
+                                value => {
+                                    return Err(EvaluationError::Runtime(RuntimeError::new(
+                                        segment.span,
+                                        format!(
+                                            "bytes segment must be an integer, a string literal, or bytes, got {}",
+                                            value.type_name()
+                                        ),
+                                    )));
+                                }
+                            }
+                        }
+                    }
+                }
+                Ok(Value::Bytes(Bytes::new(values)))
             }
             ExprKind::Map(entries) => {
                 let mut values = Vec::with_capacity(entries.len());

@@ -44,6 +44,24 @@ fn representative_tree_shape_is_stable() {
 }
 
 #[test]
+fn bytes_literals_are_lossless_typed_expressions() {
+    let source = r#"let data = #[0, "PNG", payload,]"#;
+    let parse = parse_source(source);
+    assert!(parse.diagnostics().is_empty(), "{:?}", parse.diagnostics());
+    assert_eq!(parse.syntax().to_string(), source);
+    let bytes = parse
+        .syntax()
+        .descendants()
+        .find(|node| node.kind() == SyntaxKind::BYTES_EXPR)
+        .expect("bytes expression");
+    assert!(
+        bytes
+            .children_with_tokens()
+            .any(|element| element.kind() == SyntaxKind::HASH)
+    );
+}
+
+#[test]
 fn delimiters_belong_to_their_typed_nodes() {
     let source = concat!(
         "case [1] of [head, ..tail] => head end ",

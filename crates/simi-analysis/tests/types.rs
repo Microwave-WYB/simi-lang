@@ -117,6 +117,35 @@ end
 }
 
 #[test]
+fn bytes_literals_infer_bytes_and_reject_dynamic_text_segments() {
+    let source = r#"
+let data = #[0, "PNG", 255]
+fn append(prefix: bytes) do #[0, "PNG", prefix] end
+"#;
+    let (inference, resolution) = inferred(source);
+    assert!(
+        inference.diagnostics.is_empty(),
+        "{:?}",
+        inference.diagnostics
+    );
+    assert_eq!(type_of(&inference, &resolution, "data"), Type::Bytes);
+    assert_eq!(
+        type_of(&inference, &resolution, "append").display(),
+        "fn(prefix: bytes) -> bytes"
+    );
+
+    let (inference, _) = inferred("let text = \"PNG\" let data = #[text]");
+    assert!(
+        inference
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == AnalysisDiagnosticCode::TypeMismatch),
+        "{:?}",
+        inference.diagnostics
+    );
+}
+
+#[test]
 fn boolean_singletons_are_narrow_record_discriminants() {
     let source = r#"
 alias Step<'a> =

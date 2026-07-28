@@ -55,6 +55,7 @@ const TOKENS: &[&str] = &[
     "EQ_EQ",
     "BANG",
     "BANG_EQ",
+    "HASH",
     "PLUS",
     "MINUS",
     "STAR",

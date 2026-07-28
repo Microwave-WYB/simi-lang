@@ -244,6 +244,7 @@ pub(super) fn primary(p: &mut Parser<'_>) -> Parsed {
         K::DO_KW => block_expr(p),
         K::L_PAREN => paren_expr(p),
         K::L_BRACKET => list_expr(p),
+        K::HASH => bytes_expr(p),
         K::L_BRACE => map_expr(p),
         K::RAISE_KW => raise_expr(p),
         K::PANIC_KW => terminal_expr(p, K::PANIC_EXPR),
@@ -379,6 +380,24 @@ pub(super) fn list_expr(p: &mut Parser<'_>) -> Parsed {
     p.expect(K::R_BRACKET, "`]` after list elements");
     Parsed {
         marker: marker.complete(&mut p.events, K::LIST_EXPR),
+        flavor: Flavor::Other,
+    }
+}
+pub(super) fn bytes_expr(p: &mut Parser<'_>) -> Parsed {
+    let marker = p.start();
+    p.bump();
+    p.expect(K::L_BRACKET, "`[` after `#`");
+    if !p.at(K::R_BRACKET) && !p.at_end() {
+        loop {
+            expression(p);
+            if !p.bump_if(K::COMMA) || p.at(K::R_BRACKET) {
+                break;
+            }
+        }
+    }
+    p.expect(K::R_BRACKET, "`]` after bytes segments");
+    Parsed {
+        marker: marker.complete(&mut p.events, K::BYTES_EXPR),
         flavor: Flavor::Other,
     }
 }

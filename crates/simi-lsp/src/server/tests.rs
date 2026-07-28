@@ -1068,6 +1068,46 @@ end
 }
 
 #[test]
+fn bytes_literals_hover_as_bytes_and_reject_dynamic_text_segments() {
+    let source = "let data = #[0, \"PNG\", 255]";
+    let mut backend = Backend::new();
+    let published = diagnostics_from(open(&mut backend, source).remove(0));
+    assert!(
+        published.diagnostics.is_empty(),
+        "{:?}",
+        published.diagnostics
+    );
+
+    let hover: Option<Hover> = serde_json::from_value(
+        request(
+            &mut backend,
+            HoverRequest::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": text_position(source, "data", 0),
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let HoverContents::Markup(markup) = hover.expect("bytes literal hover").contents else {
+        panic!("expected markup")
+    };
+    assert_simi_hover(&markup, "bytes");
+
+    let source = "let text = \"PNG\" let data = #[text]";
+    let published = diagnostics_from(open(&mut backend, source).remove(0));
+    assert!(
+        published
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("Type mismatch")),
+        "{:?}",
+        published.diagnostics
+    );
+}
+
+#[test]
 fn primitive_singleton_annotations_hover_without_narrowing_expression_inference() {
     let source = r#"let count = 42
 let exact_integer: 42 = 42

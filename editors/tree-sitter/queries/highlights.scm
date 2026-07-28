@@ -102,5 +102,5 @@
 (map_pattern_field
   name: (identifier) @property)
 
-["(" ")" "[" "]" "{" "}"] @punctuation.bracket
+["#" "(" ")" "[" "]" "{" "}"] @punctuation.bracket
 ["," "."] @punctuation.delimiter

@@ -198,6 +198,10 @@ impl<'a> Scanner<'a> {
                 );
                 Ok(())
             }
+            b'#' => {
+                self.simple(start, SyntaxKind::HASH, TokenKind::Hash);
+                Ok(())
+            }
             b'<' if self.peek(1) == Some(b'|') => {
                 self.double(start, SyntaxKind::LESS_PIPE, TokenKind::LessPipe);
                 Ok(())

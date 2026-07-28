@@ -75,6 +75,13 @@ pub(super) fn rebase_expr(expression: &mut ast::Expr, origins: &simi_syntax::Tok
                 rebase_expr(element, origins);
             }
         }
+        ast::ExprKind::Bytes(segments) => {
+            for segment in segments {
+                if let ast::BytesSegment::Value(expression) = segment {
+                    rebase_expr(expression, origins);
+                }
+            }
+        }
         ast::ExprKind::Map(entries) => {
             for (key, value) in entries {
                 rebase_expr(key, origins);

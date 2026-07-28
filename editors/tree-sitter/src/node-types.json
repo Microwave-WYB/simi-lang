@@ -20,6 +20,10 @@
         "named": true
       },
       {
+        "type": "bytes",
+        "named": true
+      },
+      {
         "type": "call_expression",
         "named": true
       },
@@ -308,6 +312,10 @@
             "named": true
           },
           {
+            "type": "bytes",
+            "named": true
+          },
+          {
             "type": "call_expression",
             "named": true
           },
@@ -472,6 +480,10 @@
             "named": true
           },
           {
+            "type": "bytes",
+            "named": true
+          },
+          {
             "type": "call_expression",
             "named": true
           },
@@ -592,6 +604,21 @@
     "fields": {}
   },
   {
+    "type": "bytes",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "_expression",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "call_expression",
     "named": true,
     "fields": {
@@ -615,6 +642,10 @@
           },
           {
             "type": "boolean",
+            "named": true
+          },
+          {
+            "type": "bytes",
             "named": true
           },
           {
@@ -1033,6 +1064,10 @@
             "named": true
           },
           {
+            "type": "bytes",
+            "named": true
+          },
+          {
             "type": "call_expression",
             "named": true
           },
@@ -1298,6 +1333,10 @@
           },
           {
             "type": "boolean",
+            "named": true
+          },
+          {
+            "type": "bytes",
             "named": true
           },
           {
@@ -1769,6 +1808,10 @@
             "named": true
           },
           {
+            "type": "bytes",
+            "named": true
+          },
+          {
             "type": "call_expression",
             "named": true
           },
@@ -2005,6 +2048,10 @@
             "named": true
           },
           {
+            "type": "bytes",
+            "named": true
+          },
+          {
             "type": "call_expression",
             "named": true
           },
@@ -2140,6 +2187,10 @@
           },
           {
             "type": "boolean",
+            "named": true
+          },
+          {
+            "type": "bytes",
             "named": true
           },
           {
@@ -2379,6 +2430,10 @@
             "named": true
           },
           {
+            "type": "bytes",
+            "named": true
+          },
+          {
             "type": "call_expression",
             "named": true
           },
@@ -2568,6 +2623,10 @@
             "named": true
           },
           {
+            "type": "bytes",
+            "named": true
+          },
+          {
             "type": "call_expression",
             "named": true
           },
@@ -2710,6 +2769,10 @@
   },
   {
     "type": "\"",
+    "named": false
+  },
+  {
+    "type": "#",
     "named": false
   },
   {

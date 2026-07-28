@@ -28,7 +28,7 @@ TypeMap = '{' (TypeMapEntry (',' TypeMapEntry)* (',' TypeMapRest)? ','? | TypeMa
 TypeMapEntry = ('ident' ':' TypeExpr) | ('[' TypeExpr ']' ':' TypeExpr)
 TypeMapRest = '..'
 Block = Stmt*
-Expr = LiteralExpr | NameExpr | FunctionExpr | BlockExpr | ProtectedExpr | ParenExpr | ListExpr | MapExpr | CallExpr | FieldExpr | IndexExpr | NilPropagateExpr | UnaryExpr | BinaryExpr | AssignExpr | PipelineExpr | TrailingArgumentExpr | RaiseExpr | PanicExpr | TodoExpr | CaseExpr | IfExpr
+Expr = LiteralExpr | NameExpr | FunctionExpr | BlockExpr | ProtectedExpr | ParenExpr | ListExpr | BytesExpr | MapExpr | CallExpr | FieldExpr | IndexExpr | NilPropagateExpr | UnaryExpr | BinaryExpr | AssignExpr | PipelineExpr | TrailingArgumentExpr | RaiseExpr | PanicExpr | TodoExpr | CaseExpr | IfExpr
 LiteralExpr = ('int' | 'float' | 'string' | 'nil' | 'true' | 'false')
 NameExpr = 'ident'
 FunctionExpr = 'fn' CallableTypeParamList? ParamList (ReturnAnnotation EffectAnnotation?)? Body
@@ -37,6 +37,7 @@ BlockExpr = 'do' Block 'end'
 ProtectedExpr = 'do' Block 'catch' 'of' CatchArm CatchArm* 'end'
 ParenExpr = '(' Expr ')'
 ListExpr = '[' (Expr (',' Expr)* ','?)? ']'
+BytesExpr = '#' '[' (Expr (',' Expr)* ','?)? ']'
 MapExpr = '{' (MapEntry (',' MapEntry)* ','?)? '}'
 MapEntry = ('ident' ('=' Expr)? | '[' Expr ']' '=' Expr)
 CallExpr = Expr ArgList

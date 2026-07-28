@@ -353,6 +353,10 @@
           "match": "[()]"
         },
         {
+          "name": "punctuation.section.bytes.simi",
+          "match": "#(?=\\[)"
+        },
+        {
           "name": "punctuation.section.brackets.simi",
           "match": "[\\[\\]]"
         },

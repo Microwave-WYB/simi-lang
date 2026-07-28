@@ -28,6 +28,25 @@ impl Context<'_> {
                     .map(|item| self.expression(item))
                     .collect(),
             ),
+            syntax::Expr::Bytes(node) => {
+                for segment in expr_children(node.syntax()) {
+                    let literal_string = matches!(
+                        &segment,
+                        syntax::Expr::Literal(literal)
+                            if direct_token(literal.syntax(), K::STRING).is_some()
+                    );
+                    let segment_span = span(segment.syntax());
+                    let segment_type = self.expression(segment);
+                    if !literal_string {
+                        self.constrain(
+                            &Type::Union(vec![Type::Int, Type::Bytes]),
+                            &segment_type,
+                            segment_span,
+                        );
+                    }
+                }
+                Type::Bytes
+            }
             syntax::Expr::Map(node) => {
                 let mut fields = Vec::new();
                 let mut keys = Vec::new();

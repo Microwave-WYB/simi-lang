@@ -91,6 +91,12 @@ pub enum AssignmentTargetKind {
 }
 
 #[derive(Clone, Debug)]
+pub enum BytesSegment {
+    String(String),
+    Value(Expr),
+}
+
+#[derive(Clone, Debug)]
 pub enum ExprKind {
     Int(i64),
     Float(f64),
@@ -98,6 +104,7 @@ pub enum ExprKind {
     Bool(bool),
     Nil,
     List(Vec<Expr>),
+    Bytes(Vec<BytesSegment>),
     Map(Vec<(Expr, Expr)>),
     Variable(String),
     Function {
