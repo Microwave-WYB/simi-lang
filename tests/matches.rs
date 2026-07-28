@@ -38,21 +38,31 @@ fn wildcard_discard_bindings_and_primitive_literals_match() {
         r#"
             let _ignored = 7
             let _tail = "outer"
-            let discarded = case [1, 2]
-                of [_value, _value] do "discarded"
+            let discarded = case [1, 2] of
+                [_value, _value] =>
+                    "discarded"
             end
-            let discarded_rest = case [1, 2, 3]
-                of [head, .._tail] do [head, _tail]
+            let discarded_rest = case [1, 2, 3] of
+                [head, .._tail] =>
+                    [head, _tail]
             end
-            let result = case 2
-                of nil do "nil"
-                of true do "true"
-                of false do "false"
-                of 1 do "one"
-                of "two" do "string"
-                of n when n < 2 do "small"
-                of _ignored when false do "unreachable"
-                of n do [n, _ignored]
+            let result = case 2 of
+                nil =>
+                    "nil"
+                true =>
+                    "true"
+                false =>
+                    "false"
+                1 =>
+                    "one"
+                "two" =>
+                    "string"
+                n when n < 2 =>
+                    "small"
+                _ignored when false =>
+                    "unreachable"
+                n =>
+                    [n, _ignored]
             end
             [discarded, discarded_rest, result, _ignored]
         "#,
@@ -64,20 +74,27 @@ fn wildcard_discard_bindings_and_primitive_literals_match() {
 fn nested_exact_and_rest_list_patterns_match_structurally() {
     assert_eval(
         r#"
-            let exact = case [1, 2, 3]
-                of [a, b] do "wrong"
-                of [a, b, c] do [a, b, c]
+            let exact = case [1, 2, 3] of
+                [a, b] =>
+                    "wrong"
+                [a, b, c] =>
+                    [a, b, c]
             end
-            let nested = case [1, [2, 3, 4], 5, 6]
-                of [head, [middle, ..inner], ..outer] do [head, middle, inner, outer]
+            let nested = case [1, [2, 3, 4], 5, 6] of
+                [head, [middle, ..inner], ..outer] =>
+                    [head, middle, inner, outer]
             end
-            let empty = case []
-                of [] do true
-                of _ do false
+            let empty = case [] of
+                [] =>
+                    true
+                _ =>
+                    false
             end
-            let literals = case [nil, true, false, 42, "ok"]
-                of [nil, true, false, 42, "ok"] do "all"
-                of _ do "wrong"
+            let literals = case [nil, true, false, 42, "ok"] of
+                [nil, true, false, 42, "ok"] =>
+                    "all"
+                _ =>
+                    "wrong"
             end
             [exact, nested, empty, literals]
         "#,
@@ -92,8 +109,9 @@ fn list_rest_is_a_new_container_with_existing_element_aliases() {
 
             let shared = []
             let original = [0, shared, 2, 3]
-            let tail = case original
-                of [_, ..rest] do rest
+            let tail = case original of
+                [_, ..rest] =>
+                    rest
             end
             list.set(tail, 1, 9)
             list.append(shared, 7)
@@ -110,8 +128,9 @@ fn list_rest_uses_independent_cow_views_while_preserving_alias_groups() {
         let nested = [2]
         let source = [1, nested, 3]
         let source_alias = source
-        let rest = case source
-            of [_, ..tail] do tail
+        let rest = case source of
+            [_, ..tail] =>
+                tail
         end
         let rest_alias = rest
 
@@ -130,9 +149,11 @@ fn recursive_head_tail_matching_handles_longer_lists() {
     assert_eval(
         r#"
         fn count(values) do
-            case values
-                of [] do 0
-                of [_, ..rest] do 1 + count(rest)
+            case values of
+                [] =>
+                    0
+                [_, ..rest] =>
+                    1 + count(rest)
             end
         end
         count([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15])
@@ -148,24 +169,32 @@ fn map_patterns_are_closed_by_default_and_map_rest_preserves_order_and_aliases()
 
             let shared = []
             let source = {take=1, first=shared, [true]=shared, last=3}
-            let captured = case source
-                of {take=1, last=n, ..rest} do [n, rest]
+            let captured = case source of
+                {take=1, last=n, ..rest} =>
+                    [n, rest]
             end
             list.append(shared, 7)
-            let rejects_extra_field = case {x=1, extra=2}
-                of {x=1} do false
-                of _ do true
+            let rejects_extra_field = case {x=1, extra=2} of
+                {x=1} =>
+                    false
+                _ =>
+                    true
             end
-            let rejects_extra_computed_key = case {x=1, [true]=2}
-                of {x=1} do false
-                of _ do true
+            let rejects_extra_computed_key = case {x=1, [true]=2} of
+                {x=1} =>
+                    false
+                _ =>
+                    true
             end
-            let permits_extras = case {x=1, extra=2}
-                of {x=1, ..} do true
-                of _ do false
+            let permits_extras = case {x=1, extra=2} of
+                {x=1, ..} =>
+                    true
+                _ =>
+                    false
             end
-            let rest_only = case {a=1, b=2}
-                of {..all} do all
+            let rest_only = case {a=1, b=2} of
+                {..all} =>
+                    all
             end
             [captured, rejects_extra_field, rejects_extra_computed_key, permits_extras, rest_only]
         "#,
@@ -177,20 +206,27 @@ fn map_patterns_are_closed_by_default_and_map_rest_preserves_order_and_aliases()
 fn nil_map_fields_match_absence_while_other_patterns_require_presence() {
     assert_eval(
         r#"
-        let absent_nil = case {}
-            of {missing=nil} do true
-            of _ do false
+        let absent_nil = case {} of
+            {missing=nil} =>
+                true
+            _ =>
+                false
         end
-        let absent_binding = case {}
-            of {missing=value} do false
-            of _ do true
+        let absent_binding = case {} of
+            {missing=value} =>
+                false
+            _ =>
+                true
         end
-        let absent_nil_with_extra = case {other=1}
-            of {missing=nil} do false
-            of {missing=nil, ..} do true
+        let absent_nil_with_extra = case {other=1} of
+            {missing=nil} =>
+                false
+            {missing=nil, ..} =>
+                true
         end
-        let omitted_literal = case {missing=nil}
-            of {missing=nil, ..rest} do rest
+        let omitted_literal = case {missing=nil} of
+            {missing=nil, ..rest} =>
+                rest
         end
         [absent_nil, absent_binding, absent_nil_with_extra, omitted_literal]
         "#,
@@ -216,16 +252,17 @@ fn guards_run_in_order_only_after_a_match_and_share_the_selected_case_scope() {
             let events = []
             let n = 99
             let local = 50
-            let selected = case produce(events)
-                of [value, extra] when record(events, "failed-pattern", true) do 0
-                of [n] when record(events, "false", false) do
+            let selected = case produce(events) of
+                [value, extra] when record(events, "failed-pattern", true) =>
+                    0
+                [n] when record(events, "false", false) => do
                     list.append(events, "false-body")
                     1
-
-                of [n] when record(events, "true", n == 2) do
+                end
+                [n] when record(events, "true", n == 2) => do
                     let local = n + 1
                     [n, local]
-
+                end
             end
             [n, local, selected, events]
         "#,
@@ -237,13 +274,17 @@ fn guards_run_in_order_only_after_a_match_and_share_the_selected_case_scope() {
 fn match_is_expression_valued_and_supports_postfix_operations() {
     assert_eval(
         r#"
-            let selected = case "yes"
-                of "yes" do 40
-                of _ do 0
+            let selected = case "yes" of
+                "yes" =>
+                    40
+                _ =>
+                    0
             end
-            let indexed = case true
-                of true do [10, selected + 2]
-                of false do []
+            let indexed = case true of
+                true =>
+                    [10, selected + 2]
+                false =>
+                    []
             end[1]
             indexed
         "#,
@@ -255,17 +296,18 @@ fn match_is_expression_valued_and_supports_postfix_operations() {
 fn nested_match_and_if_bodies_do_not_consume_an_outer_case() {
     assert_eval(
         r#"
-            case 2
-                of 1 do
+            case 2 of
+                1 =>
                     if true then "wrong" else "also wrong" end
-
-                of 2 do
-                    let inner = case [3]
-                        of [value] do value
+                2 => do
+                    let inner = case [3] of
+                        [value] =>
+                            value
                     end
                     if inner == 3 then "right" else "wrong" end
-
-                of _ do "fallback"
+                end
+                _ =>
+                    "fallback"
             end
         "#,
         "\"right\"",
@@ -274,14 +316,14 @@ fn nested_match_and_if_bodies_do_not_consume_an_outer_case() {
 
 #[test]
 fn no_selected_case_reports_the_complete_match_span() {
-    let source = "let prefix = \"é\"\ncase 1\nof value when false do 0\nend";
+    let source = "let prefix = \"é\"\ncase 1 of\nvalue when false => 0\nend";
     let start = source.find("case").expect("source contains case");
     assert_runtime_error(source, (start, source.len()), "no case clause matched");
 }
 
 #[test]
 fn a_non_boolean_guard_reports_the_guard_span() {
-    let source = "case 1 of value when 123 do value end";
+    let source = "case 1 of value when 123 => value end";
     let start = source.find("123").expect("source contains guard");
     assert_runtime_error(
         source,
@@ -292,7 +334,7 @@ fn a_non_boolean_guard_reports_the_guard_span() {
 
 #[test]
 fn duplicate_bindings_are_rejected_at_the_second_identifier() {
-    let nested = "case [] of [x, {field=x}] do nil end";
+    let nested = "case [] of [x, {field=x}] => nil end";
     let second_x = nested.rfind('x').expect("source contains duplicate x");
     assert_parse_error(
         nested,
@@ -300,7 +342,7 @@ fn duplicate_bindings_are_rejected_at_the_second_identifier() {
         "duplicate binding `x` in pattern",
     );
 
-    let rest = "case [] of [item, ..item] do nil end";
+    let rest = "case [] of [item, ..item] => nil end";
     let second_item = rest.rfind("item").expect("source contains duplicate item");
     assert_parse_error(
         rest,
@@ -311,7 +353,7 @@ fn duplicate_bindings_are_rejected_at_the_second_identifier() {
 
 #[test]
 fn duplicate_map_pattern_fields_are_rejected_at_the_second_key() {
-    let source = "case {} of {value=1, value=2} do nil end";
+    let source = "case {} of {value=1, value=2} => nil end";
     let second_value = source
         .rfind("value")
         .expect("source contains duplicate field");
@@ -319,27 +361,5 @@ fn duplicate_map_pattern_fields_are_rejected_at_the_second_key() {
         source,
         (second_value, second_value + "value".len()),
         "duplicate map pattern field `value`",
-    );
-}
-
-#[test]
-fn match_inside_a_loop_uses_ordinary_lexical_state() {
-    assert_eval(
-        r#"
-            do
-                let visited = []
-                let state = 0
-                loop
-                    case state
-                    of n when n < 3 do
-                        list.append(visited, n)
-                        state = state + 1
-                        continue
-                    of n do break [n, visited]
-                    end
-                end
-            end
-        "#,
-        "[3, [0, 1, 2]]",
     );
 }

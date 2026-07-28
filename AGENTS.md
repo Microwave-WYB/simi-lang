@@ -8,7 +8,7 @@ Before specialized work, inspect [`.agents/skills/`](.agents/skills/) and load t
 
 ## Project Purpose
 
-Simi is a small, embeddable scripting language implemented in Rust. It combines a Lua-inspired dynamic runtime with expression-oriented control flow, pipelines, functional loops, structural pattern matching, and value-based errors.
+Simi is a small, embeddable scripting language implemented in Rust. It combines a Lua-inspired dynamic runtime with expression-oriented control flow, pipelines, lazy iterators, structural pattern matching, and value-based errors.
 
 The language is intended to be:
 
@@ -67,7 +67,7 @@ end
 
 A standalone `do ... end` is a primary block expression with zero or more items. It evaluates in a fresh child scope to its last item's value, or to `nil` when empty, and composes with postfix calls, field access, indexing, and `?`.
 
-Postfix `?` passes a non-`nil` value through unchanged. A `nil` value stops the nearest lexically enclosing block and makes that block evaluate to `nil`. Every function body, standalone block, conditional branch, case or catch arm, try protected body, and loop body is such a boundary. Raises and hard diagnostics are unaffected, and nil propagation from a protected try body bypasses catches. In a loop body, propagation exits that iteration normally; its ordinary value is discarded and the loop starts its next iteration. Only `break value` determines the loop expression's result. The canonical Rust parser rejects `?` at the operator only when there is no enclosing block, while the Tree-sitter editor grammar may parse that form permissively for editor recovery.
+Postfix `?` passes a non-`nil` value through unchanged. A `nil` value stops the nearest lexically enclosing body boundary and makes that body evaluate to `nil`. Every function body, standalone block, conditional branch, case or catch arm, and protected `do` body is such a boundary. Raises and hard diagnostics are unaffected, and nil propagation from a protected body bypasses catches. The canonical Rust parser rejects `?` at the operator only when there is no enclosing body boundary, while the Tree-sitter editor grammar may parse that form permissively for editor recovery.
 
 ### Bindings and assignment
 
@@ -107,7 +107,7 @@ A nonnegative out-of-range read returns `nil`. Negative and non-integer indices 
 
 Ordinary aliases observe the same mutations. List-rest pattern captures, `list.slice`, and `list.copy` create independent copy-on-write views in O(1), while nested values retain shallow alias identity. `list.copy` covers the source's full visible range; mutating either outer list detaches its backing as needed.
 
-The built-in `list` global provides list-specific mutation, shallow copying, slicing, inspection, and an O(1) snapshot iterator. Generic lazy traversal belongs to `std/iter`; its adapters include `map` and `filter`, while consumers include `to_list`, `fold`, `find`, `find_index`, `contains`, `any`, `all`, `each`, and predicate-based `count`. Iterators are single-pass and sticky after exhaustion. Predicates must return booleans, searches short-circuit and leave later elements unconsumed, callback raises propagate, and `each` returns `nil`. `map.iter` snapshots insertion-ordered `{ key = key, value = value }` entries.
+The built-in `list` global provides list-specific mutation, shallow copying, slicing, inspection, and an O(1) snapshot iterator. Generic lazy traversal belongs to `std/iter`; finite sources include `empty`, `once`, `repeat`, and ascending half-open integer `range`, while adapters include `map`, `filter`, `take`, `drop`, `enumerate`, `zip`, and `zip_longest`. Consumers include `to_list`, `fold`, `find`, `find_index`, `contains`, `any`, `all`, `each`, and predicate-based `count`. Iterators are single-pass and sticky after exhaustion. Predicates must return booleans, searches short-circuit and leave later elements unconsumed, callback raises propagate, and `each` returns `nil`. `map.iter` snapshots insertion-ordered `{ key = key, value = value }` entries.
 
 ### Maps
 
@@ -208,9 +208,9 @@ Scripts acquire modules explicitly through the shadowable global `require` funct
 list.length([ 1, 2, 3 ])
 ```
 
-Normal/default interpreters and all `Engine` evaluations provide the shadowable globals `type(value)` and `inspect(value)` alongside `require`. The low-level `Interpreter::with_globals` constructor intentionally treats its environment as complete and does not add a prelude. `type` returns the stable reflective labels listed above, including `"function"` for both user and native functions. Detailed runtime diagnostics may still distinguish native functions. `inspect` is cycle-safe human-readable rendering, not serialization.
+Normal/default interpreters and all normal `Engine` evaluations provide the shadowable globals `type(value)`, `inspect(value)`, `require`, `list`, `map`, `iter`, `number`, and `string`. The low-level `Interpreter::with_globals` constructor intentionally treats its environment as complete and does not add a prelude. `type` returns the stable reflective labels listed above, including `"function"` for both user and native functions. Detailed runtime diagnostics may still distinguish native functions. `inspect` is cycle-safe human-readable rendering, not serialization.
 
-Modules are registered by the embedding host and cached per `Engine`. Repeated `require` calls return the same cached export value, and module state persists across evaluations performed by that engine. Separate engines have separate module registries. `Engine::new()` provides built-in `list` and `map` globals but no registered modules; built-in `require("std/list")` and `require("std/map")` raise `module_not_found`, while hosts may explicitly register modules at those paths. `Engine::with_stdlib()` also includes `std/iter`, `std/number`, and `std/string`. The root `eval` convenience function uses a fresh standard-library engine.
+Modules are registered by the embedding host and cached per `Engine`. Repeated `require` calls return the same cached export value, and module state persists across evaluations performed by that engine. Separate engines have separate module registries. `Engine::new()` and `Engine::with_stdlib()` both provide the portable `list`, `map`, `iter`, `number`, and `string` prelude values; their canonical `std/*` paths remain require-able and share each prelude value's cache identity. `Engine::builder().build()` remains an explicit bare host configuration. The root `eval` convenience function uses a fresh portable engine.
 
 Text standard IO is one opt-in capability named `std/io`. The CLI registers it; `Engine::with_stdlib()` and root `eval` do not. Embedders can opt in with `Engine::builder().stdlib().stdio()`. It supplies `read_line`, `print`, `println`, `eprint`, and `eprintln`. Output functions accept strings only and flush automatically; other values require explicit `inspect`. EOF returns `nil`, and successful writes return `nil`. Failures from either the write or its automatic flush raise `{ error = "io_error", operation = operation, message = message }` using the originating operation name. Raw `read` and `write` remain deferred until Simi has bytes.
 
@@ -220,34 +220,20 @@ Source-level documentation uses consecutive `---` comments for the following dec
 
 A missing module raises `{ error = "module_not_found", module = name }`. Circular lazy loading raises `{ error = "circular_module_dependency", module = name }`. A non-string module name, calling a missing or non-function host field, and invalid native function arguments are hard runtime errors. Filesystem and package discovery are not implemented; embedders register source strings explicitly.
 
-### Loops
-
-Loops are expression-valued with one primitive form:
-
-```simi
-loop
-    body
-end
-```
-
-Reaching the end of the body discards its ordinary value and starts the next iteration. `continue` starts the next iteration early, while `break value` is the sole terminating path and determines the loop result. State is ordinary lexical state: assignments and mutations update surrounding bindings and containers. Use a standalone `do ... end` block when setup bindings should remain private.
-
-Keep loop control-flow contracts consistent in the parser and integration tests. Future `for` or `while` convenience forms, if introduced, must desugar to ordinary bindings plus this primitive and must not introduce separate runtime loop semantics.
-
 ### Pattern matching
 
 Simi has structural, expression-valued matching:
 
 ```simi
-case value
-of pattern when guard do
-    body
-of _ do
-    fallback
+case value of
+    pattern when guard =>
+        body
+    _ =>
+        fallback
 end
 ```
 
-The canonical case grammar requires one or more `of` clauses, repeats `of` before each sibling clause, and uses one final `end` for the whole expression rather than a per-clause `end`. Patterns support literals, bindings, wildcards, nested list/map patterns, and list/map rests. Guards must evaluate to booleans. Bindings are scoped to the selected clause; its `do` body extends until the next `of` or the final `end`, so clauses remain whitespace-independent and may appear on one line.
+The canonical case grammar uses one `of` to introduce one or more `pattern [when guard] => expression` arms and one final `end` for the whole expression. A direct arm result is exactly one complete expression; write it on the following indented line, although newlines and indentation are syntactically insignificant. Use `pattern => do ... end` for a zero- or multi-item lexical result. Patterns support literals, bindings, wildcards, nested list/map patterns, and list/map rests. Guards must evaluate to booleans. Bindings are scoped to the selected clause.
 
 Map patterns are closed by default: `{field = pattern}` rejects maps with any additional string or computed keys. Add `..` to allow additional keys or `..rest` to capture them. Named fields normally require key presence. The literal nil field pattern is the exception: `{missing = nil}` matches an absent field, consistent with map lookup and deletion semantics; without a rest marker, unrelated keys still make that closed pattern fail.
 
@@ -260,17 +246,18 @@ Any value may be raised and structurally caught:
 ```simi
 raise { error = "invalid_input", value = input }
 
-try
+do
     prepare()
     operation()
-catch { error = "invalid_input", value = value } do
-    recover(value)
-catch error do
-    raise error
+catch of
+    { error = "invalid_input", value = value } =>
+        recover(value)
+    error =>
+        raise error
 end
 ```
 
-The canonical try grammar requires one or more protected items followed by one or more `catch` clauses, repeats `catch` before each sibling clause, and uses one final `end` for the whole expression. The protected items evaluate as a block in a fresh child scope. Only a raise from that protected block is matched by the catches: nil propagation and hard diagnostics bypass them, while raises from catch guards or handler bodies escape rather than being considered by later catches.
+A protected `do` expression requires one or more protected items followed by `catch of` and one or more `pattern [when guard] => expression` arms, then one final `end`. Direct catch results are written on the following indented line; whitespace is not syntactically significant. Use `pattern => do ... end` for a zero- or multi-item lexical handler result. The protected items evaluate in a fresh child scope. Only a raise from that protected body is matched by the catches: nil propagation and hard diagnostics bypass them, while raises from catch guards or handler bodies escape rather than being considered by later catches.
 
 Generated structural errors use an `error` discriminator and may gain additional fields over time. Preserve stable discriminator strings.
 
@@ -315,6 +302,8 @@ Canonical source examples use compact delimiters with spaces after commas and ar
 
 Empty forms remain `{}` and `[]`. Trailing commas are accepted in comma-separated constructs. Write single-line type unions without a leading `|`. For multiline type unions, put every member—including the first—on its own line beginning with `|`.
 
+When a function, case arm, or catch arm has an elided single-expression body, put that body on the following indented line. This is canonical formatting only: newlines and indentation never terminate syntax. Use an explicit `do ... end` body for zero or multiple items.
+
 When a multiline pipeline is the right-hand side of a binding, break after `=` and indent the continuation:
 
 ```simi
@@ -344,7 +333,8 @@ Prefer cohesive modules over extending already-large files. Place native library
 
 ## Repository and Worktree Discipline
 
-- `main` is the integration branch.
+- Milestone integration branches are named `dev/<milestone>` (for example, `dev/0.1.0-alpha.1`). Feature PRs target the active milestone branch; CI is required but review is not.
+- `main` receives only a reviewed promotion PR from a validated milestone branch, then serves as the release branch.
 - Use focused feature branches and separate worktrees for parallel work.
 - Have only one writer modify a given worktree.
 - Avoid assigning parallel branches changes to the same facade or registration file when possible.
@@ -376,13 +366,13 @@ Add tests at the lowest useful layer and at the public language boundary when se
 
 ## Near-Term Direction
 
-The portable standard library provides built-in `list` and `map` globals plus require-able `std/iter`, `std/number`, and `std/string`; `type` and `inspect` are globals. Anonymous functions, trailing callback application, and lazy single-pass iterators are implemented. The CLI additionally registers the opt-in `std/io` text module.
+The portable standard library provides shadowable `list`, `map`, `iter`, `number`, and `string` globals plus their require-able canonical `std/*` paths; `type` and `inspect` are globals. Anonymous functions, trailing callback application, and lazy single-pass iterators are implemented. The CLI additionally registers the opt-in `std/io` text module.
 
-Rowan syntax, Salsa-backed lexical and type analysis, `simi-lsp`, and the VS Code/Zed adapters are implemented. The erased optional type system parses inline annotations and transparent aliases, infers stable body-based function and binding types, reports definite contradictions, and supplies typed hover/completion for source modules. Callable types carry erased parameter labels, optional bounded generic headers, and a distinct raised effect. Structural list/map refinement is inferred only in a binding's defining lexical scope; annotations and closure capture seal the analyzer-visible contract. Omission infers the effect, `raises E` checks an upper bound, and `noraise` means `raises never`; hard diagnostics and postfix `?` remain outside that channel.
+Rowan syntax, Salsa-backed lexical and type analysis, `simi-lsp`, and the VS Code/Zed adapters are implemented. The erased optional type system parses inline annotations and transparent aliases, infers stable body-based function and binding types, reports definite contradictions, and supplies typed hover/completion for source modules. Callable types carry erased parameter labels, optional bounded generic headers, and a distinct raised-error contract. Structural list/map refinement is inferred only in a binding's defining lexical scope; annotations and closure capture seal the analyzer-visible contract. Omission infers the raised contract, `! E` checks an upper bound, and `! never` forbids language raises; hard diagnostics and postfix `?` remain outside that channel.
 
 Likely later milestones include script-visible command-line arguments, filesystem/package module discovery, and formatting. These are roadmap items, not implemented features. Do not add them opportunistically outside an approved task.
 
-The authoritative erased-type design is documented in [`docs/type-system.md`](docs/type-system.md). Its primitive static vocabulary is `never`, `nil`, `boolean`, `integer`, `float`, `string`, and `any`; numeric APIs use `integer | float`, never a special static `number` type. Annotations and aliases are erased and must not affect runtime semantics. Generic bounds are ordinary Simi type upper bounds—never traits or protocols—and nested explicit headers introduce their own binders. Callable labels are presentation metadata only; calls remain positional. Every union accepts an optional leading `|`. There is no callable `before => after` transition syntax or caller-visible mutation effect. Direct modeled mutation may refine an unsealed local list or map; a captured binding may mutate only compatibly with its already-stable type. Because maps delete nil values, a field type such as `count: integer | nil` permits absence. Raised effects union through reachable calls and catches remove only definitely handled variants.
+The authoritative erased-type design is documented in [`docs/type-system.md`](docs/type-system.md). Its primitive static vocabulary is `never`, `nil`, `boolean`, `integer`, `float`, `string`, and `any`; the erased built-in alias `number` means `integer | float` and never creates a distinct runtime category. Annotations and aliases are erased and must not affect runtime semantics. Generic bounds are ordinary Simi type upper bounds—never traits or protocols—and nested explicit headers introduce their own binders. Callable labels are presentation metadata only; calls remain positional. Every union accepts an optional leading `|`. There is no callable `before => after` transition syntax or caller-visible mutation effect. Direct modeled mutation may refine an unsealed local list or map; a captured binding may mutate only compatibly with its already-stable type. Because maps delete nil values, a field type such as `count: integer | nil` permits absence. Raised types union through reachable calls and catches remove only definitely handled variants.
 
 Builtin `type(value) == "label"` comparisons remain the primitive runtime category check and may later be recognized by the analyzer for narrowing. Static `integer` will correspond to the existing runtime label `"integer"`; changing that label is a separate compatibility decision. `TypeIs` is not part of the initial type-system scope.
 

@@ -27,12 +27,9 @@ impl SyntaxKind {
                 | Self::PIPELINE_EXPR
                 | Self::TRAILING_ARGUMENT_EXPR
                 | Self::RAISE_EXPR
-                | Self::TRY_EXPR
+                | Self::PROTECTED_EXPR
                 | Self::CASE_EXPR
                 | Self::IF_EXPR
-                | Self::LOOP_EXPR
-                | Self::CONTINUE_EXPR
-                | Self::BREAK_EXPR
         )
     }
 

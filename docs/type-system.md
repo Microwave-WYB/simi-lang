@@ -19,11 +19,11 @@ Annotations are inline and optional:
 ```simi
 let count: integer = 1
 
-fn display(value: integer) -> string do
-    require("std/number").to_string(value)
+fn display(value: number) -> string do
+    number.to_string(value)
 end
 
-let callback: (integer, integer) -> integer = add
+let callback: fn(integer, integer) -> integer = add
 ```
 
 The initial primitive vocabulary includes:
@@ -38,9 +38,9 @@ string
 any
 ```
 
-There is deliberately no static `number` type: numeric APIs use the explicit union `integer | float`. `never` is the bottom type. An empty list literal has the exact shape `[]`; `never` still appears when an expression has no normal return path or as the bottom member removed while unions are normalized. `any` is the explicit dynamic escape hatch: operations involving it remain valid but lose static precision. Insufficient evidence is tracked as an internal unknown type and presented publicly as `any`.
+`number` is a built-in erased alias for `integer | float`; it is not a distinct runtime category. Numeric APIs may use either spelling. `never` is the bottom type. An empty list literal has the exact shape `[]`; `never` still appears when an expression has no normal return path or as the bottom member removed while unions are normalized. `any` is the explicit dynamic escape hatch: operations involving it remain valid but lose static precision. Insufficient evidence is tracked as an internal unknown type and presented publicly as `any`.
 
-Destructuring `let` patterns are checked against their inferred right-hand type. A pattern that is guaranteed to match has no diagnostic; a pattern that may fail produces an advisory warning recommending `case`; and a pattern that cannot match produces an analysis error. These classifications are erased and never weaken or replace the runtime's atomic hard diagnostic for a failed `let` match.
+Destructuring `let` patterns are checked against their inferred right-hand type. A pattern that is guaranteed to match has no diagnostic; a pattern that may fail produces an advisory warning recommending `case`; and a pattern that cannot match produces an analysis error. Direct map bindings in `let` receive `nil` when a field is absent, so their inferred type is `T | nil` when map presence is not proven. These classifications are erased and never weaken or replace the runtime's atomic hard diagnostic for a failed `let` match.
 
 The static integer spelling is `integer`. Runtime reflection deliberately remains
 unchanged for compatibility:
@@ -55,17 +55,16 @@ same spelling.
 
 ## Functions and generics
 
-Function types use arrows:
+Callable types use explicit `fn(parameters) -> result` syntax:
 
 ```simi
-integer -> integer
-(integer, integer) -> integer
-() -> integer
-integer -> string -> boolean
+fn(integer) -> integer
+fn(integer, integer) -> integer
+fn() -> integer
+fn(integer) -> fn(string) -> boolean
 ```
 
-Arrows associate to the right. Parentheses distinguish fixed parameter lists
-from a single parameter.
+Callable parameter lists always use parentheses. Results may themselves be callable types, so nesting remains explicit and right-associative. Legacy bare arrow forms such as `integer -> integer` are rejected.
 
 Generic variables begin with an apostrophe. Alias parameters are explicit, and
 type application uses angle brackets:
@@ -80,18 +79,18 @@ let name: option<string> = nil
 Free generic variables in a function annotation are implicitly quantified. A callable may also declare an explicit generic header, with optional ordinary-type upper bounds:
 
 ```simi
-fn identity(value: 'a) -> 'a noraise do
+fn identity(value: 'a) -> 'a ! never do
     value
 end
 
-fn negate<'a: integer | float>(value: 'a) -> 'a noraise do
+fn negate<'a: integer | float>(value: 'a) -> 'a ! never do
     -value
 end
 
 fn transform<'e>(
     value: 'a,
-    callback: (input: 'a) -> 'b raises 'e,
-) -> 'b raises 'e do
+    callback: fn(input: 'a) -> 'b ! 'e,
+) -> 'b ! 'e do
     callback(value)
 end
 ```
@@ -105,20 +104,23 @@ Callers never supply explicit generic arguments. Forms such as `identity<string>
 A callable has a normal result type and a separate raised type:
 
 ```simi
-string -> integer
-string -> integer raises {error: "invalid_input", ..}
-string -> integer noraise
+fn(string) -> integer
+fn(string) -> integer ! {error: "invalid_input", ..}
+fn(string) -> integer ! never
 ```
 
-Omitting an effect clause asks the analyzer to infer it. `raises E` declares and checks an upper bound; `noraise` is canonical sugar for `raises never`. Raised effects may use the callable's generics and propagate through callbacks. Hard diagnostics and postfix `?` are outside this channel. In chained shorthand, an effect tail belongs to the nearest right-hand arrow; use parentheses to put an effect on an outer callable.
+Omitting a raised-error contract asks the analyzer to infer it. `! E` declares and checks an upper bound; `! never` forbids language raises. Raised-error contracts may use the callable's generics and propagate through callbacks. Hard diagnostics and postfix `?` are outside this channel. In nested callable types, a raised-error contract belongs to the callable immediately before it.
 
 ## Unions and literal types
 
-`|` forms unions. The syntax accepts an optional leading `|`. Canonical documentation omits it for single-line unions; multiline unions put every member, including the first, on a line beginning with `|`. String literals may be singleton types; numeric and Boolean literals widen to `integer`, `float`, and `boolean`. `nil` is also a type and an ordinary union member:
+`|` forms unions. The syntax accepts an optional leading `|`. Canonical documentation omits it for single-line unions; multiline unions put every member, including the first, on a line beginning with `|`. Every primitive literal may be written as an explicit singleton type: `nil`, `true`, `false`, strings, integers, and finite floats. Each singleton is a subtype of its ordinary primitive category. Numeric literals and ordinary Boolean expression values still infer as `integer`, `float`, and `boolean`; singleton annotations do not introduce global literal inference. Direct named map fields preserve Boolean singleton facts as record discriminants. `nil` is also an ordinary union member:
 
 ```simi
 alias mode = "read" | "write"
+alias retry_count = 0 | 1 | 2
+alias threshold = 0.5 | 1.0
 alias maybe_name = string | nil
+let port: 8080 = 8080
 ```
 
 Literal fields support discriminated structural records:
@@ -127,7 +129,15 @@ Literal fields support discriminated structural records:
 alias result<'value, 'error> =
     | { kind: "ok", value: 'value }
     | { kind: "error", error: 'error }
+
+alias step<'value> =
+    | { done: true, .. }
+    | { done: false, value: 'value, .. }
 ```
+
+A direct field such as `{done = false}` proves the `false` variant. A field initialized from an arbitrary Boolean variable, call, or operator remains `boolean` and does not prove either singleton. `true | false` normalizes to `boolean`, and a broad primitive is never a subtype of one of its singletons.
+
+Numeric singleton spelling preserves runtime categories: `1` is an integer singleton while `1.0` is a float singleton, including integral floats. Float zero is normalized by runtime numeric equality, so `-0.0` and `0.0` denote the same float singleton and display canonically as `0.0`. Finite-float lexical validation remains unchanged, and annotations remain erased.
 
 Pattern matching and ordinary equality may narrow these unions. Exhaustiveness
 analysis may warn about missing cases, but it does not change the current
@@ -239,9 +249,8 @@ mutated structure.
 
 Postfix `?` removes `nil` on the surviving continuation through the nearest
 lexical block. The block's nil-abort and normal exits join again outside that
-boundary. A nil-abort from a loop body ends that iteration and starts the next;
-the ordinary body value is discarded. It does not contribute a loop result,
-which only comes from `break value`. Each `?>` stage similarly splits
+boundary. Iterator controls are ordinary maps returned from callbacks and do not
+introduce a lexical control-flow boundary. Each `?>` stage similarly splits
 nil-skipped and active paths lazily,
 applies call effects only on the active path, and rejoins before the following
 pipeline stage. An ordinary `|>` following it therefore receives the complete

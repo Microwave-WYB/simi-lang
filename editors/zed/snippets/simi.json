@@ -1,81 +1,27 @@
 {
-  "Standalone block": {
-    "prefix": "do",
+  "Case expression": {
+    "prefix": "case",
     "body": [
-      "do",
-      "    $0",
+      "case ${1} of",
+      "    ${2}",
       "end"
     ],
-    "description": "Create a standalone value-producing block"
+    "description": "Explicit case snippet with numeric-only tab stops"
   },
   "Named function": {
     "prefix": "fn",
     "body": [
-      "fn $1($2) do",
-      "    $0",
-      "end"
+      "fn ${1}(${2}) ${3}"
     ],
-    "description": "Declare a named function"
+    "description": "Explicit named function snippet with numeric-only tab stops"
   },
-  "Anonymous function": {
-    "prefix": "fnexpr",
+  "Standalone block": {
+    "prefix": "do",
     "body": [
-      "fn($1) do",
-      "    $0",
+      "do",
+      "    ${1}",
       "end"
     ],
-    "description": "Create an anonymous function expression"
-  },
-  "If expression": {
-    "prefix": "if",
-    "body": [
-      "if $1 then",
-      "    $0",
-      "end"
-    ],
-    "description": "Create an if expression"
-  },
-  "If else expression": {
-    "prefix": "ifelse",
-    "body": [
-      "if $1 then",
-      "    $2",
-      "else",
-      "    $0",
-      "end"
-    ],
-    "description": "Create an if/else expression"
-  },
-  "Loop": {
-    "prefix": "loop",
-    "body": [
-      "loop",
-      "    $0",
-      "end"
-    ],
-    "description": "Create an expression-valued loop"
-  },
-  "Case expression": {
-    "prefix": "case",
-    "body": [
-      "case $1",
-      "of $2 do",
-      "    $3",
-      "of _ do",
-      "    $0",
-      "end"
-    ],
-    "description": "Create a case expression with one final end"
-  },
-  "Try catch expression": {
-    "prefix": "try",
-    "body": [
-      "try",
-      "    $1",
-      "catch $2 do",
-      "    $0",
-      "end"
-    ],
-    "description": "Create a try/catch expression with one final end"
+    "description": "Explicit standalone block snippet with numeric-only tab stops"
   }
 }

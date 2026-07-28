@@ -3,12 +3,60 @@
 
 from __future__ import annotations
 
+import gzip
 import hashlib
 import shutil
 import sys
 import tarfile
 import zipfile
 from pathlib import Path
+
+
+def archive_mode(archived_name: str) -> int:
+    """Return the stable Unix mode retained by an archive entry."""
+    return 0o755 if archived_name in {"simi", "simi.exe"} else 0o644
+
+
+def write_tar_archive(
+    archive: Path, bundled_files: tuple[tuple[Path, str], ...]
+) -> None:
+    """Write a reproducible gzip-compressed tar archive."""
+    with archive.open("wb") as archive_file:
+        with gzip.GzipFile(
+            filename="", mode="wb", fileobj=archive_file, mtime=0
+        ) as compressed:
+            with tarfile.open(fileobj=compressed, mode="w") as bundle:
+                for path, archived_name in bundled_files:
+                    info = bundle.gettarinfo(str(path), arcname=archived_name)
+                    info.uid = 0
+                    info.gid = 0
+                    info.uname = ""
+                    info.gname = ""
+                    info.mtime = 0
+                    info.mode = archive_mode(archived_name)
+                    with path.open("rb") as source_file:
+                        bundle.addfile(info, source_file)
+
+
+def write_zip_archive(
+    archive: Path, bundled_files: tuple[tuple[Path, str], ...]
+) -> None:
+    """Write a reproducible ZIP archive."""
+    with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as bundle:
+        for path, archived_name in bundled_files:
+            info = zipfile.ZipInfo(archived_name, date_time=(1980, 1, 1, 0, 0, 0))
+            info.create_system = 3
+            info.compress_type = zipfile.ZIP_DEFLATED
+            info.external_attr = archive_mode(archived_name) << 16
+            bundle.writestr(info, path.read_bytes())
+
+
+def write_checksum(artifact: Path) -> Path:
+    """Write and return the SHA-256 checksum sidecar for *artifact*."""
+    digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
+    checksum = artifact.with_name(f"{artifact.name}.sha256")
+    checksum.write_text(f"{digest}  {artifact.name}\n", encoding="utf-8")
+    return checksum
 
 
 def main() -> None:
@@ -43,22 +91,16 @@ def main() -> None:
 
     if platform == "windows":
         archive = output / f"{stem}.zip"
-        with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as bundle:
-            for path, archived_name in bundled_files:
-                bundle.write(path, archived_name)
+        write_zip_archive(archive, bundled_files)
     else:
         archive = output / f"{stem}.tar.gz"
-        with tarfile.open(archive, "w:gz") as bundle:
-            for path, archived_name in bundled_files:
-                bundle.add(path, arcname=archived_name)
+        write_tar_archive(archive, bundled_files)
 
     vsix_output = output / f"simi-vscode-{sha}-{target}.vsix"
     shutil.copyfile(vsix, vsix_output)
 
     for artifact in (archive, vsix_output):
-        digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
-        checksum = artifact.with_name(f"{artifact.name}.sha256")
-        checksum.write_text(f"{digest}  {artifact.name}\n", encoding="utf-8")
+        checksum = write_checksum(artifact)
         print(artifact)
         print(checksum)
 

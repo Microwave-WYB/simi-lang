@@ -54,52 +54,40 @@ fn slice_bounds_and_split_semantics_are_publicly_observable() {
 }
 
 #[test]
-fn string_module_is_an_explicit_capability() {
-    let missing = match Engine::new()
-        .eval("require(\"std/string\")")
-        .expect("missing module should be a language raise")
-    {
-        Err(raised) => raised,
-        Ok(value) => panic!(
-            "empty engine should not contain string module, got {}",
-            value.render()
-        ),
-    };
-    assert_eq!(
-        missing.value.render(),
-        "{error=\"module_not_found\", module=\"std/string\"}"
-    );
-
-    let direct = Engine::builder()
-        .module(simi::stdlib::string())
-        .build()
-        .eval("let string = require(\"std/string\") string.upper(\"ok\")")
-        .unwrap()
-        .unwrap();
-    assert_eq!(direct.render(), "\"OK\"");
+fn string_prelude_and_canonical_path_are_portable() {
+    let value = Engine::new()
+        .eval(
+            r#"
+            string.marker = "shared"
+            [string.upper("ok"), require("std/string").marker]
+            "#,
+        )
+        .expect("portable string module should not hard fail")
+        .expect("portable string module should not raise");
+    assert_eq!(value.render(), "[\"OK\", \"shared\"]");
 }
 
 #[test]
 fn wrong_types_and_indices_remain_uncatchable_hard_diagnostics() {
     for (source, qualified_name) in [
         (
-            "let string = require(\"std/string\") try string.length(1) catch _ do nil end",
+            "let string = require(\"std/string\") do string.length(1) catch of _ => nil end",
             "std/string.length",
         ),
         (
-            "let string = require(\"std/string\") try string.slice(\"abc\", 0 - 1, 2) catch _ do nil end",
+            "let string = require(\"std/string\") do string.slice(\"abc\", 0 - 1, 2) catch of _ => nil end",
             "std/string.slice",
         ),
         (
-            "let string = require(\"std/string\") try string.slice(\"abc\", 0, 2.0) catch _ do nil end",
+            "let string = require(\"std/string\") do string.slice(\"abc\", 0, 2.0) catch of _ => nil end",
             "std/string.slice",
         ),
         (
-            "let string = require(\"std/string\") try string.contains(\"abc\", 1) catch _ do nil end",
+            "let string = require(\"std/string\") do string.contains(\"abc\", 1) catch of _ => nil end",
             "std/string.contains",
         ),
         (
-            "let string = require(\"std/string\") try string.concat(\"abc\", 1) catch _ do nil end",
+            "let string = require(\"std/string\") do string.concat(\"abc\", 1) catch of _ => nil end",
             "std/string.concat",
         ),
     ] {

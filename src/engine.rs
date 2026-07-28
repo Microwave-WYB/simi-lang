@@ -36,90 +36,6 @@ pub(crate) enum ModuleLookup {
     Source { source: Arc<str>, host: Value },
 }
 
-#[derive(Clone)]
-pub(crate) struct PreludeRegistry {
-    entries: Rc<RefCell<HashMap<String, PreludeEntry>>>,
-}
-
-pub(crate) enum PreludeEntry {
-    Source {
-        name: String,
-        source: Arc<str>,
-        host: Value,
-        state: SourceModuleState,
-    },
-}
-
-pub(crate) enum PreludeLookup {
-    Loading,
-    Loaded(Value),
-    Source {
-        name: String,
-        source: Arc<str>,
-        host: Value,
-    },
-}
-
-impl PreludeRegistry {
-    fn new(entries: HashMap<String, PreludeEntry>) -> Self {
-        Self {
-            entries: Rc::new(RefCell::new(entries)),
-        }
-    }
-
-    pub(crate) fn begin_load(&self, alias: &str) -> PreludeLookup {
-        let mut entries = self.entries.borrow_mut();
-        let PreludeEntry::Source {
-            name,
-            source,
-            host,
-            state,
-        } = entries
-            .get_mut(alias)
-            .expect("configured prelude global should exist");
-        match state {
-            SourceModuleState::Unloaded => {
-                *state = SourceModuleState::Loading;
-                PreludeLookup::Source {
-                    name: name.clone(),
-                    source: source.clone(),
-                    host: host.clone(),
-                }
-            }
-            SourceModuleState::Loading => PreludeLookup::Loading,
-            SourceModuleState::Loaded(value) => PreludeLookup::Loaded(value.clone()),
-        }
-    }
-
-    pub(crate) fn finish_load(&self, alias: &str, value: Value) {
-        let mut entries = self.entries.borrow_mut();
-        let PreludeEntry::Source { state, .. } = entries
-            .get_mut(alias)
-            .expect("configured prelude global should exist");
-        *state = SourceModuleState::Loaded(value);
-    }
-
-    pub(crate) fn fail_load(&self, alias: &str) {
-        let mut entries = self.entries.borrow_mut();
-        let PreludeEntry::Source { state, .. } = entries
-            .get_mut(alias)
-            .expect("configured prelude global should exist");
-        *state = SourceModuleState::Unloaded;
-    }
-
-    fn sources(&self) -> Vec<(String, String)> {
-        self.entries
-            .borrow()
-            .values()
-            .map(|entry| match entry {
-                PreludeEntry::Source { name, source, .. } => {
-                    (name.clone(), source.as_ref().to_owned())
-                }
-            })
-            .collect()
-    }
-}
-
 impl ModuleRegistry {
     fn new(entries: HashMap<String, ModuleEntry>) -> Self {
         Self {
@@ -184,13 +100,12 @@ impl ModuleRegistry {
 
 pub struct Engine {
     modules: ModuleRegistry,
-    prelude: PreludeRegistry,
     install_prelude: bool,
 }
 
 impl Engine {
     pub fn new() -> Self {
-        Self::builder().prelude().build()
+        Self::builder().stdlib().build()
     }
 
     pub fn builder() -> EngineBuilder {
@@ -202,9 +117,7 @@ impl Engine {
     }
 
     pub fn module_sources(&self) -> Vec<(String, String)> {
-        let mut sources = self.modules.sources();
-        sources.extend(self.prelude.sources());
-        sources
+        self.modules.sources()
     }
 
     pub fn eval(&self, source: &str) -> Result<ScriptResult, SimiError> {
@@ -221,10 +134,11 @@ impl Engine {
         let mut interpreter = Interpreter::with_modules(self.modules.clone());
         if self.install_prelude {
             interpreter
-                .install_prelude_modules(&self.prelude)
-                .map_err(SimiError::Runtime)?;
+                .evaluate_with_prelude(&program)
+                .map_err(SimiError::Runtime)
+        } else {
+            interpreter.evaluate(&program).map_err(SimiError::from)
         }
-        interpreter.evaluate(&program).map_err(SimiError::from)
     }
 }
 
@@ -236,7 +150,6 @@ impl Default for Engine {
 
 pub struct EngineBuilder {
     modules: HashMap<String, Module>,
-    prelude_modules: Vec<(String, Module)>,
     install_prelude: bool,
 }
 
@@ -244,17 +157,21 @@ impl EngineBuilder {
     pub fn new() -> Self {
         Self {
             modules: HashMap::new(),
-            prelude_modules: Vec::new(),
             install_prelude: false,
         }
     }
 
     fn prelude(mut self) -> Self {
         self.install_prelude = true;
-        self.prelude_modules = vec![
-            ("list".to_owned(), stdlib::list()),
-            ("map".to_owned(), stdlib::map()),
-        ];
+        for module in [
+            stdlib::list(),
+            stdlib::map(),
+            stdlib::iter(),
+            stdlib::number(),
+            stdlib::string(),
+        ] {
+            self.modules.insert(module.name().to_owned(), module);
+        }
         self
     }
 
@@ -265,9 +182,6 @@ impl EngineBuilder {
 
     pub fn stdlib(self) -> Self {
         self.prelude()
-            .module(stdlib::iter())
-            .module(stdlib::number())
-            .module(stdlib::string())
     }
 
     pub fn stdio(self) -> Self {
@@ -291,28 +205,8 @@ impl EngineBuilder {
                 (name, entry)
             })
             .collect();
-        let prelude = self
-            .prelude_modules
-            .into_iter()
-            .map(|(alias, module)| {
-                let (name, contents) = module.into_parts();
-                let ModuleContents::Source { source, host } = contents else {
-                    unreachable!("built-in prelude modules are source-backed");
-                };
-                (
-                    alias,
-                    PreludeEntry::Source {
-                        name,
-                        source,
-                        host,
-                        state: SourceModuleState::Unloaded,
-                    },
-                )
-            })
-            .collect();
         Engine {
             modules: ModuleRegistry::new(modules),
-            prelude: PreludeRegistry::new(prelude),
             install_prelude: self.install_prelude,
         }
     }

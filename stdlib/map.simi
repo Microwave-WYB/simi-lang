@@ -1,22 +1,32 @@
 ---- Operations for mutable insertion-ordered maps.
 
+alias Entry = {
+    key: string | integer | float | boolean,
+    value: any,
+    ..
+}
+alias Step =
+    | { done: true, .. }
+    | { done: false, value: Entry, .. }
+alias Iterator = fn() -> Step ! never
+
 --- Return the number of entries in a map.
-let length: (entries: { .. }) -> integer noraise = host.length
+let length: fn(entries: { .. }) -> integer ! never = host.length
 
 --- Create an independent shallow copy of a map.
-let copy: (entries: { .. }) -> { .. } noraise = host.copy
+let copy: fn(entries: { .. }) -> { .. } ! never = host.copy
 
 --- Return whether a map contains a key.
-let has: (entries: { .. }, key: string | integer | float | boolean) -> boolean noraise = host.has
+let has: fn(entries: { .. }, key: string | integer | float | boolean) -> boolean ! never = host.has
 
 --- Create an insertion-ordered iterator over map entries.
-fn iter(entries: { .. }) do
+fn iter(entries: { .. }) -> Iterator ! never do
     let snapshot = host.iter(entries)
     let index = 0
     fn() do
         if index >= host.snapshot_length(snapshot) then {done = true}
         else
-            let value = snapshot[index]
+            let value: Entry = snapshot[index]
             index = index + 1
             {done = false, value = value}
         end
@@ -24,6 +34,6 @@ fn iter(entries: { .. }) do
 end
 
 --- Remove every entry from a map.
-let clear: (entries: { .. }) -> nil noraise = host.clear
+let clear: fn(entries: { .. }) -> nil ! never = host.clear
 
 {length = length, copy = copy, has = has, iter = iter, clear = clear}

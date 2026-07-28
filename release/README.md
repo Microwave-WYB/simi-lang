@@ -2,7 +2,9 @@
 
 This archive is produced from one immutable Git commit. Versioned prerelease
 assets are published under tags such as `v0.1.0-alpha.1`; the moving `latest`
-release remains a separate development convenience.
+release remains a separate development convenience. Alpha releases are
+distributed only through GitHub Release artifacts; crates.io publication is
+deferred.
 
 This archive contains one Simi command-line build:
 
@@ -63,13 +65,34 @@ vMAJOR.MINOR.PATCH-beta.N
 vMAJOR.MINOR.PATCH-rc.N
 ```
 
-The versioned-release workflow validates that the tag still points to the
-commit that was built, refuses to replace an existing release, and supports a
-manual dry run. It never retargets or deletes a versioned release. The moving
-`latest` workflow is intentionally separate and may be replaced.
+The versioned-release workflow validates that an existing tag still points to
+the commit that was built, refuses to replace an existing release, and supports
+a manual dry run. It never creates, retargets, or deletes a versioned tag; it
+creates the versioned release only on first publication and refuses to replace
+an existing one. The moving `latest` workflow is intentionally separate and may
+be replaced.
 
-Repository administrators must also configure a GitHub ruleset for the glob
-`v[0-9]*` that prevents tag deletion and updates and restricts tag creation to
-release automation. GitHub repository settings are not enforceable from this
-repository's workflow files; without that ruleset, a user with sufficient
-repository permissions could move a tag after publication.
+### Tag creation and publication
+
+The named release maintainer is the sole tag-ruleset bypass principal. After
+validating the intended commit, that maintainer creates and pushes the
+annotated prerelease tag:
+
+```sh
+git tag -a v0.1.0-alpha.1 <commit-sha> -m "Simi v0.1.0-alpha.1"
+git push origin v0.1.0-alpha.1
+```
+
+That existing tag triggers the versioned-release workflow. For a manual run,
+provide the same existing tag; Actions verifies both its local and remote
+commit before publishing the release with `--verify-tag`. GitHub Actions is not
+a tag-ruleset bypass actor and must not receive permission to create, update,
+or delete versioned tags.
+
+Repository administrators must configure the `v[0-9]*` tag ruleset to restrict
+creations, updates, deletions, and force pushes. Its bypass list must contain
+only the named release maintainer with an always-allow bypass; do not grant
+broad repository roles, administrators, or GitHub Actions a bypass. GitHub
+repository settings are not enforceable from this repository's workflow files;
+without that ruleset, a user with sufficient repository permissions could move
+a tag after publication.

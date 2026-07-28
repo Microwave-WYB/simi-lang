@@ -250,8 +250,6 @@ let alias = values |> tap list.append(4)
 Functions are values, so callback APIs first work through ordinary call arguments. This complete script creates a lazy mapped iterator and consumes it into a list:
 
 ```simi
-
-let iter = require("std/iter")
 let values = [1, 2, 3]
 
 values
@@ -265,8 +263,6 @@ end)
 The optional `<|` operator appends its right operand as exactly one final argument to the call on its left. It is useful when a multiline callback should end with `end` instead of `end)`:
 
 ```simi
-
-let iter = require("std/iter")
 let values = [1, 2, 3]
 
 values

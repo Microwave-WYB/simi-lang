@@ -30,9 +30,6 @@ pub enum SyntaxKind {
     AND_KW,
     OR_KW,
     NOT_KW,
-    LOOP_KW,
-    BREAK_KW,
-    CONTINUE_KW,
     CASE_KW,
     OF_KW,
     WHEN_KW,
@@ -50,13 +47,14 @@ pub enum SyntaxKind {
     COMMA,
     COLON,
     APOSTROPHE,
-    AT,
     ARROW,
+    FAT_ARROW,
     PIPE,
     DOT,
     DOT_DOT,
     EQ,
     EQ_EQ,
+    BANG,
     BANG_EQ,
     PLUS,
     MINUS,
@@ -82,7 +80,7 @@ pub enum SyntaxKind {
     PARAM_LIST,
     RETURN_ANNOTATION,
     EFFECT_ANNOTATION,
-    BLOCK,
+    BODY,
     TYPE_PARAM_LIST,
     TYPE_EXPR,
     TYPE_ANNOTATION,
@@ -90,11 +88,11 @@ pub enum SyntaxKind {
     TYPE_VARIABLE,
     TYPE_CONSTRAINT,
     TYPE_FUNCTION,
+    TYPE_PAREN,
     TYPE_UNION,
     TYPE_PRIMARY,
     TYPE_NAME,
     TYPE_LITERAL,
-    TYPE_PAREN,
     TYPE_LIST,
     TYPE_MAP,
     TYPE_ARGUMENT_LIST,
@@ -102,10 +100,12 @@ pub enum SyntaxKind {
     TYPE_LIST_REST,
     TYPE_MAP_ENTRY,
     TYPE_MAP_REST,
+    BLOCK,
     LITERAL_EXPR,
     NAME_EXPR,
     FUNCTION_EXPR,
     BLOCK_EXPR,
+    PROTECTED_EXPR,
     PAREN_EXPR,
     LIST_EXPR,
     MAP_EXPR,
@@ -121,16 +121,12 @@ pub enum SyntaxKind {
     RAISE_EXPR,
     PANIC_EXPR,
     TODO_EXPR,
-    TRY_EXPR,
     CASE_EXPR,
     IF_EXPR,
-    LOOP_EXPR,
-    CONTINUE_EXPR,
-    BREAK_EXPR,
+    CATCH_ARM,
     MAP_ENTRY,
     ARG_LIST,
     PIPELINE_STAGE,
-    CATCH_CLAUSE,
     CASE_CLAUSE,
     IF_BRANCH,
     ELSE_BRANCH,
@@ -179,7 +175,7 @@ ast_node!(CallableTypeParamList, CALLABLE_TYPE_PARAM_LIST);
 ast_node!(ParamList, PARAM_LIST);
 ast_node!(ReturnAnnotation, RETURN_ANNOTATION);
 ast_node!(EffectAnnotation, EFFECT_ANNOTATION);
-ast_node!(Block, BLOCK);
+ast_node!(Body, BODY);
 ast_node!(TypeParamList, TYPE_PARAM_LIST);
 ast_node!(TypeExpr, TYPE_EXPR);
 ast_node!(TypeAnnotation, TYPE_ANNOTATION);
@@ -187,11 +183,11 @@ ast_node!(Param, PARAM);
 ast_node!(TypeVariable, TYPE_VARIABLE);
 ast_node!(TypeConstraint, TYPE_CONSTRAINT);
 ast_node!(TypeFunction, TYPE_FUNCTION);
+ast_node!(TypeParen, TYPE_PAREN);
 ast_node!(TypeUnion, TYPE_UNION);
 ast_node!(TypePrimary, TYPE_PRIMARY);
 ast_node!(TypeName, TYPE_NAME);
 ast_node!(TypeLiteral, TYPE_LITERAL);
-ast_node!(TypeParen, TYPE_PAREN);
 ast_node!(TypeList, TYPE_LIST);
 ast_node!(TypeMap, TYPE_MAP);
 ast_node!(TypeArgumentList, TYPE_ARGUMENT_LIST);
@@ -199,10 +195,12 @@ ast_node!(TypeFunctionParam, TYPE_FUNCTION_PARAM);
 ast_node!(TypeListRest, TYPE_LIST_REST);
 ast_node!(TypeMapEntry, TYPE_MAP_ENTRY);
 ast_node!(TypeMapRest, TYPE_MAP_REST);
+ast_node!(Block, BLOCK);
 ast_node!(LiteralExpr, LITERAL_EXPR);
 ast_node!(NameExpr, NAME_EXPR);
 ast_node!(FunctionExpr, FUNCTION_EXPR);
 ast_node!(BlockExpr, BLOCK_EXPR);
+ast_node!(ProtectedExpr, PROTECTED_EXPR);
 ast_node!(ParenExpr, PAREN_EXPR);
 ast_node!(ListExpr, LIST_EXPR);
 ast_node!(MapExpr, MAP_EXPR);
@@ -218,16 +216,12 @@ ast_node!(TrailingArgumentExpr, TRAILING_ARGUMENT_EXPR);
 ast_node!(RaiseExpr, RAISE_EXPR);
 ast_node!(PanicExpr, PANIC_EXPR);
 ast_node!(TodoExpr, TODO_EXPR);
-ast_node!(TryExpr, TRY_EXPR);
 ast_node!(CaseExpr, CASE_EXPR);
 ast_node!(IfExpr, IF_EXPR);
-ast_node!(LoopExpr, LOOP_EXPR);
-ast_node!(ContinueExpr, CONTINUE_EXPR);
-ast_node!(BreakExpr, BREAK_EXPR);
+ast_node!(CatchArm, CATCH_ARM);
 ast_node!(MapEntry, MAP_ENTRY);
 ast_node!(ArgList, ARG_LIST);
 ast_node!(PipelineStage, PIPELINE_STAGE);
-ast_node!(CatchClause, CATCH_CLAUSE);
 ast_node!(CaseClause, CASE_CLAUSE);
 ast_node!(IfBranch, IF_BRANCH);
 ast_node!(ElseBranch, ELSE_BRANCH);
@@ -282,6 +276,7 @@ pub enum Expr {
     Name(NameExpr),
     Function(FunctionExpr),
     Block(BlockExpr),
+    Protected(ProtectedExpr),
     Paren(ParenExpr),
     List(ListExpr),
     Map(MapExpr),
@@ -297,12 +292,8 @@ pub enum Expr {
     Raise(RaiseExpr),
     Panic(PanicExpr),
     Todo(TodoExpr),
-    Try(TryExpr),
     Case(CaseExpr),
     If(IfExpr),
-    Loop(LoopExpr),
-    Continue(ContinueExpr),
-    Break(BreakExpr),
 }
 impl AstNode for Expr {
     fn can_cast(kind: SyntaxKind) -> bool {
@@ -314,6 +305,7 @@ impl AstNode for Expr {
             SyntaxKind::NAME_EXPR => Self::Name(NameExpr::cast(syntax)?),
             SyntaxKind::FUNCTION_EXPR => Self::Function(FunctionExpr::cast(syntax)?),
             SyntaxKind::BLOCK_EXPR => Self::Block(BlockExpr::cast(syntax)?),
+            SyntaxKind::PROTECTED_EXPR => Self::Protected(ProtectedExpr::cast(syntax)?),
             SyntaxKind::PAREN_EXPR => Self::Paren(ParenExpr::cast(syntax)?),
             SyntaxKind::LIST_EXPR => Self::List(ListExpr::cast(syntax)?),
             SyntaxKind::MAP_EXPR => Self::Map(MapExpr::cast(syntax)?),
@@ -331,12 +323,8 @@ impl AstNode for Expr {
             SyntaxKind::RAISE_EXPR => Self::Raise(RaiseExpr::cast(syntax)?),
             SyntaxKind::PANIC_EXPR => Self::Panic(PanicExpr::cast(syntax)?),
             SyntaxKind::TODO_EXPR => Self::Todo(TodoExpr::cast(syntax)?),
-            SyntaxKind::TRY_EXPR => Self::Try(TryExpr::cast(syntax)?),
             SyntaxKind::CASE_EXPR => Self::Case(CaseExpr::cast(syntax)?),
             SyntaxKind::IF_EXPR => Self::If(IfExpr::cast(syntax)?),
-            SyntaxKind::LOOP_EXPR => Self::Loop(LoopExpr::cast(syntax)?),
-            SyntaxKind::CONTINUE_EXPR => Self::Continue(ContinueExpr::cast(syntax)?),
-            SyntaxKind::BREAK_EXPR => Self::Break(BreakExpr::cast(syntax)?),
             _ => return None,
         })
     }
@@ -346,6 +334,7 @@ impl AstNode for Expr {
             Self::Name(node) => node.syntax(),
             Self::Function(node) => node.syntax(),
             Self::Block(node) => node.syntax(),
+            Self::Protected(node) => node.syntax(),
             Self::Paren(node) => node.syntax(),
             Self::List(node) => node.syntax(),
             Self::Map(node) => node.syntax(),
@@ -361,12 +350,8 @@ impl AstNode for Expr {
             Self::Raise(node) => node.syntax(),
             Self::Panic(node) => node.syntax(),
             Self::Todo(node) => node.syntax(),
-            Self::Try(node) => node.syntax(),
             Self::Case(node) => node.syntax(),
             Self::If(node) => node.syntax(),
-            Self::Loop(node) => node.syntax(),
-            Self::Continue(node) => node.syntax(),
-            Self::Break(node) => node.syntax(),
         }
     }
 }

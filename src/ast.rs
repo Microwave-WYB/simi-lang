@@ -11,6 +11,8 @@ pub struct Block {
     pub span: Span,
 }
 
+pub type Body = Block;
+
 #[derive(Clone, Debug)]
 pub struct Stmt {
     pub kind: StmtKind,
@@ -22,7 +24,7 @@ pub enum StmtKind {
     Function {
         name: String,
         params: Vec<String>,
-        body: Block,
+        body: Body,
     },
     Let {
         pattern: Pattern,
@@ -41,7 +43,7 @@ pub struct Expr {
 pub struct PatternClause {
     pub pattern: Pattern,
     pub guard: Option<Expr>,
-    pub body: Block,
+    pub body: Body,
 }
 
 #[derive(Clone, Debug)]
@@ -100,7 +102,7 @@ pub enum ExprKind {
     Variable(String),
     Function {
         params: Vec<String>,
-        body: Block,
+        body: Body,
     },
     Assign {
         target: AssignmentTarget,
@@ -130,17 +132,6 @@ pub enum ExprKind {
     If {
         branches: Vec<(Expr, Block)>,
         else_branch: Option<Block>,
-    },
-    Loop {
-        label: Option<String>,
-        body: Block,
-    },
-    Continue {
-        label: Option<String>,
-    },
-    Break {
-        label: Option<String>,
-        value: Box<Expr>,
     },
     Call {
         callee: Box<Expr>,

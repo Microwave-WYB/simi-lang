@@ -42,7 +42,7 @@ impl Interpreter {
                 }
             }
 
-            return self.evaluate_block(&clause.body, &clause_env);
+            return self.evaluate_body(&clause.body, &clause_env);
         }
 
         Err(EvaluationError::Runtime(RuntimeError {
@@ -51,7 +51,7 @@ impl Interpreter {
         }))
     }
 
-    pub(super) fn evaluate_try(
+    pub(super) fn evaluate_protected(
         &mut self,
         protected: &Block,
         clauses: &[PatternClause],
@@ -96,7 +96,7 @@ impl Interpreter {
                 }
             }
 
-            return match self.evaluate_block(&clause.body, &clause_env) {
+            return match self.evaluate_body(&clause.body, &clause_env) {
                 Err(EvaluationError::Raised(mut raised)) => {
                     raised.append_cause(caught);
                     Err(EvaluationError::Raised(raised))
@@ -109,10 +109,33 @@ impl Interpreter {
     }
 }
 
+#[derive(Clone, Copy)]
+enum PatternMatchMode {
+    Structural,
+    LetDestructure,
+}
+
 pub(super) fn match_pattern(
     pattern: &Pattern,
     value: &Value,
     bindings: &mut Vec<(String, Value)>,
+) -> RuntimeResult<bool> {
+    match_pattern_with_mode(pattern, value, bindings, PatternMatchMode::Structural)
+}
+
+pub(super) fn match_let_pattern(
+    pattern: &Pattern,
+    value: &Value,
+    bindings: &mut Vec<(String, Value)>,
+) -> RuntimeResult<bool> {
+    match_pattern_with_mode(pattern, value, bindings, PatternMatchMode::LetDestructure)
+}
+
+fn match_pattern_with_mode(
+    pattern: &Pattern,
+    value: &Value,
+    bindings: &mut Vec<(String, Value)>,
+    mode: PatternMatchMode,
 ) -> RuntimeResult<bool> {
     match &pattern.kind {
         PatternKind::Wildcard => Ok(true),
@@ -151,7 +174,7 @@ pub(super) fn match_pattern(
 
             let fixed_match = values.with_visible(|visible| {
                 for (element_pattern, element_value) in elements.iter().zip(visible.iter()) {
-                    if !match_pattern(element_pattern, element_value, bindings)? {
+                    if !match_pattern_with_mode(element_pattern, element_value, bindings, mode)? {
                         return Ok(false);
                     }
                 }
@@ -195,7 +218,10 @@ pub(super) fn match_pattern(
                         entries.iter().find(|(entry_key, _)| entry_key == &key)
                     {
                         field_values.push(value.clone());
-                    } else if matches!(field_pattern.kind, PatternKind::Nil) {
+                    } else if matches!(field_pattern.kind, PatternKind::Nil)
+                        || matches!(mode, PatternMatchMode::LetDestructure)
+                            && matches!(field_pattern.kind, PatternKind::Binding(_))
+                    {
                         field_values.push(Value::Nil);
                     } else {
                         return Ok(false);
@@ -221,7 +247,7 @@ pub(super) fn match_pattern(
             };
 
             for ((_, field_pattern), field_value) in fields.iter().zip(&field_values) {
-                if !match_pattern(field_pattern, field_value, bindings)? {
+                if !match_pattern_with_mode(field_pattern, field_value, bindings, mode)? {
                     return Ok(false);
                 }
             }

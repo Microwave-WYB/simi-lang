@@ -68,46 +68,50 @@ end
 
 ## Catching raised values
 
-A `try` expression evaluates one or more protected items. Its `catch` clauses use the same structural patterns and Boolean guards as `case`, in source order:
+A protected `do` expression evaluates one or more protected items. One `of` introduces its `catch` arms, which use the same structural patterns and Boolean guards as `case`; every arm separates its header and result with `=>`:
 
 ```simi
 fn load(key) do
     raise {error = "not_found", key = key}
 end
 
-try
+do
     load("profile")
-catch {error = "not_found", key = key} do
-    "missing: " <> key
-catch error do
-    raise error
+catch of
+    {error = "not_found", key = key} =>
+        "missing: " <> key
+    error =>
+        raise error
 end
 ```
 
 Only a raise from the protected block is considered by those catches. If no clause matches, the original raise continues unchanged. Bindings created by a catch pattern belong only to that handler.
 
-A raise from a catch guard or handler body escapes the current `try`; it is not offered to later sibling catches:
+A raise from a catch guard or handler body escapes the current protected expression; it is not offered to later sibling arms:
 
 ```simi
-try
-    try
+do
+    do
         raise "original"
-    catch error do
-        raise {error = "replacement", cause = error}
+    catch of
+        error =>
+            raise {error = "replacement", cause = error}
     end
-catch {error = "replacement", cause = cause} do
-    cause
+catch of
+    {error = "replacement", cause = cause} =>
+        cause
 end
 ```
 
-`try` catches neither postfix nil propagation nor hard diagnostics. This complete script intentionally produces a hard operand diagnostic; its handler is not entered:
+A protected `do` catches neither postfix nil propagation nor hard diagnostics. This complete script intentionally produces a hard operand diagnostic; its handler is not entered:
 
 ```simi
 -- Expected type and runtime diagnostics: catch handles raises, not hard diagnostics.
-try
+do
     1 + "two"
-catch _ do
-    "not reached"
+catch of
+    _ =>
+        "not reached"
 end
 ```
 
@@ -120,18 +124,18 @@ alias lookup_error =
     | {error: "not_found", key: string, ..}
     | {error: "unavailable", message: string, ..}
 
-fn lookup(key: string) -> string raises lookup_error do
+fn lookup(key: string) -> string ! lookup_error do
     raise {error = "not_found", key = key}
 end
 
-try
+do
     lookup("profile")
-catch {error = "not_found", key = key} do
+catch of {error = "not_found", key = key} =>
     "missing: " <> key
 end
 ```
 
-An omitted clause is inferred. `raises E` checks an upper bound, and `noraise` means `raises never`. Generic effect variables can connect a callback's raised type to its caller. Catch patterns remove definitely handled variants from the protected effect; guarded matches remain possible, and handler effects escape. Structural mutation inference is analyzer-only within a binding's defining lexical scope; captured bindings require stable compatible contracts, and annotations remain erased.
+An omitted raised-error contract is inferred. `! E` checks an upper bound, and `! never` forbids language raises. Generic raised-type variables can connect a callback's raised type to its caller. Catch patterns remove definitely handled variants from the protected raised type; guarded matches remain possible, and handler raises escape. Structural mutation inference is analyzer-only within a binding's defining lexical scope; captured bindings require stable compatible contracts, and annotations remain erased.
 
 ## Minimal Rust embedding
 
@@ -217,7 +221,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-`Engine::new()` provides built-in `list` and `map` prelude globals, along with the core `type`, `inspect`, and `require` globals. Built-in `require("std/list")` and `require("std/map")` raise `module_not_found`; hosts may still explicitly register modules at those paths. `Engine::with_stdlib()` adds the portable modules `std/iter`, `std/number`, and `std/string`. Text IO is a separate capability:
+`Engine::new()` and `Engine::with_stdlib()` provide the same portable `list`, `map`, `iter`, `number`, and `string` prelude globals, alongside `type`, `inspect`, and `require`. Their canonical `std/*` paths remain require-able and return the same cached module values. `Engine::builder().build()` remains a bare explicit-host constructor. Text IO is a separate capability:
 
 ```rust
 use simi::Engine;
@@ -240,7 +244,7 @@ A facade can attach erased type information to a native function without wrappin
 
 ```simi
 --- Double an integer using the native implementation.
-let double: integer -> integer = host.double
+let double: fn(integer) -> integer = host.double
 
 fn quadruple(value: integer) -> integer do
     double(double(value))

@@ -18,20 +18,14 @@
   "then"
   "elseif"
   "else"
-  "loop"
-  "break"
-  "continue"
   "case"
   "of"
   "when"
   "raise"
   "panic"
   "todo"
-  "try"
   "catch"
   "tap"
-  "raises"
-  "noraise"
 ] @keyword
 
 [
@@ -44,6 +38,7 @@
   "="
   "=="
   "!="
+  "!"
   "+"
   "-"
   "*"
@@ -61,8 +56,8 @@
   "<|"
   ".."
   "->"
+  "=>"
   "|"
-  "@"
 ] @operator
 
 (function_declaration
@@ -76,7 +71,7 @@
 
 (type_variable) @type.parameter
 
-(function_type_parameter
+(callable_type_parameter
   label: (identifier) @variable.parameter)
 
 (parameter
@@ -109,5 +104,3 @@
 
 ["(" ")" "[" "]" "{" "}"] @punctuation.bracket
 ["," "."] @punctuation.delimiter
-
-(loop_label name: (identifier) @variable)

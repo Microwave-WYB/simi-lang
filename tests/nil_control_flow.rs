@@ -130,23 +130,28 @@ fn nil_propagation_evaluates_each_kind_of_current_block_as_nil() {
             [selected, "outer continued"]
         end
         let from_case = do
-            let selected = case 1
-            of 1 do nil?
+            let selected = case 1 of
+            1 =>
+                nil?
             end
             [selected, "outer continued"]
         end
         let from_protected = do
-            let selected = try
+            let selected = do
                 nil?
-            catch _ do "must not catch"
+            catch of _ =>
+                "must not catch"
             end
             [selected, "outer continued"]
         end
         let from_catch = do
-            let selected = try
+            let selected = do
                 raise "failure"
-            catch "failure" do nil?
-            catch _ do "must not run"
+            catch of
+            "failure" =>
+                nil?
+            _ =>
+                "must not run"
             end
             [selected, "outer continued"]
         end
@@ -157,25 +162,6 @@ fn nil_propagation_evaluates_each_kind_of_current_block_as_nil() {
         result.render(),
         "[nil, [nil, \"outer continued\"], [nil, \"outer continued\"], [nil, \"outer continued\"], [nil, \"outer continued\"], [nil, \"outer continued\"]]"
     );
-}
-
-#[test]
-fn nil_propagation_from_a_loop_body_repeats_the_iteration() {
-    let result = value(
-        r#"
-        let direct = do
-            let remaining = 1
-            loop
-                if remaining == 0 then break "continued after nil" end
-                remaining = remaining - 1
-                nil?
-            end
-        end
-        let plain_break = loop break nil end
-        [direct, plain_break]
-        "#,
-    );
-    assert_eq!(result.render(), "[\"continued after nil\", nil]");
 }
 
 #[test]
@@ -192,21 +178,24 @@ fn nil_propagation_requires_an_enclosing_block() {
 }
 
 #[test]
-fn multi_item_try_returns_last_value_and_uses_a_fresh_scope() {
+fn multi_item_protected_body_returns_last_value_and_uses_a_fresh_scope() {
     let result = value(
         r#"
         let local = "outer"
-        let success = try
+        let success = do
             let local = "protected"
             local
             42
-        catch _ do "wrong"
+        catch of _ =>
+            "wrong"
         end
-        let raised = try
+        let raised = do
             let hidden = "protected"
             raise hidden
             "unreachable"
-        catch value do value
+        catch of
+        value =>
+            value
         end
         let hidden = "outside"
         [success, raised, local, hidden]
@@ -219,13 +208,14 @@ fn multi_item_try_returns_last_value_and_uses_a_fresh_scope() {
 }
 
 #[test]
-fn try_does_not_catch_hard_diagnostics_or_nil_propagation() {
+fn protected_expression_does_not_catch_hard_diagnostics_or_nil_propagation() {
     let propagated = value(
         r#"
         do
-            let selected = try
+            let selected = do
                 nil?
-            catch _ do "caught"
+            catch of _ =>
+                "caught"
             end
             [selected, "enclosing block continued"]
         end
@@ -234,7 +224,7 @@ fn try_does_not_catch_hard_diagnostics_or_nil_propagation() {
     assert_eq!(propagated.render(), "[nil, \"enclosing block continued\"]");
 
     assert!(matches!(
-        eval("try let local = 1 missing catch _ do nil end"),
+        eval("do let local = 1 missing catch of _ => nil end"),
         Err(SimiError::Runtime(_))
     ));
 }
@@ -253,19 +243,28 @@ fn raised_nil_and_active_stage_errors_are_not_converted_to_absence() {
 }
 
 #[test]
-fn repeated_case_and_catch_markers_own_bodies_until_the_next_marker() {
+fn direct_and_explicit_case_and_catch_arms_preserve_body_ownership() {
     let result = value(
         r#"
-        let selected = case 2 of 1 do "one" of n when n == 2 do
+        let selected = case 2 of
+        1 =>
+            "one"
+        n when n == 2 => do
             let local = n + 1
             local
-        of _ do "other" end
-        let handled = try
+        end
+        _ =>
+            "other"
+        end
+        let handled = do
             let first = "protected"
             raise 2
-        catch 1 do "one"
-        catch n when n == 2 do [n, selected]
-        catch _ do "other"
+        catch of 1 =>
+            "one"
+        n when n == 2 =>
+            [n, selected]
+        _ =>
+            "other"
         end
         [selected, handled]
         "#,
@@ -274,12 +273,12 @@ fn repeated_case_and_catch_markers_own_bodies_until_the_next_marker() {
 }
 
 #[test]
-fn legacy_per_branch_ends_and_unmarked_siblings_are_rejected() {
+fn missing_explicit_body_ends_and_unmarked_siblings_are_rejected() {
     for source in [
-        "case 1 of 1 do nil end end",
-        "case 1 of 1 do nil 2 do nil end",
-        "try raise 1 catch 1 do nil end end",
-        "try raise 1 catch 1 do nil _ do nil end",
+        "case 1 of 1 do nil of _ nil end",
+        "case 1 of 1 nil _ nil end",
+        "do raise 1 catch of 1 do nil of _ nil end",
+        "do raise 1 catch of 1 nil _ nil end",
     ] {
         assert!(
             matches!(outer_error(source), SimiError::Parse(_)),
@@ -289,16 +288,16 @@ fn legacy_per_branch_ends_and_unmarked_siblings_are_rejected() {
 }
 
 #[test]
-fn try_requires_protected_items_and_precise_delimiters() {
+fn protected_expression_requires_items_arms_and_complete_delimiters() {
     for (source, message) in [
         (
-            "try catch _ do nil end",
+            "do catch of _ => nil end",
             "expected at least one protected block item",
         ),
-        ("try 1 end", "expected `catch` after protected block"),
+        ("do 1 catch end", "expected `of` after `catch`"),
         (
-            "do 1 catch _ do nil end",
-            "expected `end` after standalone block",
+            "do 1 catch of _ => do nil end",
+            "expected `end` after protected expression",
         ),
     ] {
         let error = outer_error(source);

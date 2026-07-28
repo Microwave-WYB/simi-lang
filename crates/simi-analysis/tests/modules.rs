@@ -6,12 +6,124 @@ use simi_analysis::{
 };
 
 #[test]
+fn iterator_facades_export_item_and_effect_relationships() {
+    let db = AnalysisDatabase::default();
+    let list_file = db.add_file(include_str!("../../../stdlib/list.simi"));
+    let map_file = db.add_file(include_str!("../../../stdlib/map.simi"));
+    let iter_file = db.add_file(include_str!("../../../stdlib/iter.simi"));
+    for file in [list_file, map_file, iter_file] {
+        let diagnostics = simi_analysis::diagnostics(&db, file);
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+    let list = module_shape(&db, list_file);
+    let map = module_shape(&db, map_file);
+    let iter = module_shape(&db, iter_file);
+
+    let displayed = |shape: &simi_analysis::ModuleShape, name: &str| {
+        shape
+            .fields
+            .iter()
+            .find(|field| field.name == name)
+            .and_then(|field| field.ty.as_ref())
+            .expect("typed facade export")
+            .display()
+    };
+    assert_eq!(
+        displayed(&list, "iter"),
+        "fn<'a>(xs: [..'a]) -> fn() -> { done: true, .. } | { done: false, value: 'a, .. } ! never ! never"
+    );
+    assert_eq!(
+        displayed(&map, "iter"),
+        "fn(entries: { .. }) -> fn() -> { done: true, .. } | { done: false, value: { key: boolean | integer | float | string, value: any, .. }, .. } ! never ! never"
+    );
+    assert_eq!(
+        displayed(&iter, "to_list"),
+        "fn<'a, 'b>(iterator: fn() -> { done: true, .. } | { done: false, value: 'a, .. } ! 'b) -> [..'a] ! 'b"
+    );
+    assert_eq!(
+        displayed(&iter, "find"),
+        "fn<'a, 'b, 'c>(iterator: fn() -> { done: true, .. } | { done: false, value: 'a, .. } ! 'b, predicate: fn('a) -> boolean ! 'c) -> 'a | nil ! 'b | 'c"
+    );
+
+    let break_control = displayed(&iter, "break");
+    assert!(
+        break_control
+            .contains("fn<'a>(value: 'a) -> { control: \"break\", value: 'a, .. } ! never"),
+        "{break_control}"
+    );
+    let continue_control = displayed(&iter, "continue");
+    assert!(
+        continue_control
+            .contains("fn<'a>(value: 'a) -> { control: \"continue\", value: 'a, .. } ! never"),
+        "{continue_control}"
+    );
+
+    let each_while = displayed(&iter, "each_while");
+    assert!(each_while.contains("control: \"continue\""), "{each_while}");
+    assert!(each_while.contains("control: \"break\""), "{each_while}");
+    assert!(each_while.contains("-> 'c | nil !"), "{each_while}");
+
+    let fold_while = displayed(&iter, "fold_while");
+    assert!(fold_while.contains("initial: 'a"), "{fold_while}");
+    assert!(fold_while.contains("control: \"continue\""), "{fold_while}");
+    assert!(fold_while.contains("control: \"break\""), "{fold_while}");
+    assert!(fold_while.contains("-> 'a | 'c !"), "{fold_while}");
+
+    let repeat_with = displayed(&iter, "repeat_with");
+    assert!(
+        repeat_with.contains("producer: fn() -> 'a ! 'b"),
+        "{repeat_with}"
+    );
+    assert!(repeat_with.contains("value: 'a"), "{repeat_with}");
+    assert!(repeat_with.ends_with("! 'b ! never"), "{repeat_with}");
+
+    let empty = displayed(&iter, "empty");
+    assert!(empty.starts_with("fn<'a>() -> fn() ->"), "{empty}");
+    assert!(empty.ends_with("! never ! never"), "{empty}");
+
+    let once = displayed(&iter, "once");
+    assert!(once.contains("fn<'a>(value: 'a)"), "{once}");
+    assert!(once.contains("value: 'a"), "{once}");
+
+    let repeat = displayed(&iter, "repeat");
+    assert!(repeat.contains("value: 'a, count: integer"), "{repeat}");
+    assert!(repeat.ends_with("! never ! never"), "{repeat}");
+
+    let range = displayed(&iter, "range");
+    assert!(range.contains("start: integer, stop: integer"), "{range}");
+    assert!(range.contains("value: integer"), "{range}");
+
+    let take = displayed(&iter, "take");
+    assert!(take.contains("count: integer"), "{take}");
+    assert!(take.ends_with("! 'b ! never"), "{take}");
+    let drop = displayed(&iter, "drop");
+    assert!(drop.contains("count: integer"), "{drop}");
+    assert!(drop.ends_with("! 'b ! never"), "{drop}");
+
+    let enumerate = displayed(&iter, "enumerate");
+    assert!(enumerate.contains("value: [integer, 'a]"), "{enumerate}");
+    assert!(enumerate.ends_with("! 'b ! never"), "{enumerate}");
+
+    let zip = displayed(&iter, "zip");
+    assert!(zip.contains("value: ['a, 'b]"), "{zip}");
+    assert!(zip.ends_with("! 'c | 'd ! never"), "{zip}");
+
+    let zip_longest = displayed(&iter, "zip_longest");
+    assert!(zip_longest.contains("fill: 'c"), "{zip_longest}");
+    assert!(
+        zip_longest.contains("value: ['a | 'c, 'b | 'c]"),
+        "{zip_longest}"
+    );
+    assert!(zip_longest.ends_with("! 'd | 'e ! never"), "{zip_longest}");
+}
+
+#[test]
 fn documented_typed_native_aliases_keep_callable_module_metadata() {
     let source = r#"
 --- Return the text length.
-let length: string -> integer = host.length
+let length: fn(string) -> integer = host.length
 --- Append a value.
-let append: ([..'a], 'b) -> nil = host.append
+let append: fn([..'a], 'b) -> nil = host.append
 {length = length, append = append}
 "#;
     let db = AnalysisDatabase::default();
@@ -40,7 +152,7 @@ let append: ([..'a], 'b) -> nil = host.append
 #[test]
 fn function_type_aliases_preserve_callable_alias_metadata() {
     let source = r#"
-alias appender<'a, 'b> = ([..'a], 'b) -> nil
+alias appender<'a, 'b> = fn([..'a], 'b) -> nil
 let append: appender<integer, string> = host.append
 let wrapped: ((appender<integer, string>)) = host.append
 {append = append, wrapped = wrapped}
@@ -101,49 +213,54 @@ fn hidden(value) do value end
 }
 
 #[test]
-fn prelude_modules_provide_members_and_remain_shadowable() {
-    let list_source = "fn append(xs, x) do nil end { append = append }";
-    let map_source = "fn clear(entries) do nil end { clear = clear }";
-    let source = " list.append map.clear";
+fn portable_prelude_modules_provide_members_and_remain_shadowable() {
     let db = AnalysisDatabase::default();
-    let list_file = db.add_file(list_source);
-    let map_file = db.add_file(map_source);
+    let source = "list.append map.clear iter.map number.to_string string.upper";
     let file = db.add_file(source);
-    let modules = HashMap::from([
-        ("std/list".to_owned(), module_shape(&db, list_file)),
-        ("std/map".to_owned(), module_shape(&db, map_file)),
-    ]);
-    assert_eq!(imported_modules(&db, file).len(), 2);
+    let modules = [
+        (
+            "std/list",
+            "fn append(xs, x) do nil end { append = append }",
+        ),
+        ("std/map", "fn clear(entries) do nil end { clear = clear }"),
+        (
+            "std/iter",
+            "fn map(iterator, callback) do nil end { map = map }",
+        ),
+        (
+            "std/number",
+            "fn to_string(value) do nil end { to_string = to_string }",
+        ),
+        ("std/string", "fn upper(value) do nil end { upper = upper }"),
+    ]
+    .into_iter()
+    .map(|(name, source)| {
+        let module = db.add_file(source);
+        (name.to_owned(), module_shape(&db, module))
+    })
+    .collect::<HashMap<_, _>>();
+    assert_eq!(imported_modules(&db, file).len(), 5);
 
-    let append = member_at(
-        &db,
-        file,
-        &modules,
-        source,
-        source.find("append").expect("append") + 1,
-    )
-    .expect("known list member");
-    assert_eq!(append.field.name, "append");
-    assert_eq!(append.field.parameters.as_ref().unwrap(), &["xs", "x"]);
+    for member in ["append", "clear", "map", "to_string", "upper"] {
+        let field = member_at(
+            &db,
+            file,
+            &modules,
+            source,
+            source.rfind(member).expect("member") + 1,
+        )
+        .expect("known prelude member");
+        assert_eq!(field.field.name, member);
+    }
 
-    let clear = member_at(
-        &db,
-        file,
-        &modules,
-        source,
-        source.find("clear").expect("clear") + 1,
-    )
-    .expect("known map member");
-    assert_eq!(clear.field.name, "clear");
-
-    let incomplete = " list.";
+    let incomplete = "iter.";
     let incomplete_file = db.add_file(incomplete);
     let completions =
         member_completions(&db, incomplete_file, &modules, incomplete, incomplete.len());
     assert_eq!(completions.len(), 1);
-    assert_eq!(completions[0].name, "append");
+    assert_eq!(completions[0].name, "map");
 
-    let shadowed = "let list = {} list.";
+    let shadowed = "let string = {} string.";
     let shadowed_file = db.add_file(shadowed);
     assert!(member_completions(&db, shadowed_file, &modules, shadowed, shadowed.len()).is_empty());
 }
@@ -297,7 +414,7 @@ fn println(value) do nil end
 #[test]
 fn annotated_exported_functions_carry_types_and_trailing_aliases_are_erased() {
     let source = r#"
-fn map(xs: [..'a], transform: 'a -> 'b) -> [..'b] do [] end
+fn map(xs: [..'a], transform: fn('a) -> 'b) -> [..'b] do [] end
 { map = map, identity = fn(value) do value end }
 alias option<'a> = 'a | nil
 "#;
@@ -311,7 +428,7 @@ alias option<'a> = 'a | nil
         .unwrap();
     assert_eq!(
         map.ty.as_ref().map(simi_analysis::Type::display).as_deref(),
-        Some("(xs: [..'a], transform: 'a -> 'b) -> [..'b]")
+        Some("fn(xs: [..'a], transform: fn('a) -> 'b) -> [..'b]")
     );
     let identity = shape
         .fields
@@ -324,7 +441,40 @@ alias option<'a> = 'a | nil
             .as_ref()
             .map(simi_analysis::Type::display)
             .as_deref(),
-        Some("(value: 'a) -> 'a")
+        Some("fn(value: 'a) -> 'a")
+    );
+}
+
+#[test]
+fn callable_union_display_compact_and_pretty_preserve_parenthesization() {
+    let source = r#"
+--- Optionally callable.
+fn optional(flag: boolean) do
+    if flag then fn(value: integer) do value end end
+end
+{ optional = optional }
+"#;
+    let db = AnalysisDatabase::default();
+    let file = db.add_file(source);
+    let shape = module_shape(&db, file);
+    let optional = &shape.fields[0];
+    let ty = optional.ty.as_ref().unwrap();
+    assert_eq!(
+        ty.display(),
+        "fn(flag: boolean) -> (fn(value: integer) -> integer) | nil"
+    );
+    let pretty_wide = ty.pretty_display(80);
+    assert!(
+        pretty_wide.contains("(fn(value: integer) -> integer)"),
+        "wide pretty must include parenthesized callable, got {pretty_wide:?}"
+    );
+    assert!(
+        pretty_wide.ends_with("| nil"),
+        "wide pretty must end with union nil tail, got {pretty_wide:?}"
+    );
+    assert_eq!(
+        ty.pretty_display(20),
+        "fn(\n    flag: boolean,\n) -> | (fn(\n    value: integer,\n) -> integer)\n| nil"
     );
 }
 

@@ -25,18 +25,18 @@ fn every_value_category_can_be_raised_and_caught() {
 
             fn identity(value) do value end
             [
-                try raise nil catch nil do "nil"  end,
-                try raise true catch true do "true"  end,
-                try raise false catch false do "false"  end,
-                try raise 42 catch 42 do "integer"  end,
-                try raise 4.5 catch 4.5 do "float"  end,
-                try raise "boom" catch "boom" do "string"  end,
-                try raise [1, 2, 3] catch [head, ..tail] do [head, tail]  end,
-                try raise {kind="missing", payload=[1, 2]}
-                    catch {kind="missing", payload=payload} do payload
+                do raise nil catch of nil => "nil" end,
+                do raise true catch of true => "true" end,
+                do raise false catch of false => "false" end,
+                do raise 42 catch of 42 => "integer" end,
+                do raise 4.5 catch of 4.5 => "float" end,
+                do raise "boom" catch of "boom" => "string" end,
+                do raise [1, 2, 3] catch of [head, ..tail] => [head, tail] end,
+                do raise {kind="missing", payload=[1, 2]}
+                    catch of {kind="missing", payload=payload} => payload
                 end,
-                try raise identity catch callable do callable("function")  end,
-                try raise list.length catch callable do callable([1, 2])  end
+                do raise identity catch of callable => callable("function") end,
+                do raise list.length catch of callable => callable([1, 2]) end
             ]
         "#,
         "[\"nil\", \"true\", \"false\", \"integer\", \"float\", \"string\", [1, [2, 3]], [1, 2], \"function\", 2]",
@@ -44,13 +44,13 @@ fn every_value_category_can_be_raised_and_caught() {
 }
 
 #[test]
-fn successful_try_is_a_transparent_passthrough() {
+fn successful_protected_expression_is_a_transparent_passthrough() {
     assert_eval(
         r#"
 
             let shared = []
-            let result = try shared
-                catch _ do missing_handler_must_not_run
+            let result = do shared
+                catch of _ => missing_handler_must_not_run
             end
             list.append(shared, "after")
             result
@@ -65,11 +65,11 @@ fn catch_bindings_and_handler_locals_are_case_scoped() {
         r#"
             let error = "outer error"
             let local = "outer local"
-            let handled = try raise "inner"
-                catch error do
+            let handled = do raise "inner"
+                catch of error => do
                     let local = "inner local"
                     [error, local]
-
+                end
             end
             [handled, error, local]
         "#,
@@ -83,14 +83,14 @@ fn catch_cases_use_structural_patterns_and_ordered_guards() {
         r#"
 
             let events = []
-            try raise {kind="missing", payload=[1, 2]}
-                catch {kind="other"} when missing_guard_must_not_run do nil
-                catch {kind="missing", payload=[head, ..tail]} when head == 0 do "wrong"
-                catch {kind="missing", payload=[head, ..tail]} when head == 1 do
+            do raise {kind="missing", payload=[1, 2]}
+                catch of {kind="other"} when missing_guard_must_not_run => nil
+                {kind="missing", payload=[head, ..tail]} when head == 0 => "wrong"
+                {kind="missing", payload=[head, ..tail]} when head == 1 => do
                     list.append(events, "selected")
                     [tail, events]
-
-                catch _ do "fallback"
+                end
+                _ => "fallback"
             end
         "#,
         "[[2], [\"selected\"]]",
@@ -99,7 +99,7 @@ fn catch_cases_use_structural_patterns_and_ordered_guards() {
 
 #[test]
 fn unmatched_catch_propagates_the_original_raise_unchanged() {
-    let source = "try raise [1, 2] catch [3, ..rest] do rest end";
+    let source = "do raise [1, 2] catch of [3, ..rest] => rest end";
     let raised = assert_raised(source);
     let origin_start = source.find("raise").expect("source contains raise");
     let origin_end = source.find(" catch").expect("source contains catch");
@@ -114,24 +114,24 @@ fn unmatched_catch_propagates_the_original_raise_unchanged() {
 }
 
 #[test]
-fn nested_tries_catch_propagated_and_handler_raised_values() {
+fn nested_protected_expressions_catch_propagated_and_handler_raised_values() {
     assert_eval(
         r#"
-            let propagated = try
-                try raise "old"
-                    catch "different" do "wrong"
+            let propagated = do
+                do raise "old"
+                    catch of "different" => "wrong"
                 end
 
-                catch "old" do "outer caught unmatched"
+                catch of "old" => "outer caught unmatched"
             end
 
-            let handler_raised = try
-                try raise "old"
-                    catch error do raise "new"
+            let handler_raised = do
+                do raise "old"
+                    catch of error => raise "new"
                 end
 
-                catch "old" do "wrong cause"
-                catch "new" do "outer caught current"
+                catch of "old" => "wrong cause"
+                "new" => "outer caught current"
             end
             [propagated, handler_raised]
         "#,
@@ -187,10 +187,11 @@ fn raises_cross_function_boundaries_with_innermost_first_frames_and_exact_spans(
 fn handler_mutation_is_observable_and_reraise_preserves_the_caught_context() {
     let source = concat!(
         "\n",
-        "try raise [\"old\"] catch\n",
-        "    error do\n",
+        "do raise [\"old\"] catch of\n",
+        "    error => do\n",
         "        list.append(error, \"mutated\")\n",
         "        raise error\n",
+        "    end\n",
         "end",
     );
     let raised = assert_raised(source);
@@ -227,9 +228,9 @@ fn handler_mutation_is_observable_and_reraise_preserves_the_caught_context() {
 fn a_catch_does_not_catch_a_raise_from_its_own_handler() {
     let raised = assert_raised(
         r#"
-            try raise "first"
-                catch error do raise "second"
-                catch _ do "must not run"
+            do raise "first"
+                catch of error => raise "second"
+                _ => "must not run"
             end
         "#,
     );
@@ -244,12 +245,12 @@ fn a_catch_does_not_catch_a_raise_from_its_own_handler() {
 }
 
 #[test]
-fn raises_propagate_through_loop_bodies() {
+fn raises_propagate_through_protected_bodies() {
     assert_eval(
         r#"
-            try loop
+            do
                 raise "iteration"
-            end catch value do value end
+            catch of value => value end
         "#,
         "\"iteration\"",
     );
@@ -259,15 +260,15 @@ fn raises_propagate_through_loop_bodies() {
 fn hard_runtime_errors_bypass_language_catches() {
     for (source, expected_message) in [
         (
-            "try missing_name catch _ do \"must not catch\" end",
+            "do missing_name catch of _ => \"must not catch\" end",
             "undefined name `missing_name`",
         ),
         (
-            "try raise missing_name catch _ do \"must not catch\" end",
+            "do raise missing_name catch of _ => \"must not catch\" end",
             "undefined name `missing_name`",
         ),
         (
-            "try raise 1 catch _ when 2 do \"must not catch\" end",
+            "do raise 1 catch of _ when 2 => \"must not catch\" end",
             "catch guard must be boolean, got integer",
         ),
     ] {
@@ -283,5 +284,5 @@ fn hard_runtime_errors_bypass_language_catches() {
 #[test]
 fn lex_and_parse_failures_remain_outer_diagnostics() {
     assert!(matches!(eval("$"), Err(SimiError::Lex(_))));
-    assert!(matches!(eval("try 1 end"), Err(SimiError::Parse(_))));
+    assert!(matches!(eval("do 1 end"), Ok(Ok(_))));
 }

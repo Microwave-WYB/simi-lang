@@ -147,14 +147,35 @@ impl Context<'_> {
             }
             Some(target) => {
                 let expected = self.expression(target.clone());
-                if mutation_owner_symbol(&target, self.resolution)
-                    .is_some_and(|symbol| self.annotated_symbols.contains(&symbol))
-                {
-                    self.constrain(&expected, &value, span(node.syntax()));
+                let resolved_expected = self.resolve_type(expected.clone());
+                let checked_value = value_node
+                    .as_ref()
+                    .and_then(direct_literal_type)
+                    .filter(|literal| type_contains_exact(&resolved_expected, literal))
+                    .unwrap_or_else(|| value.clone());
+                let sealed = mutation_owner_symbol(&target, self.resolution)
+                    .is_some_and(|symbol| self.annotated_symbols.contains(&symbol));
+                if sealed {
+                    self.constrain(&expected, &checked_value, span(node.syntax()));
                 }
+                let retain_singleton_union = sealed
+                    && matches!(
+                        &resolved_expected,
+                        Type::Union(items)
+                            if items.len() > 1 && items.iter().all(type_contains_singleton)
+                    );
+                let updated_value = if retain_singleton_union {
+                    &resolved_expected
+                } else {
+                    &checked_value
+                };
                 match target {
-                    syntax::Expr::Index(index) => self.apply_index_assignment(&index, &value),
-                    syntax::Expr::Field(field) => self.apply_field_assignment(&field, &value),
+                    syntax::Expr::Index(index) => {
+                        self.apply_index_assignment(&index, updated_value)
+                    }
+                    syntax::Expr::Field(field) => {
+                        self.apply_field_assignment(&field, updated_value)
+                    }
                     _ => {}
                 }
             }

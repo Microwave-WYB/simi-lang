@@ -23,29 +23,12 @@ pub(super) fn terminal_expr(p: &mut Parser<'_>, kind: K) -> Parsed {
         flavor: Flavor::Other,
     }
 }
-pub(super) fn try_expr(p: &mut Parser<'_>) -> Parsed {
+pub(super) fn legacy_try_expr(p: &mut Parser<'_>) -> Parsed {
     let marker = p.start();
+    p.error("`try` was removed; use `do … catch of … end`".to_owned());
     p.bump();
-    let before = p.nontrivia_index();
-    let protected = block(p);
-    if p.nontrivia_index() == before {
-        p.error("expected at least one protected block item".to_owned());
-    }
-    if p.at(K::CATCH_KW) {
-        pattern_clauses(
-            p,
-            K::CATCH_KW,
-            K::CATCH_CLAUSE,
-            "catch",
-            "`catch` after protected block",
-        );
-    } else {
-        p.expect(K::CATCH_KW, "`catch` after protected block");
-    }
-    p.expect(K::END_KW, "`end` after try expression");
-    let _ = protected;
     Parsed {
-        marker: marker.complete(&mut p.events, K::TRY_EXPR),
+        marker: marker.complete(&mut p.events, K::ERROR),
         flavor: Flavor::Other,
     }
 }
@@ -53,54 +36,35 @@ pub(super) fn case_expr(p: &mut Parser<'_>) -> Parsed {
     let marker = p.start();
     p.bump();
     expression(p);
-    if p.at(K::OF_KW) {
-        pattern_clauses(p, K::OF_KW, K::CASE_CLAUSE, "of", "`of` after case value");
-    } else {
-        p.expect(K::OF_KW, "`of` after case value");
-    }
+    pattern_arms(p, K::CASE_CLAUSE, "`of` after case value");
     p.expect(K::END_KW, "`end` after case expression");
     Parsed {
         marker: marker.complete(&mut p.events, K::CASE_EXPR),
         flavor: Flavor::Other,
     }
 }
-pub(super) fn pattern_clauses(
-    p: &mut Parser<'_>,
-    repeated_marker: K,
-    clause_kind: K,
-    marker_name: &str,
-    first_marker_description: &str,
-) {
-    let mut first = true;
-    loop {
-        let clause = p.start();
-        p.expect(
-            repeated_marker,
-            if first {
-                first_marker_description
-            } else {
-                marker_name
-            },
-        );
-        first = false;
-        if p.at(K::END_KW) {
-            p.error(format!(
-                "expected pattern after `{marker_name}`, found `end`"
-            ));
-            clause.complete(&mut p.events, clause_kind);
-            break;
-        }
+pub(super) fn pattern_arms(p: &mut Parser<'_>, arm_kind: K, of_marker: &str) {
+    if !p.expect(K::OF_KW, of_marker) {
+        return;
+    }
+    if p.at(K::END_KW) {
+        p.error("expected pattern after `of`, found `end`".to_owned());
+        return;
+    }
+    while !p.at(K::END_KW) && !p.at_end() {
+        let arm = p.start();
         let mut bindings = HashSet::new();
         pattern(p, &mut bindings);
         if p.bump_if(K::WHEN_KW) {
             expression(p);
         }
-        p.expect(K::DO_KW, "`do` before clause body");
-        block(p);
-        clause.complete(&mut p.events, clause_kind);
-        if !p.at(repeated_marker) {
-            break;
-        }
+        p.expect(K::FAT_ARROW, "`=>` after arm pattern and guard");
+        let body = p.start();
+        p.block_depth += 1;
+        expression(p);
+        p.block_depth -= 1;
+        body.complete(&mut p.events, K::BODY);
+        arm.complete(&mut p.events, arm_kind);
     }
 }
 pub(super) fn if_expr(p: &mut Parser<'_>) -> Parsed {
@@ -128,87 +92,4 @@ pub(super) fn if_branch_after_marker(p: &mut Parser<'_>) {
     p.expect(K::THEN_KW, "`then` after if condition");
     block(p);
     marker.complete(&mut p.events, K::IF_BRANCH);
-}
-pub(super) fn loop_expr(p: &mut Parser<'_>) -> Parsed {
-    let marker = p.start();
-    let label = if p.bump_if(K::AT) {
-        let span = p.current_span();
-        let name = p.current_text().unwrap_or_default().to_owned();
-        if p.expect(K::IDENT, "loop label after `@`") {
-            if p.loop_labels.iter().any(|existing| existing == &name) {
-                p.error_at(span, format!("duplicate enclosing loop label `@{name}`"));
-            }
-            Some(name)
-        } else {
-            None
-        }
-    } else {
-        None
-    };
-    p.expect(K::LOOP_KW, "`loop` after loop label");
-    p.loop_depth += 1;
-    if let Some(label) = &label {
-        p.loop_labels.push(label.clone());
-    }
-    block(p);
-    if label.is_some() {
-        p.loop_labels.pop();
-    }
-    p.loop_depth -= 1;
-    p.expect(K::END_KW, "`end` after loop body");
-    Parsed {
-        marker: marker.complete(&mut p.events, K::LOOP_EXPR),
-        flavor: Flavor::Other,
-    }
-}
-pub(super) fn continue_expr(p: &mut Parser<'_>) -> Parsed {
-    let marker = p.start();
-    let span = p.current_span();
-    p.bump();
-    let _label = loop_control_label(p, "continue");
-    if p.loop_depth == 0 && _label.is_none() {
-        p.error_at(span, "`continue` outside of a loop".to_owned());
-    }
-    if can_begin_expression(p.current()) {
-        p.error_at(
-            p.current_span(),
-            "`continue` does not take a value".to_owned(),
-        );
-    }
-    Parsed {
-        marker: marker.complete(&mut p.events, K::CONTINUE_EXPR),
-        flavor: Flavor::Other,
-    }
-}
-pub(super) fn break_expr(p: &mut Parser<'_>) -> Parsed {
-    let marker = p.start();
-    let span = p.current_span();
-    p.bump();
-    let _label = loop_control_label(p, "break");
-    if p.loop_depth == 0 && _label.is_none() {
-        p.error_at(span, "`break` outside of a loop".to_owned());
-    }
-    expression(p);
-    Parsed {
-        marker: marker.complete(&mut p.events, K::BREAK_EXPR),
-        flavor: Flavor::Other,
-    }
-}
-fn loop_control_label(p: &mut Parser<'_>, control: &str) -> Option<String> {
-    if !p.bump_if(K::AT) {
-        return None;
-    }
-    let span = p.current_span();
-    let label = p.current_text().unwrap_or_default().to_owned();
-    if p.expect(K::IDENT, "loop label after `@`") {
-        if !p.loop_labels.iter().any(|candidate| candidate == &label) {
-            p.error_at(
-                span,
-                format!("`{control}` label `@{label}` does not name an enclosing loop"),
-            );
-        }
-        Some(label)
-    } else {
-        None
-    }
 }

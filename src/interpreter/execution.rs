@@ -1,7 +1,7 @@
 use gc::{Gc, GcCell};
 
-use super::{EvaluationError, EvaluationResult, Interpreter, pattern::match_pattern};
-use crate::ast::{BinaryOp, Block, Expr, ExprKind, Stmt, StmtKind};
+use super::{EvaluationError, EvaluationResult, Interpreter, pattern::match_let_pattern};
+use crate::ast::{BinaryOp, Block, Body, Expr, ExprKind, Stmt, StmtKind};
 use crate::runtime::{Environment, List, MapKey, Raised, RuntimeError, UserFunction, Value};
 
 impl Interpreter {
@@ -40,6 +40,14 @@ impl Interpreter {
         }
     }
 
+    pub(super) fn evaluate_body(
+        &mut self,
+        body: &Body,
+        env: &Environment,
+    ) -> EvaluationResult<Value> {
+        self.evaluate_block(body, env)
+    }
+
     fn evaluate_statement(
         &mut self,
         statement: &Stmt,
@@ -75,7 +83,7 @@ impl Interpreter {
             StmtKind::Let { pattern, value } => {
                 let value = self.evaluate_expression(value, env)?;
                 let mut bindings = Vec::new();
-                if !match_pattern(pattern, &value, &mut bindings)? {
+                if !match_let_pattern(pattern, &value, &mut bindings)? {
                     return Err(EvaluationError::Runtime(RuntimeError::new(
                         pattern.span,
                         "let pattern did not match",
@@ -200,19 +208,8 @@ impl Interpreter {
                     Ok(value)
                 }
             }
-            ExprKind::Try { protected, clauses } => self.evaluate_try(protected, clauses, env),
-            ExprKind::Loop { label, body } => self.evaluate_loop(label.as_deref(), body, env),
-            ExprKind::Continue { label } => Err(EvaluationError::Continue {
-                label: label.clone(),
-                span: expression.span,
-            }),
-            ExprKind::Break { label, value } => {
-                let value = self.evaluate_expression(value, env)?;
-                Err(EvaluationError::Break {
-                    value,
-                    label: label.clone(),
-                    span: expression.span,
-                })
+            ExprKind::Try { protected, clauses } => {
+                self.evaluate_protected(protected, clauses, env)
             }
             ExprKind::Call { callee, args } => {
                 let callee = self.evaluate_expression(callee, env)?;
@@ -325,39 +322,6 @@ impl Interpreter {
                 self.evaluate_block(branch, &branch_env)
             }
             None => Ok(Value::Nil),
-        }
-    }
-
-    fn evaluate_loop(
-        &mut self,
-        label: Option<&str>,
-        body: &Block,
-        env: &Environment,
-    ) -> EvaluationResult<Value> {
-        loop {
-            let iteration_env = env.child();
-
-            match self.evaluate_block(body, &iteration_env) {
-                Ok(_) => {}
-                Err(EvaluationError::Continue { label: target, .. })
-                    if target.as_deref().is_none_or(|target| Some(target) == label) => {}
-                Err(EvaluationError::Break {
-                    value,
-                    label: target,
-                    ..
-                }) if target.as_deref().is_none_or(|target| Some(target) == label) => {
-                    return Ok(value);
-                }
-                Err(error @ (EvaluationError::Continue { .. } | EvaluationError::Break { .. })) => {
-                    return Err(error);
-                }
-                Err(error @ (EvaluationError::Runtime(_) | EvaluationError::Raised(_))) => {
-                    return Err(error);
-                }
-                Err(EvaluationError::NilPropagate { .. }) => {
-                    unreachable!("loop body must contain nil propagation")
-                }
-            }
         }
     }
 }

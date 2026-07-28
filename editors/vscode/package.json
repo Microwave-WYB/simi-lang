@@ -2,7 +2,7 @@
   "name": "simi-language",
   "displayName": "Simi Language Support",
   "description": "Syntax highlighting and language-server support for the Simi scripting language.",
-  "version": "0.1.0",
+  "version": "0.1.0-alpha.1",
   "publisher": "simi",
   "license": "MIT",
   "repository": {
@@ -12,7 +12,7 @@
   },
   "main": "./src/extension.js",
   "engines": {
-    "vscode": "^1.85.0"
+    "vscode": "^1.91.0"
   },
   "categories": [
     "Programming Languages"
@@ -75,16 +75,20 @@
     ]
   },
   "scripts": {
-    "test": "node --test test/*.test.mjs",
+    "generate:parser": "node scripts/generate-parser.mjs",
+    "check:generated-parser": "node scripts/check-generated-parser.mjs",
+    "test": "npm run check:generated-parser && node --test test/*.test.mjs",
     "prepackage": "npm test",
     "package": "vsce package",
     "publish": "vsce publish"
   },
   "dependencies": {
-    "vscode-languageclient": "9.0.1"
+    "vscode-languageclient": "10.1.0",
+    "web-tree-sitter": "0.25.10"
   },
   "devDependencies": {
     "@vscode/vsce": "3.9.2",
+    "tree-sitter-cli": "0.25.10",
     "vscode-oniguruma": "2.0.1",
     "vscode-textmate": "9.3.2"
   }

@@ -8,8 +8,8 @@ use simi_syntax::{SyntaxKind as K, SyntaxNode, SyntaxToken};
 use crate::db::{FileId, parse, resolve, source_text};
 use crate::model::{
     AnalysisDiagnostic, AnalysisDiagnosticCode, AnalysisDiagnosticSeverity, CallableParameter,
-    CallableType, GenericConstraint, ModuleShape, RaisedAnnotation, Resolution, SymbolId, Type,
-    TypeInference,
+    CallableType, GenericConstraint, LiteralFloat, ModuleShape, RaisedAnnotation, Resolution,
+    SymbolId, Type, TypeInference,
 };
 use crate::modules::member_at;
 
@@ -82,8 +82,10 @@ pub fn infer_types(
         aliases,
         alias_stack: HashSet::new(),
         vars: Vec::new(),
-        symbol_types: builtin_types(&resolution),
-        symbol_bounds: builtin_types(&resolution),
+        deferred_empty_list_infers: HashSet::new(),
+        exact_empty_list_infers: HashSet::new(),
+        symbol_types: builtin_types(&resolution, modules),
+        symbol_bounds: builtin_types(&resolution, modules),
         symbol_regions: HashMap::new(),
         conservative_regions: HashSet::new(),
         callable_capture_effects: HashMap::new(),
@@ -98,7 +100,6 @@ pub fn infer_types(
         next_region: 0,
         expression_types: Vec::new(),
         pattern_types: Vec::new(),
-        loops: Vec::new(),
         nil_abort_states: Vec::new(),
         raised_exit_frames: vec![Vec::new()],
         generic_bound_frames: Vec::new(),
@@ -194,7 +195,10 @@ fn callable_type(parameters: Vec<Type>, result: Type) -> Type {
     )))
 }
 
-fn builtin_types(resolution: &Resolution) -> HashMap<SymbolId, Type> {
+fn builtin_types(
+    resolution: &Resolution,
+    modules: &HashMap<String, ModuleShape>,
+) -> HashMap<SymbolId, Type> {
     let mut types = HashMap::new();
     for (id, symbol) in resolution.hir.symbols.iter() {
         if !symbol.builtin {
@@ -208,17 +212,15 @@ fn builtin_types(resolution: &Resolution) -> HashMap<SymbolId, Type> {
             ))),
             "type" => callable_type(vec![Type::Any], Type::String),
             "inspect" => callable_type(vec![Type::Any], Type::String),
-            "list" | "map" => Type::Any,
+            "list" | "map" | "iter" | "number" | "string" => modules
+                .get(&format!("std/{}", symbol.name))
+                .and_then(|shape| shape.ty.clone())
+                .unwrap_or(Type::Any),
             _ => Type::Unknown,
         };
         types.insert(id, ty);
     }
     types
-}
-
-struct LoopContext {
-    label: Option<String>,
-    breaks: Vec<(Type, FlowState)>,
 }
 
 #[derive(Clone)]
@@ -252,6 +254,8 @@ struct Context<'a> {
     aliases: HashMap<String, AliasDef>,
     alias_stack: HashSet<String>,
     vars: Vec<VarState>,
+    deferred_empty_list_infers: HashSet<u32>,
+    exact_empty_list_infers: HashSet<u32>,
     symbol_types: HashMap<SymbolId, Type>,
     symbol_bounds: HashMap<SymbolId, Type>,
     symbol_regions: HashMap<SymbolId, u32>,
@@ -268,7 +272,6 @@ struct Context<'a> {
     next_region: u32,
     expression_types: Vec<(Span, Type)>,
     pattern_types: Vec<(Span, Type)>,
-    loops: Vec<LoopContext>,
     nil_abort_states: Vec<Vec<FlowState>>,
     raised_exit_frames: Vec<Vec<RaisedExit>>,
     generic_bound_frames: Vec<HashMap<u32, Type>>,
@@ -469,6 +472,19 @@ fn known_module_argument_is_pure(module: &str, field: &str, index: usize) -> boo
     }
 }
 
+fn body_direct_literal_type(body: &syntax::Body) -> Option<Type> {
+    if let Some(block) = support::child::<syntax::Block>(body.syntax()) {
+        let syntax::Stmt::ExprStmt(statement) = block.statements().last()? else {
+            return None;
+        };
+        let expression = support::child::<syntax::Expr>(statement.syntax())?;
+        return direct_literal_type(&expression);
+    }
+    support::child::<syntax::Expr>(body.syntax())
+        .as_ref()
+        .and_then(direct_literal_type)
+}
+
 fn block_ends_in_direct_call(body: &syntax::Block) -> bool {
     let Some(syntax::Stmt::ExprStmt(statement)) = body.statements().last() else {
         return false;
@@ -479,7 +495,7 @@ fn block_ends_in_direct_call(body: &syntax::Block) -> bool {
     })
 }
 
-fn is_host_wrapper(body: &syntax::Block, resolution: &Resolution) -> bool {
+fn is_host_wrapper(body: &syntax::Body, resolution: &Resolution) -> bool {
     if resolution
         .hir
         .occurrences
@@ -493,14 +509,19 @@ fn is_host_wrapper(body: &syntax::Block, resolution: &Resolution) -> bool {
     {
         return false;
     }
-    let mut statements = body.statements();
-    let Some(syntax::Stmt::ExprStmt(statement)) = statements.next() else {
-        return false;
+    let expression = if let Some(block) = support::child::<syntax::Block>(body.syntax()) {
+        let mut statements = block.statements();
+        let Some(syntax::Stmt::ExprStmt(statement)) = statements.next() else {
+            return false;
+        };
+        if statements.next().is_some() {
+            return false;
+        }
+        support::child::<syntax::Expr>(statement.syntax())
+    } else {
+        support::child::<syntax::Expr>(body.syntax())
     };
-    if statements.next().is_some() {
-        return false;
-    }
-    let Some(syntax::Expr::Call(call)) = support::child::<syntax::Expr>(statement.syntax()) else {
+    let Some(syntax::Expr::Call(call)) = expression else {
         return false;
     };
     let Some(syntax::Expr::Field(field)) = child_expr(call.syntax(), 0) else {
@@ -524,6 +545,8 @@ mod tests {
         for source in [
             "host = replacement fn mutate(xs: [..integer]) -> nil do host.mutate(xs) end",
             "fn mutate(xs: [..integer]) -> nil do host.mutate(xs) end host = replacement",
+            "host = replacement fn mutate(xs: [..integer]) -> nil host.mutate(xs)",
+            "fn mutate(xs: [..integer]) -> nil host.mutate(xs) host = replacement",
         ] {
             let db = AnalysisDatabase::default();
             let file = db.add_file(source);
@@ -537,7 +560,7 @@ mod tests {
                     _ => None,
                 })
                 .unwrap();
-            let body = support::child::<syntax::Block>(function.syntax()).unwrap();
+            let body = support::child::<syntax::Body>(function.syntax()).unwrap();
             assert!(!is_host_wrapper(&body, &resolution));
         }
     }

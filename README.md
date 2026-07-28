@@ -18,20 +18,14 @@ end
 greet("Simi")
 ```
 
-### Loops
+### Iterator controls
 
 ```simi
---- Computes the greatest common divisor with ordinary lexical state.
-fn gcd(left: integer, right: integer) -> integer noraise do
-    loop
-        if right == 0 then break left end
-        let remainder = left % right
-        left = right
-        right = remainder
-    end
-end
+let iter = require("std/iter")
 
-gcd(1071, 462)
+iter.fold_while(list.iter([1, 2, 3]), 0, fn(total, value) do
+    if value == 3 then iter.break(total) else iter.continue(total + value) end
+end)
 ```
 
 Save this as `two_sum.simi`, install Simi using one of the options below, and run:
@@ -46,7 +40,7 @@ Start with [Hello, world!](docs/language-tour/hello-world.md), continue through 
 
 ## Installation
 
-> **Status:** Simi is under active development. Versioned prereleases and the moving `latest` development release include the exact source commit in every download name.
+> **Status:** Simi is under active development. Alpha releases are distributed only as GitHub Release artifacts; crates.io publication is deferred. Versioned prereleases and the moving `latest` development release include the exact source commit in every download name.
 
 ### Latest release
 
@@ -68,7 +62,7 @@ Development artifacts are produced for Linux x86-64, Intel macOS, and Windows x8
 
 ### Cargo
 
-To build the newest source directly, first [install Rust with rustup](https://rustup.rs/). Simi currently requires Rust 1.88 or newer. Then run:
+Simi is not published to crates.io during the alpha phase. To build the newest source directly, first [install Rust with rustup](https://rustup.rs/). Simi currently requires Rust 1.88 or newer. Then run:
 
 ```sh
 cargo install --git https://github.com/Microwave-WYB/simi-lang --bin simi
@@ -117,7 +111,7 @@ simi lsp
 
 - dynamic values with optional, runtime-erased annotations, bounded generics, callable labels, and raised-effect contracts;
 - lexical closures, recursion, and same-scope shadowing;
-- expression-valued `if`, `case`, `try`, standalone blocks, and functional loops;
+- expression-valued `if`, `case`, protected and standalone `do` blocks, and iterator controls;
 - ordinary, nil-aware, tap, and trailing-callback pipeline operators;
 - mutable zero-based lists and insertion-ordered maps;
 - structural list/map patterns and catchable raised values;
@@ -138,7 +132,7 @@ pub type ScriptResult = Result<Value, Raised>;
 pub fn eval(source: &str) -> Result<ScriptResult, SimiError>;
 ```
 
-`eval` uses a fresh engine with the portable standard library. `Engine::new()` instead provides the built-in `list` and `map` prelude globals in addition to `type`, `inspect`, and `require`. Built-in `require("std/list")` and `require("std/map")` raise `module_not_found`; hosts may still explicitly register modules at those paths. For persistent module state or custom capabilities, construct an `Engine`:
+`eval` uses a fresh portable engine. `Engine::new()` and `Engine::with_stdlib()` provide the same shadowable `list`, `map`, `iter`, `number`, and `string` prelude globals, together with `type`, `inspect`, and `require`; their canonical `std/*` paths remain available through `require` and share the same cached module values. For persistent module state or custom capabilities, construct an `Engine`:
 
 ```rust
 use simi::Engine;
@@ -157,15 +151,12 @@ Hosts can register direct value modules or use `host_value!` to generate a priva
 
 ## Standard modules
 
-`Engine::new()` provides the minimum prelude:
+`Engine::new()` and `Engine::with_stdlib()` both provide the portable prelude:
 
-- built-in `list` and `map` globals
+- `list`, `map`, `iter`, `number`, and `string` globals;
+- canonical `std/list`, `std/map`, `std/iter`, `std/number`, and `std/string` paths for `require`.
 
-`Engine::with_stdlib()` additionally provides:
-
-- `std/iter`
-- `std/number`
-- `std/string`
+`Engine::builder().build()` remains an explicit bare host configuration. Use `.stdlib()` to install this portable prelude, and add `.stdio()` only when text IO is required.
 
 The CLI additionally registers the opt-in `std/io` capability. Filesystem and package module discovery are not implemented yet; embedders register modules explicitly.
 

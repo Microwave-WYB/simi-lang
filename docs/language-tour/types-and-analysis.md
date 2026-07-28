@@ -9,7 +9,7 @@
   - [The erasure contract](#the-erasure-contract)
   - [Primitive types and unions](#primitive-types-and-unions)
   - [Function types and generics](#function-types-and-generics)
-  - [Callable bounds and raised effects](#callable-bounds-and-raised-effects)
+  - [Callable bounds and raised-error contracts](#callable-bounds-and-raised-error-contracts)
   - [Structural list types](#structural-list-types)
   - [Structural map types](#structural-map-types)
   - [Flow analysis and narrowing](#flow-analysis-and-narrowing)
@@ -31,8 +31,8 @@ An annotated script is still an ordinary Simi script. Removing its type syntax m
 ```simi
 let count: integer = 1
 
-fn display(value: integer | float) -> string do
-    require("std/number").to_string(value)
+fn display(value: number) -> string do
+    number.to_string(value)
 end
 
 display(count)
@@ -68,7 +68,7 @@ string
 any
 ```
 
-There is deliberately no static `number` type. Use the union `integer | float` for values accepted from either numeric runtime category.
+`number` is a built-in erased alias for `integer | float`, for values accepted from either numeric runtime category. It affects analysis only: `type(value)` still reports either `"integer"` or `"float"` at runtime.
 
 `never` is the bottom type: it describes an expression with no normal return path and disappears when unions are normalized. `any` is the explicit dynamic escape hatch; operations involving it remain valid but lose static precision. When analysis has insufficient evidence, editor presentation also falls back to `any`.
 
@@ -83,16 +83,18 @@ let name: maybe_name = nil
 [selected, name]
 ```
 
-Numeric and Boolean literals widen to `integer`, `float`, and `boolean`. `nil` remains an ordinary union member.
+Every primitive literal can be written explicitly as a singleton annotation type: `nil`, `true`, `false`, strings, integers, and finite floats. Numeric literals and ordinary Boolean expression values still infer as `integer`, `float`, and `boolean`; an annotation such as `let port: 8080 = 8080` opts into the singleton contract. Each singleton is a subtype of its primitive category, but a broad primitive is not a subtype of one singleton. Integral float spellings remain float singletons, while `-0.0` normalizes to the same singleton as `0.0`.
+
+Direct named map fields are the narrow Boolean inference exception: `{done = false}` preserves `false` as a record-discriminant fact, while arbitrary Boolean variables, calls, and operators remain `boolean`. The union `true | false` normalizes to `boolean`. `nil` remains an ordinary union member.
 
 ## Function types and generics
 
-Function types use arrows:
+Callable types use explicit `fn(parameters) -> result` syntax:
 
 ```simi
-alias transform = integer -> integer
-alias predicate = (integer, string) -> boolean
-alias supplier = () -> integer
+alias transform = fn(integer) -> integer
+alias predicate = fn(integer, string) -> boolean
+alias supplier = fn() -> integer
 
 let double: transform = fn(value: integer) -> integer do
     value * 2
@@ -101,7 +103,7 @@ end
 double(21)
 ```
 
-Arrows associate to the right, so `integer -> string -> boolean` means a function taking an integer and returning a function from string to Boolean. Parentheses distinguish a fixed parameter list from one parameter.
+Callable parameter lists always use parentheses. `fn(integer) -> fn(string) -> boolean` means a function taking an integer and returning a function from string to Boolean. Legacy bare arrow forms are rejected.
 
 Generic variables begin with an apostrophe. Alias parameters are declared explicitly and applied with angle brackets:
 
@@ -121,7 +123,7 @@ fn identity(value: 'a) -> 'a do
     value
 end
 
-fn transform(value: 'a, callback: 'a -> 'b) -> 'b do
+fn transform(value: 'a, callback: fn('a) -> 'b) -> 'b do
     callback(value)
 end
 
@@ -132,12 +134,12 @@ end)
 
 Callers do not supply explicit generic arguments. Syntax such as `identity<string>(value)` is outside the initial design. Aliases are transparent: expanding one creates neither a nominal type nor a new runtime value category.
 
-## Callable bounds and raised effects
+## Callable bounds and raised-error contracts
 
 An explicit callable header may bound generic variables with ordinary Simi types:
 
 ```simi
-fn negate<'a: integer | float>(value: 'a) -> 'a noraise do
+fn negate<'a: integer | float>(value: 'a) -> 'a ! never do
     -value
 end
 
@@ -149,8 +151,8 @@ The leading `|` is optional for every union and is convenient when variants are 
 Callable parameter labels improve signatures while calls remain positional:
 
 ```simi
-let compare: (left: integer, right: integer) -> boolean noraise =
-    fn(left: integer, right: integer) -> boolean noraise do
+let compare: fn(left: integer, right: integer) -> boolean ! never =
+    fn(left: integer, right: integer) -> boolean ! never do
         left < right
     end
 
@@ -160,14 +162,14 @@ compare(1, 2)
 A function's raised type is separate from its normal result:
 
 ```simi
-fn fail(value: 'e) -> never raises 'e do
+fn fail(value: 'e) -> never ! 'e do
     raise value
 end
 
-fn recover() -> integer noraise do
-    try
+fn recover() -> integer ! never do
+    do
         fail("missing")
-    catch "missing" do
+    catch of "missing" =>
         0
     end
 end
@@ -175,7 +177,7 @@ end
 recover()
 ```
 
-Omitting the clause infers the effect. `raises E` declares an upper bound, and `noraise` means `raises never`. Effect variables propagate through callback signatures, while hard diagnostics and postfix `?` remain outside the raised channel. An effect after a chained arrow belongs to the nearest right-hand callable; parentheses select an outer callable explicitly.
+Omitting the contract infers the raised type. `! E` declares an upper bound, and `! never` forbids language raises. Raised-type variables propagate through callback signatures, while hard diagnostics and postfix `?` remain outside the raised channel. In nested callable types, a raised-error contract belongs to the callable immediately before it.
 
 ## Structural list types
 
@@ -230,13 +232,33 @@ alias result<'value, 'error> =
 
 let outcome: result<integer, string> = {kind = "ok", value = 42}
 
-case outcome
-of {kind = "ok", value = value} do
+case outcome of
+{kind = "ok", value = value} =>
     value
-of {kind = "error", error = error} do
+{kind = "error", error = error} =>
     error
 end
 ```
+
+Boolean fields can discriminate record unions too:
+
+```simi
+alias Step<'a> =
+    | {done: true, ..}
+    | {done: false, value: 'a, ..}
+
+fn step_value(step: Step<integer>) -> integer | nil do
+    if step.done then
+        nil
+    else
+        step.value
+    end
+end
+
+step_value({done = false, value = 42})
+```
+
+The `if step.done` branches select the corresponding record variants, so `step.value` has type `integer` in the `else` branch. Before that check, the done variant makes `value` not definitely present.
 
 Pattern matching and equality can narrow these unions. Exhaustiveness analysis may warn about a missing case, but erasure preserves the runtime rule: an unmatched `case` is still a hard diagnostic.
 
@@ -253,7 +275,7 @@ Analysis narrows branch-local types through:
 ```simi
 fn describe(value: integer | string) -> string do
     if type(value) == "integer" then
-        require("std/number").to_string(value)
+        number.to_string(value)
     else
         value
     end
@@ -277,7 +299,7 @@ end
 greeting(nil)
 ```
 
-A nil-abort directly from a loop body ends that iteration and starts the next one; it does not determine the loop result, which only comes from `break value`. A `?>` stage similarly splits its nil-skipped and active paths, applies call effects only on the active path, and rejoins before the next pipeline stage. A following ordinary `|>` therefore sees the complete result union.
+Iterator callbacks return ordinary control maps to their native drivers. A `?>` stage similarly splits its nil-skipped and active paths, applies call effects only on the active path, and rejoins before the next pipeline stage. A following ordinary `|>` therefore sees the complete result union.
 
 ## Mutation, aliases, and analysis
 

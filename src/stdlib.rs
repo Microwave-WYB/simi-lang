@@ -7,6 +7,8 @@ use crate::native::{
     string_length, string_lower, string_slice, string_split, string_starts_with, string_to_number,
     string_trim, string_upper,
 };
+use crate::runtime::{NativeFunction, Value};
+use crate::value::IteratorIntrinsic;
 
 pub fn list() -> Module {
     let host = crate::host_value! {
@@ -33,12 +35,77 @@ pub fn list() -> Module {
 }
 
 pub fn iter() -> Module {
-    let host = crate::host_value! {
-        name: "std/iter",
-        functions: {
-            "append" => (2, list_append),
-        },
+    let intrinsic = |name, arity, operation| {
+        Value::NativeFunction(NativeFunction::iterator(
+            format!("std/iter.{name}"),
+            arity,
+            operation,
+        ))
     };
+    let host = Module::builder("std/iter")
+        .value(
+            "typed_iterator",
+            intrinsic("typed_iterator", 1, IteratorIntrinsic::TypedIterator),
+        )
+        .value(
+            "validate_count",
+            intrinsic("validate_count", 1, IteratorIntrinsic::ValidateCount),
+        )
+        .value(
+            "validate_range",
+            intrinsic("validate_range", 2, IteratorIntrinsic::ValidateRange),
+        )
+        .value(
+            "drop_next",
+            intrinsic("drop_next", 2, IteratorIntrinsic::DropNext),
+        )
+        .value(
+            "enumerate_next",
+            intrinsic("enumerate_next", 2, IteratorIntrinsic::EnumerateNext),
+        )
+        .value(
+            "zip_next",
+            intrinsic("zip_next", 2, IteratorIntrinsic::ZipNext),
+        )
+        .value(
+            "zip_longest_next",
+            intrinsic("zip_longest_next", 5, IteratorIntrinsic::ZipLongestNext),
+        )
+        .value(
+            "filter_next",
+            intrinsic("filter_next", 2, IteratorIntrinsic::FilterNext),
+        )
+        .value(
+            "to_list",
+            intrinsic("to_list", 1, IteratorIntrinsic::ToList),
+        )
+        .value("fold", intrinsic("fold", 3, IteratorIntrinsic::Fold))
+        .value("find", intrinsic("find", 2, IteratorIntrinsic::Find))
+        .value(
+            "find_index",
+            intrinsic("find_index", 2, IteratorIntrinsic::FindIndex),
+        )
+        .value(
+            "contains",
+            intrinsic("contains", 2, IteratorIntrinsic::Contains),
+        )
+        .value("any", intrinsic("any", 2, IteratorIntrinsic::Any))
+        .value("all", intrinsic("all", 2, IteratorIntrinsic::All))
+        .value("each", intrinsic("each", 2, IteratorIntrinsic::Each))
+        .value("count", intrinsic("count", 2, IteratorIntrinsic::Count))
+        .value(
+            "each_while",
+            intrinsic("each_while", 2, IteratorIntrinsic::EachWhile),
+        )
+        .value(
+            "fold_while",
+            intrinsic("fold_while", 3, IteratorIntrinsic::FoldWhile),
+        )
+        .value(
+            "repeat_next",
+            intrinsic("repeat_next", 1, IteratorIntrinsic::RepeatNext),
+        )
+        .build_value();
     Module::source("std/iter", include_str!("../stdlib/iter.simi"))
         .host(host)
         .build()

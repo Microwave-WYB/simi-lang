@@ -74,7 +74,7 @@ pub(super) fn pipeline_stage(p: &mut Parser<'_>) {
     while p.at(K::DOT) {
         let field = callee.marker.precede(&mut p.events);
         p.bump();
-        p.expect(K::IDENT, "field name after `.`");
+        field_name(p);
         callee = Parsed {
             marker: field.complete(&mut p.events, K::FIELD_EXPR),
             flavor: Flavor::Field,
@@ -86,6 +86,10 @@ pub(super) fn pipeline_stage(p: &mut Parser<'_>) {
     }
     marker.complete(&mut p.events, K::PIPELINE_STAGE);
 }
+fn field_name(p: &mut Parser<'_>) {
+    p.expect(K::IDENT, "field name after `.`");
+}
+
 pub(super) fn trailing_argument(p: &mut Parser<'_>) -> Parsed {
     let left = parse_or(p);
     if !p.at(K::LESS_PIPE) {
@@ -182,7 +186,7 @@ pub(super) fn postfix(p: &mut Parser<'_>) -> Parsed {
         } else if p.at(K::DOT) {
             let marker = value.marker.precede(&mut p.events);
             p.bump();
-            p.expect(K::IDENT, "field name after `.`");
+            field_name(p);
             value = Parsed {
                 marker: marker.complete(&mut p.events, K::FIELD_EXPR),
                 flavor: Flavor::Field,
@@ -232,6 +236,9 @@ pub(super) fn primary(p: &mut Parser<'_>) -> Parsed {
         K::INT | K::FLOAT | K::STRING | K::NIL_KW | K::TRUE_KW | K::FALSE_KW => {
             simple_expr(p, K::LITERAL_EXPR, Flavor::Other)
         }
+        K::IDENT if matches!(p.current_text(), Some("loop" | "break" | "continue")) => {
+            legacy_control_expr(p)
+        }
         K::IDENT => simple_expr(p, K::NAME_EXPR, Flavor::Name),
         K::FN_KW => function_expr(p),
         K::DO_KW => block_expr(p),
@@ -241,13 +248,9 @@ pub(super) fn primary(p: &mut Parser<'_>) -> Parsed {
         K::RAISE_KW => raise_expr(p),
         K::PANIC_KW => terminal_expr(p, K::PANIC_EXPR),
         K::TODO_KW => terminal_expr(p, K::TODO_EXPR),
-        K::TRY_KW => try_expr(p),
+        K::TRY_KW => legacy_try_expr(p),
         K::CASE_KW => case_expr(p),
         K::IF_KW => if_expr(p),
-        K::LOOP_KW => loop_expr(p),
-        K::AT if p.nth(2) == K::LOOP_KW => loop_expr(p),
-        K::CONTINUE_KW => continue_expr(p),
-        K::BREAK_KW => break_expr(p),
         _ => {
             p.error(format!(
                 "expected expression, found `{}`",
@@ -257,6 +260,19 @@ pub(super) fn primary(p: &mut Parser<'_>) -> Parsed {
         }
     }
 }
+fn legacy_control_expr(p: &mut Parser<'_>) -> Parsed {
+    let marker = p.start();
+    let control = p.current_text().unwrap_or("control");
+    p.error(format!(
+        "`{control}` control syntax was removed; use `std/iter` control values instead"
+    ));
+    p.bump();
+    Parsed {
+        marker: marker.complete(&mut p.events, K::ERROR),
+        flavor: Flavor::Other,
+    }
+}
+
 pub(super) fn simple_expr(p: &mut Parser<'_>, kind: K, flavor: Flavor) -> Parsed {
     let marker = p.start();
     p.bump();
@@ -290,10 +306,49 @@ pub(super) fn function_expr(p: &mut Parser<'_>) -> Parsed {
         flavor: Flavor::Other,
     }
 }
+pub(super) fn do_starts_protected(p: &Parser<'_>) -> bool {
+    let mut depth = 0usize;
+    for lexeme in &p.lexemes[p.position..] {
+        let kind = lexeme.kind;
+        if kind.is_trivia() {
+            continue;
+        }
+        match kind {
+            K::DO_KW | K::IF_KW | K::CASE_KW => depth += 1,
+            K::CATCH_KW if depth == 1 => return true,
+            K::END_KW => {
+                depth = depth.saturating_sub(1);
+                if depth == 0 {
+                    return false;
+                }
+            }
+            _ => {}
+        }
+    }
+    false
+}
+
 pub(super) fn block_expr(p: &mut Parser<'_>) -> Parsed {
     let marker = p.start();
     p.bump();
+    let before = p.nontrivia_index();
     block(p);
+    let protected_is_empty = p.nontrivia_index() == before;
+    let catch_span = p.current_span();
+    if p.bump_if(K::CATCH_KW) {
+        if protected_is_empty {
+            p.error_at(
+                catch_span,
+                "expected at least one protected block item".to_owned(),
+            );
+        }
+        pattern_arms(p, K::CATCH_ARM, "`of` after `catch`");
+        p.expect(K::END_KW, "`end` after protected expression");
+        return Parsed {
+            marker: marker.complete(&mut p.events, K::PROTECTED_EXPR),
+            flavor: Flavor::Other,
+        };
+    }
     p.expect(K::END_KW, "`end` after standalone block");
     Parsed {
         marker: marker.complete(&mut p.events, K::BLOCK_EXPR),

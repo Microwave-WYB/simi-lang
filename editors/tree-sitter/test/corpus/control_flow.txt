@@ -1,58 +1,194 @@
 ==================
-Plain loops
+Iterator control members are ordinary field calls
 ==================
 
-do
-  let count = 0
-  loop
-    count = count + 1
-    if count == 3 then break count end
-  end
+iter.loop(value)
+iter.break(value)
+iter.continue(nil)
+
+---
+
+(program
+  (call_expression
+    (field_expression
+      (identifier)
+      (identifier))
+    (arguments
+      (identifier)))
+  (call_expression
+    (field_expression
+      (identifier)
+      (identifier))
+    (arguments
+      (identifier)))
+  (call_expression
+    (field_expression
+      (identifier)
+      (identifier))
+    (arguments
+      (nil))))
+
+==================
+Former control words remain identifiers outside expressions
+==================
+
+let loop = 1
+let break = 2
+let continue = 3
+fn loop(break, continue) do
+  {loop = 1, break = 2, continue = 3}
 end
 
 ---
 
 (program
-  (block_expression
-    (block
-      (let_statement
-        (identifier)
-        (integer))
-      (loop_expression
-        (block
-          (assignment_expression
-            (assignment_target
-              (identifier))
-            (binary_expression
+  (let_statement
+    (identifier)
+    (integer))
+  (let_statement
+    (identifier)
+    (integer))
+  (let_statement
+    (identifier)
+    (integer))
+  (function_declaration
+    (identifier)
+    (declared_parameters
+      (declared_parameter
+        (identifier))
+      (declared_parameter
+        (identifier)))
+    (block_expression
+      (block
+        (map
+          (map_entry
+            (map_field
               (identifier)
               (integer)))
-          (if_expression
-            (binary_expression
+          (map_entry
+            (map_field
               (identifier)
-              (integer))
-            (block
-              (break_expression
-                (identifier)))))))))
+              (integer)))
+          (map_entry
+            (map_field
+              (identifier)
+              (integer))))))))
 
 ==================
-Labeled loops and control
+Removed loop syntax is rejected
 ==================
 
-@outer loop
-  loop
-    continue @outer
-  end
-end
+loop break 1 end
 
 ---
 
 (program
-  (loop_expression
-    (loop_label
-      (identifier))
-    (block
-      (loop_expression
-        (block
-          (continue_expression
-            (loop_label
-              (identifier))))))))
+  (ERROR
+    (identifier)
+    (identifier))
+  (integer)
+  (identifier))
+
+==================
+Removed break syntax is rejected
+==================
+
+break 1
+
+---
+
+(program
+  (ERROR
+    (identifier))
+  (integer))
+
+==================
+Removed continue syntax is rejected
+==================
+
+continue
+
+---
+
+(program
+  (ERROR
+    (identifier)))
+
+==================
+Direct and explicit case, catch, and function bodies
+==================
+
+fn identity(value)
+  value
+
+fn classify(value)
+  case value of
+    1 =>
+      "one"
+    _ =>
+      do
+        let fallback = "other"
+        fallback
+      end
+  end
+
+fn recover()
+  do
+    raise "failure"
+  catch of
+    "failure" =>
+      "recovered"
+    _ =>
+      do
+        "fallback"
+      end
+  end
+
+---
+
+(program
+  (function_declaration
+    (identifier)
+    (declared_parameters
+      (declared_parameter
+        (identifier)))
+    (identifier))
+  (function_declaration
+    (identifier)
+    (declared_parameters
+      (declared_parameter
+        (identifier)))
+    (case_expression
+      (identifier)
+      (case_clause
+        (integer)
+        (string
+          (string_content)))
+      (case_clause
+        (wildcard_pattern)
+        (block_expression
+          (block
+            (let_statement
+              (identifier)
+              (string
+                (string_content)))
+            (identifier))))))
+  (function_declaration
+    (identifier)
+    (declared_parameters)
+    (protected_expression
+      (block
+        (raise_expression
+          (string
+            (string_content))))
+      (catch_arm
+        (string
+          (string_content))
+        (string
+          (string_content)))
+      (catch_arm
+        (wildcard_pattern)
+        (block_expression
+          (block
+            (string
+              (string_content))))))))

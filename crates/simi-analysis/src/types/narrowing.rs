@@ -33,11 +33,9 @@ impl Context<'_> {
                     let Some(name) = direct_token(field.syntax(), K::IDENT) else {
                         continue;
                     };
-                    let Some(child) = support::child::<syntax::Pattern>(field.syntax()) else {
-                        continue;
-                    };
-                    if let Some((_, field_type)) =
-                        fields.iter().find(|(field, _)| field == name.text())
+                    if let Some(child) = support::child::<syntax::Pattern>(field.syntax())
+                        && let Some((_, field_type)) =
+                            fields.iter().find(|(field, _)| field == name.text())
                     {
                         self.constrain_pattern_domain(field_type, &child);
                     }
@@ -57,10 +55,9 @@ impl Context<'_> {
                     let Some(name) = direct_token(field.syntax(), K::IDENT) else {
                         continue;
                     };
-                    let Some(child) = support::child::<syntax::Pattern>(field.syntax()) else {
-                        continue;
-                    };
-                    let field_type = self.pattern_domain(&child).unwrap_or(Type::Unknown);
+                    let field_type = support::child::<syntax::Pattern>(field.syntax())
+                        .and_then(|child| self.pattern_domain(&child))
+                        .unwrap_or_else(|| self.fresh());
                     fields.push((name.text().to_owned(), field_type));
                 }
                 Some(Type::Map {

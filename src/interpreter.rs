@@ -12,6 +12,7 @@ use crate::span::Span;
 
 mod call;
 mod execution;
+mod iterator;
 pub(crate) mod operations;
 mod pattern;
 
@@ -32,18 +33,7 @@ pub struct Interpreter {
 pub(super) enum EvaluationError {
     Runtime(RuntimeError),
     Raised(Raised),
-    NilPropagate {
-        span: Span,
-    },
-    Break {
-        value: Value,
-        label: Option<String>,
-        span: Span,
-    },
-    Continue {
-        label: Option<String>,
-        span: Span,
-    },
+    NilPropagate { span: Span },
 }
 
 pub(super) type EvaluationResult<T> = Result<T, EvaluationError>;
@@ -62,14 +52,6 @@ impl EvaluationError {
             Self::NilPropagate { span } => RuntimeError {
                 span,
                 message: "nil propagation escaped its block".to_owned(),
-            },
-            Self::Break { span, .. } => RuntimeError {
-                span,
-                message: "`break` outside of a loop".to_owned(),
-            },
-            Self::Continue { span, .. } => RuntimeError {
-                span,
-                message: "`continue` outside of a loop".to_owned(),
             },
         }
     }
@@ -114,6 +96,17 @@ impl Interpreter {
             modules,
             source_domain: next_source_domain(),
             module_name: None,
+        }
+    }
+
+    pub(crate) fn evaluate_with_prelude(
+        &mut self,
+        program: &Program,
+    ) -> RuntimeResult<ScriptResult> {
+        match self.install_prelude_modules() {
+            Ok(()) => self.evaluate(program),
+            Err(EvaluationError::Raised(raised)) => Ok(Err(raised)),
+            Err(error) => Err(error.into_runtime_error()),
         }
     }
 
