@@ -30,9 +30,6 @@ pub enum SyntaxKind {
     AND_KW,
     OR_KW,
     NOT_KW,
-    LOOP_KW,
-    BREAK_KW,
-    CONTINUE_KW,
     CASE_KW,
     OF_KW,
     WHEN_KW,
@@ -50,7 +47,6 @@ pub enum SyntaxKind {
     COMMA,
     COLON,
     APOSTROPHE,
-    AT,
     ARROW,
     PIPE,
     DOT,
@@ -125,9 +121,6 @@ pub enum SyntaxKind {
     TODO_EXPR,
     CASE_EXPR,
     IF_EXPR,
-    LOOP_EXPR,
-    CONTINUE_EXPR,
-    BREAK_EXPR,
     CATCH_ARM,
     MAP_ENTRY,
     ARG_LIST,
@@ -223,9 +216,6 @@ ast_node!(PanicExpr, PANIC_EXPR);
 ast_node!(TodoExpr, TODO_EXPR);
 ast_node!(CaseExpr, CASE_EXPR);
 ast_node!(IfExpr, IF_EXPR);
-ast_node!(LoopExpr, LOOP_EXPR);
-ast_node!(ContinueExpr, CONTINUE_EXPR);
-ast_node!(BreakExpr, BREAK_EXPR);
 ast_node!(CatchArm, CATCH_ARM);
 ast_node!(MapEntry, MAP_ENTRY);
 ast_node!(ArgList, ARG_LIST);
@@ -302,9 +292,6 @@ pub enum Expr {
     Todo(TodoExpr),
     Case(CaseExpr),
     If(IfExpr),
-    Loop(LoopExpr),
-    Continue(ContinueExpr),
-    Break(BreakExpr),
 }
 impl AstNode for Expr {
     fn can_cast(kind: SyntaxKind) -> bool {
@@ -336,9 +323,6 @@ impl AstNode for Expr {
             SyntaxKind::TODO_EXPR => Self::Todo(TodoExpr::cast(syntax)?),
             SyntaxKind::CASE_EXPR => Self::Case(CaseExpr::cast(syntax)?),
             SyntaxKind::IF_EXPR => Self::If(IfExpr::cast(syntax)?),
-            SyntaxKind::LOOP_EXPR => Self::Loop(LoopExpr::cast(syntax)?),
-            SyntaxKind::CONTINUE_EXPR => Self::Continue(ContinueExpr::cast(syntax)?),
-            SyntaxKind::BREAK_EXPR => Self::Break(BreakExpr::cast(syntax)?),
             _ => return None,
         })
     }
@@ -366,9 +350,6 @@ impl AstNode for Expr {
             Self::Todo(node) => node.syntax(),
             Self::Case(node) => node.syntax(),
             Self::If(node) => node.syntax(),
-            Self::Loop(node) => node.syntax(),
-            Self::Continue(node) => node.syntax(),
-            Self::Break(node) => node.syntax(),
         }
     }
 }

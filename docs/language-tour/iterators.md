@@ -15,6 +15,7 @@
 - Iterators
   - [Collection snapshots](#collection-snapshots)
   - [Lazy adapters](#lazy-adapters)
+  - [Structural controls](#structural-controls)
   - [Consumers](#consumers)
   - [Single-pass traversal](#single-pass-traversal)
   - [Steps and custom iterators](#steps-and-custom-iterators)
@@ -63,6 +64,30 @@ let result = iter.to_list(transformed)
 ```
 
 Filter predicates must return booleans. A callback raise propagates unchanged through adapters and consumers.
+
+## Structural controls
+
+`iter.each_while` and `iter.fold_while` let callbacks choose whether a native
+iterator driver continues or stops. Return `iter.continue(value)` to continue,
+or `iter.break(value)` to stop and return its payload. These are ordinary maps,
+not lexical control flow.
+
+```simi
+let iter = require("std/iter")
+
+let sum = iter.fold_while(list.iter([1, 2, 3, 4]), 0, fn(total, value) do
+    if value == 4 then iter.break(total)
+    else iter.continue(total + value) end
+end)
+
+sum
+```
+
+`each_while` returns its break payload, or `nil` when its source is exhausted.
+`fold_while` returns its current state at exhaustion. `iter.repeat_with` creates
+a lazy infinite iterator: its producer runs once per requested item and may
+produce `nil`. Malformed callback control maps are hard diagnostics, while
+raises from a source or callback propagate unchanged.
 
 ## Consumers
 

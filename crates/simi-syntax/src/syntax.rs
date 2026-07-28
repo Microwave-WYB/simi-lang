@@ -30,9 +30,6 @@ impl SyntaxKind {
                 | Self::PROTECTED_EXPR
                 | Self::CASE_EXPR
                 | Self::IF_EXPR
-                | Self::LOOP_EXPR
-                | Self::CONTINUE_EXPR
-                | Self::BREAK_EXPR
         )
     }
 

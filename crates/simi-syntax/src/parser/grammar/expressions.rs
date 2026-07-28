@@ -87,13 +87,7 @@ pub(super) fn pipeline_stage(p: &mut Parser<'_>) {
     marker.complete(&mut p.events, K::PIPELINE_STAGE);
 }
 fn field_name(p: &mut Parser<'_>) {
-    if p.at(K::IDENT) {
-        p.bump();
-    } else if p.at(K::BREAK_KW) || p.at(K::CONTINUE_KW) {
-        p.bump_as(K::IDENT);
-    } else {
-        p.expect(K::IDENT, "field name after `.`");
-    }
+    p.expect(K::IDENT, "field name after `.`");
 }
 
 pub(super) fn trailing_argument(p: &mut Parser<'_>) -> Parsed {
@@ -242,6 +236,9 @@ pub(super) fn primary(p: &mut Parser<'_>) -> Parsed {
         K::INT | K::FLOAT | K::STRING | K::NIL_KW | K::TRUE_KW | K::FALSE_KW => {
             simple_expr(p, K::LITERAL_EXPR, Flavor::Other)
         }
+        K::IDENT if matches!(p.current_text(), Some("loop" | "break" | "continue")) => {
+            legacy_control_expr(p)
+        }
         K::IDENT => simple_expr(p, K::NAME_EXPR, Flavor::Name),
         K::FN_KW => function_expr(p),
         K::DO_KW => block_expr(p),
@@ -254,10 +251,6 @@ pub(super) fn primary(p: &mut Parser<'_>) -> Parsed {
         K::TRY_KW => legacy_try_expr(p),
         K::CASE_KW => case_expr(p),
         K::IF_KW => if_expr(p),
-        K::LOOP_KW => loop_expr(p),
-        K::AT if p.nth(2) == K::LOOP_KW => loop_expr(p),
-        K::CONTINUE_KW => continue_expr(p),
-        K::BREAK_KW => break_expr(p),
         _ => {
             p.error(format!(
                 "expected expression, found `{}`",
@@ -267,6 +260,19 @@ pub(super) fn primary(p: &mut Parser<'_>) -> Parsed {
         }
     }
 }
+fn legacy_control_expr(p: &mut Parser<'_>) -> Parsed {
+    let marker = p.start();
+    let control = p.current_text().unwrap_or("control");
+    p.error(format!(
+        "`{control}` control syntax was removed; use `std/iter` control values instead"
+    ));
+    p.bump();
+    Parsed {
+        marker: marker.complete(&mut p.events, K::ERROR),
+        flavor: Flavor::Other,
+    }
+}
+
 pub(super) fn simple_expr(p: &mut Parser<'_>, kind: K, flavor: Flavor) -> Parsed {
     let marker = p.start();
     p.bump();
@@ -308,7 +314,7 @@ pub(super) fn do_starts_protected(p: &Parser<'_>) -> bool {
             continue;
         }
         match kind {
-            K::DO_KW | K::IF_KW | K::CASE_KW | K::LOOP_KW => depth += 1,
+            K::DO_KW | K::IF_KW | K::CASE_KW => depth += 1,
             K::CATCH_KW if depth == 1 => return true,
             K::END_KW => {
                 depth = depth.saturating_sub(1);

@@ -26,7 +26,7 @@ const KEYWORDS: &[KeywordHelp] = &[
     KeywordHelp {
         word: "end",
         syntax: "… end",
-        documentation: "Closes the nearest function, block, conditional, loop, case, or protected expression.",
+        documentation: "Closes the nearest function, block, conditional, case, or protected expression.",
         contextual: false,
     },
     KeywordHelp {
@@ -105,24 +105,6 @@ const KEYWORDS: &[KeywordHelp] = &[
         word: "not",
         syntax: "not value",
         documentation: "Strict boolean negation.",
-        contextual: false,
-    },
-    KeywordHelp {
-        word: "loop",
-        syntax: "loop … end",
-        documentation: "Begins an expression-valued loop. Its body repeats on fall-through; `break value` supplies its result.",
-        contextual: false,
-    },
-    KeywordHelp {
-        word: "break",
-        syntax: "break value",
-        documentation: "Stops the nearest loop and supplies the loop expression's result.",
-        contextual: false,
-    },
-    KeywordHelp {
-        word: "continue",
-        syntax: "continue",
-        documentation: "Starts the nearest loop's next iteration and discards the current body value.",
         contextual: false,
     },
     KeywordHelp {
@@ -283,10 +265,9 @@ mod tests {
             .map(|keyword| keyword.word)
             .collect::<BTreeSet<_>>();
         let expected = [
-            "alias", "and", "any", "boolean", "break", "case", "catch", "continue", "do", "else",
-            "elseif", "end", "false", "float", "fn", "if", "integer", "let", "loop", "nil",
-            "noraise", "not", "of", "or", "panic", "raise", "raises", "string", "tap", "then",
-            "todo", "true", "when", "never",
+            "alias", "and", "any", "boolean", "case", "catch", "do", "else", "elseif", "end",
+            "false", "float", "fn", "if", "integer", "let", "nil", "noraise", "not", "of", "or",
+            "panic", "raise", "raises", "string", "tap", "then", "todo", "true", "when", "never",
         ]
         .into_iter()
         .collect::<BTreeSet<_>>();

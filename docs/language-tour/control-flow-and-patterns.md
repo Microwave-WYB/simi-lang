@@ -14,7 +14,6 @@
     - [Destructuring with `let`](#destructuring-with-let)
   - [Postfix nil propagation](#postfix-nil-propagation)
     - [Protected catch boundaries](#protected-catch-boundaries)
-  - [Loops](#loops)
 - [Mutation and copies](mutation-and-copies.md)
 - [Modules](modules.md)
 - [Text IO](text-io.md)
@@ -152,7 +151,7 @@ end
 
 Here the function body is the nearest block. `greeting("Ada")` returns the greeting, while `greeting(nil)` stops before concatenation and returns `nil`.
 
-Every control-flow body is a nil-propagation boundary: each `if` branch, each `case` arm, the protected body and selected catch arm of a protected `do`, every named or anonymous function body, every standalone `do ... end`, and every loop body. Propagation stops at the nearest one of these lexical boundaries rather than searching only for a standalone block.
+Every control-flow body is a nil-propagation boundary: each `if` branch, each `case` arm, the protected body and selected catch arm of a protected `do`, every named or anonymous function body, every standalone `do ... end`. Propagation stops at the nearest one of these lexical boundaries rather than searching only for a standalone block.
 
 For example, propagation inside an `if` branch makes that branch `nil`; it does not stop the surrounding standalone block:
 
@@ -221,82 +220,6 @@ end
 ```
 
 Raised values and the full error model are covered in [Errors and embedding](errors-and-embedding.md).
-
-## Loops
-
-A loop is an expression with one primitive form. Its body repeats when it reaches `end`; `continue` repeats early, and `break value` is the only terminating path and supplies the loop result. Ordinary body values are discarded.
-
-```simi
-let result = do
-    let state = 0
-
-    loop
-        if state == 3 then break state end
-        state = state + 1
-    end
-end
-
-result
-```
-
-State is ordinary lexical state. Lists and maps retain their normal mutable alias behavior, so a private setup block is useful when loop-local bindings should not escape:
-
-```simi
-let result = do
-    let values = []
-
-    loop
-        list.append(values, 1)
-        if list.length(values) == 3 then break values end
-    end
-end
-
-result
-```
-
-Because a loop body is a block, postfix nil propagation exits the current body normally and starts the next iteration. It does not determine the loop result; only `break value` does.
-
-```simi
-let result = do
-    let remaining = 1
-
-    loop
-        if remaining == 0 then break "finished" end
-        remaining = remaining - 1
-        nil?
-    end
-end
-
-result
-```
-
-An ordinary `break nil` ends a loop with `nil`:
-
-```simi
-let result = loop
-    break nil
-end
-
-result
-```
-
-Loop control targets the nearest lexical loop and cannot cross a function boundary. Nested loops may be labeled with `@name` to make a cross-loop transfer explicit. A label is lexical: it targets only an enclosing loop and is unavailable inside a nested function.
-
-```simi
-let result = do
-    let count = 0
-
-    @outer loop
-        loop
-            count = count + 1
-            if count < 3 then continue @outer end
-            break @outer count
-        end
-    end
-end
-
-result
-```
 
 <!-- tour:navigation:start -->
 ---

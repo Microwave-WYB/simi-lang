@@ -509,35 +509,6 @@ fn literal_require_calls_use_the_evaluated_module_result_type() {
 }
 
 #[test]
-fn plain_loops_preserve_types_for_reassigned_lexical_state() {
-    let source = r#"
-fn gcd(left: integer, right: integer) do
-    loop
-        if right == 0 then break left end
-        let remainder = left % right
-        left = right
-        right = remainder
-    end
-end
-let result = gcd(1071, 462)
-"#;
-    let (inference, resolution) = inferred(source);
-    assert!(
-        inference.diagnostics.is_empty(),
-        "{:?}",
-        inference.diagnostics
-    );
-    assert_eq!(
-        type_of(&inference, &resolution, "gcd").display(),
-        "(left: integer, right: integer) -> integer"
-    );
-    assert_eq!(
-        type_of(&inference, &resolution, "result").display(),
-        "integer"
-    );
-}
-
-#[test]
 fn pipelines_and_trailing_arguments_use_call_inference() {
     let source = r#"
 fn combine(value: integer, suffix: string) -> string do suffix end

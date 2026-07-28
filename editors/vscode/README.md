@@ -8,7 +8,7 @@ Visual Studio Code language support for Simi, including:
 - `--` line comments;
 - bracket matching, single-character auto-closing and surrounding pairs, plus extension-managed `do … end` block shells;
 - parser-backed structural indentation for sibling `case`/`catch` arms, with declarative rules limited to incomplete-source recovery;
-- construct-specific snippets for blocks, functions, conditionals, loops, cases, and protected expressions;
+- construct-specific snippets for blocks, functions, conditionals, cases, and protected expressions;
 - indentation-based folding plus `-- region` / `-- endregion` folding markers.
 
 The extension is a workspace extension. Platform-specific VSIX release assets bundle the matching `simi` language server. Ordinary source-development packages created with `just package` contain no native binary and fall back to an externally installed server.

@@ -245,12 +245,12 @@ fn a_catch_does_not_catch_a_raise_from_its_own_handler() {
 }
 
 #[test]
-fn raises_propagate_through_loop_bodies() {
+fn raises_propagate_through_protected_bodies() {
     assert_eval(
         r#"
-            do loop
+            do
                 raise "iteration"
-            end catch of value value end
+            catch of value value end
         "#,
         "\"iteration\"",
     );

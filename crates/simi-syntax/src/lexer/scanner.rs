@@ -130,10 +130,6 @@ impl<'a> Scanner<'a> {
                 self.simple(start, SyntaxKind::APOSTROPHE, TokenKind::Apostrophe);
                 Ok(())
             }
-            b'@' => {
-                self.simple(start, SyntaxKind::AT, TokenKind::At);
-                Ok(())
-            }
             b'.' => {
                 self.one_or_two(
                     start,
@@ -557,9 +553,6 @@ fn keyword(text: &str) -> Option<(SyntaxKind, TokenKind)> {
         "and" => (SyntaxKind::AND_KW, TokenKind::And),
         "or" => (SyntaxKind::OR_KW, TokenKind::Or),
         "not" => (SyntaxKind::NOT_KW, TokenKind::Not),
-        "loop" => (SyntaxKind::LOOP_KW, TokenKind::Loop),
-        "break" => (SyntaxKind::BREAK_KW, TokenKind::Break),
-        "continue" => (SyntaxKind::CONTINUE_KW, TokenKind::Continue),
         "case" => (SyntaxKind::CASE_KW, TokenKind::Case),
         "of" => (SyntaxKind::OF_KW, TokenKind::Of),
         "when" => (SyntaxKind::WHEN_KW, TokenKind::When),

@@ -52,17 +52,10 @@ let optional = do result? end
 let concatenated = "Simi" <> " language"
 let has_runtime_label = type(result) == "list"
 let is = has_runtime_label
-let final = do
-    let state = 0
-    loop
-        if state < 2 or state <= -1 then
-            state = state + 1
-            continue
-        else
-            break state
-        end
-    end
-end
+let final = iter.fold_while(iter.repeat_with(fn() do 1 end), 0, fn(state, _) do
+    if state < 2 or state <= -1 then iter.continue(state + 1)
+    else iter.break(state) end
+end)
 
 do
     let error = { error = "example" }

@@ -3,22 +3,51 @@
   "name": "Simi",
   "scopeName": "source.simi",
   "patterns": [
-    { "include": "#comments" },
-    { "include": "#strings" },
-    { "include": "#function-declarations" },
-    { "include": "#anonymous-functions" },
-    { "include": "#bindings" },
-    { "include": "#types" },
-    { "include": "#loop-state" },
-    { "include": "#numbers" },
-    { "include": "#language-constants" },
-    { "include": "#keywords" },
-    { "include": "#builtins" },
-    { "include": "#function-calls" },
-    { "include": "#properties" },
-    { "include": "#operators" },
-    { "include": "#punctuation" },
-    { "include": "#identifiers" }
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#strings"
+    },
+    {
+      "include": "#function-declarations"
+    },
+    {
+      "include": "#anonymous-functions"
+    },
+    {
+      "include": "#bindings"
+    },
+    {
+      "include": "#types"
+    },
+    {
+      "include": "#numbers"
+    },
+    {
+      "include": "#language-constants"
+    },
+    {
+      "include": "#keywords"
+    },
+    {
+      "include": "#builtins"
+    },
+    {
+      "include": "#function-calls"
+    },
+    {
+      "include": "#properties"
+    },
+    {
+      "include": "#operators"
+    },
+    {
+      "include": "#punctuation"
+    },
+    {
+      "include": "#identifiers"
+    }
   ],
   "repository": {
     "comments": {
@@ -27,7 +56,9 @@
           "name": "comment.line.double-dash.simi",
           "begin": "--",
           "beginCaptures": {
-            "0": { "name": "punctuation.definition.comment.simi" }
+            "0": {
+              "name": "punctuation.definition.comment.simi"
+            }
           },
           "end": "$"
         }
@@ -39,11 +70,15 @@
           "name": "string.quoted.double.simi",
           "begin": "\"",
           "beginCaptures": {
-            "0": { "name": "punctuation.definition.string.begin.simi" }
+            "0": {
+              "name": "punctuation.definition.string.begin.simi"
+            }
           },
           "end": "\"",
           "endCaptures": {
-            "0": { "name": "punctuation.definition.string.end.simi" }
+            "0": {
+              "name": "punctuation.definition.string.end.simi"
+            }
           },
           "patterns": [
             {
@@ -64,22 +99,36 @@
           "name": "meta.function.declaration.simi",
           "begin": "\\b(fn)\\s+([A-Za-z_][A-Za-z0-9_]*)(?=\\s*(?:<[^\\n]*>\\s*)?\\()",
           "beginCaptures": {
-            "1": { "name": "storage.type.function.simi" },
-            "2": { "name": "entity.name.function.simi" }
+            "1": {
+              "name": "storage.type.function.simi"
+            },
+            "2": {
+              "name": "entity.name.function.simi"
+            }
           },
           "end": "(\\))",
           "endCaptures": {
-            "1": { "name": "punctuation.definition.parameters.end.simi" }
+            "1": {
+              "name": "punctuation.definition.parameters.end.simi"
+            }
           },
           "patterns": [
-            { "include": "#types" },
-            { "include": "#operators" },
+            {
+              "include": "#types"
+            },
+            {
+              "include": "#operators"
+            },
             {
               "name": "variable.parameter.simi",
               "match": "\\b[A-Za-z_][A-Za-z0-9_]*\\b"
             },
-            { "include": "#comma" },
-            { "include": "#comments" }
+            {
+              "include": "#comma"
+            },
+            {
+              "include": "#comments"
+            }
           ]
         }
       ]
@@ -90,21 +139,33 @@
           "name": "meta.function.anonymous.simi",
           "begin": "\\b(fn)(?=\\s*(?:<[^\\n]*>\\s*)?\\()",
           "beginCaptures": {
-            "1": { "name": "storage.type.function.simi" }
+            "1": {
+              "name": "storage.type.function.simi"
+            }
           },
           "end": "(\\))",
           "endCaptures": {
-            "1": { "name": "punctuation.definition.parameters.end.simi" }
+            "1": {
+              "name": "punctuation.definition.parameters.end.simi"
+            }
           },
           "patterns": [
-            { "include": "#types" },
-            { "include": "#operators" },
+            {
+              "include": "#types"
+            },
+            {
+              "include": "#operators"
+            },
             {
               "name": "variable.parameter.simi",
               "match": "\\b[A-Za-z_][A-Za-z0-9_]*\\b"
             },
-            { "include": "#comma" },
-            { "include": "#comments" }
+            {
+              "include": "#comma"
+            },
+            {
+              "include": "#comments"
+            }
           ]
         }
       ]
@@ -114,8 +175,12 @@
         {
           "match": "\\b(let)\\s+([A-Za-z_][A-Za-z0-9_]*)",
           "captures": {
-            "1": { "name": "keyword.declaration.simi" },
-            "2": { "name": "variable.other.readwrite.simi" }
+            "1": {
+              "name": "keyword.declaration.simi"
+            },
+            "2": {
+              "name": "variable.other.readwrite.simi"
+            }
           }
         }
       ]
@@ -125,8 +190,12 @@
         {
           "match": "\\b(alias)\\s+([A-Za-z_][A-Za-z0-9_]*)",
           "captures": {
-            "1": { "name": "keyword.declaration.type.simi" },
-            "2": { "name": "entity.name.type.simi" }
+            "1": {
+              "name": "keyword.declaration.type.simi"
+            },
+            "2": {
+              "name": "entity.name.type.simi"
+            }
           }
         },
         {
@@ -140,19 +209,6 @@
         {
           "name": "support.type.primitive.simi",
           "match": "\\b(?:any|never|boolean|integer|float|string)\\b(?!\\s*\\.)"
-        }
-      ]
-    },
-    "loop-state": {
-      "patterns": [
-        {
-          "match": "(?:@([A-Za-z_][A-Za-z0-9_]*)\\s+)?\\b(loop)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*(=)",
-          "captures": {
-            "1": { "name": "entity.name.label.simi" },
-            "2": { "name": "keyword.control.loop.simi" },
-            "3": { "name": "variable.other.readwrite.simi" },
-            "4": { "name": "keyword.operator.assignment.simi" }
-          }
         }
       ]
     },
@@ -185,10 +241,6 @@
         {
           "name": "keyword.control.conditional.simi",
           "match": "\\b(?:if|then|elseif|else)\\b"
-        },
-        {
-          "name": "keyword.control.loop.simi",
-          "match": "\\b(?:loop|break|continue)\\b"
         },
         {
           "name": "keyword.control.case.simi",
@@ -241,8 +293,12 @@
         {
           "match": "(?<!\\.)(\\.)([A-Za-z_][A-Za-z0-9_]*)",
           "captures": {
-            "1": { "name": "punctuation.accessor.simi" },
-            "2": { "name": "variable.other.property.simi" }
+            "1": {
+              "name": "punctuation.accessor.simi"
+            },
+            "2": {
+              "name": "variable.other.property.simi"
+            }
           }
         }
       ]
@@ -281,7 +337,9 @@
     },
     "punctuation": {
       "patterns": [
-        { "include": "#comma" },
+        {
+          "include": "#comma"
+        },
         {
           "name": "punctuation.separator.type.simi",
           "match": ":"

@@ -58,8 +58,6 @@ fn function_effect_annotation(p: &mut Parser<'_>) {
 
 pub(super) fn function_body(p: &mut Parser<'_>) {
     let marker = p.start();
-    let old_loop = std::mem::replace(&mut p.loop_depth, 0);
-    let old_labels = std::mem::take(&mut p.loop_labels);
     p.block_depth += 1;
     if p.at(K::DO_KW) && !do_starts_protected(p) {
         p.bump();
@@ -69,8 +67,6 @@ pub(super) fn function_body(p: &mut Parser<'_>) {
         expression(p);
     }
     p.block_depth -= 1;
-    p.loop_labels = old_labels;
-    p.loop_depth = old_loop;
     marker.complete(&mut p.events, K::BODY);
 }
 pub(super) fn alias_decl(p: &mut Parser<'_>) {

@@ -147,7 +147,7 @@ fn later_outer_bindings_hide_prelude_symbols_inside_closures() {
 }
 
 #[test]
-fn lowers_destructuring_case_catch_and_loop_bindings() {
+fn lowers_destructuring_case_and_catch_bindings() {
     let source = r#"
 let input = [1, {name = "Ada"}, 2]
 let [first, { name = nested }, ..rest] = input
@@ -161,9 +161,6 @@ do
 catch
     of error when error != nil
         error
-end
-loop
-    break 0
 end
 "#;
     let db = AnalysisDatabase::default();
@@ -392,8 +389,7 @@ fn rename_checks_collisions_and_exact_lexer_identifier_rules() {
     }
     for keyword in [
         "fn", "do", "end", "if", "then", "elseif", "else", "let", "tap", "nil", "true", "false",
-        "and", "or", "not", "loop", "break", "continue", "case", "of", "when", "raise", "try",
-        "catch",
+        "and", "or", "not", "case", "of", "when", "raise", "try", "catch",
     ] {
         assert_eq!(
             resolution.check_rename(first, keyword),

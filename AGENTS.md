@@ -8,7 +8,7 @@ Before specialized work, inspect [`.agents/skills/`](.agents/skills/) and load t
 
 ## Project Purpose
 
-Simi is a small, embeddable scripting language implemented in Rust. It combines a Lua-inspired dynamic runtime with expression-oriented control flow, pipelines, functional loops, structural pattern matching, and value-based errors.
+Simi is a small, embeddable scripting language implemented in Rust. It combines a Lua-inspired dynamic runtime with expression-oriented control flow, pipelines, lazy iterators, structural pattern matching, and value-based errors.
 
 The language is intended to be:
 
@@ -67,7 +67,7 @@ end
 
 A standalone `do ... end` is a primary block expression with zero or more items. It evaluates in a fresh child scope to its last item's value, or to `nil` when empty, and composes with postfix calls, field access, indexing, and `?`.
 
-Postfix `?` passes a non-`nil` value through unchanged. A `nil` value stops the nearest lexically enclosing body boundary and makes that body evaluate to `nil`. Every function body, standalone block, conditional branch, case or catch arm, protected `do` body, and loop body is such a boundary. Raises and hard diagnostics are unaffected, and nil propagation from a protected body bypasses catches. In a loop body, propagation exits that iteration normally; its ordinary value is discarded and the loop starts its next iteration. Only `break value` determines the loop expression's result. The canonical Rust parser rejects `?` at the operator only when there is no enclosing body boundary, while the Tree-sitter editor grammar may parse that form permissively for editor recovery.
+Postfix `?` passes a non-`nil` value through unchanged. A `nil` value stops the nearest lexically enclosing body boundary and makes that body evaluate to `nil`. Every function body, standalone block, conditional branch, case or catch arm, and protected `do` body is such a boundary. Raises and hard diagnostics are unaffected, and nil propagation from a protected body bypasses catches. The canonical Rust parser rejects `?` at the operator only when there is no enclosing body boundary, while the Tree-sitter editor grammar may parse that form permissively for editor recovery.
 
 ### Bindings and assignment
 
@@ -219,20 +219,6 @@ Rust extension crates can construct direct value modules with `Module::builder` 
 Source-level documentation uses consecutive `---` comments for the following declaration and leading consecutive `----` comments for the module itself. Module documentation belongs at the start of the source (leading blank lines are allowed), remains distinct from the first declaration's documentation, and is surfaced when hovering a literal `require` target or a binding that still denotes the module value.
 
 A missing module raises `{ error = "module_not_found", module = name }`. Circular lazy loading raises `{ error = "circular_module_dependency", module = name }`. A non-string module name, calling a missing or non-function host field, and invalid native function arguments are hard runtime errors. Filesystem and package discovery are not implemented; embedders register source strings explicitly.
-
-### Loops
-
-Loops are expression-valued with one primitive form:
-
-```simi
-loop
-    body
-end
-```
-
-Reaching the end of the body discards its ordinary value and starts the next iteration. `continue` starts the next iteration early, while `break value` is the sole terminating path and determines the loop result. State is ordinary lexical state: assignments and mutations update surrounding bindings and containers. Use a standalone `do ... end` block when setup bindings should remain private.
-
-Keep loop control-flow contracts consistent in the parser and integration tests. Future `for` or `while` convenience forms, if introduced, must desugar to ordinary bindings plus this primitive and must not introduce separate runtime loop semantics.
 
 ### Pattern matching
 

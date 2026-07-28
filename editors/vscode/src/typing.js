@@ -378,7 +378,7 @@ function parseWithinBudget(parser, source) {
 function parsedArmTarget(parser, source, headerLine, insertionOffset) {
   const endCount = Math.max(
     1,
-    source.match(/\b(?:case|do|fn|if|loop)\b/g)?.length ?? 0,
+    source.match(/\b(?:case|do|fn|if)\b/g)?.length ?? 0,
   );
   const ends = "end\n".repeat(endCount);
   const completions = ["", ends, `nil\n${ends}`];

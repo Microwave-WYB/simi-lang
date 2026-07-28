@@ -133,17 +133,6 @@ pub enum ExprKind {
         branches: Vec<(Expr, Block)>,
         else_branch: Option<Block>,
     },
-    Loop {
-        label: Option<String>,
-        body: Block,
-    },
-    Continue {
-        label: Option<String>,
-    },
-    Break {
-        label: Option<String>,
-        value: Box<Expr>,
-    },
     Call {
         callee: Box<Expr>,
         args: Vec<Expr>,

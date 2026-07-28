@@ -18,20 +18,14 @@ end
 greet("Simi")
 ```
 
-### Loops
+### Iterator controls
 
 ```simi
---- Computes the greatest common divisor with ordinary lexical state.
-fn gcd(left: integer, right: integer) -> integer noraise do
-    loop
-        if right == 0 then break left end
-        let remainder = left % right
-        left = right
-        right = remainder
-    end
-end
+let iter = require("std/iter")
 
-gcd(1071, 462)
+iter.fold_while(list.iter([1, 2, 3]), 0, fn(total, value) do
+    if value == 3 then iter.break(total) else iter.continue(total + value) end
+end)
 ```
 
 Save this as `two_sum.simi`, install Simi using one of the options below, and run:
@@ -117,7 +111,7 @@ simi lsp
 
 - dynamic values with optional, runtime-erased annotations, bounded generics, callable labels, and raised-effect contracts;
 - lexical closures, recursion, and same-scope shadowing;
-- expression-valued `if`, `case`, protected and standalone `do` blocks, and functional loops;
+- expression-valued `if`, `case`, protected and standalone `do` blocks, and iterator controls;
 - ordinary, nil-aware, tap, and trailing-callback pipeline operators;
 - mutable zero-based lists and insertion-ordered maps;
 - structural list/map patterns and catchable raised values;

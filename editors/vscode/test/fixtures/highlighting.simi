@@ -32,12 +32,9 @@ catch
         reason
 end
 let optional = do mapped? end
-do
-    let state = 0
-    loop
-        if state > 1 then break state else state = state + 1 end
-    end
-end
+let final = iter.fold_while(iter.repeat_with(fn() do 1 end), 0, fn(state, _) do
+    if state > 1 then iter.break(state) else iter.continue(state + 1) end
+end)
 let bad_escape = "\q"
 let concatenated = "Simi" <> " language"
 let integer_check = type(threshold) == "integer"

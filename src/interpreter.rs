@@ -33,18 +33,7 @@ pub struct Interpreter {
 pub(super) enum EvaluationError {
     Runtime(RuntimeError),
     Raised(Raised),
-    NilPropagate {
-        span: Span,
-    },
-    Break {
-        value: Value,
-        label: Option<String>,
-        span: Span,
-    },
-    Continue {
-        label: Option<String>,
-        span: Span,
-    },
+    NilPropagate { span: Span },
 }
 
 pub(super) type EvaluationResult<T> = Result<T, EvaluationError>;
@@ -63,14 +52,6 @@ impl EvaluationError {
             Self::NilPropagate { span } => RuntimeError {
                 span,
                 message: "nil propagation escaped its block".to_owned(),
-            },
-            Self::Break { span, .. } => RuntimeError {
-                span,
-                message: "`break` outside of a loop".to_owned(),
-            },
-            Self::Continue { span, .. } => RuntimeError {
-                span,
-                message: "`continue` outside of a loop".to_owned(),
             },
         }
     }

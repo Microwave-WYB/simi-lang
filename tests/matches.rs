@@ -363,27 +363,3 @@ fn duplicate_map_pattern_fields_are_rejected_at_the_second_key() {
         "duplicate map pattern field `value`",
     );
 }
-
-#[test]
-fn match_inside_a_loop_uses_ordinary_lexical_state() {
-    assert_eval(
-        r#"
-            do
-                let visited = []
-                let state = 0
-                loop
-                    case state
-                    of n when n < 3 do
-                        list.append(visited, n)
-                        state = state + 1
-                        continue
-                    end
-                    of n
-                        break [n, visited]
-                    end
-                end
-            end
-        "#,
-        "[3, [0, 1, 2]]",
-    );
-}
