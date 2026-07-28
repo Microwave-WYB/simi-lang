@@ -1162,6 +1162,103 @@ let keys =
 }
 
 #[test]
+fn generic_callback_without_element_evidence_has_exact_empty_list_hovers() {
+    let source = r#"fn bridge<'state>(initial: 'state, callback: 'state -> 'state) -> 'state do
+    callback(initial)
+end
+let inferred = bridge([], fn(xs) do xs end)
+let unchanged: [] = bridge([], fn(other) do other end)
+"#;
+    let mut backend = Backend::new();
+    let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
+    assert!(
+        diagnostics.diagnostics.is_empty(),
+        "{:?}",
+        diagnostics.diagnostics
+    );
+
+    for name in ["inferred", "unchanged", "xs", "other"] {
+        let hover: Option<Hover> = serde_json::from_value(
+            request(
+                &mut backend,
+                HoverRequest::METHOD,
+                json!({
+                    "textDocument": { "uri": uri() },
+                    "position": text_position(source, name, 0),
+                }),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let HoverContents::Markup(markup) = hover.expect("exact empty list hover").contents else {
+            panic!("expected markup")
+        };
+        assert_simi_hover(&markup, "[]");
+    }
+}
+
+#[test]
+fn fold_accumulator_nested_empty_lists_have_precise_protocol_hovers() {
+    let source = r#"let iter = require("std/iter")
+alias number = integer | float
+
+fn partition(ns: [..number], pivot: number)
+    ns
+    |> list.iter()
+    |> iter.fold({lower=[], higher=[]}) <| fn(acc, n) do
+        case acc
+            of {lower, higher} when n < pivot
+                {lower=lower |> tap list.append(n), higher}
+            of {lower, higher}
+                {lower, higher=higher |> tap list.append(n)}
+        end
+    end
+"#;
+    let mut backend = Backend::with_module_sources([
+        ("std/list", include_str!("../../../../stdlib/list.simi")),
+        ("std/iter", include_str!("../../../../stdlib/iter.simi")),
+    ]);
+    let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
+    assert!(
+        diagnostics.diagnostics.is_empty(),
+        "{:?}",
+        diagnostics.diagnostics
+    );
+
+    for (name, occurrence, expected) in [
+        (
+            "partition",
+            0,
+            "(\n    ns: [..(integer | float)],\n    pivot: integer | float,\n) -> { lower: [..(integer | float)], higher: [..(integer | float)] }",
+        ),
+        (
+            "acc",
+            0,
+            "{ lower: [..(integer | float)], higher: [..(integer | float)] }",
+        ),
+        ("lower", 1, "[..(integer | float)]"),
+        ("higher", 1, "[..(integer | float)]"),
+    ] {
+        let hover: Option<Hover> = serde_json::from_value(
+            request(
+                &mut backend,
+                HoverRequest::METHOD,
+                json!({
+                    "textDocument": { "uri": uri() },
+                    "position": text_position(source, name, occurrence),
+                }),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let HoverContents::Markup(markup) = hover.expect("fold accumulator hover").contents else {
+            panic!("expected markup")
+        };
+        assert_simi_hover(&markup, expected);
+    }
+}
+
+#[test]
 fn cycle_shadow_and_mutation_hovers_preserve_precise_types() {
     let module = include_str!("../../../../stdlib/list.simi");
     let source = r#"let list = require("std/list")

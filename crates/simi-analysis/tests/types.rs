@@ -874,6 +874,145 @@ end)
 }
 
 #[test]
+fn fold_accumulator_infers_nested_empty_lists_from_reducer_updates() {
+    let db = AnalysisDatabase::default();
+    let modules = [
+        ("std/list", include_str!("../../../stdlib/list.simi")),
+        ("std/iter", include_str!("../../../stdlib/iter.simi")),
+    ]
+    .into_iter()
+    .map(|(name, source)| {
+        let file = db.add_file(source);
+        (name.to_owned(), simi_analysis::module_shape(&db, file))
+    })
+    .collect::<HashMap<_, _>>();
+    let source = r#"let iter = require("std/iter")
+alias number = integer | float
+
+fn partition(ns: [..number], pivot: number)
+    ns
+    |> list.iter()
+    |> iter.fold({lower=[], higher=[]}) <| fn(acc, n) do
+        case acc
+            of {lower, higher} when n < pivot
+                {lower=lower |> tap list.append(n), higher}
+            of {lower, higher}
+                {lower, higher=higher |> tap list.append(n)}
+        end
+    end
+"#;
+    let file = db.add_file(source);
+    let resolution = resolve(&db, file);
+    let inference = infer_types(&db, file, &modules);
+    assert!(
+        inference.diagnostics.is_empty(),
+        "{:?}",
+        inference.diagnostics
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "partition").display(),
+        "(ns: [..(integer | float)], pivot: integer | float) -> { lower: [..(integer | float)], higher: [..(integer | float)] }"
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "acc").display(),
+        "{ lower: [..(integer | float)], higher: [..(integer | float)] }"
+    );
+    for name in ["lower", "higher"] {
+        assert_eq!(
+            type_of(&inference, &resolution, name).display(),
+            "[..(integer | float)]"
+        );
+    }
+}
+
+#[test]
+fn generic_callback_without_element_evidence_preserves_exact_empty_list() {
+    let source = r#"fn bridge<'state>(initial: 'state, callback: 'state -> 'state) -> 'state do
+    callback(initial)
+end
+let inferred = bridge([], fn(xs) do xs end)
+let unchanged: [] = bridge([], fn(other) do other end)
+"#;
+    let (inference, resolution) = inferred(source);
+    assert!(
+        inference.diagnostics.is_empty(),
+        "{:?}",
+        inference.diagnostics
+    );
+    for name in ["inferred", "unchanged", "xs", "other"] {
+        assert_eq!(type_of(&inference, &resolution, name).display(), "[]");
+    }
+}
+
+#[test]
+fn contextual_fold_accumulators_preserve_annotated_and_exact_list_failures() {
+    let db = AnalysisDatabase::default();
+    let modules = [
+        ("std/list", include_str!("../../../stdlib/list.simi")),
+        ("std/iter", include_str!("../../../stdlib/iter.simi")),
+    ]
+    .into_iter()
+    .map(|(name, source)| {
+        let file = db.add_file(source);
+        (name.to_owned(), simi_analysis::module_shape(&db, file))
+    })
+    .collect::<HashMap<_, _>>();
+    let source = r#"let iter = require("std/iter")
+let sealed: {lower: [], higher: []} = {lower=[], higher=[]}
+let sealed_result = iter.fold(list.iter([1]), sealed, fn(acc, n) do
+    {lower=acc.lower |> tap list.append(n), higher=acc.higher}
+end)
+let partial = iter.fold(list.iter([1, 2.0]), {lower=[0], higher=[]}, fn(acc, n) do
+    {lower=acc.lower |> tap list.append(n), higher=acc.higher}
+end)
+"#;
+    let file = db.add_file(source);
+    let resolution = resolve(&db, file);
+    let inference = infer_types(&db, file, &modules);
+    assert_eq!(
+        type_of(&inference, &resolution, "sealed_result").display(),
+        "{ lower: [], higher: [] }"
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "partial").display(),
+        "{ lower: [integer], higher: [] }"
+    );
+    assert_eq!(
+        inference
+            .diagnostics
+            .iter()
+            .map(|diagnostic| (
+                diagnostic.code,
+                diagnostic.title.as_str(),
+                diagnostic.detail.as_str(),
+            ))
+            .collect::<Vec<_>>(),
+        vec![
+            (
+                AnalysisDiagnosticCode::TypeMismatch,
+                "Type mismatch",
+                "Expected `[]`, but found `[integer]`.",
+            ),
+            (
+                AnalysisDiagnosticCode::TypeMismatch,
+                "Type mismatch",
+                "Expected `{ lower: [], higher: [] }`, but found `{ lower: [integer], higher: [] }`.",
+            ),
+            (
+                AnalysisDiagnosticCode::TypeMismatch,
+                "Type mismatch",
+                "Expected `[integer]`, but found `[integer, integer | float]`.",
+            ),
+            (
+                AnalysisDiagnosticCode::TypeMismatch,
+                "Type mismatch",
+                "Expected `{ lower: [integer], higher: [] }`, but found `{ lower: [integer, integer | float], higher: [] }`.",
+            ),
+        ]
+    );
+}
+
+#[test]
 fn contextual_callbacks_still_check_explicit_annotations() {
     let db = AnalysisDatabase::default();
     let modules = [
