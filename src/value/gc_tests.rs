@@ -24,6 +24,15 @@ fn collected_after(build_cycle: impl FnOnce()) {
 }
 
 #[test]
+fn byte_values_are_self_contained_across_collection() {
+    let value = Value::Bytes(crate::runtime::Bytes::new(vec![0, 255]));
+
+    force_collect();
+
+    assert_eq!(value.render(), "bytes[00 ff]");
+}
+
+#[test]
 fn language_allows_direct_and_indirect_cycles_when_result_is_acyclic() {
     let result = crate::eval(
         r#"

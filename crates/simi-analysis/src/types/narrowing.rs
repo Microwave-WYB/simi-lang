@@ -227,6 +227,7 @@ impl Context<'_> {
             "integer" => "integer",
             "float" => "float",
             "string" => "string",
+            "bytes" => "bytes",
             "list" => "list",
             "map" => "map",
             "function" => "function",

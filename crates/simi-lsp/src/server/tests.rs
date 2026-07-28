@@ -1031,6 +1031,43 @@ fn real_iterator_facades_publish_no_diagnostics() {
 }
 
 #[test]
+fn bytes_annotations_and_type_narrowing_hover_as_the_primitive_type() {
+    let source = r#"fn first(value: bytes) do
+    value[0]
+end
+fn classify(value: bytes | string) do
+    if type(value) == "bytes" then value[0] else value end
+end
+"#;
+    let mut backend = Backend::new();
+    let published = diagnostics_from(open(&mut backend, source).remove(0));
+    assert!(
+        published.diagnostics.is_empty(),
+        "{:?}",
+        published.diagnostics
+    );
+
+    for occurrence in [0, 1, 4] {
+        let hover: Option<Hover> = serde_json::from_value(
+            request(
+                &mut backend,
+                HoverRequest::METHOD,
+                json!({
+                    "textDocument": { "uri": uri() },
+                    "position": text_position(source, "value", occurrence),
+                }),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let HoverContents::Markup(markup) = hover.expect("bytes hover").contents else {
+            panic!("expected markup");
+        };
+        assert_simi_hover(&markup, "bytes");
+    }
+}
+
+#[test]
 fn primitive_singleton_annotations_hover_without_narrowing_expression_inference() {
     let source = r#"let count = 42
 let exact_integer: 42 = 42

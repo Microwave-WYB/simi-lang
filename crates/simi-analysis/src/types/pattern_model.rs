@@ -60,6 +60,7 @@ pub(super) fn matcher_relation(ty: &Type, matcher: &TypeMatcher) -> Option<bool>
             "integer" => matches!(ty, Type::Int | Type::LiteralInt(_)),
             "float" => matches!(ty, Type::Float | Type::LiteralFloat(_)),
             "string" => matches!(ty, Type::String | Type::LiteralString(_)),
+            "bytes" => matches!(ty, Type::Bytes),
             "list" => matches!(ty, Type::ListExact(_) | Type::ListRest(_)),
             "map" => matches!(ty, Type::Map { .. }),
             "function" => matches!(ty, Type::Function(_)),

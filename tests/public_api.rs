@@ -11,7 +11,7 @@ use simi::native::{
 };
 use simi::parser::{ParseError, Parser, parse};
 use simi::runtime::{
-    Environment, FloatKey, List, MapKey, NativeFn, NativeFunction, NativeResult, Raised,
+    Bytes, Environment, FloatKey, List, MapKey, NativeFn, NativeFunction, NativeResult, Raised,
     RuntimeError, RuntimeResult, ScriptResult, SharedFunction, SharedList, SharedMap, TraceFrame,
     UserFunction, Value,
 };
@@ -73,6 +73,10 @@ fn current_public_paths_compile() {
     let _: Option<TokenKind> = None;
     let _: Option<Environment> = None;
     let _: Option<FloatKey> = None;
+    let bytes = Bytes::new(vec![0, 255]);
+    assert_eq!(bytes.as_slice(), [0, 255]);
+    assert_eq!(bytes.slice(1, 2).unwrap().get(0), Some(255));
+    let _: Value = Value::Bytes(bytes);
     let _: List = List::new(Vec::new());
     let _: SharedList = List::shared(Vec::new());
     let _: SharedMap = Gc::new(GcCell::new(Vec::new()));

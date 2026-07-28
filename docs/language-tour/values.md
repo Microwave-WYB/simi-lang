@@ -8,6 +8,7 @@
   - [Nil and booleans](#nil-and-booleans)
   - [Integers and floats](#integers-and-floats)
   - [Strings](#strings)
+  - [Bytes](#bytes)
   - [Lists](#lists)
   - [Maps](#maps)
   - [Functions are values](#functions-are-values)
@@ -101,6 +102,10 @@ Concatenation is strict: both operands must be strings. Convert numbers explicit
 ```
 
 The builtin `inspect(value)` can produce a human-readable representation of any value. It is intended for display and debugging, not serialization.
+
+## Bytes
+
+Bytes are immutable contiguous octets supplied by an embedding host. Scripts do not currently have a bytes literal or standard-library constructor, so scripts receive them through host-provided values. `type(value)` returns `"bytes"`, equality compares byte contents, and zero-based indexing returns an integer from `0` through `255` or `nil` beyond the end. Negative and non-integer indices are hard diagnostics. `inspect` renders bytes deterministically as hexadecimal, for example `bytes[00 7f ff]`.
 
 ## Lists
 

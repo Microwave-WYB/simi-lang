@@ -88,7 +88,7 @@ Stream failures are recoverable language raises shaped like:
 
 The `operation` field identifies the originating operation, including an automatic flush failure. Wrong arity and wrong argument types remain hard diagnostics rather than raised IO values.
 
-Raw bounded `read` and `write` are intentionally absent until Simi has a bytes type.
+Raw bounded `read` and `write` remain intentionally absent. The immutable host-supplied bytes value does not yet add a stream byte API.
 
 When running a file, `simi run` leaves output entirely to the script. `simi run --inspect` also renders the script's final value, including `nil`; that extra rendering is CLI behavior, not an implicit language print.
 

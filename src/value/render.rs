@@ -18,6 +18,7 @@ impl Value {
             Self::Int(_) => "integer",
             Self::Float(_) => "float",
             Self::String(_) => "string",
+            Self::Bytes(_) => "bytes",
             Self::Bool(_) => "boolean",
             Self::Nil => "nil",
             Self::List(_) => "list",
@@ -43,6 +44,7 @@ impl Value {
             Self::Int(value) => value.to_string(),
             Self::Float(value) => render_float(*value),
             Self::String(value) => render_string(value),
+            Self::Bytes(value) => render_bytes(value.as_slice()),
             Self::Bool(value) => value.to_string(),
             Self::Nil => "nil".to_owned(),
             Self::List(values) => {
@@ -108,6 +110,15 @@ fn is_identifier(value: &str) -> bool {
     let mut characters = value.chars();
     matches!(characters.next(), Some('_' | 'a'..='z' | 'A'..='Z'))
         && characters.all(|character| character == '_' || character.is_ascii_alphanumeric())
+}
+
+fn render_bytes(value: &[u8]) -> String {
+    let rendered = value
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<Vec<_>>()
+        .join(" ");
+    format!("bytes[{rendered}]")
 }
 
 fn render_string(value: &str) -> String {

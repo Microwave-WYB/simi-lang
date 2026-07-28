@@ -264,6 +264,7 @@ impl Context<'_> {
                     "integer" => Type::Int,
                     "float" => Type::Float,
                     "string" => Type::String,
+                    "bytes" => Type::Bytes,
                     "any" => Type::Any,
                     _ => self.expand_alias(&name, arguments, generics, span(node)),
                 }

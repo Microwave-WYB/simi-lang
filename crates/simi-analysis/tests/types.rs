@@ -86,6 +86,37 @@ let mismatch: number = "text"
 }
 
 #[test]
+fn bytes_annotations_indexing_equality_and_narrowing_are_erased_static_facts() {
+    let source = r#"
+fn first(value: bytes) do value[0] end
+fn equal(left: bytes, right: bytes) do left == right end
+fn narrow(value: bytes | string) do
+    if type(value) == "bytes" then value[0] else value end
+end
+"#;
+    let (inference, resolution) = inferred(source);
+
+    assert!(
+        inference.diagnostics.is_empty(),
+        "{:?}",
+        inference.diagnostics
+    );
+    assert_eq!(Type::Bytes.display(), "bytes");
+    assert_eq!(
+        type_of(&inference, &resolution, "first").display(),
+        "fn(value: bytes) -> integer | nil"
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "equal").display(),
+        "fn(left: bytes, right: bytes) -> boolean"
+    );
+    assert_eq!(
+        type_at(source, &inference, &resolution, "value", 4),
+        "bytes"
+    );
+}
+
+#[test]
 fn boolean_singletons_are_narrow_record_discriminants() {
     let source = r#"
 alias Step<'a> =

@@ -430,7 +430,8 @@ pub(super) fn type_order(ty: &Type) -> u8 {
         Type::Int | Type::LiteralInt(_) => 2,
         Type::Float | Type::LiteralFloat(_) => 3,
         Type::String | Type::LiteralString(_) => 4,
-        Type::ListExact(_) | Type::ListRest(_) => 5,
+        Type::Bytes => 5,
+        Type::ListExact(_) | Type::ListRest(_) => 6,
         Type::Map { .. } => 7,
         Type::Function(_) => 8,
         Type::Generic(_) | Type::Infer(_) => 9,
@@ -464,6 +465,7 @@ pub(super) fn equality_type(ty: &Type) -> bool {
         | Type::Int
         | Type::Float
         | Type::String
+        | Type::Bytes
         | Type::LiteralInt(_)
         | Type::LiteralFloat(_)
         | Type::LiteralString(_)

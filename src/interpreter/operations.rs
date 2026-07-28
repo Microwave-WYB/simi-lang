@@ -34,7 +34,7 @@ impl Interpreter {
     ) -> EvaluationResult<Value> {
         match object {
             Value::List(values) => {
-                let (_, index) = list_index(key, span)?;
+                let (_, index) = sequence_index(key, "list", span)?;
                 let values = values.try_borrow().map_err(|_| {
                     EvaluationError::Runtime(RuntimeError::new(
                         span,
@@ -42,6 +42,12 @@ impl Interpreter {
                     ))
                 })?;
                 Ok(values.get_cloned(index).unwrap_or(Value::Nil))
+            }
+            Value::Bytes(values) => {
+                let (_, index) = sequence_index(key, "bytes", span)?;
+                Ok(values
+                    .get(index)
+                    .map_or(Value::Nil, |value| Value::Int(value.into())))
             }
             Value::Map(entries) => {
                 let key = MapKey::from_value(key, span)?;
@@ -55,7 +61,10 @@ impl Interpreter {
             }
             value => Err(EvaluationError::Runtime(RuntimeError::new(
                 span,
-                format!("indexing requires a list or map, got {}", value.type_name()),
+                format!(
+                    "indexing requires a list, map, or bytes, got {}",
+                    value.type_name()
+                ),
             ))),
         }
     }
@@ -98,7 +107,7 @@ impl Interpreter {
     ) -> EvaluationResult<PreparedTarget> {
         match object {
             Value::List(values) => {
-                let (raw_index, index) = list_index(key, span)?;
+                let (raw_index, index) = sequence_index(key, "list", span)?;
                 let length = values
                     .try_borrow()
                     .map_err(|_| RuntimeError::new(span, "could not borrow list for assignment"))?
@@ -125,7 +134,7 @@ impl Interpreter {
             value => Err(EvaluationError::Runtime(RuntimeError::new(
                 span,
                 format!(
-                    "assignment target must be a list or map, got {}",
+                    "assignment target must be a mutable list or map, got {}",
                     value.type_name()
                 ),
             ))),
@@ -271,20 +280,23 @@ impl Interpreter {
     }
 }
 
-fn list_index(key: Value, span: Span) -> EvaluationResult<(i64, usize)> {
+fn sequence_index(key: Value, kind: &str, span: Span) -> EvaluationResult<(i64, usize)> {
     match key {
         Value::Int(index) if index >= 0 => usize::try_from(index)
             .map(|converted| (index, converted))
             .map_err(|_| {
-                EvaluationError::Runtime(RuntimeError::new(span, "list index is too large"))
+                EvaluationError::Runtime(RuntimeError::new(
+                    span,
+                    format!("{kind} index is too large"),
+                ))
             }),
         Value::Int(index) => Err(EvaluationError::Runtime(RuntimeError::new(
             span,
-            format!("list index must be nonnegative, got {index}"),
+            format!("{kind} index must be nonnegative, got {index}"),
         ))),
         value => Err(EvaluationError::Runtime(RuntimeError::new(
             span,
-            format!("list index must be an integer, got {}", value.type_name()),
+            format!("{kind} index must be an integer, got {}", value.type_name()),
         ))),
     }
 }
@@ -513,6 +525,7 @@ fn primitive_equal(left: &Value, right: &Value, span: Span) -> NumericResult<boo
     }
     match (left, right) {
         (Value::String(left), Value::String(right)) => Ok(left == right),
+        (Value::Bytes(left), Value::Bytes(right)) => Ok(left == right),
         (Value::Bool(left), Value::Bool(right)) => Ok(left == right),
         (Value::Nil, Value::Nil) => Ok(true),
         (left, right) if is_primitive(left) && is_primitive(right) => Ok(false),
@@ -541,6 +554,11 @@ fn finite_float(value: f64, span: Span) -> RuntimeResult<Value> {
 fn is_primitive(value: &Value) -> bool {
     matches!(
         value,
-        Value::Int(_) | Value::Float(_) | Value::String(_) | Value::Bool(_) | Value::Nil
+        Value::Int(_)
+            | Value::Float(_)
+            | Value::String(_)
+            | Value::Bytes(_)
+            | Value::Bool(_)
+            | Value::Nil
     )
 }

@@ -51,6 +51,10 @@ impl Context<'_> {
                 self.require_subtype(&key, &Type::Int, span(node.syntax()));
                 union(vec![*item, Type::Nil])
             }
+            Type::Bytes => {
+                self.require_subtype(&key, &Type::Int, span(node.syntax()));
+                union(vec![Type::Int, Type::Nil])
+            }
             Type::Map {
                 fields,
                 index,

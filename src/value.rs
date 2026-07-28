@@ -1,8 +1,10 @@
+mod bytes;
 mod list;
 mod map;
 mod raised;
 mod render;
 
+pub use bytes::Bytes;
 pub use list::List;
 
 use std::sync::Arc;
@@ -69,6 +71,7 @@ pub enum Value {
     Int(i64),
     Float(f64),
     String(String),
+    Bytes(Bytes),
     Bool(bool),
     Nil,
     List(SharedList),
@@ -88,6 +91,7 @@ unsafe impl Trace for Value {
             Self::Int(_)
             | Self::Float(_)
             | Self::String(_)
+            | Self::Bytes(_)
             | Self::Bool(_)
             | Self::Nil
             | Self::NativeFunction(_) => {}

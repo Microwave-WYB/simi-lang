@@ -298,7 +298,7 @@ The current implementation intentionally does not include:
 
 - filesystem or package module discovery;
 - script-visible command-line arguments;
-- a bytes type or raw stream IO;
+- raw stream IO;
 - serialization;
 - a formatter or REPL;
 - runtime tuples or multiple returns;

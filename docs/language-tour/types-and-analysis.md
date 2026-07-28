@@ -65,10 +65,11 @@ boolean
 integer
 float
 string
+bytes
 any
 ```
 
-`number` is a built-in erased alias for `integer | float`, for values accepted from either numeric runtime category. It affects analysis only: `type(value)` still reports either `"integer"` or `"float"` at runtime.
+`number` is a built-in erased alias for `integer | float`, for values accepted from either numeric runtime category. It affects analysis only: `type(value)` still reports either `"integer"` or `"float"` at runtime. `bytes` describes immutable packed byte values supplied by an embedding host; scripts have no bytes literal or standard-library constructor.
 
 `never` is the bottom type: it describes an expression with no normal return path and disappears when unions are normalized. `any` is the explicit dynamic escape hatch; operations involving it remain valid but lose static precision. When analysis has insufficient evidence, editor presentation also falls back to `any`.
 
