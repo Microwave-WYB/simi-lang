@@ -4,6 +4,9 @@ alias Step<'a> =
     | { done: true, .. }
     | { done: false, value: 'a, .. }
 alias Iterator<'a, 'e> = () -> Step<'a> raises 'e
+alias LongestStep<'a> =
+    | { done: true, left_done: boolean, right_done: boolean, .. }
+    | { done: false, value: 'a, left_done: boolean, right_done: boolean, .. }
 alias Continue<'next> = { control: "continue", value: 'next, .. }
 alias Break<'result> = { control: "break", value: 'result, .. }
 alias Control<'next, 'result> =
@@ -28,6 +31,50 @@ end
 
 fn next<'a, 'e>(iterator: Iterator<'a, 'e>) -> Step<'a> raises 'e do iterator() end
 
+--- Return an iterator that is immediately exhausted.
+fn empty<'a>() -> Iterator<'a, never> noraise do
+    from(fn() -> Step<'a> noraise do { done = true } end)
+end
+
+--- Return an iterator that yields one value.
+fn once<'a>(value: 'a) -> Iterator<'a, never> noraise do
+    let emitted = false
+    from(fn() -> Step<'a> noraise do
+        if emitted then { done = true }
+        else
+            emitted = true
+            { done = false, value = value }
+        end
+    end)
+end
+
+--- Repeat one value a finite number of times.
+fn repeat<'a>(value: 'a, count: integer) -> Iterator<'a, never> noraise do
+    host.validate_count(count)
+    let emitted = 0
+    from(fn() -> Step<'a> noraise do
+        if emitted >= count then { done = true }
+        else
+            emitted = emitted + 1
+            { done = false, value = value }
+        end
+    end)
+end
+
+--- Yield ascending integers from start up to, but excluding, end.
+fn range(start: integer, stop: integer) -> Iterator<integer, never> noraise do
+    host.validate_range(start, stop)
+    let current = start
+    from(fn() -> Step<integer> noraise do
+        if current >= stop then { done = true }
+        else
+            let value = current
+            current = current + 1
+            { done = false, value = value }
+        end
+    end)
+end
+
 fn map<'a, 'b, 'e, 'f>(
     iterator: Iterator<'a, 'e>,
     transform: 'a -> 'b raises 'f,
@@ -43,6 +90,89 @@ fn filter<'a, 'e, 'f>(
     predicate: 'a -> boolean raises 'f,
 ) -> Iterator<'a, 'e | 'f> noraise do
     fn() -> Step<'a> raises 'e | 'f do host.filter_next(iterator, predicate) end
+end
+
+fn enumerate_next<'a, 'e>(
+    iterator: Iterator<'a, 'e>, index: integer,
+) -> Step<[integer, 'a]> raises 'e do
+    host.enumerate_next(iterator, index)
+end
+
+fn zip_next<'a, 'b, 'e, 'f>(
+    left: Iterator<'a, 'e>, right: Iterator<'b, 'f>,
+) -> Step<['a, 'b]> raises 'e | 'f do
+    host.zip_next(left, right)
+end
+
+fn zip_longest_next<'a, 'b, 'fill, 'e, 'f>(
+    left: Iterator<'a, 'e>, right: Iterator<'b, 'f>, fill: 'fill,
+    left_done: boolean, right_done: boolean,
+) -> LongestStep<['a | 'fill, 'b | 'fill]> raises 'e | 'f do
+    host.zip_longest_next(left, right, fill, left_done, right_done)
+end
+
+--- Yield at most count values without consuming any later source value.
+fn take<'a, 'e>(iterator: Iterator<'a, 'e>, count: integer) -> Iterator<'a, 'e> noraise do
+    host.validate_count(count)
+    let remaining = count
+    from(fn() -> Step<'a> raises 'e do
+        if remaining == 0 then { done = true }
+        else
+            let step = iterator()
+            if step.done then step
+            else
+                remaining = remaining - 1
+                { done = false, value = step.value }
+            end
+        end
+    end)
+end
+
+--- Lazily discard count values, then yield the remaining source values.
+fn drop<'a, 'e>(iterator: Iterator<'a, 'e>, count: integer) -> Iterator<'a, 'e> noraise do
+    host.validate_count(count)
+    let remaining = count
+    from(fn() -> Step<'a> raises 'e do
+        let step = host.drop_next(iterator, remaining)
+        remaining = 0
+        step
+    end)
+end
+
+--- Pair every value with its zero-based integer index.
+fn enumerate<'a, 'e>(iterator: Iterator<'a, 'e>) -> Iterator<[integer, 'a], 'e> noraise do
+    let index = 0
+    host.typed_iterator(fn() do
+        let step = enumerate_next(iterator, index)
+        if not step.done then index = index + 1 end
+        step
+    end)
+end
+
+--- Pair values until either input is exhausted.
+fn zip<'a, 'b, 'e, 'f>(
+    left: Iterator<'a, 'e>,
+    right: Iterator<'b, 'f>,
+) -> Iterator<['a, 'b], 'e | 'f> noraise do
+    from(fn() -> Step<['a, 'b]> raises 'e | 'f do zip_next(left, right) end)
+end
+
+--- Pair values until both inputs exhaust, substituting fill for a missing side.
+fn zip_longest<'a, 'b, 'fill, 'e, 'f>(
+    left: Iterator<'a, 'e>,
+    right: Iterator<'b, 'f>,
+    fill: 'fill,
+) -> Iterator<['a | 'fill, 'b | 'fill], 'e | 'f> noraise do
+    let left_done: boolean = false
+    let right_done: boolean = false
+    host.typed_iterator(fn() do
+        let step = zip_longest_next(left, right, fill, left_done, right_done)
+        left_done = step.left_done
+        right_done = step.right_done
+        if step.done then { done = true }
+        else { done = false, value = step.value }
+        end
+    end)
 end
 
 fn to_list<'a, 'e>(iterator: Iterator<'a, 'e>) -> [..'a] raises 'e do
@@ -133,7 +263,10 @@ fn repeat_with<'a, 'e>(producer: () -> 'a raises 'e) -> Iterator<'a, 'e> noraise
 end
 
 {
-    from = from, next = next, map = map, filter = filter,
+    from = from, next = next,
+    empty = empty, once = once, repeat = repeat, range = range,
+    map = map, filter = filter, take = take, drop = drop,
+    enumerate = enumerate, zip = zip, zip_longest = zip_longest,
     to_list = to_list, fold = fold, find = find, find_index = find_index,
     contains = contains, any = any, all = all, each = each, count = count,
     ["break"] = break_control, ["continue"] = continue_control,

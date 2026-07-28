@@ -14,6 +14,7 @@
 - [Text IO](text-io.md)
 - Iterators
   - [Collection snapshots](#collection-snapshots)
+  - [Iterator sources](#iterator-sources)
   - [Lazy adapters](#lazy-adapters)
   - [Structural controls](#structural-controls)
   - [Consumers](#consumers)
@@ -38,9 +39,33 @@ list.append(values, 3)
 
 `map.iter(value)` similarly snapshots the map's insertion-ordered entries. Snapshotting is shallow: nested mutable values retain their usual alias identity.
 
+## Iterator sources
+
+`iter.empty()` is immediately exhausted, and `iter.once(value)` yields one value.
+`iter.repeat(value, count)` repeats the same value a finite number of times, while
+`iter.range(start, stop)` lazily yields ascending integers in the half-open range
+from `start` through `stop`. A range is empty when `start >= stop`.
+
+```simi
+
+[
+    iter.to_list(iter.empty()),
+    iter.to_list(iter.once("only")),
+    iter.to_list(iter.repeat("again", 3)),
+    iter.to_list(iter.range(-2, 3)),
+]
+```
+
+Repeat counts and adapter counts must be nonnegative integers. Invalid counts and
+non-integer range bounds are hard diagnostics. Repeated values preserve alias
+identity rather than being copied.
+
 ## Lazy adapters
 
-`iter.map` and `iter.filter` return new iterators. They do not invoke their callbacks when the adapter is created; work begins only when a consumer requests values.
+`iter.map`, `iter.filter`, `iter.take`, `iter.drop`, `iter.enumerate`, `iter.zip`,
+and `iter.zip_longest` return new iterators. They do not invoke callbacks or pull
+from their sources when the adapter is created; work begins only when a consumer
+requests values.
 
 ```simi
 
@@ -64,6 +89,34 @@ let result = iter.to_list(transformed)
 ```
 
 Filter predicates must return booleans. A callback raise propagates unchanged through adapters and consumers.
+
+`take(iterator, count)` yields at most `count` values and leaves later source
+values unconsumed. `drop(iterator, count)` discards that many values on the first
+pull and then yields the remainder. `enumerate` yields exact two-element lists
+`[index, value]`, starting at index zero.
+
+```simi
+
+let source = list.iter([10, 20, 30, 40])
+let first_two = iter.to_list(iter.take(source, 2))
+let remaining = iter.to_list(source)
+let indexed = iter.to_list(iter.enumerate(list.iter(["a", "b"])))
+
+[first_two, remaining, indexed]
+```
+
+`zip(left, right)` yields `[left, right]` pairs until either source exhausts.
+`zip_longest(left, right, fill)` continues until both exhaust; it substitutes the
+same `fill` value for a missing side, preserving its alias identity.
+
+```simi
+
+iter.to_list(iter.zip_longest(
+    list.iter([1]),
+    list.iter(["a", "b"]),
+    nil,
+))
+```
 
 ## Structural controls
 

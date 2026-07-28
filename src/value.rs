@@ -142,6 +142,13 @@ pub(crate) enum NativeImplementation {
 
 #[derive(Clone, Copy)]
 pub(crate) enum IteratorIntrinsic {
+    TypedIterator,
+    ValidateCount,
+    ValidateRange,
+    DropNext,
+    EnumerateNext,
+    ZipNext,
+    ZipLongestNext,
     FilterNext,
     ToList,
     Fold,

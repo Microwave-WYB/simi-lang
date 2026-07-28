@@ -24,6 +24,13 @@ impl Interpreter {
         span: Span,
     ) -> EvaluationResult<Value> {
         match intrinsic {
+            IteratorIntrinsic::TypedIterator => Ok(arguments[0].clone()),
+            IteratorIntrinsic::ValidateCount => validate_count(&arguments[0], span),
+            IteratorIntrinsic::ValidateRange => validate_range(arguments, span),
+            IteratorIntrinsic::DropNext => self.drop_next(arguments, span),
+            IteratorIntrinsic::EnumerateNext => self.enumerate_next(arguments, span),
+            IteratorIntrinsic::ZipNext => self.zip_next(arguments, span),
+            IteratorIntrinsic::ZipLongestNext => self.zip_longest_next(arguments, span),
             IteratorIntrinsic::FilterNext => self.filter_next(arguments, span),
             IteratorIntrinsic::ToList => self.iterator_to_list(arguments, span),
             IteratorIntrinsic::Fold => self.iterator_fold(arguments, span),
@@ -40,6 +47,102 @@ impl Interpreter {
                 self.call_value(arguments[0].clone(), Vec::new(), span)
             }
         }
+    }
+
+    fn drop_next(&mut self, arguments: &[Value], span: Span) -> EvaluationResult<Value> {
+        let Value::Int(count) = arguments[1] else {
+            return Err(contract_error(
+                span,
+                "std/iter.drop count must be a nonnegative integer".to_owned(),
+            ));
+        };
+        for _ in 0..count {
+            if matches!(self.pull_iterator(&arguments[0], span)?, IteratorStep::Done) {
+                return Ok(step_value(IteratorStep::Done));
+            }
+        }
+        self.pull_iterator(&arguments[0], span).map(step_value)
+    }
+
+    fn enumerate_next(&mut self, arguments: &[Value], span: Span) -> EvaluationResult<Value> {
+        let Value::Int(index) = arguments[1] else {
+            return Err(contract_error(
+                span,
+                "std/iter.enumerate index must be an integer".to_owned(),
+            ));
+        };
+        let step = match self.pull_iterator(&arguments[0], span)? {
+            IteratorStep::Done => IteratorStep::Done,
+            IteratorStep::Item(value) => IteratorStep::Item(Value::List(
+                List::new(vec![Value::Int(index), value]).into_shared(),
+            )),
+        };
+        Ok(step_value(step))
+    }
+
+    fn zip_next(&mut self, arguments: &[Value], span: Span) -> EvaluationResult<Value> {
+        let left = match self.pull_iterator(&arguments[0], span)? {
+            IteratorStep::Done => return Ok(step_value(IteratorStep::Done)),
+            IteratorStep::Item(value) => value,
+        };
+        let right = match self.pull_iterator(&arguments[1], span)? {
+            IteratorStep::Done => return Ok(step_value(IteratorStep::Done)),
+            IteratorStep::Item(value) => value,
+        };
+        Ok(step_value(IteratorStep::Item(Value::List(
+            List::new(vec![left, right]).into_shared(),
+        ))))
+    }
+
+    fn zip_longest_next(&mut self, arguments: &[Value], span: Span) -> EvaluationResult<Value> {
+        let Value::Bool(mut left_done) = arguments[3] else {
+            return Err(contract_error(
+                span,
+                "std/iter.zip_longest internal completion state must be boolean".to_owned(),
+            ));
+        };
+        let Value::Bool(mut right_done) = arguments[4] else {
+            return Err(contract_error(
+                span,
+                "std/iter.zip_longest internal completion state must be boolean".to_owned(),
+            ));
+        };
+
+        let left = if left_done {
+            None
+        } else {
+            match self.pull_iterator(&arguments[0], span)? {
+                IteratorStep::Done => {
+                    left_done = true;
+                    None
+                }
+                IteratorStep::Item(value) => Some(value),
+            }
+        };
+        let right = if right_done {
+            None
+        } else {
+            match self.pull_iterator(&arguments[1], span)? {
+                IteratorStep::Done => {
+                    right_done = true;
+                    None
+                }
+                IteratorStep::Item(value) => Some(value),
+            }
+        };
+
+        let step = if left_done && right_done {
+            IteratorStep::Done
+        } else {
+            IteratorStep::Item(Value::List(
+                List::new(vec![
+                    left.unwrap_or_else(|| arguments[2].clone()),
+                    right.unwrap_or_else(|| arguments[2].clone()),
+                ])
+                .into_shared(),
+            ))
+        };
+        Ok(longest_step_value(step, left_done, right_done))
     }
 
     fn filter_next(&mut self, arguments: &[Value], span: Span) -> EvaluationResult<Value> {
@@ -189,6 +292,34 @@ impl Interpreter {
     }
 }
 
+fn validate_count(value: &Value, span: Span) -> EvaluationResult<Value> {
+    match value {
+        Value::Int(count) if *count >= 0 => Ok(Value::Nil),
+        Value::Int(count) => Err(contract_error(
+            span,
+            format!("std/iter count must be nonnegative, got {count}"),
+        )),
+        value => Err(contract_error(
+            span,
+            format!(
+                "std/iter count must be a nonnegative integer, got {}",
+                value.type_name()
+            ),
+        )),
+    }
+}
+
+fn validate_range(arguments: &[Value], span: Span) -> EvaluationResult<Value> {
+    if matches!(arguments, [Value::Int(_), Value::Int(_)]) {
+        Ok(Value::Nil)
+    } else {
+        Err(contract_error(
+            span,
+            "std/iter.range bounds must be integers".to_owned(),
+        ))
+    }
+}
+
 fn decode_step(value: Value, span: Span) -> EvaluationResult<IteratorStep> {
     let Value::Map(entries) = value else {
         return Err(contract_error(
@@ -289,6 +420,24 @@ fn step_value(step: IteratorStep) -> Value {
         entries.push((MapKey::String("value".to_owned()), value));
     }
     Value::Map(Gc::new(GcCell::new(entries)))
+}
+
+fn longest_step_value(step: IteratorStep, left_done: bool, right_done: bool) -> Value {
+    let Value::Map(entries) = step_value(step) else {
+        unreachable!("iterator steps are maps")
+    };
+    {
+        let mut entries = entries.borrow_mut();
+        entries.push((
+            MapKey::String("left_done".to_owned()),
+            Value::Bool(left_done),
+        ));
+        entries.push((
+            MapKey::String("right_done".to_owned()),
+            Value::Bool(right_done),
+        ));
+    }
+    Value::Map(entries)
 }
 
 fn predicate_error(operation: &str, value: &Value, span: Span) -> EvaluationError {

@@ -897,6 +897,46 @@ fn real_annotated_stdlib_facade_supplies_generic_member_types() {
 }
 
 #[test]
+fn iterator_pair_adapter_hover_preserves_item_and_source_effect_types() {
+    let module = include_str!("../../../../stdlib/iter.simi");
+    let source = "let iter = require(\"std/iter\") iter.enumerate";
+    let mut backend = Backend::with_module_sources([("std/iter", module)]);
+    open(&mut backend, source);
+    let hover: Option<Hover> = serde_json::from_value(
+        request(
+            &mut backend,
+            HoverRequest::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": text_position(source, "enumerate", 0),
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let HoverContents::Markup(markup) = hover.expect("stdlib hover").contents else {
+        panic!("expected markup")
+    };
+    assert!(
+        markup.value.contains("value: [integer, 'a]"),
+        "{}",
+        markup.value
+    );
+    assert!(
+        markup.value.contains("raises 'b noraise"),
+        "{}",
+        markup.value
+    );
+    assert!(
+        markup
+            .value
+            .contains("Pair every value with its zero-based integer index."),
+        "{}",
+        markup.value
+    );
+}
+
+#[test]
 fn portable_prelude_members_have_the_same_lsp_metadata_as_require() {
     let source = "number.to_string";
     let mut backend = Backend::with_module_sources([(

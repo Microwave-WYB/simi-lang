@@ -740,6 +740,9 @@ fn annotated_generic_stdlib_calls_infer_through_nested_type_variables() {
         "let iter = require(\"std/iter\")\n",
         "let mapped = iter.to_list(iter.map(list.iter([1, 2]), fn(value) do value + 1 end))\n",
         "let found = iter.find(list.iter([1, 2]), fn(value) do value > 1 end)\n",
+        "let enumerated = iter.to_list(iter.enumerate(iter.range(0, 2)))\n",
+        "let zipped = iter.to_list(iter.zip(iter.repeat(1, 2), iter.once(\"x\")))\n",
+        "let longest = iter.to_list(iter.zip_longest(iter.once(1), iter.take(iter.once(\"x\"), 0), nil))\n",
     ));
     let resolution = resolve(&db, file);
     let inference = infer_types(&db, file, &modules);
@@ -755,6 +758,18 @@ fn annotated_generic_stdlib_calls_infer_through_nested_type_variables() {
     assert_eq!(
         type_of(&inference, &resolution, "found").display(),
         "integer | nil"
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "enumerated").display(),
+        "[..[integer, integer]]"
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "zipped").display(),
+        "[..[integer, \"x\"]]"
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "longest").display(),
+        "[..[integer | nil, \"x\" | nil]]"
     );
 }
 
