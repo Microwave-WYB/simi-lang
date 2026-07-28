@@ -124,7 +124,7 @@ alias lookup_error =
     | {error: "not_found", key: string, ..}
     | {error: "unavailable", message: string, ..}
 
-fn lookup(key: string) -> string raises lookup_error do
+fn lookup(key: string) -> string ! lookup_error do
     raise {error = "not_found", key = key}
 end
 
@@ -135,7 +135,7 @@ catch of {error = "not_found", key = key} =>
 end
 ```
 
-An omitted clause is inferred. `raises E` checks an upper bound, and `noraise` means `raises never`. Generic effect variables can connect a callback's raised type to its caller. Catch patterns remove definitely handled variants from the protected effect; guarded matches remain possible, and handler effects escape. Structural mutation inference is analyzer-only within a binding's defining lexical scope; captured bindings require stable compatible contracts, and annotations remain erased.
+An omitted raised-error contract is inferred. `! E` checks an upper bound, and `! never` forbids language raises. Generic raised-type variables can connect a callback's raised type to its caller. Catch patterns remove definitely handled variants from the protected raised type; guarded matches remain possible, and handler raises escape. Structural mutation inference is analyzer-only within a binding's defining lexical scope; captured bindings require stable compatible contracts, and annotations remain erased.
 
 ## Minimal Rust embedding
 

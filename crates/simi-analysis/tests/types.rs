@@ -217,7 +217,7 @@ fn singleton_context_applies_to_function_bodies_and_mutation_rhs() {
 fn direct_true() -> true true
 fn direct_int() -> 42 42
 let anon = fn() -> false false
-let annotated: () -> true noraise = fn() true
+let annotated: () -> true ! never = fn() true
 let tagged: {done: true} = {done = true}
 tagged.done = true
 let indexed: {done: true} = {done = true}
@@ -250,7 +250,7 @@ index_union["code"] = 41
     );
     assert_eq!(
         type_of(&inference, &resolution, "annotated").display(),
-        "() -> true noraise"
+        "() -> true ! never"
     );
     for name in ["tagged", "indexed"] {
         assert_eq!(
@@ -269,19 +269,19 @@ index_union["code"] = 41
 #[test]
 fn contextual_callable_let_annotations_keep_effect_and_explicit_result_checks() {
     let source = r#"
-let inferred: (value: true) -> true noraise = fn(value) value
-let raised: () -> never raises string = fn() raise "failure"
-let explicit_result_mismatch: () -> true noraise = fn() -> false noraise false
-let effect_mismatch: () -> true noraise = fn() raise "failure"
+let inferred: (value: true) -> true ! never = fn(value) value
+let raised: () -> never ! string = fn() raise "failure"
+let explicit_result_mismatch: () -> true ! never = fn() -> false ! never false
+let effect_mismatch: () -> true ! never = fn() raise "failure"
 "#;
     let (inference, resolution) = inferred(source);
     assert_eq!(
         type_of(&inference, &resolution, "inferred").display(),
-        "(value: true) -> true noraise"
+        "(value: true) -> true ! never"
     );
     assert_eq!(
         type_of(&inference, &resolution, "raised").display(),
-        "() -> never raises string"
+        "() -> never ! string"
     );
     assert_eq!(
         inference
@@ -815,12 +815,12 @@ if map_step.done then
 else
     let live_entry = map_step.value
 end
-fn transform<'a, 'b, 'e>(value: 'a, callback: 'a -> 'b raises 'e) -> 'b raises 'e do
+fn transform<'a, 'b, 'e>(value: 'a, callback: 'a -> 'b ! 'e) -> 'b ! 'e do
     callback(value)
 end
 let generic_result = transform(1, fn(generic_item) do generic_item + 1 end)
 let parenthesized = transform(1, (fn(parenthesized_item) do parenthesized_item + 1 end))
-fn raising_source() -> { done: true, .. } | { done: false, value: integer, .. } raises "source" do
+fn raising_source() -> { done: true, .. } | { done: false, value: integer, .. } ! "source" do
     raise "source"
 end
 let effect_iterator = iter.map(raising_source, fn(effect_item) do
@@ -897,7 +897,7 @@ end)
     );
     assert_eq!(
         type_of(&inference, &resolution, "effect_iterator").display(),
-        "() -> { done: true, .. } | { done: false, value: integer, .. } raises \"source\" | \"callback\""
+        "() -> { done: true, .. } | { done: false, value: integer, .. } ! \"source\" | \"callback\""
     );
     assert_eq!(
         type_of(&inference, &resolution, "while_result").display(),
@@ -909,7 +909,7 @@ end)
     );
     assert_eq!(
         type_of(&inference, &resolution, "repeated").display(),
-        "() -> { done: true, .. } | { done: false, value: integer, .. } raises \"producer\""
+        "() -> { done: true, .. } | { done: false, value: integer, .. } ! \"producer\""
     );
     for name in ["while_item", "while_state", "fold_while_item"] {
         assert_eq!(type_of(&inference, &resolution, name).display(), "integer");
@@ -1070,12 +1070,12 @@ fn contextual_callbacks_still_check_explicit_annotations() {
     .collect::<HashMap<_, _>>();
     let source = r#"
 let iter = require("std/iter")
-let compatible = iter.to_list(iter.map(list.iter([1, 2]), fn(item: integer) -> integer noraise do
+let compatible = iter.to_list(iter.map(list.iter([1, 2]), fn(item: integer) -> integer ! never do
     item + 1
 end))
 iter.fold(list.iter([1, 2]), 0, fn(acc: string, item: integer) do acc end)
 iter.map(list.iter([1, 2]), fn(item: integer) -> string do item + 1 end)
-iter.map(list.iter([1, 2]), fn(item: integer) -> any noraise do raise "nope" end)
+iter.map(list.iter([1, 2]), fn(item: integer) -> any ! never do raise "nope" end)
 "#;
     let file = db.add_file(source);
     let resolution = resolve(&db, file);
@@ -1921,7 +1921,7 @@ let short = false and ("bad" + true)
 #[test]
 fn bounded_callable_generics_validate_calls_and_support_bounded_operators() {
     let source = r#"
-fn negate<'a: integer | float>(value: 'a) -> 'a noraise do
+fn negate<'a: integer | float>(value: 'a) -> 'a ! never do
     -value
 end
 let integer_result = negate(1)
@@ -1950,7 +1950,7 @@ let invalid_result = negate("wrong")
     assert!(inference.diagnostics[0].detail.contains("integer | float"));
     assert_eq!(
         type_of(&inference, &resolution, "negate").display(),
-        "<'a: integer | float> (value: 'a) -> 'a noraise"
+        "<'a: integer | float> (value: 'a) -> 'a ! never"
     );
 }
 
@@ -1959,12 +1959,12 @@ fn nested_callable_generic_headers_shadow_outer_binders_and_preserve_unbounded_e
     let source = r#"
 fn use<'a: any>(
     value: 'a,
-    callback: <'a: integer> 'a -> 'a noraise,
-) -> 'a noraise do
+    callback: <'a: integer> 'a -> 'a ! never,
+) -> 'a ! never do
     callback(1)
     value
 end
-fn marker<'a>() -> integer noraise do 1 end
+fn marker<'a>() -> integer ! never do 1 end
 "#;
     let (inference, resolution) = inferred(source);
     assert!(
@@ -1974,15 +1974,15 @@ fn marker<'a>() -> integer noraise do 1 end
     );
     assert_eq!(
         type_of(&inference, &resolution, "use").display(),
-        "<'a: any> (value: 'a, callback: <'b: integer> 'b -> 'b noraise) -> 'a noraise"
+        "<'a: any> (value: 'a, callback: <'b: integer> 'b -> 'b ! never) -> 'a ! never"
     );
     assert_eq!(
         type_of(&inference, &resolution, "marker").display(),
-        "<'a> () -> integer noraise"
+        "<'a> () -> integer ! never"
     );
 
     let invalid = r#"
-fn invalid(callback: <'a: integer> 'a -> 'a noraise) -> nil noraise do
+fn invalid(callback: <'a: integer> 'a -> 'a ! never) -> nil ! never do
     callback("wrong")
     nil
 end
@@ -1995,8 +1995,8 @@ end
 #[test]
 fn aliases_with_nested_callable_headers_do_not_capture_outer_generics() {
     let source = r#"
-alias handler<'value> = <'item> ('value, 'item) -> 'item noraise
-fn hold<'a, 'b>(callback: handler<'a>, other: 'b) -> 'b noraise do other end
+alias handler<'value> = <'item> ('value, 'item) -> 'item ! never
+fn hold<'a, 'b>(callback: handler<'a>, other: 'b) -> 'b ! never do other end
 "#;
     let (inference, resolution) = inferred(source);
     assert!(
@@ -2006,14 +2006,14 @@ fn hold<'a, 'b>(callback: handler<'a>, other: 'b) -> 'b noraise do other end
     );
     assert_eq!(
         type_of(&inference, &resolution, "hold").display(),
-        "<'a, 'b> (callback: <'c> ('a, 'c) -> 'c noraise, other: 'b) -> 'b noraise"
+        "<'a, 'b> (callback: <'c> ('a, 'c) -> 'c ! never, other: 'b) -> 'b ! never"
     );
 }
 
 #[test]
 fn callable_labels_are_metadata_and_calls_remain_positional() {
     let source = r#"
-fn add(left: integer, right: integer) -> integer noraise do
+fn add(left: integer, right: integer) -> integer ! never do
     left + right
 end
 let result = add(1, 2)
@@ -2027,7 +2027,7 @@ let result = add(1, 2)
     assert_eq!(type_of(&inference, &resolution, "result"), Type::Int);
     assert_eq!(
         type_of(&inference, &resolution, "add").display(),
-        "(left: integer, right: integer) -> integer noraise"
+        "(left: integer, right: integer) -> integer ! never"
     );
 }
 
@@ -2050,7 +2050,7 @@ end
     let (inference, resolution) = inferred(source);
     assert_eq!(
         type_of(&inference, &resolution, "load").display(),
-        "(name: string) -> any raises any"
+        "(name: string) -> any ! any"
     );
     assert_eq!(
         type_of(&inference, &resolution, "observed").display(),
@@ -2067,7 +2067,7 @@ end
 fn choose(flag: boolean) do
     if flag then raise "bad" else 1 end
 end
-fn invoke(callback: () -> integer raises 'e) do
+fn invoke(callback: () -> integer ! 'e) do
     callback()
 end
 fn recovered() do
@@ -2078,25 +2078,25 @@ fn recovered() do
             1
     end
 end
-fn pure() -> integer noraise do
+fn pure() -> integer ! never do
     1
 end
-fn invalid() -> integer noraise do
+fn invalid() -> integer ! never do
     raise "forbidden"
 end
 "#;
     let (inference, resolution) = inferred(source);
     assert_eq!(
         type_of(&inference, &resolution, "fail").display(),
-        "(value: 'a) -> never raises 'a"
+        "(value: 'a) -> never ! 'a"
     );
     assert_eq!(
         type_of(&inference, &resolution, "choose").display(),
-        "(flag: boolean) -> integer raises \"bad\""
+        "(flag: boolean) -> integer ! \"bad\""
     );
     assert_eq!(
         type_of(&inference, &resolution, "invoke").display(),
-        "(callback: () -> integer raises 'a) -> integer raises 'a"
+        "(callback: () -> integer ! 'a) -> integer ! 'a"
     );
     assert_eq!(
         type_of(&inference, &resolution, "recovered").display(),
@@ -2104,7 +2104,7 @@ end
     );
     assert_eq!(
         type_of(&inference, &resolution, "pure").display(),
-        "() -> integer noraise"
+        "() -> integer ! never"
     );
     assert_eq!(
         inference.diagnostics.len(),
@@ -2116,28 +2116,28 @@ end
 }
 
 #[test]
-fn varied_direct_bodies_honor_noraise_without_suppressing_raises() {
+fn varied_direct_bodies_honor_bang_never_without_suppressing_raises() {
     let source = r#"
-fn identity(value: integer) -> integer noraise value
-fn text() -> string noraise "ok"
-fn values() -> [..integer] noraise [1, 2]
-fn nothing() -> nil noraise nil
-fn grouped() -> integer noraise (1 + 2)
-fn direct(xs: [..integer]) -> nil noraise host.append(xs)
-fn explicit(xs: [..integer]) -> nil noraise do
+fn identity(value: integer) -> integer ! never value
+fn text() -> string ! never "ok"
+fn values() -> [..integer] ! never [1, 2]
+fn nothing() -> nil ! never nil
+fn grouped() -> integer ! never (1 + 2)
+fn direct(xs: [..integer]) -> nil ! never host.append(xs)
+fn explicit(xs: [..integer]) -> nil ! never do
     host.append(xs)
 end
-fn unrelated() -> nil noraise raise "boom"
+fn unrelated() -> nil ! never raise "boom"
 "#;
     let (inference, resolution) = inferred(source);
     for (name, expected) in [
-        ("identity", "(value: integer) -> integer noraise"),
-        ("text", "() -> string noraise"),
-        ("values", "() -> [..integer] noraise"),
-        ("nothing", "() -> nil noraise"),
-        ("grouped", "() -> integer noraise"),
-        ("direct", "(xs: [..integer]) -> nil noraise"),
-        ("explicit", "(xs: [..integer]) -> nil noraise"),
+        ("identity", "(value: integer) -> integer ! never"),
+        ("text", "() -> string ! never"),
+        ("values", "() -> [..integer] ! never"),
+        ("nothing", "() -> nil ! never"),
+        ("grouped", "() -> integer ! never"),
+        ("direct", "(xs: [..integer]) -> nil ! never"),
+        ("explicit", "(xs: [..integer]) -> nil ! never"),
     ] {
         assert_eq!(type_of(&inference, &resolution, name).display(), expected);
     }

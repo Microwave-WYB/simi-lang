@@ -150,18 +150,6 @@ const KEYWORDS: &[KeywordHelp] = &[
         contextual: false,
     },
     KeywordHelp {
-        word: "raises",
-        syntax: "-> result raises error",
-        documentation: "Declares a runtime-erased upper bound for values a callable may raise.",
-        contextual: true,
-    },
-    KeywordHelp {
-        word: "noraise",
-        syntax: "-> result noraise",
-        documentation: "Declares that a callable does not raise through the language-error channel.",
-        contextual: true,
-    },
-    KeywordHelp {
         word: "any",
         syntax: "any",
         documentation: "The explicit dynamic escape type. Operations on `any` defer static checking.",
@@ -241,7 +229,6 @@ fn contains(token: &SyntaxToken, offset: usize) -> bool {
 
 fn is_contextual_keyword(token: &SyntaxToken, word: &str) -> bool {
     token.parent_ancestors().any(|node| match word {
-        "raises" | "noraise" => node.kind() == K::EFFECT_ANNOTATION,
         "any" | "never" | "boolean" | "integer" | "float" | "string" => matches!(
             node.kind(),
             K::TYPE_EXPR
@@ -266,8 +253,8 @@ mod tests {
             .collect::<BTreeSet<_>>();
         let expected = [
             "alias", "and", "any", "boolean", "case", "catch", "do", "else", "elseif", "end",
-            "false", "float", "fn", "if", "integer", "let", "nil", "noraise", "not", "of", "or",
-            "panic", "raise", "raises", "string", "tap", "then", "todo", "true", "when", "never",
+            "false", "float", "fn", "if", "integer", "let", "nil", "not", "of", "or", "panic",
+            "raise", "string", "tap", "then", "todo", "true", "when", "never",
         ]
         .into_iter()
         .collect::<BTreeSet<_>>();

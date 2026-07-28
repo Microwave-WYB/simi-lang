@@ -48,14 +48,14 @@ fn protected_do_and_direct_catch_body_preserve_raise_semantics() {
 }
 
 #[test]
-fn noraise_direct_bodies_are_runtime_erased_for_varied_expressions() {
+fn bang_never_direct_bodies_are_runtime_erased_for_varied_expressions() {
     assert_eval(
         r#"
-            fn identity(value: integer) -> integer noraise value
-            fn text() -> string noraise "ok"
-            fn values() -> [integer] noraise [1, 2]
-            fn nothing() -> nil noraise nil
-            fn grouped() -> integer noraise (40 + 2)
+            fn identity(value: integer) -> integer ! never value
+            fn text() -> string ! never "ok"
+            fn values() -> [integer] ! never [1, 2]
+            fn nothing() -> nil ! never nil
+            fn grouped() -> integer ! never (40 + 2)
             [identity(7), text(), values(), nothing(), grouped()]
         "#,
         "[7, \"ok\", [1, 2], nil, 42]",

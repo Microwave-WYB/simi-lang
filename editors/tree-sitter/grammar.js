@@ -307,9 +307,9 @@ module.exports = grammar({
       ),
     )),
 
-    effect_annotation: ($) => choice(
-      seq("raises", field("type", $._type)),
-      "noraise",
+    effect_annotation: ($) => seq(
+      "!",
+      field("type", $._type),
     ),
 
     union_type: ($) => seq(

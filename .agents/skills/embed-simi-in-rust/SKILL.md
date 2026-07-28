@@ -63,10 +63,10 @@ For map-shaped hosts, construct the complete map with `host_value!` or `ModuleBu
 - The macro `name` prefixes native rendering and diagnostics; it is not a field in the generated map.
 - Duplicate registrations are last-wins. Map entries with `nil` are absent.
 
-Prefer a direct typed alias in the Simi facade when it adds only erased metadata. Label parameters and declare `noraise` or `raises E` explicitly when the host contract is known; omission asks analysis to infer from an opaque host value and therefore remains conservative:
+Prefer a direct typed alias in the Simi facade when it adds only erased metadata. Label parameters and declare `! never` or `! E` explicitly when the host contract is known; omission asks analysis to infer from an opaque host value and therefore remains conservative:
 
 ```simi
-let append: (xs: [..'a], value: 'b) -> nil noraise = host.append
+let append: (xs: [..'a], value: 'b) -> nil ! never = host.append
 ```
 
 Use a Simi wrapper only when it deliberately adds Simi behavior. The final facade expression may be any public `Value`, not only a map.

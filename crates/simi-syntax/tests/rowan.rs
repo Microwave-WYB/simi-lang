@@ -44,6 +44,21 @@ fn representative_tree_shape_is_stable() {
 }
 
 #[test]
+fn standalone_bang_and_bang_equal_are_distinct_tokens() {
+    let source = "fn checked() -> boolean ! never do 1 != 2 end";
+    let parse = parse_source(source);
+    assert!(parse.diagnostics().is_empty(), "{:?}", parse.diagnostics());
+    assert_eq!(parse.syntax().to_string(), source);
+    let kinds = parse
+        .syntax()
+        .descendants_with_tokens()
+        .filter_map(|element| element.into_token().map(|token| token.kind()))
+        .collect::<Vec<_>>();
+    assert!(kinds.contains(&SyntaxKind::BANG));
+    assert!(kinds.contains(&SyntaxKind::BANG_EQ));
+}
+
+#[test]
 fn delimiters_belong_to_their_typed_nodes() {
     let source = concat!(
         "case [1] of [head, ..tail] => head end ",
@@ -76,14 +91,14 @@ fn delimiters_belong_to_their_typed_nodes() {
 }
 
 #[test]
-fn noraise_functions_accept_varied_direct_expression_bodies() {
+fn bang_never_functions_accept_varied_direct_expression_bodies() {
     let source = concat!(
-        "fn identity(value: integer) -> integer noraise value\n",
-        "fn text() -> string noraise \"ok\"\n",
-        "fn values() -> [integer] noraise [1]\n",
-        "fn nothing() -> nil noraise nil\n",
-        "fn grouped() -> integer noraise (1 + 2)\n",
-        "fn append(xs: [..integer]) -> nil noraise host.append(xs)",
+        "fn identity(value: integer) -> integer ! never value\n",
+        "fn text() -> string ! never \"ok\"\n",
+        "fn values() -> [integer] ! never [1]\n",
+        "fn nothing() -> nil ! never nil\n",
+        "fn grouped() -> integer ! never (1 + 2)\n",
+        "fn append(xs: [..integer]) -> nil ! never host.append(xs)",
     );
     let parse = parse_source(source);
     assert!(parse.diagnostics().is_empty(), "{:?}", parse.diagnostics());
@@ -246,12 +261,12 @@ fn erased_type_surface_is_lossless_and_alias_is_contextual() {
 }
 
 #[test]
-fn callable_generics_labels_effects_and_leading_unions_are_lossless() {
+fn callable_generics_labels_raised_contracts_and_leading_unions_are_lossless() {
     let source = concat!(
-        "fn identity<'a: | integer | string>(value: 'a) -> 'a noraise do value end\n",
-        "let mapper: <'a, 'error: { error: string, .. }> (value: 'a) -> 'a raises 'error = nil\n",
+        "fn identity<'a: | integer | string>(value: 'a) -> 'a ! never do value end\n",
+        "let mapper: <'a, 'error: { error: string, .. }> (value: 'a) -> 'a ! 'error = nil\n",
         "let callback: (input: | integer | string, state: [..integer]) -> nil = nil\n",
-        "let anonymous = fn<'a: any>(value: 'a) -> 'a raises string do value end\n",
+        "let anonymous = fn<'a: any>(value: 'a) -> 'a ! string do value end\n",
     );
     let parse = parse_source(source);
     assert!(parse.diagnostics().is_empty(), "{:?}", parse.diagnostics());
@@ -275,21 +290,21 @@ fn callable_generics_labels_effects_and_leading_unions_are_lossless() {
 }
 
 #[test]
-fn callable_effect_tails_bind_to_the_nearest_arrow() {
+fn callable_raised_contracts_bind_to_the_nearest_arrow() {
     let sources_and_parents = [
         (
-            "let value: integer -> string -> boolean raises string = nil",
-            vec!["string -> boolean raises string"],
+            "let value: integer -> string -> boolean ! string = nil",
+            vec!["string -> boolean ! string"],
         ),
         (
-            "let value: integer -> (string -> boolean) raises string = nil",
-            vec!["integer -> (string -> boolean) raises string"],
+            "let value: integer -> (string -> boolean) ! string = nil",
+            vec!["integer -> (string -> boolean) ! string"],
         ),
         (
-            "let value: integer -> (string -> boolean raises integer) raises string = nil",
+            "let value: integer -> (string -> boolean ! integer) ! string = nil",
             vec![
-                "string -> boolean raises integer",
-                "integer -> (string -> boolean raises integer) raises string",
+                "string -> boolean ! integer",
+                "integer -> (string -> boolean ! integer) ! string",
             ],
         ),
     ];
@@ -308,7 +323,27 @@ fn callable_effect_tails_bind_to_the_nearest_arrow() {
 }
 
 #[test]
-fn callable_headers_and_effects_require_a_result_arrow() {
+fn legacy_callable_contract_words_are_not_annotations() {
+    for source in [
+        "fn old() -> nil noraise do nil end",
+        "fn old() -> nil raises string do nil end",
+    ] {
+        let parse = parse_source(source);
+        assert!(!parse.diagnostics().is_empty(), "{source}");
+        assert_eq!(
+            parse
+                .syntax()
+                .descendants()
+                .filter(|node| node.kind() == SyntaxKind::EFFECT_ANNOTATION)
+                .count(),
+            0,
+            "{source}"
+        );
+    }
+}
+
+#[test]
+fn callable_headers_and_raised_contracts_require_a_result_arrow() {
     let generic = parse_source("let bad: <'a> 'a = nil");
     assert!(generic.diagnostics().iter().any(|diagnostic| {
         diagnostic
@@ -316,23 +351,23 @@ fn callable_headers_and_effects_require_a_result_arrow() {
             .contains("generic header must be followed by `->`")
     }));
 
-    let effect = parse_source("fn bad() raises string do nil end");
+    let effect = parse_source("fn bad() ! string do nil end");
     assert!(effect.diagnostics().iter().any(|diagnostic| {
         diagnostic
             .message
-            .contains("effect requires `->` and a result type")
+            .contains("raised-error contract requires `->` and a result type")
     }));
 }
 
 #[test]
-fn malformed_callable_effects_recover_before_following_bodies_and_declarations() {
+fn malformed_callable_raised_contracts_recover_before_following_bodies_and_declarations() {
     let cases = [
         (
-            "fn bad() -> nil raises do nil end\nlet after = 1",
-            "expected a raised type after `raises`",
+            "fn bad() -> nil ! do nil end\nlet after = 1",
+            "expected a raised type after `!`",
         ),
         (
-            "fn bad() -> nil raises [..] do nil end\nlet after = 1",
+            "fn bad() -> nil ! [..] do nil end\nlet after = 1",
             "expected type, found `]`",
         ),
         (

@@ -203,10 +203,6 @@
           "match": "'[A-Za-z_][A-Za-z0-9_]*"
         },
         {
-          "name": "storage.modifier.effect.simi",
-          "match": "\\braises\\b(?=\\s*(?:\\||'|\\\"|\\{|\\[|\\(|[A-Za-z_]))|\\bnoraise\\b(?=\\s*(?:do\\b|end\\b))|(?<!\\blet )(?<!\\balias )\\bnoraise\\b(?=\\s*=)"
-        },
-        {
           "name": "support.type.primitive.simi",
           "match": "\\b(?:any|never|boolean|integer|float|string)\\b(?!\\s*\\.)"
         }
@@ -311,7 +307,7 @@
         },
         {
           "name": "keyword.operator.type.simi",
-          "match": "->|\\|(?!>)"
+          "match": "->|!(?!=)|\\|(?!>)"
         },
         {
           "name": "keyword.operator.concatenation.simi",

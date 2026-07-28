@@ -170,9 +170,9 @@ fn parses_anonymous_functions_as_postfix_and_nested_expressions() {
 #[test]
 fn callable_generics_constraints_labels_and_effects_are_erased_from_runtime_ast() {
     let source = concat!(
-        "fn identity<'a: | integer | string>(value: 'a) -> 'a noraise do value end\n",
-        "let callback: <'a> (input: 'a) -> 'a raises string = ",
-        "fn<'a: any>(value: 'a) -> 'a raises string do value end\n",
+        "fn identity<'a: | integer | string>(value: 'a) -> 'a ! never do value end\n",
+        "let callback: <'a> (input: 'a) -> 'a ! string = ",
+        "fn<'a: any>(value: 'a) -> 'a ! string do value end\n",
         "identity(callback(42))",
     );
     let program = parse_source(source).unwrap();

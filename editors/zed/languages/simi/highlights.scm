@@ -24,8 +24,6 @@
   "raise"
     "catch"
   "tap"
-  "raises"
-  "noraise"
 ] @keyword
 
 [
@@ -35,6 +33,7 @@
   "="
   "=="
   "!="
+  "!"
   "+"
   "-"
   "*"
