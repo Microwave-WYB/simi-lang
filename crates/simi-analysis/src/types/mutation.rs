@@ -36,6 +36,22 @@ impl Context<'_> {
             .clone()
             .map(|child| self.expression(child))
             .unwrap_or(Type::Unknown);
+        if let Type::Map {
+            fields,
+            index: Some((key_hole, value_hole)),
+            ..
+        } = &object
+        {
+            if let Type::LiteralString(name) = &key
+                && let Some((_, value)) = fields.iter().find(|(field, _)| field == name)
+            {
+                return value.clone();
+            }
+            if self.is_deferred_empty_map_index(key_hole, value_hole) {
+                self.bind_infer((**key_hole).clone(), key.clone());
+                return union(vec![self.resolve_type((**value_hole).clone()), Type::Nil]);
+            }
+        }
         match self.resolve_type(object) {
             Type::ListExact(items) => {
                 self.require_subtype(&key, &Type::Int, span(node.syntax()));
@@ -256,6 +272,16 @@ impl Context<'_> {
             return;
         };
         let key = children.next();
+        let key_type = key
+            .as_ref()
+            .and_then(|key| {
+                self.expression_types
+                    .iter()
+                    .rev()
+                    .find(|(at, _)| *at == span(key.syntax()))
+                    .map(|(_, ty)| ty.clone())
+            })
+            .unwrap_or(Type::Unknown);
         let Some(symbol) = expression_symbol(&object, self.resolution) else {
             self.invalidate_mutated_owner(&object);
             return;
@@ -272,47 +298,63 @@ impl Context<'_> {
             .symbol_types
             .get(&symbol)
             .cloned()
-            .map(|ty| self.resolve_type(ty))
             .unwrap_or(Type::Unknown);
-        let updated = match current {
-            Type::ListExact(mut items) => {
-                let literal_index = key.as_ref().and_then(|key| {
-                    let syntax::Expr::Literal(literal) = key else {
-                        return None;
-                    };
-                    direct_token(literal.syntax(), K::INT)?
-                        .text()
-                        .parse::<usize>()
-                        .ok()
-                });
-                if let Some(index) = literal_index {
-                    if let Some(item) = items.get_mut(index) {
-                        *item = value.clone();
+        let deferred_empty_map_index = match &current {
+            Type::Map {
+                index: Some((key, value)),
+                ..
+            } if self.is_deferred_empty_map_index(key, value) => Some((key.clone(), value.clone())),
+            _ => None,
+        };
+        let updated = if let Some((key_hole, value_hole)) = deferred_empty_map_index {
+            self.bind_infer(*key_hole, key_type);
+            self.bind_infer(*value_hole, value.clone());
+            current
+        } else {
+            match self.resolve_type(current) {
+                Type::ListExact(mut items) => {
+                    let literal_index = key.as_ref().and_then(|key| {
+                        let syntax::Expr::Literal(literal) = key else {
+                            return None;
+                        };
+                        direct_token(literal.syntax(), K::INT)?
+                            .text()
+                            .parse::<usize>()
+                            .ok()
+                    });
+                    if let Some(index) = literal_index {
+                        if let Some(item) = items.get_mut(index) {
+                            *item = value.clone();
+                        }
+                    } else {
+                        for item in &mut items {
+                            *item = union(vec![item.clone(), value.clone()]);
+                        }
                     }
-                } else {
-                    for item in &mut items {
-                        *item = union(vec![item.clone(), value.clone()]);
+                    Type::ListExact(items)
+                }
+                Type::ListRest(item) => Type::ListRest(Box::new(union(vec![*item, value.clone()]))),
+                map @ Type::Map { .. } => {
+                    if let Some(syntax::Expr::Literal(literal)) = key.as_ref()
+                        && let Some(token) = direct_token(literal.syntax(), K::STRING)
+                    {
+                        update_map_field(map, &unquote(token.text()), value.clone())
+                    } else {
+                        widen_mutable_type(map)
                     }
                 }
-                Type::ListExact(items)
+                _ => return,
             }
-            Type::ListRest(item) => Type::ListRest(Box::new(union(vec![*item, value.clone()]))),
-            map @ Type::Map { .. } => {
-                if let Some(syntax::Expr::Literal(literal)) = key.as_ref()
-                    && let Some(token) = direct_token(literal.syntax(), K::STRING)
-                {
-                    update_map_field(map, &unquote(token.text()), value.clone())
-                } else {
-                    widen_mutable_type(map)
-                }
-            }
-            _ => return,
         };
         if !self.capture_mutation_is_compatible(symbol, &updated, span(index.syntax())) {
             return;
         }
         self.record_mutation(symbol);
         self.update_region_or_symbol(symbol, updated);
+    }
+    fn is_deferred_empty_map_index(&self, key: &Type, value: &Type) -> bool {
+        matches!(key, Type::Infer(id) if self.deferred_empty_map_infers.contains(id))
+            && matches!(value, Type::Infer(id) if self.deferred_empty_map_infers.contains(id))
     }
     pub(super) fn invalidate_mutated_owner(&mut self, owner: &syntax::Expr) {
         let Some(symbol) = mutation_root_symbol(owner, self.resolution) else {

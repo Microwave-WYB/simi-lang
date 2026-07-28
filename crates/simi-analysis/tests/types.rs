@@ -1055,6 +1055,125 @@ let unchanged: [] = bridge([], fn(other) do other end)
 }
 
 #[test]
+fn contextual_empty_maps_refine_generic_callback_state() {
+    let db = AnalysisDatabase::default();
+    let modules = [
+        ("std/list", include_str!("../../../stdlib/list.simi")),
+        ("std/iter", include_str!("../../../stdlib/iter.simi")),
+    ]
+    .into_iter()
+    .map(|(name, source)| {
+        let file = db.add_file(source);
+        (name.to_owned(), simi_analysis::module_shape(&db, file))
+    })
+    .collect::<HashMap<_, _>>();
+    let source = r#"let iter = require("std/iter")
+
+fn two_sum(values: [..integer], target: integer)
+    values
+    |> list.iter()
+    |> iter.enumerate()
+    |> iter.fold_while({}) <| fn(seen, item) do
+        let index = item[0]
+        let value = item[1]
+        let match_index = seen[target - value]
+        if match_index == nil then
+            seen[value] = index
+            iter.continue(seen)
+        else
+            iter.break([match_index, index])
+        end
+    end
+
+fn bridge<'state>(initial: 'state, callback: fn('state) -> 'state) -> 'state do
+    callback(initial)
+end
+let unchanged = bridge({}, fn(state) do state end)
+let integer_key: integer = 1
+let boolean_key: boolean = true
+let integer_value: integer = 1
+let string_value: string = "one"
+let inspected = bridge({}, fn(state) do
+    let missing = state[integer_key]
+    state
+end)
+let named = bridge({seen = {}, total = 0}, fn(state) do
+    let seen = state.seen
+    seen[integer_key] = integer_value
+    {seen = seen, total = state.total + 1}
+end)
+let multiple = bridge({}, fn(state) do
+    state[integer_key] = integer_value
+    state[boolean_key] = string_value
+    state
+end)
+"#;
+    let file = db.add_file(source);
+    let resolution = resolve(&db, file);
+    let inference = infer_types(&db, file, &modules);
+    assert!(
+        inference.diagnostics.is_empty(),
+        "{:?}",
+        inference.diagnostics
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "two_sum").display(),
+        "fn(values: [..integer], target: integer) -> [integer, integer] | { [integer]: integer }"
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "seen").display(),
+        "{ [integer]: integer }"
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "unchanged").display(),
+        "{}"
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "inspected").display(),
+        "{}"
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "named").display(),
+        "{ seen: { [integer]: integer }, total: integer }"
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "multiple").display(),
+        "{ [boolean | integer]: integer | string }"
+    );
+}
+
+#[test]
+fn contextual_empty_maps_reject_captured_and_explicitly_closed_writes() {
+    let source = r#"fn bridge<'state>(initial: 'state, callback: fn('state) -> 'state) -> 'state do
+    callback(initial)
+end
+let captured = {}
+let mutate_capture = fn(key) do captured[key] = 1 end
+let explicitly_closed: {} = bridge({}, fn(state) do
+    state[1] = 2
+    state
+end)
+"#;
+    let (inference, _) = inferred(source);
+    assert!(
+        inference
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.title == "Captured mutation exceeds declared type"),
+        "{:?}",
+        inference.diagnostics
+    );
+    assert!(
+        inference
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == AnalysisDiagnosticCode::TypeMismatch),
+        "{:?}",
+        inference.diagnostics
+    );
+}
+
+#[test]
 fn contextual_fold_accumulators_preserve_annotated_and_exact_list_failures() {
     let db = AnalysisDatabase::default();
     let modules = [

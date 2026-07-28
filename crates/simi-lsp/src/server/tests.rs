@@ -1392,6 +1392,64 @@ let unchanged: [] = bridge([], fn(other) do other end)
 }
 
 #[test]
+fn contextual_empty_map_fold_while_has_precise_protocol_hovers() {
+    let source = r#"let iter = require("std/iter")
+
+fn two_sum(values: [..integer], target: integer)
+    values
+    |> list.iter()
+    |> iter.enumerate()
+    |> iter.fold_while({}) <| fn(seen, item) do
+        let index = item[0]
+        let value = item[1]
+        let match_index = seen[target - value]
+        if match_index == nil then
+            seen[value] = index
+            iter.continue(seen)
+        else
+            iter.break([match_index, index])
+        end
+    end
+"#;
+    let mut backend = Backend::with_module_sources([
+        ("std/list", include_str!("../../../../stdlib/list.simi")),
+        ("std/iter", include_str!("../../../../stdlib/iter.simi")),
+    ]);
+    let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
+    assert!(
+        diagnostics.diagnostics.is_empty(),
+        "{:?}",
+        diagnostics.diagnostics
+    );
+
+    for (name, expected) in [
+        ("seen", "{ [integer]: integer }"),
+        (
+            "two_sum",
+            "fn(\n    values: [..integer],\n    target: integer,\n) -> [integer, integer] | { [integer]: integer }",
+        ),
+    ] {
+        let hover: Option<Hover> = serde_json::from_value(
+            request(
+                &mut backend,
+                HoverRequest::METHOD,
+                json!({
+                    "textDocument": { "uri": uri() },
+                    "position": text_position(source, name, 0),
+                }),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let HoverContents::Markup(markup) = hover.expect("contextual empty map hover").contents
+        else {
+            panic!("expected markup")
+        };
+        assert_simi_hover(&markup, expected);
+    }
+}
+
+#[test]
 fn fold_accumulator_nested_empty_lists_have_precise_protocol_hovers() {
     let source = r#"let iter = require("std/iter")
 alias number = integer | float

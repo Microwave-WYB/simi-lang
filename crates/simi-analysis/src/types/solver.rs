@@ -137,6 +137,18 @@ impl Context<'_> {
             }
         }
     }
+    pub(super) fn finalize_deferred_empty_maps(
+        &mut self,
+        variables: impl IntoIterator<Item = (u32, u32)>,
+    ) {
+        for (key, value) in variables {
+            if matches!(self.resolve_type(Type::Infer(key)), Type::Infer(_))
+                || matches!(self.resolve_type(Type::Infer(value)), Type::Infer(_))
+            {
+                self.exact_empty_map_infers.extend([key, value]);
+            }
+        }
+    }
     pub(super) fn bind_infer(&mut self, variable: Type, ty: Type) {
         let Type::Infer(id) = variable else {
             return;
@@ -195,19 +207,31 @@ impl Context<'_> {
                 fields,
                 index,
                 open,
-            } => Type::Map {
-                fields: fields
+            } => {
+                let deferred_empty = index.as_ref().is_some_and(|(key, value)| {
+                    matches!(key.as_ref(), Type::Infer(id) if self.exact_empty_map_infers.contains(id))
+                        && matches!(value.as_ref(), Type::Infer(id) if self.exact_empty_map_infers.contains(id))
+                });
+                let fields = fields
                     .into_iter()
                     .map(|(name, ty)| (name, self.resolve_type_inner(ty, resolving)))
-                    .collect(),
-                index: index.map(|(key, value)| {
-                    (
-                        Box::new(self.resolve_type_inner(*key, resolving)),
-                        Box::new(self.resolve_type_inner(*value, resolving)),
-                    )
-                }),
-                open,
-            },
+                    .collect();
+                let index = (!deferred_empty)
+                    .then(|| {
+                        index.map(|(key, value)| {
+                            (
+                                Box::new(self.resolve_type_inner(*key, resolving)),
+                                Box::new(self.resolve_type_inner(*value, resolving)),
+                            )
+                        })
+                    })
+                    .flatten();
+                Type::Map {
+                    fields,
+                    index,
+                    open,
+                }
+            }
             Type::Function(mut callable) => {
                 for constraint in &mut callable.constraints {
                     constraint.variable =
@@ -286,6 +310,19 @@ impl Context<'_> {
         map_type(ty, &mut |candidate| match candidate {
             Type::ListRest(item) if matches!(item.as_ref(), Type::Infer(id) if self.deferred_empty_list_infers.contains(id)) => {
                 Type::ListExact(Vec::new())
+            }
+            Type::Map {
+                fields,
+                index: Some((key, value)),
+                open,
+            } if matches!(key.as_ref(), Type::Infer(id) if self.deferred_empty_map_infers.contains(id))
+                && matches!(value.as_ref(), Type::Infer(id) if self.deferred_empty_map_infers.contains(id)) =>
+            {
+                Type::Map {
+                    fields,
+                    index: None,
+                    open,
+                }
             }
             other => other,
         })
