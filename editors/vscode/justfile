@@ -9,6 +9,10 @@ dependencies:
 
 install: dependencies
 
+# Rebuild the bundled parser from the shared grammar; TextMate sources are maintained directly.
+generate: dependencies
+    cd "{{component}}" && npm run generate:parser
+
 test: dependencies
     cd "{{component}}" && npm test
 
