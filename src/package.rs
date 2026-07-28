@@ -4,7 +4,12 @@
 //! package-resolution layer; this module only establishes the deterministic, capability-free
 //! package-tree contract that a resolver consumes.
 
-use std::{collections::BTreeMap, error::Error, fmt};
+use std::{
+    collections::BTreeMap,
+    error::Error,
+    fmt, fs,
+    path::{Path, PathBuf},
+};
 
 use crate::{
     ast::{Expr, ExprKind, StmtKind},
@@ -113,6 +118,208 @@ impl PackageManifest {
     pub fn native(&self) -> Option<&NativePackage> {
         self.native.as_ref()
     }
+}
+
+/// A statically validated package root and its declared public source units.
+///
+/// This loader reads only `simi.package.simi` and manifest-declared public modules. It neither
+/// resolves requirements nor discovers private, generated, or native sources.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PackageTree {
+    root: PathBuf,
+    manifest: PackageManifest,
+    manifest_source: String,
+    modules: Vec<PackageSource>,
+}
+
+impl PackageTree {
+    /// Load a package root without evaluating or resolving any Simi source.
+    ///
+    /// The root, manifest, and every declared public source component must be non-symlink regular
+    /// directories or files below the canonical root. Public source units are stored by canonical
+    /// source path order so their digest inputs are independent of filesystem iteration order.
+    pub fn load(root: impl AsRef<Path>) -> Result<Self, PackageTreeError> {
+        let root = canonical_package_root(root.as_ref())?;
+        let manifest_source = read_package_source(&root, "simi.package.simi", "package manifest")?;
+        let manifest = PackageManifest::parse(&manifest_source)
+            .map_err(|error| PackageTreeError::new(format!("invalid package manifest: {error}")))?;
+
+        let mut modules = manifest.modules().to_vec();
+        modules.sort_by(|left, right| left.source_path.cmp(&right.source_path));
+        let modules = modules
+            .into_iter()
+            .map(|module| {
+                let source = read_package_source(
+                    &root,
+                    module.source_path(),
+                    &format!("declared public module `{}`", module.name()),
+                )?;
+                Ok(PackageSource { module, source })
+            })
+            .collect::<Result<Vec<_>, PackageTreeError>>()?;
+
+        Ok(Self {
+            root,
+            manifest,
+            manifest_source,
+            modules,
+        })
+    }
+
+    /// Canonical package-root directory used for layout validation.
+    pub fn root(&self) -> &Path {
+        &self.root
+    }
+
+    /// Parsed, restricted package metadata.
+    pub fn manifest(&self) -> &PackageManifest {
+        &self.manifest
+    }
+
+    /// Declared public source units in canonical source-path order.
+    pub fn modules(&self) -> &[PackageSource] {
+        &self.modules
+    }
+
+    /// Deterministic source-tree digest inputs.
+    ///
+    /// The manifest is first, followed by declared public source modules sorted by path. The exact
+    /// UTF-8 source bytes are retained; callers choosing a digest algorithm must frame each path
+    /// and byte sequence unambiguously. Private, generated, native, and unlisted files are absent.
+    pub fn digest_inputs(&self) -> Vec<PackageTreeFile<'_>> {
+        std::iter::once(PackageTreeFile {
+            path: "simi.package.simi",
+            bytes: self.manifest_source.as_bytes(),
+        })
+        .chain(self.modules.iter().map(|module| PackageTreeFile {
+            path: module.module.source_path(),
+            bytes: module.source.as_bytes(),
+        }))
+        .collect()
+    }
+}
+
+/// A declared public module and its exact UTF-8 source text.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PackageSource {
+    module: PackageModule,
+    source: String,
+}
+
+impl PackageSource {
+    /// Declared public module identity and canonical source path.
+    pub fn module(&self) -> &PackageModule {
+        &self.module
+    }
+
+    /// Exact UTF-8 source text read from the declared public module file.
+    pub fn source(&self) -> &str {
+        &self.source
+    }
+}
+
+/// One ordered path-and-byte input to a future source-tree digest.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PackageTreeFile<'a> {
+    /// Package-root-relative slash-separated path.
+    pub path: &'a str,
+    /// Exact file bytes, validated as UTF-8 by [`PackageTree::load`].
+    pub bytes: &'a [u8],
+}
+
+/// A rejected static package-root layout.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PackageTreeError {
+    message: String,
+}
+
+impl PackageTreeError {
+    fn new(message: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+        }
+    }
+}
+
+impl fmt::Display for PackageTreeError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(&self.message)
+    }
+}
+
+impl Error for PackageTreeError {}
+
+fn canonical_package_root(root: &Path) -> Result<PathBuf, PackageTreeError> {
+    let metadata = fs::symlink_metadata(root)
+        .map_err(|_| PackageTreeError::new("package root is missing or unreadable"))?;
+    if metadata.file_type().is_symlink() || !metadata.is_dir() {
+        return Err(PackageTreeError::new(
+            "package root must be a non-symlink directory",
+        ));
+    }
+    root.canonicalize()
+        .map_err(|_| PackageTreeError::new("package root is missing or unreadable"))
+}
+
+fn read_package_source(
+    root: &Path,
+    relative_path: &str,
+    description: &str,
+) -> Result<String, PackageTreeError> {
+    let components = relative_path.split('/').collect::<Vec<_>>();
+    let mut path = root.to_path_buf();
+    for (index, component) in components.iter().enumerate() {
+        path.push(component);
+        let metadata = fs::symlink_metadata(&path).map_err(|error| match error.kind() {
+            std::io::ErrorKind::NotFound => PackageTreeError::new(format!(
+                "package tree is missing {description} `{relative_path}`"
+            )),
+            _ => PackageTreeError::new(format!(
+                "package tree cannot inspect {description} `{relative_path}`"
+            )),
+        })?;
+        if metadata.file_type().is_symlink() {
+            return Err(PackageTreeError::new(format!(
+                "package tree does not permit symlink components in {description} `{relative_path}`"
+            )));
+        }
+        if index + 1 != components.len() && !metadata.is_dir() {
+            return Err(PackageTreeError::new(format!(
+                "package tree component `{component}` for {description} `{relative_path}` must be a directory"
+            )));
+        }
+    }
+
+    let metadata = fs::metadata(&path).map_err(|_| {
+        PackageTreeError::new(format!(
+            "package tree cannot inspect {description} `{relative_path}`"
+        ))
+    })?;
+    if !metadata.is_file() {
+        return Err(PackageTreeError::new(format!(
+            "package tree {description} `{relative_path}` must be a regular file"
+        )));
+    }
+    let canonical = path.canonicalize().map_err(|_| {
+        PackageTreeError::new(format!(
+            "package tree cannot inspect {description} `{relative_path}`"
+        ))
+    })?;
+    if !canonical.starts_with(root) {
+        return Err(PackageTreeError::new(format!(
+            "package tree {description} `{relative_path}` escapes the package root"
+        )));
+    }
+    let bytes = fs::read(&path).map_err(|_| {
+        PackageTreeError::new(format!(
+            "package tree cannot read {description} `{relative_path}`"
+        ))
+    })?;
+    String::from_utf8(bytes).map_err(|_| {
+        PackageTreeError::new(format!(
+            "package tree {description} `{relative_path}` must be valid UTF-8"
+        ))
+    })
 }
 
 /// A public module with a canonical package-root-relative source path.

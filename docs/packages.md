@@ -53,8 +53,9 @@ This intentionally has no `facade.simi` convention. A package may contain privat
 sources anywhere below its root, such as `src/schema.simi`, but they are not public catalog modules.
 
 The package root is the source root. Public names and metadata paths use slash-separated relative
-paths. Absolute paths, backslashes, empty path segments, `.`, and `..` are rejected. A resolver
-must additionally reject package-root symlink escapes when it reads a checkout.
+paths. Absolute paths, backslashes, empty path segments, `.`, and `..` are rejected. The static
+`PackageTree` loader rejects a symlink root and any symlink component used by the manifest or a
+declared public module; it reads only those files, never discovers arbitrary private sources.
 
 ## Restricted metadata
 
@@ -66,9 +67,11 @@ The top-level map permits only:
 - `native`: optional `{manifest = "relative/path/Cargo.toml"}` metadata for later native runners.
 
 Functions, calls, bindings, variables, computed values, duplicate keys, and unrecognized fields
-are invalid. The resolver computes a source-tree digest from the declared package tree using this
-canonical layout; generated files and symlink policy are resolver concerns, not executable
-metadata.
+are invalid. `PackageTree` exposes deterministic digest inputs consisting of the manifest followed
+by declared public modules sorted by canonical source path; unlisted private, generated, and native
+files are excluded at this static-layout stage. The later resolver extends those inputs with locked
+requirements and reachable package-local sources, but metadata itself never controls filesystem or
+network authority.
 
 ## Requirements and documentation
 
