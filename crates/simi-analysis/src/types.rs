@@ -84,8 +84,8 @@ pub fn infer_types(
         vars: Vec::new(),
         deferred_empty_list_infers: HashSet::new(),
         exact_empty_list_infers: HashSet::new(),
-        symbol_types: builtin_types(&resolution),
-        symbol_bounds: builtin_types(&resolution),
+        symbol_types: builtin_types(&resolution, modules),
+        symbol_bounds: builtin_types(&resolution, modules),
         symbol_regions: HashMap::new(),
         conservative_regions: HashSet::new(),
         callable_capture_effects: HashMap::new(),
@@ -195,7 +195,10 @@ fn callable_type(parameters: Vec<Type>, result: Type) -> Type {
     )))
 }
 
-fn builtin_types(resolution: &Resolution) -> HashMap<SymbolId, Type> {
+fn builtin_types(
+    resolution: &Resolution,
+    modules: &HashMap<String, ModuleShape>,
+) -> HashMap<SymbolId, Type> {
     let mut types = HashMap::new();
     for (id, symbol) in resolution.hir.symbols.iter() {
         if !symbol.builtin {
@@ -209,7 +212,10 @@ fn builtin_types(resolution: &Resolution) -> HashMap<SymbolId, Type> {
             ))),
             "type" => callable_type(vec![Type::Any], Type::String),
             "inspect" => callable_type(vec![Type::Any], Type::String),
-            "list" | "map" | "iter" | "number" | "string" => Type::Any,
+            "list" | "map" | "iter" | "number" | "string" => modules
+                .get(&format!("std/{}", symbol.name))
+                .and_then(|shape| shape.ty.clone())
+                .unwrap_or(Type::Any),
             _ => Type::Unknown,
         };
         types.insert(id, ty);
