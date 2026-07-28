@@ -46,9 +46,23 @@ test("extension manifest associates .simi files with the TextMate grammar", asyn
   assert.equal(manifest.engines.vscode, "^1.91.0");
   const parserWasm = await readFile(new URL("syntaxes/tree-sitter-simi.wasm", root));
   assert.deepEqual([...parserWasm.subarray(0, 4)], [0, 97, 115, 109], "bundled parser must be WebAssembly");
+  assert.equal(manifest.scripts["check:generated-parser"], "node scripts/check-generated-parser.mjs");
+  assert.equal(manifest.scripts["check:release-parser"], "node scripts/check-release-parser.mjs");
+  assert.equal(
+    manifest.scripts.test,
+    "npm run check:generated-parser && node --test test/*.test.mjs",
+  );
   assert.equal(manifest.scripts.prepackage, "npm test");
   assert.equal(manifest.scripts.package, "vsce package");
+  assert.equal(
+    manifest.scripts["package:release"],
+    "npm run check:release-parser && vsce package",
+  );
   assert.equal(manifest.scripts.publish, "vsce publish");
+  assert.ok(
+    Object.values(manifest.scripts).every((script) => !script.includes("ignore-scripts")),
+    "release packaging must not disable npm lifecycle scripts globally",
+  );
 });
 
 test("language configuration covers comments, pairs, indentation, and folding", async () => {
