@@ -222,6 +222,9 @@ impl Interpreter {
                         evaluation_from_native(callback(&arguments, span))
                     }
                     NativeImplementation::Require => self.require_module(&arguments[0], span),
+                    NativeImplementation::Iterator(intrinsic) => {
+                        self.call_iterator_intrinsic(*intrinsic, &arguments, span)
+                    }
                 }
             }
             value => Err(EvaluationError::Runtime(RuntimeError {

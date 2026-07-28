@@ -783,6 +783,18 @@ end
 let effect_iterator = iter.map(raising_source, fn(effect_item) do
     if effect_item > 0 then raise "callback" else effect_item end
 end)
+let while_result = iter.each_while(list.iter([1, 2]), fn(while_item) do
+    if while_item == 2 then iter.break(while_item) else iter.continue(nil) end
+end)
+let folded_while = iter.fold_while(list.iter([1, 2]), 0, fn(while_state, fold_while_item) do
+    if fold_while_item == 2 then iter.break("done")
+    else iter.continue(while_state + fold_while_item)
+    end
+end)
+let producer_flag: boolean = true
+let repeated = iter.repeat_with(fn() do
+    if producer_flag then raise "producer" else 1 end
+end)
 "#;
     let file = db.add_file(source);
     let resolution = resolve(&db, file);
@@ -844,6 +856,21 @@ end)
         type_of(&inference, &resolution, "effect_iterator").display(),
         "() -> { done: true, .. } | { done: false, value: integer, .. } raises \"source\" | \"callback\""
     );
+    assert_eq!(
+        type_of(&inference, &resolution, "while_result").display(),
+        "2 | nil"
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "folded_while").display(),
+        "integer | \"done\""
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "repeated").display(),
+        "() -> { done: true, .. } | { done: false, value: integer, .. } raises \"producer\""
+    );
+    for name in ["while_item", "while_state", "fold_while_item"] {
+        assert_eq!(type_of(&inference, &resolution, name).display(), "integer");
+    }
 }
 
 #[test]

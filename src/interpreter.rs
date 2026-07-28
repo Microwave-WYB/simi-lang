@@ -12,6 +12,7 @@ use crate::span::Span;
 
 mod call;
 mod execution;
+mod iterator;
 pub(crate) mod operations;
 mod pattern;
 
