@@ -15,6 +15,8 @@ pub enum ResolutionMode {
     Update,
     Locked,
     Offline,
+    /// Generate a new lockfile from local path sources and an already validated Git cache.
+    OfflineUpdate,
 }
 
 /// Fully resolved source modules and the canonical lockfile that describes them.
@@ -66,7 +68,7 @@ fn resolve_script_with_cache(
     let root_requires = parse_requires(&source).map_err(|error| error.to_string())?;
     let lock_path = lock_path(path);
     let locked = match mode {
-        ResolutionMode::Update => None,
+        ResolutionMode::Update | ResolutionMode::OfflineUpdate => None,
         ResolutionMode::Locked | ResolutionMode::Offline => {
             let contents = fs::read_to_string(&lock_path).map_err(|error| {
                 format!(
@@ -178,13 +180,7 @@ impl ResolveContext<'_> {
             };
             let tree = PackageTree::load(&root)
                 .map_err(|error| format!("invalid package `{}`: {error}", requirement.alias))?;
-            if tree.manifest().name() != requirement.alias {
-                return Err(format!(
-                    "requirement alias `{}` must match resolved package identity `{}`",
-                    requirement.alias,
-                    tree.manifest().name()
-                ));
-            }
+            let package = tree.manifest().name().to_owned();
             let tree_digest = digest_tree(&tree);
             if let Some(locked) = self
                 .locked
@@ -196,7 +192,7 @@ impl ResolveContext<'_> {
                         requirement.alias
                     ));
                 }
-                if locked.package != requirement.alias
+                if locked.package != package
                     || locked.commit != commit
                     || locked.tree_digest != tree_digest
                 {
@@ -221,7 +217,7 @@ impl ResolveContext<'_> {
             self.resolve_requirements(&requirements, tree.root())?;
             Ok(LockedRequirement {
                 source: requirement.source.clone(),
-                package: requirement.alias.clone(),
+                package,
                 commit,
                 tree_digest,
             })
@@ -274,6 +270,17 @@ impl ResolveContext<'_> {
                 .map_err(|_| format!("cached Git repository does not contain locked commit `{commit}` for `{name}`"))?;
                 Ok(commit)
             }
+            ResolutionMode::OfflineUpdate => {
+                let bare = self.ensure_git_cache(git_url, false)?;
+                let commit = git(&[
+                    "-C",
+                    bare.to_str().ok_or("non-UTF-8 Git cache path")?,
+                    "rev-parse",
+                    "--verify",
+                    &format!("{rev}^{{commit}}"),
+                ])?;
+                Ok(commit.trim().to_owned())
+            }
         }
     }
 
@@ -281,33 +288,55 @@ impl ResolveContext<'_> {
         let canonical_url = canonical_git_url(git_url)?;
         let url_key = sha256(canonical_url.as_bytes());
         let checkout = self.cache.join("checkouts").join(url_key).join(commit);
-        if self.mode == ResolutionMode::Offline {
-            if !checkout.is_dir() {
+        let checkout_metadata = match fs::symlink_metadata(&checkout) {
+            Ok(metadata) => Some(metadata),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+            Err(error) => {
                 return Err(format!(
-                    "offline mode requires cached checkout for Git commit `{commit}`"
+                    "cannot inspect Git checkout cache `{}`: {error}",
+                    checkout.display()
                 ));
             }
-        } else if !checkout.is_dir() {
-            let bare = self.ensure_git_cache(git_url, false)?;
-            let parent = checkout.parent().expect("checkout has a parent");
-            fs::create_dir_all(parent)
-                .map_err(|error| format!("cannot create Git checkout cache: {error}"))?;
-            git(&[
-                "clone",
-                "--no-checkout",
-                "--no-local",
-                bare.to_str().ok_or("non-UTF-8 Git cache path")?,
-                checkout.to_str().ok_or("non-UTF-8 Git checkout path")?,
-            ])?;
-            git(&[
-                "-C",
-                checkout.to_str().ok_or("non-UTF-8 Git checkout path")?,
-                "checkout",
-                "--detach",
-                "--force",
-                commit,
-            ])?;
+        };
+        if self.mode == ResolutionMode::Offline && checkout_metadata.is_none() {
+            return Err(format!(
+                "offline mode requires cached checkout for Git commit `{commit}`"
+            ));
         }
+        if let Some(metadata) = checkout_metadata {
+            if metadata.file_type().is_symlink() || !metadata.is_dir() {
+                return Err(format!(
+                    "Git checkout cache `{}` is not a safe directory",
+                    checkout.display()
+                ));
+            }
+            fs::remove_dir_all(&checkout).map_err(|error| {
+                format!(
+                    "cannot reset Git checkout cache `{}`: {error}",
+                    checkout.display()
+                )
+            })?;
+        }
+
+        let bare = self.ensure_git_cache(git_url, false)?;
+        let parent = checkout.parent().expect("checkout has a parent");
+        fs::create_dir_all(parent)
+            .map_err(|error| format!("cannot create Git checkout cache: {error}"))?;
+        git(&[
+            "clone",
+            "--no-checkout",
+            "--no-local",
+            bare.to_str().ok_or("non-UTF-8 Git cache path")?,
+            checkout.to_str().ok_or("non-UTF-8 Git checkout path")?,
+        ])?;
+        git(&[
+            "-C",
+            checkout.to_str().ok_or("non-UTF-8 Git checkout path")?,
+            "checkout",
+            "--detach",
+            "--force",
+            commit,
+        ])?;
         let head = git(&[
             "-C",
             checkout.to_str().ok_or("non-UTF-8 Git checkout path")?,
@@ -584,6 +613,127 @@ mod tests {
         assert!(resolved.lockfile.contains("commit = "));
         fs::write(lock_path(&app), resolved.lockfile).unwrap();
         assert!(resolve_script_with_cache(&app, ResolutionMode::Offline, &cache).is_ok());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn offline_lock_generation_uses_only_a_validated_bare_cache_and_local_paths() {
+        let root = temporary("offline-lock");
+        let local = root.join("deps/local-tools");
+        fs::create_dir_all(&local).unwrap();
+        package(&local, "local-tools", "");
+
+        let package_root = root.join("remote-tools");
+        fs::create_dir_all(&package_root).unwrap();
+        git_at(&root, &["init", "remote-tools"]);
+        git_at(
+            &package_root,
+            &["config", "user.email", "test@example.invalid"],
+        );
+        git_at(&package_root, &["config", "user.name", "Simi test"]);
+        package(&package_root, "remote-tools", "");
+        git_at(&package_root, &["add", "."]);
+        git_at(&package_root, &["commit", "-m", "initial"]);
+
+        let cache = root.join("cache");
+        let bare = cache
+            .join("git")
+            .join(sha256(package_root.to_str().unwrap().as_bytes()));
+        fs::create_dir_all(bare.parent().unwrap()).unwrap();
+        git(&[
+            "clone",
+            "--bare",
+            "--no-local",
+            package_root.to_str().unwrap(),
+            bare.to_str().unwrap(),
+        ])
+        .unwrap();
+        fs::remove_dir_all(&package_root).unwrap();
+
+        let app = root.join("app.simi");
+        fs::write(
+            &app,
+            format!(
+                "requires {{local = {{path = \"deps/local-tools\"}}, remote = {{git = \"{}\", rev = \"HEAD\"}}}}\n42",
+                package_root.display()
+            ),
+        )
+        .unwrap();
+        let resolved =
+            resolve_script_with_cache(&app, ResolutionMode::OfflineUpdate, &cache).unwrap();
+        let lock = LockFile::parse(&resolved.lockfile).unwrap();
+        assert_eq!(lock.requirements.len(), 2);
+        assert!(lock.requirements["remote"].commit.is_some());
+        assert!(cache.join("checkouts").is_dir());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn locked_resolution_recreates_tampered_git_checkouts() {
+        let root = temporary("tampered-checkout");
+        let package_root = root.join("tools");
+        fs::create_dir_all(&package_root).unwrap();
+        git_at(&root, &["init", "tools"]);
+        git_at(
+            &package_root,
+            &["config", "user.email", "test@example.invalid"],
+        );
+        git_at(&package_root, &["config", "user.name", "Simi test"]);
+        package(&package_root, "tools", "");
+        git_at(&package_root, &["add", "."]);
+        git_at(&package_root, &["commit", "-m", "initial"]);
+
+        let app = root.join("app.simi");
+        fs::write(
+            &app,
+            format!(
+                "requires {{tools = {{git = \"{}\", rev = \"HEAD\"}}}}\n42",
+                package_root.display()
+            ),
+        )
+        .unwrap();
+        let cache = root.join("cache");
+        let resolved = resolve_script_with_cache(&app, ResolutionMode::Update, &cache).unwrap();
+        fs::write(lock_path(&app), &resolved.lockfile).unwrap();
+        let lock = LockFile::parse(&resolved.lockfile).unwrap();
+        let commit = lock.requirements["tools"].commit.as_ref().unwrap();
+        let checkout = cache
+            .join("checkouts")
+            .join(sha256(package_root.to_str().unwrap().as_bytes()))
+            .join(commit);
+        fs::write(checkout.join("tools.simi"), "{value = 9}").unwrap();
+
+        let resolved = resolve_script_with_cache(&app, ResolutionMode::Locked, &cache).unwrap();
+        assert_eq!(
+            resolved.modules,
+            vec![("tools".to_owned(), "\n{value = 42}".to_owned())]
+        );
+        assert!(resolved.lockfile.contains("tree_digest"));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn aliases_can_differ_from_hyphenated_manifest_package_identities() {
+        let root = temporary("hyphenated-package");
+        let dependency = root.join("deps/tool-box");
+        fs::create_dir_all(&dependency).unwrap();
+        package(&dependency, "tool-box", "");
+        let app = root.join("app.simi");
+        fs::write(
+            &app,
+            "requires {toolbox = {path = \"deps/tool-box\"}}\nlet tools = require(\"tool-box\")\ntools.value",
+        )
+        .unwrap();
+        let cache = root.join("cache");
+        let resolved = resolve_script_with_cache(&app, ResolutionMode::Update, &cache).unwrap();
+        let lock = LockFile::parse(&resolved.lockfile).unwrap();
+        assert_eq!(lock.requirements["toolbox"].package, "tool-box");
+        assert_eq!(
+            resolved.modules,
+            vec![("tool-box".to_owned(), "\n{value = 42}".to_owned())]
+        );
+        fs::write(lock_path(&app), &resolved.lockfile).unwrap();
+        assert!(resolve_script_with_cache(&app, ResolutionMode::Locked, &cache).is_ok());
         fs::remove_dir_all(root).unwrap();
     }
 

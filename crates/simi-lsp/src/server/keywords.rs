@@ -66,6 +66,12 @@ const KEYWORDS: &[KeywordHelp] = &[
         contextual: false,
     },
     KeywordHelp {
+        word: "requires",
+        syntax: "requires {alias = {git = url, rev = revision}}",
+        documentation: "Declares static package requirements before executable source items.",
+        contextual: false,
+    },
+    KeywordHelp {
         word: "tap",
         syntax: "value |> tap call()",
         documentation: "Runs a pipeline stage for its effects, discards the call result, and preserves the incoming value.",
@@ -254,7 +260,7 @@ mod tests {
         let expected = [
             "alias", "and", "any", "boolean", "case", "catch", "do", "else", "elseif", "end",
             "false", "float", "fn", "if", "integer", "let", "nil", "not", "of", "or", "panic",
-            "raise", "string", "tap", "then", "todo", "true", "when", "never",
+            "raise", "requires", "string", "tap", "then", "todo", "true", "when", "never",
         ]
         .into_iter()
         .collect::<BTreeSet<_>>();

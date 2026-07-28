@@ -35,7 +35,7 @@ pub enum CliCommand {
     },
     /// Generate or refresh the lockfile for a Simi source file.
     Lock {
-        /// Resolve only from already cached Git repositories.
+        /// Generate from local paths and already cached Git repositories without network access.
         #[arg(long)]
         offline: bool,
         file: PathBuf,
@@ -73,7 +73,7 @@ pub fn run(file: &Path, mode: ResolutionMode) -> Result<ScriptResult, CliError> 
 
 pub fn lock(file: &Path, offline: bool) -> Result<PathBuf, CliError> {
     let mode = if offline {
-        ResolutionMode::Offline
+        ResolutionMode::OfflineUpdate
     } else {
         ResolutionMode::Update
     };

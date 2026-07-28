@@ -328,6 +328,60 @@ fn completion_prioritizes_partial_lexical_matches_before_builtins() {
 }
 
 #[test]
+fn requires_keyword_has_completion_and_hover_help() {
+    let completion_source = "requ";
+    let mut backend = Backend::new();
+    open(&mut backend, completion_source);
+    let completion: Option<CompletionResponse> = serde_json::from_value(
+        request(
+            &mut backend,
+            Completion::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": position::position(completion_source, completion_source.len()).unwrap(),
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let CompletionResponse::Array(items) = completion.unwrap() else {
+        panic!("expected completion array")
+    };
+    let item = items
+        .iter()
+        .find(|item| item.label == "requires")
+        .expect("requires keyword completion");
+    assert_eq!(item.kind, Some(CompletionItemKind::KEYWORD));
+    assert_eq!(
+        item.detail.as_deref(),
+        Some("requires {alias = {git = url, rev = revision}}")
+    );
+
+    let hover_source = "requires {}";
+    let mut backend = Backend::new();
+    open(&mut backend, hover_source);
+    let hover: Option<Hover> = serde_json::from_value(
+        request(
+            &mut backend,
+            HoverRequest::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": text_position(hover_source, "requires", 0),
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let HoverContents::Markup(markup) = hover.expect("requires keyword hover").contents else {
+        panic!("expected markup")
+    };
+    assert_eq!(
+        markup.value,
+        "keyword `requires`\n\nDeclares static package requirements before executable source items.\n\nSyntax: requires {alias = {git = url, rev = revision}}"
+    );
+}
+
+#[test]
 fn same_scope_shadows_are_diagnostic_free_and_navigate_by_binding_version() {
     let source = "let closure = fn() do later end let later = 1 let later = 2 later";
     let mut backend = Backend::new();
