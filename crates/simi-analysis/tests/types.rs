@@ -835,6 +835,9 @@ let folded_while = iter.fold_while(list.iter([1, 2]), 0, fn(while_state, fold_wh
     end
 end)
 let producer_flag: boolean = true
+let loop_result = iter.loop(fn() do
+    if producer_flag then iter.break("complete") else iter.continue(nil) end
+end)
 let repeated = iter.repeat_with(fn() do
     if producer_flag then raise "producer" else 1 end
 end)
@@ -906,6 +909,10 @@ end)
     assert_eq!(
         type_of(&inference, &resolution, "folded_while").display(),
         "integer | \"done\""
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "loop_result").display(),
+        "\"complete\""
     );
     assert_eq!(
         type_of(&inference, &resolution, "repeated").display(),

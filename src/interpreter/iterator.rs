@@ -43,6 +43,7 @@ impl Interpreter {
             IteratorIntrinsic::Count => self.iterator_count(arguments, span),
             IteratorIntrinsic::EachWhile => self.iterator_each_while(arguments, span),
             IteratorIntrinsic::FoldWhile => self.iterator_fold_while(arguments, span),
+            IteratorIntrinsic::Loop => self.iterator_loop(arguments, span),
             IteratorIntrinsic::RepeatNext => {
                 self.call_value(arguments[0].clone(), Vec::new(), span)
             }
@@ -284,6 +285,16 @@ impl Interpreter {
             }
         }
         Ok(state)
+    }
+
+    fn iterator_loop(&mut self, arguments: &[Value], span: Span) -> EvaluationResult<Value> {
+        loop {
+            let control = self.call_value(arguments[0].clone(), Vec::new(), span)?;
+            match decode_control(control, "loop", span)? {
+                IteratorControl::Continue(_) => {}
+                IteratorControl::Break(value) => return Ok(value),
+            }
+        }
     }
 
     fn pull_iterator(&mut self, iterator: &Value, span: Span) -> EvaluationResult<IteratorStep> {

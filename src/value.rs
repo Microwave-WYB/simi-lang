@@ -161,6 +161,7 @@ pub(crate) enum IteratorIntrinsic {
     Count,
     EachWhile,
     FoldWhile,
+    Loop,
     RepeatNext,
 }
 

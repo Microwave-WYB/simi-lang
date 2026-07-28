@@ -236,7 +236,7 @@ pub(super) fn primary(p: &mut Parser<'_>) -> Parsed {
         K::INT | K::FLOAT | K::STRING | K::NIL_KW | K::TRUE_KW | K::FALSE_KW => {
             simple_expr(p, K::LITERAL_EXPR, Flavor::Other)
         }
-        K::IDENT if matches!(p.current_text(), Some("loop" | "break" | "continue")) => {
+        K::IDENT if matches!(p.current_text(), Some("break" | "continue")) => {
             legacy_control_expr(p)
         }
         K::IDENT => simple_expr(p, K::NAME_EXPR, Flavor::Name),

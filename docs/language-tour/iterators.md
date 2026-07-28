@@ -137,10 +137,25 @@ sum
 ```
 
 `each_while` returns its break payload, or `nil` when its source is exhausted.
-`fold_while` returns its current state at exhaustion. `iter.repeat_with` creates
-a lazy infinite iterator: its producer runs once per requested item and may
-produce `nil`. Malformed callback control maps are hard diagnostics, while
-raises from a source or callback propagate unchanged.
+`fold_while` returns its current state at exhaustion. `iter.loop` repeatedly
+runs a no-argument body until it returns `iter.break(value)`; a continue
+payload is ignored. It is useful for an unbounded stateful operation that does
+not produce iterator items.
+
+```simi
+let iter = require("std/iter")
+let attempts = 0
+
+iter.loop(fn() do
+    attempts = attempts + 1
+    if attempts == 3 then iter.break(attempts)
+    else iter.continue(nil) end
+end)
+```
+
+`iter.repeat_with` creates a lazy infinite iterator: its producer runs once per
+requested item and may produce `nil`. Malformed callback control maps are hard
+diagnostics, while raises from a source or callback propagate unchanged.
 
 ## Consumers
 

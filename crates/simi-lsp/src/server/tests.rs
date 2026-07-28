@@ -912,6 +912,43 @@ fn real_annotated_stdlib_facade_supplies_generic_member_types() {
 }
 
 #[test]
+fn iterator_loop_hover_exposes_control_contract_and_documentation() {
+    let module = include_str!("../../../../stdlib/iter.simi");
+    let source = "let iter = require(\"std/iter\") iter.loop";
+    let mut backend = Backend::with_module_sources([("std/iter", module)]);
+    open(&mut backend, source);
+    let hover: Option<Hover> = serde_json::from_value(
+        request(
+            &mut backend,
+            HoverRequest::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": text_position(source, "loop", 0),
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let HoverContents::Markup(markup) = hover.expect("stdlib hover").contents else {
+        panic!("expected markup")
+    };
+    assert!(markup.value.contains("body: fn() ->"), "{}", markup.value);
+    assert!(
+        markup.value.contains("control: \"continue\"")
+            && markup.value.contains("control: \"break\""),
+        "{}",
+        markup.value
+    );
+    assert!(
+        markup
+            .value
+            .contains("Repeatedly run body until it returns an explicit break control."),
+        "{}",
+        markup.value
+    );
+}
+
+#[test]
 fn iterator_pair_adapter_hover_preserves_item_and_source_effect_types() {
     let module = include_str!("../../../../stdlib/iter.simi");
     let source = "let iter = require(\"std/iter\") iter.enumerate";

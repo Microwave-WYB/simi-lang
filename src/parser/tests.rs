@@ -406,7 +406,8 @@ fn legacy_loop_forms_are_rejected_while_iterator_control_members_parse() {
     for source in ["loop break 1 end", "break 1", "continue"] {
         assert!(parse_source(source).is_err(), "{source} should be rejected");
     }
-    parse_source("iter.break(1) iter.continue(nil)").unwrap();
+    parse_source("let loop = 7 loop").unwrap();
+    parse_source("iter.loop(fn() do iter.break(1) end) iter.continue(nil)").unwrap();
 }
 
 #[test]

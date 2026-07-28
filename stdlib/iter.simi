@@ -256,6 +256,13 @@ fn fold_while<'state, 'a, 'result, 'e, 'f>(
     host.fold_while(iterator, initial, step)
 end
 
+--- Repeatedly run body until it returns an explicit break control.
+fn loop<'ignored, 'result, 'e>(
+    body: fn() -> Control<'ignored, 'result> ! 'e,
+) -> 'result ! 'e do
+    host.loop(body)
+end
+
 fn repeat_with<'a, 'e>(producer: fn() -> 'a ! 'e) -> Iterator<'a, 'e> ! never do
     fn() -> Step<'a> ! 'e do
         { done = false, value = host.repeat_next(producer) }
@@ -270,5 +277,5 @@ end
     to_list = to_list, fold = fold, find = find, find_index = find_index,
     contains = contains, any = any, all = all, each = each, count = count,
     ["break"] = break_control, ["continue"] = continue_control,
-    each_while = each_while, fold_while = fold_while, repeat_with = repeat_with,
+    each_while = each_while, fold_while = fold_while, loop = loop, repeat_with = repeat_with,
 }

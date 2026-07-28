@@ -101,6 +101,7 @@ pub fn iter() -> Module {
             "fold_while",
             intrinsic("fold_while", 3, IteratorIntrinsic::FoldWhile),
         )
+        .value("loop", intrinsic("loop", 1, IteratorIntrinsic::Loop))
         .value(
             "repeat_next",
             intrinsic("repeat_next", 1, IteratorIntrinsic::RepeatNext),

@@ -69,6 +69,15 @@ fn iterator_facades_export_item_and_effect_relationships() {
     assert!(fold_while.contains("control: \"break\""), "{fold_while}");
     assert!(fold_while.contains("-> 'a | 'c !"), "{fold_while}");
 
+    let loop_driver = displayed(&iter, "loop");
+    assert!(loop_driver.contains("body: fn() ->"), "{loop_driver}");
+    assert!(
+        loop_driver.contains("control: \"continue\""),
+        "{loop_driver}"
+    );
+    assert!(loop_driver.contains("control: \"break\""), "{loop_driver}");
+    assert!(loop_driver.ends_with("-> 'b ! 'c"), "{loop_driver}");
+
     let repeat_with = displayed(&iter, "repeat_with");
     assert!(
         repeat_with.contains("producer: fn() -> 'a ! 'b"),
