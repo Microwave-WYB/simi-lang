@@ -143,22 +143,7 @@ fn conversion_argument_errors_are_qualified_hard_diagnostics() {
 
 #[test]
 fn conversion_modules_are_portable_available_and_isolated_per_engine() {
-    let missing = match Engine::new()
-        .eval("require(\"std/number\")")
-        .expect("missing number module should raise rather than hard fail")
-    {
-        Err(raised) => raised,
-        Ok(value) => panic!(
-            "empty engine should not contain std/number, got {}",
-            value.render()
-        ),
-    };
-    assert_eq!(
-        missing.value.render(),
-        "{error=\"module_not_found\", module=\"std/number\"}"
-    );
-
-    let first = Engine::with_stdlib();
+    let first = Engine::new();
     first
         .eval("let number = require(\"std/number\") number.marker = 1")
         .unwrap()

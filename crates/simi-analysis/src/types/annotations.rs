@@ -321,6 +321,21 @@ impl Context<'_> {
         outer: &mut HashMap<String, u32>,
         at: Span,
     ) -> Type {
+        if name == "number" {
+            if arguments.is_empty() {
+                return union(vec![Type::Int, Type::Float]);
+            }
+            self.diagnostic(
+                AnalysisDiagnosticCode::WrongTypeArity,
+                "Wrong number of type arguments",
+                format!(
+                    "Type `{name}` expects 0 arguments, but received {}.",
+                    arguments.len()
+                ),
+                at,
+            );
+            return Type::Unknown;
+        }
         let Some(alias) = self.aliases.get(name).cloned() else {
             self.diagnostic(
                 AnalysisDiagnosticCode::UnknownType,

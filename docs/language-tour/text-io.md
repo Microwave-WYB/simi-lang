@@ -65,7 +65,7 @@ A blank input line is an empty string, not `nil`. Only end of file produces `nil
 
 ## Rendering non-string values
 
-The print family accepts strings only. Passing an integer, list, map, or other non-string value is a hard contract diagnostic. Convert numbers with `std/number`, or use the global `inspect` function when human-readable rendering is appropriate.
+The print family accepts strings only. Passing an integer, list, map, or other non-string value is a hard contract diagnostic. Convert numbers with the portable `number` module value, or use the global `inspect` function when human-readable rendering is appropriate.
 
 ```simi
 let io = require("std/io")

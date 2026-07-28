@@ -57,7 +57,7 @@ impl Builder {
                 0,
             );
         }
-        for name in ["list", "map"] {
+        for name in ["list", "map", "iter", "number", "string"] {
             this.declare(
                 root_scope,
                 name.to_owned(),

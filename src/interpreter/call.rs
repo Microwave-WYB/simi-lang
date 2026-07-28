@@ -1,6 +1,6 @@
 use super::{EvaluationError, EvaluationResult, Interpreter};
 use crate::ast::{Expr, PipelineStage};
-use crate::engine::{ModuleLookup, PreludeLookup, PreludeRegistry};
+use crate::engine::ModuleLookup;
 use crate::runtime::{Environment, NativeResult, Raised, RuntimeError, TraceFrame, Value};
 use crate::span::Span;
 use crate::value::NativeImplementation;
@@ -42,32 +42,19 @@ impl Interpreter {
         Ok(value)
     }
 
-    pub(crate) fn install_prelude_modules(
-        &mut self,
-        prelude_modules: &PreludeRegistry,
-    ) -> Result<(), RuntimeError> {
-        for alias in ["list", "map"] {
-            let value = match prelude_modules.begin_load(alias) {
-                PreludeLookup::Loaded(value) => value,
-                PreludeLookup::Loading => {
-                    return Err(RuntimeError::new(
-                        Span::new(0, 0),
-                        format!("prelude global `{alias}` is already loading"),
-                    ));
-                }
-                PreludeLookup::Source { name, source, host } => {
-                    match self.evaluate_source_module(&name, source, host, Span::new(0, 0)) {
-                        Ok(value) => {
-                            prelude_modules.finish_load(alias, value.clone());
-                            value
-                        }
-                        Err(error) => {
-                            prelude_modules.fail_load(alias);
-                            return Err(error.into_runtime_error());
-                        }
-                    }
-                }
-            };
+    pub(super) fn install_prelude_modules(&mut self) -> EvaluationResult<()> {
+        let mut modules = Vec::with_capacity(5);
+        for (alias, module) in [
+            ("list", "std/list"),
+            ("map", "std/map"),
+            ("iter", "std/iter"),
+            ("number", "std/number"),
+            ("string", "std/string"),
+        ] {
+            let value = self.require_module(&Value::String(module.to_owned()), Span::new(0, 0))?;
+            modules.push((alias, value));
+        }
+        for (alias, value) in modules {
             self.prelude.define(alias, value);
         }
         Ok(())

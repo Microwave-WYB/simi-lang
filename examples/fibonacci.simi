@@ -1,5 +1,4 @@
 let io = require("std/io")
-let number = require("std/number")
 
 fn fibonacci(n: integer) -> integer do
     let remaining = n

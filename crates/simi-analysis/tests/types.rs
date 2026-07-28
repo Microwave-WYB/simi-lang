@@ -46,6 +46,28 @@ let exponent = 1.5_0e1_0
 }
 
 #[test]
+fn built_in_number_alias_accepts_both_numeric_categories_without_runtime_meaning() {
+    let source = r#"
+let whole: number = 1
+let fractional: number = 1.5
+let mismatch: number = "text"
+"#;
+    let (inference, resolution) = inferred(source);
+    let number = Type::Union(vec![Type::Int, Type::Float]);
+    assert_eq!(type_of(&inference, &resolution, "whole"), number);
+    assert_eq!(
+        type_of(&inference, &resolution, "fractional"),
+        Type::Union(vec![Type::Int, Type::Float])
+    );
+    assert!(
+        inference
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == AnalysisDiagnosticCode::TypeMismatch)
+    );
+}
+
+#[test]
 fn boolean_singletons_are_narrow_record_discriminants() {
     let source = r#"
 alias Step<'a> =

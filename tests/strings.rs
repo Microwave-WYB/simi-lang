@@ -54,29 +54,17 @@ fn slice_bounds_and_split_semantics_are_publicly_observable() {
 }
 
 #[test]
-fn string_module_is_an_explicit_capability() {
-    let missing = match Engine::new()
-        .eval("require(\"std/string\")")
-        .expect("missing module should be a language raise")
-    {
-        Err(raised) => raised,
-        Ok(value) => panic!(
-            "empty engine should not contain string module, got {}",
-            value.render()
-        ),
-    };
-    assert_eq!(
-        missing.value.render(),
-        "{error=\"module_not_found\", module=\"std/string\"}"
-    );
-
-    let direct = Engine::builder()
-        .module(simi::stdlib::string())
-        .build()
-        .eval("let string = require(\"std/string\") string.upper(\"ok\")")
-        .unwrap()
-        .unwrap();
-    assert_eq!(direct.render(), "\"OK\"");
+fn string_prelude_and_canonical_path_are_portable() {
+    let value = Engine::new()
+        .eval(
+            r#"
+            string.marker = "shared"
+            [string.upper("ok"), require("std/string").marker]
+            "#,
+        )
+        .expect("portable string module should not hard fail")
+        .expect("portable string module should not raise");
+    assert_eq!(value.render(), "[\"OK\", \"shared\"]");
 }
 
 #[test]

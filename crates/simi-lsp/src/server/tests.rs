@@ -897,6 +897,35 @@ fn real_annotated_stdlib_facade_supplies_generic_member_types() {
 }
 
 #[test]
+fn portable_prelude_members_have_the_same_lsp_metadata_as_require() {
+    let source = "number.to_string";
+    let mut backend = Backend::with_module_sources([(
+        "std/number",
+        include_str!("../../../../stdlib/number.simi"),
+    )]);
+    open(&mut backend, source);
+    let hover: Option<Hover> = serde_json::from_value(
+        request(
+            &mut backend,
+            HoverRequest::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": text_position(source, "to_string", 0),
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let HoverContents::Markup(markup) = hover.expect("portable prelude hover").contents else {
+        panic!("expected markup")
+    };
+    assert_simi_hover(
+        &markup,
+        "(value: integer | float) -> string noraise\n\nRender a number using canonical Simi notation.",
+    );
+}
+
+#[test]
 fn real_iterator_facades_publish_no_diagnostics() {
     for source in [
         include_str!("../../../../stdlib/list.simi"),

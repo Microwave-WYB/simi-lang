@@ -22,20 +22,19 @@
 
 ## The portable standard library
 
-`Engine::new()` provides `list` and `map` as the minimum prelude modules. `Engine::with_stdlib()` additionally registers these portable modules:
+`Engine::new()` and `Engine::with_stdlib()` provide the same portable, shadowable value prelude:
 
 ```text
-std/iter
-std/number
-std/string
+list
+map
+iter
+number
+string
 ```
 
-Each module groups operations for one kind of work. `list` and `map` are built-in prelude globals, while the remaining modules are acquired with `require`:
+Each value also has a canonical `std/*` module path for `require`. Direct use is the ordinary form:
 
 ```simi
-
-let number = require("std/number")
-
 let values = [10, 20, 30]
 list.length(values)
 |> number.to_string()
@@ -45,13 +44,12 @@ list.length(values)
 
 ## Module identity and state
 
-A module's exports are a mutable map. Repeated `require` calls in one engine return the same map with the same alias identity, so mutations are visible through every reference:
+A module's exports are a mutable map. Prelude values and repeated `require` calls in one engine share the same map with the same alias identity, so mutations are visible through every reference:
 
 ```simi
-let first = require("std/string")
+string.tour_marker = "shared"
 let second = require("std/string")
 
-first.tour_marker = "shared"
 second.tour_marker
 ```
 
@@ -59,13 +57,13 @@ The cache belongs to an `Engine`. Module state persists across evaluations made 
 
 Source-backed modules are evaluated lazily on first use and then cached. A circular lazy load raises `{error = "circular_module_dependency", module = name}`.
 
+Hosts may override a portable module's canonical path. During portable prelude installation, all five canonical module values are resolved before any of their global aliases are installed. Source-backed overrides therefore do not see a partially installed portable value prelude; they use explicit `require("std/...")` calls for module dependencies. If every load succeeds, the five globals are installed together and retain identity with their canonical cached values. A raised or circular override load remains a language raise from `Engine::eval`.
+
 ## Conversion and string helpers
 
 `string.to_number(text)` accepts a complete signed decimal integer or decimal/exponent float. Integer syntax produces an integer and float syntax produces a finite float. Malformed input, overflow, and non-finite results return `nil`.
 
 ```simi
-let string = require("std/string")
-
 [
     string.to_number("42"),
     string.to_number("42.0"),
@@ -77,7 +75,6 @@ let string = require("std/string")
 String concatenation with `<>` is strict: both operands must be strings. `string.concat(left, right)` provides the same operation in a pipeline-friendly call form.
 
 ```simi
-let string = require("std/string")
 let name = "Ada"
 
 name
@@ -87,7 +84,7 @@ name
 
 ## Prelude globals
 
-All `Engine` evaluations provide `require`, `type`, and `inspect` as ordinary shadowable globals. `Engine::new()` also provides built-in `list` and `map` globals. Built-in `require("std/list")` and `require("std/map")` raise `module_not_found`, though an embedding host may explicitly register a module at either path. `type` returns stable runtime category labels. `inspect` produces cycle-safe, human-readable text; it is not serialization.
+Normal `Engine` evaluations provide `require`, `type`, `inspect`, `list`, `map`, `iter`, `number`, and `string` as ordinary shadowable globals. `require("std/list")` through `require("std/string")` return the same cached values as their prelude names. `type` returns stable runtime category labels. `inspect` produces cycle-safe, human-readable text; it is not serialization.
 
 ```simi
 let values = []

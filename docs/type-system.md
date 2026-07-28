@@ -19,8 +19,8 @@ Annotations are inline and optional:
 ```simi
 let count: integer = 1
 
-fn display(value: integer) -> string do
-    require("std/number").to_string(value)
+fn display(value: number) -> string do
+    number.to_string(value)
 end
 
 let callback: (integer, integer) -> integer = add
@@ -38,7 +38,7 @@ string
 any
 ```
 
-There is deliberately no static `number` type: numeric APIs use the explicit union `integer | float`. `never` is the bottom type. An empty list literal has the exact shape `[]`; `never` still appears when an expression has no normal return path or as the bottom member removed while unions are normalized. `any` is the explicit dynamic escape hatch: operations involving it remain valid but lose static precision. Insufficient evidence is tracked as an internal unknown type and presented publicly as `any`.
+`number` is a built-in erased alias for `integer | float`; it is not a distinct runtime category. Numeric APIs may use either spelling. `never` is the bottom type. An empty list literal has the exact shape `[]`; `never` still appears when an expression has no normal return path or as the bottom member removed while unions are normalized. `any` is the explicit dynamic escape hatch: operations involving it remain valid but lose static precision. Insufficient evidence is tracked as an internal unknown type and presented publicly as `any`.
 
 Destructuring `let` patterns are checked against their inferred right-hand type. A pattern that is guaranteed to match has no diagnostic; a pattern that may fail produces an advisory warning recommending `case`; and a pattern that cannot match produces an analysis error. Direct map bindings in `let` receive `nil` when a field is absent, so their inferred type is `T | nil` when map presence is not proven. These classifications are erased and never weaken or replace the runtime's atomic hard diagnostic for a failed `let` match.
 

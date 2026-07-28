@@ -203,41 +203,48 @@ fn require_type_errors_and_qualified_native_arity_errors_are_hard() {
 }
 
 #[test]
-fn list_and_map_are_engine_prelude_modules_and_require_is_shadowable() {
-    let engine = Engine::new();
-    engine
-        .eval("list.marker = 1 map.marker = 2 nil")
-        .expect("engine prelude mutation should have no hard diagnostic")
-        .expect("engine prelude mutation should not raise");
-    let value = engine
-        .eval(
-            r#"
-            [list.length([1, 2, 3]), list.marker, map.marker]
-            "#,
-        )
-        .expect("engine prelude calls should have no hard diagnostic")
-        .expect("engine prelude calls should not raise");
-    assert_eq!(value.render(), "[3, 1, 2]");
-
-    let value = eval(" list.length([1, 2, 3])")
-        .expect("root eval should provide standard modules")
-        .expect("standard list call should not raise");
-    assert_eq!(value.render(), "3");
-
-    for legacy_name in ["list", "map", "string"] {
-        let result = Engine::with_stdlib()
-            .eval(&format!("require(\"{legacy_name}\")"))
-            .expect("legacy module names should raise rather than hard fail");
-        assert!(
-            result.is_err(),
-            "legacy module `{legacy_name}` must be absent"
+fn portable_prelude_values_are_direct_shadowable_and_share_require_identity() {
+    for engine in [Engine::new(), Engine::with_stdlib()] {
+        let value = engine
+            .eval(
+                r#"
+                iter.marker = "cached"
+                number.marker = "numeric"
+                [
+                    list.length([1, 2, 3]),
+                    map.length({}),
+                    iter.to_list(list.iter([4]))[0],
+                    number.to_string(5),
+                    string.upper("simi"),
+                    require("std/iter").marker,
+                    require("std/number").marker,
+                ]
+                "#,
+            )
+            .expect("portable prelude calls should have no hard diagnostic")
+            .expect("portable prelude calls should not raise");
+        assert_eq!(
+            value.render(),
+            "[3, 0, 4, \"5\", \"SIMI\", \"cached\", \"numeric\"]"
         );
+
+        let value = engine
+            .eval("require(\"std/iter\").marker")
+            .expect("cached prelude state should have no hard diagnostic")
+            .expect("cached prelude state should not raise");
+        assert_eq!(value.render(), "\"cached\"");
     }
 
     let value = eval("list.length([1])")
-        .expect("root list prelude should have no hard diagnostic")
-        .expect("root list prelude should not raise");
+        .expect("root eval should provide the portable prelude")
+        .expect("portable prelude call should not raise");
     assert_eq!(value.render(), "1");
+
+    let value = Engine::new()
+        .eval("let list = 1 let map = 2 let iter = 3 let number = 4 let string = 5 [list, map, iter, number, string]")
+        .expect("shadowed prelude values should have no hard diagnostic")
+        .expect("shadowed prelude values should not raise");
+    assert_eq!(value.render(), "[1, 2, 3, 4, 5]");
 
     let value = Engine::new()
         .eval("let require = 42 require")
@@ -253,25 +260,15 @@ fn list_and_map_are_engine_prelude_modules_and_require_is_shadowable() {
 }
 
 #[test]
-fn built_in_list_path_is_not_requireable_and_hosts_can_opt_in_to_legacy_paths() {
-    let source = "require(\"std/list\")";
-    let raised = match Engine::with_stdlib()
-        .eval(source)
-        .expect("missing built-in list path should not be a hard diagnostic")
-    {
-        Err(raised) => raised,
-        Ok(value) => panic!(
-            "built-in list path should raise module_not_found, got {}",
-            value.render()
-        ),
-    };
-    assert_eq!(
-        raised.value.render(),
-        "{error=\"module_not_found\", module=\"std/list\"}"
-    );
-    assert_eq!(raised.origin, Span::new(0, source.len()));
+fn standard_paths_are_requireable_and_hosts_can_override_them() {
+    let value = Engine::new()
+        .eval("require(\"std/list\").length([1, 2])")
+        .expect("standard list path should not hard fail")
+        .expect("standard list path should not raise");
+    assert_eq!(value.render(), "2");
 
     let engine = Engine::builder()
+        .stdlib()
         .module(
             Module::builder("std/list")
                 .value("host_registered", Value::Int(1))
@@ -286,15 +283,111 @@ fn built_in_list_path_is_not_requireable_and_hosts_can_opt_in_to_legacy_paths() 
     let value = engine
         .eval(
             r#"
+            list.marker = "shared"
             [
-                require("std/list").host_registered,
-                require("std/map").host_registered,
+                list.host_registered,
+                map.host_registered,
+                require("std/list").marker,
             ]
             "#,
         )
-        .expect("host legacy paths should not have hard diagnostics")
-        .expect("host legacy paths should not raise");
-    assert_eq!(value.render(), "[1, 2]");
+        .expect("host overrides should not have hard diagnostics")
+        .expect("host overrides should not raise");
+    assert_eq!(value.render(), "[1, 2, \"shared\"]");
+}
+
+#[test]
+fn source_portable_override_raises_remain_language_raises() {
+    let engine = Engine::builder()
+        .stdlib()
+        .module(Module::source("std/list", "raise \"prelude failed\"").build())
+        .build();
+    let raised = match engine
+        .eval("nil")
+        .expect("source override raise should not become a hard diagnostic")
+    {
+        Err(raised) => raised,
+        Ok(value) => panic!("source override should raise, got {}", value.render()),
+    };
+    assert_eq!(raised.value.render(), "\"prelude failed\"");
+    assert_eq!(raised.origin, Span::new(0, 0));
+}
+
+#[test]
+fn circular_source_portable_override_remains_a_language_raise() {
+    let engine = Engine::builder()
+        .stdlib()
+        .module(Module::source("std/list", "require(\"std/list\")").build())
+        .build();
+    let raised = match engine
+        .eval("nil")
+        .expect("circular override should not become a hard diagnostic")
+    {
+        Err(raised) => raised,
+        Ok(value) => panic!("circular override should raise, got {}", value.render()),
+    };
+    assert_eq!(
+        raised.value.render(),
+        "{error=\"circular_module_dependency\", module=\"std/list\"}"
+    );
+    assert_eq!(raised.origin, Span::new(0, 0));
+}
+
+#[test]
+fn source_portable_overrides_use_explicit_dependencies_before_alias_installation() {
+    let implicit = Engine::builder()
+        .stdlib()
+        .module(Module::source("std/string", "list").build())
+        .build();
+    let error = match implicit.eval("nil") {
+        Err(error) => error,
+        Ok(_) => panic!("portable aliases must not be partially visible during installation"),
+    };
+    assert!(
+        error.to_string().contains("undefined name `list`"),
+        "unexpected implicit dependency error: {error}"
+    );
+
+    let explicit = Engine::builder()
+        .stdlib()
+        .module(
+            Module::source(
+                "std/string",
+                "let dependency = require(\"std/list\") {dependency = dependency}",
+            )
+            .build(),
+        )
+        .build();
+    let value = explicit
+        .eval(
+            r#"
+            list.marker = "shared"
+            string.dependency.marker
+            "#,
+        )
+        .expect("explicit portable dependency should not hard fail")
+        .expect("explicit portable dependency should not raise");
+    assert_eq!(value.render(), "\"shared\"");
+}
+
+#[test]
+fn bare_engine_builder_does_not_install_the_portable_prelude() {
+    for name in ["list", "map", "iter", "number", "string"] {
+        let error = match Engine::builder().build().eval(name) {
+            Err(error) => error,
+            Ok(_) => panic!("bare builder should leave `{name}` undefined"),
+        };
+        assert!(
+            error.to_string().contains("undefined name"),
+            "unexpected error for `{name}`: {error}"
+        );
+    }
+
+    let missing = Engine::builder()
+        .build()
+        .eval("require(\"std/iter\")")
+        .expect("missing module should raise rather than hard fail");
+    assert!(missing.is_err());
 }
 
 #[test]
@@ -376,10 +469,12 @@ fn global_inspect_renders_cyclic_containers_and_builtins_are_shadowable() {
 
 #[test]
 fn stdio_module_is_an_opt_in_capability() {
-    let result = Engine::with_stdlib()
-        .eval("require(\"std/io\")")
-        .expect("missing stdio module should raise, not hard fail");
-    assert!(result.is_err());
+    for engine in [Engine::new(), Engine::with_stdlib()] {
+        let result = engine
+            .eval("require(\"std/io\")")
+            .expect("missing stdio module should raise, not hard fail");
+        assert!(result.is_err());
+    }
 
     let value = Engine::builder()
         .stdlib()
