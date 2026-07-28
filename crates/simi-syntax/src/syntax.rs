@@ -41,6 +41,7 @@ impl SyntaxKind {
                 | Self::WILDCARD_PATTERN
                 | Self::LITERAL_PATTERN
                 | Self::LIST_PATTERN
+                | Self::BYTES_PATTERN
                 | Self::MAP_PATTERN
         )
     }

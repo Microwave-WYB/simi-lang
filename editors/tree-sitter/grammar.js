@@ -99,6 +99,7 @@ module.exports = grammar({
       $.boolean,
       $.nil,
       $.list_pattern,
+      $.bytes_pattern,
       $.map_pattern,
     ),
 
@@ -550,6 +551,7 @@ module.exports = grammar({
       $.boolean,
       $.nil,
       $.list_pattern,
+      $.bytes_pattern,
       $.map_pattern,
     ),
 
@@ -566,6 +568,41 @@ module.exports = grammar({
         seq($.rest_pattern, optional(",")),
       )),
       "]",
+    ),
+
+    bytes_pattern: ($) => seq(
+      "#",
+      "[",
+      optional(choice(
+        seq(
+          commaSep1($._bytes_pattern_sized_segment),
+          optional(seq(",", $.bytes_pattern_remainder)),
+          optional(","),
+        ),
+        seq($.bytes_pattern_remainder, optional(",")),
+      )),
+      "]",
+    ),
+
+    _bytes_pattern_sized_segment: ($) => choice(
+      $.string,
+      field("name", choice($.wildcard_pattern, $.identifier)),
+      $.bytes_pattern_fixed_capture,
+    ),
+
+    bytes_pattern_fixed_capture: ($) => seq(
+      field("name", choice($.wildcard_pattern, $.identifier)),
+      ":",
+      "bytes",
+      "(",
+      field("length", $.integer),
+      ")",
+    ),
+
+    bytes_pattern_remainder: ($) => seq(
+      field("name", choice($.wildcard_pattern, $.identifier)),
+      ":",
+      "bytes",
     ),
 
     map_pattern: ($) => seq(

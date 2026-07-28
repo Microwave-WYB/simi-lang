@@ -65,6 +65,7 @@ pub enum PatternKind {
         elements: Vec<Pattern>,
         rest: Option<PatternRest>,
     },
+    Bytes(Vec<BytesPatternSegment>),
     Map {
         fields: Vec<(String, Pattern)>,
         rest: Option<PatternRest>,
@@ -75,6 +76,14 @@ pub enum PatternKind {
 pub enum PatternRest {
     Discard,
     Binding(String),
+}
+
+#[derive(Clone, Debug)]
+pub enum BytesPatternSegment {
+    String(String),
+    Byte(Option<String>),
+    Fixed { name: Option<String>, length: usize },
+    Remainder(Option<String>),
 }
 
 #[derive(Clone, Debug)]

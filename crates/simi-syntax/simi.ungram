@@ -61,11 +61,13 @@ CaseClause = Pattern ('when' Expr)? '=>' Body
 IfExpr = 'if' IfBranch ('elseif' IfBranch)* ElseBranch? 'end'
 IfBranch = Expr 'then' Block
 ElseBranch = 'else' Block
-Pattern = BindingPattern | WildcardPattern | LiteralPattern | ListPattern | MapPattern
+Pattern = BindingPattern | WildcardPattern | LiteralPattern | ListPattern | BytesPattern | MapPattern
 BindingPattern = 'ident'
 WildcardPattern = 'ident'
 LiteralPattern = 'int' | 'float' | 'string' | 'nil' | 'true' | 'false'
 ListPattern = '[' (Pattern (',' Pattern)* (',' RestPattern)? ','? | RestPattern ','?)? ']'
+BytesPattern = '#' '[' (BytesPatternSegment (',' BytesPatternSegment)* ','?)? ']'
+BytesPatternSegment = 'string' | 'ident' (':' 'ident' ('(' 'int' ')')?)?
 MapPattern = '{' (MapPatternField (',' MapPatternField)* (',' RestPattern)? ','? | RestPattern ','?)? '}'
 MapPatternField = 'ident' ('=' Pattern)?
 RestPattern = '..' 'ident'?

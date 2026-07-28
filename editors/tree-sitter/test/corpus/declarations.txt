@@ -203,6 +203,41 @@ let second = 2
         (identifier)))))
 
 ==================
+Bytes patterns
+==================
+
+let #[tag, fixed:bytes(2), rest:bytes] = packet
+case packet of
+  #["PNG", version, header:bytes(2), payload:bytes] => payload
+end
+
+---
+
+(program
+  (let_statement
+    (bytes_pattern
+      (identifier)
+      (bytes_pattern_fixed_capture
+        (identifier)
+        (integer))
+      (bytes_pattern_remainder
+        (identifier)))
+    (identifier))
+  (case_expression
+    (identifier)
+    (case_clause
+      (bytes_pattern
+        (string
+          (string_content))
+        (identifier)
+        (bytes_pattern_fixed_capture
+          (identifier)
+          (integer))
+        (bytes_pattern_remainder
+          (identifier)))
+      (identifier))))
+
+==================
 Map pattern binding shorthand
 ==================
 

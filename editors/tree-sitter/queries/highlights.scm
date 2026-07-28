@@ -103,5 +103,11 @@
 (map_pattern_field
   name: (identifier) @property)
 
+(bytes_pattern_fixed_capture
+  name: (identifier) @variable)
+
+(bytes_pattern_remainder
+  name: (identifier) @variable)
+
 ["#" "(" ")" "[" "]" "{" "}"] @punctuation.bracket
 ["," "."] @punctuation.delimiter

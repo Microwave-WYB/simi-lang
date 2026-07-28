@@ -1162,6 +1162,40 @@ fn bytes_literals_hover_as_bytes_and_reject_dynamic_text_segments() {
 }
 
 #[test]
+fn bytes_pattern_captures_hover_as_integer_and_bytes() {
+    let source = r#"let result = case #[1, 2, 3] of
+    #[byte, fixed:bytes(1), rest:bytes] => [byte, fixed, rest]
+end"#;
+    let mut backend = Backend::new();
+    let published = diagnostics_from(open(&mut backend, source).remove(0));
+    assert!(
+        published.diagnostics.is_empty(),
+        "{:?}",
+        published.diagnostics
+    );
+
+    for (name, expected) in [("byte", "integer"), ("fixed", "bytes"), ("rest", "bytes")] {
+        let hover: Option<Hover> = serde_json::from_value(
+            request(
+                &mut backend,
+                HoverRequest::METHOD,
+                json!({
+                    "textDocument": { "uri": uri() },
+                    "position": text_position(source, name, 0),
+                }),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let HoverContents::Markup(markup) = hover.expect("bytes pattern capture hover").contents
+        else {
+            panic!("expected markup");
+        };
+        assert_simi_hover(&markup, expected);
+    }
+}
+
+#[test]
 fn primitive_singleton_annotations_hover_without_narrowing_expression_inference() {
     let source = r#"let count = 42
 let exact_integer: 42 = 42

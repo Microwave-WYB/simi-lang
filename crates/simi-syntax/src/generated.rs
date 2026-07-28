@@ -138,8 +138,10 @@ pub enum SyntaxKind {
     WILDCARD_PATTERN,
     LITERAL_PATTERN,
     LIST_PATTERN,
+    BYTES_PATTERN,
     MAP_PATTERN,
     REST_PATTERN,
+    BYTES_PATTERN_SEGMENT,
     MAP_PATTERN_FIELD,
     ERROR,
 }
@@ -235,8 +237,10 @@ ast_node!(BindingPattern, BINDING_PATTERN);
 ast_node!(WildcardPattern, WILDCARD_PATTERN);
 ast_node!(LiteralPattern, LITERAL_PATTERN);
 ast_node!(ListPattern, LIST_PATTERN);
+ast_node!(BytesPattern, BYTES_PATTERN);
 ast_node!(MapPattern, MAP_PATTERN);
 ast_node!(RestPattern, REST_PATTERN);
+ast_node!(BytesPatternSegment, BYTES_PATTERN_SEGMENT);
 ast_node!(MapPatternField, MAP_PATTERN_FIELD);
 ast_node!(Error, ERROR);
 
@@ -371,6 +375,7 @@ pub enum Pattern {
     Wildcard(WildcardPattern),
     Literal(LiteralPattern),
     List(ListPattern),
+    Bytes(BytesPattern),
     Map(MapPattern),
 }
 impl AstNode for Pattern {
@@ -383,6 +388,7 @@ impl AstNode for Pattern {
             SyntaxKind::WILDCARD_PATTERN => Self::Wildcard(WildcardPattern::cast(syntax)?),
             SyntaxKind::LITERAL_PATTERN => Self::Literal(LiteralPattern::cast(syntax)?),
             SyntaxKind::LIST_PATTERN => Self::List(ListPattern::cast(syntax)?),
+            SyntaxKind::BYTES_PATTERN => Self::Bytes(BytesPattern::cast(syntax)?),
             SyntaxKind::MAP_PATTERN => Self::Map(MapPattern::cast(syntax)?),
             _ => return None,
         })
@@ -393,6 +399,7 @@ impl AstNode for Pattern {
             Self::Wildcard(node) => node.syntax(),
             Self::Literal(node) => node.syntax(),
             Self::List(node) => node.syntax(),
+            Self::Bytes(node) => node.syntax(),
             Self::Map(node) => node.syntax(),
         }
     }

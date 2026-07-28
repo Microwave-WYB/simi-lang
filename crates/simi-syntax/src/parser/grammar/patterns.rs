@@ -23,6 +23,7 @@ pub(super) fn pattern(p: &mut Parser<'_>, bindings: &mut HashSet<String>) {
             marker.complete(&mut p.events, K::LITERAL_PATTERN);
         }
         K::L_BRACKET => list_pattern(p, bindings),
+        K::HASH => bytes_pattern(p, bindings),
         K::L_BRACE => map_pattern(p, bindings),
         _ => {
             p.error(format!(
@@ -61,6 +62,59 @@ pub(super) fn list_pattern(p: &mut Parser<'_>, bindings: &mut HashSet<String>) {
     }
     p.expect(K::R_BRACKET, "`]` after list pattern");
     marker.complete(&mut p.events, K::LIST_PATTERN);
+}
+pub(super) fn bytes_pattern(p: &mut Parser<'_>, bindings: &mut HashSet<String>) {
+    let marker = p.start();
+    p.bump();
+    if !p.expect(K::L_BRACKET, "`[` after `#` in bytes pattern") {
+        marker.complete(&mut p.events, K::BYTES_PATTERN);
+        return;
+    }
+
+    let mut saw_remainder = false;
+    while !p.at(K::R_BRACKET) && !p.at_end() {
+        let segment = p.start();
+        if p.at(K::STRING) {
+            p.bump();
+        } else {
+            let name = p.current_text().unwrap_or_default().to_owned();
+            let span = p.current_span();
+            if !p.expect(K::IDENT, "bytes pattern string or binding") {
+                segment.complete(&mut p.events, K::BYTES_PATTERN_SEGMENT);
+                break;
+            }
+            if !name.starts_with('_') && !bindings.insert(name.clone()) {
+                p.error_at(span, format!("duplicate binding `{name}` in pattern"));
+            }
+            if p.bump_if(K::COLON) {
+                if p.current_text() != Some("bytes") {
+                    p.error("expected `bytes` after `:` in bytes pattern".to_owned());
+                } else {
+                    p.bump();
+                }
+                if p.bump_if(K::L_PAREN) {
+                    p.expect(K::INT, "byte capture width");
+                    p.expect(K::R_PAREN, "`)` after byte capture width");
+                } else {
+                    saw_remainder = true;
+                }
+            }
+        }
+        segment.complete(&mut p.events, K::BYTES_PATTERN_SEGMENT);
+
+        if !p.bump_if(K::COMMA) || p.at(K::R_BRACKET) {
+            break;
+        }
+        if saw_remainder {
+            p.error_at(
+                p.previous_nontrivia_span(),
+                "unsized bytes capture must be final".to_owned(),
+            );
+            break;
+        }
+    }
+    p.expect(K::R_BRACKET, "`]` after bytes pattern");
+    marker.complete(&mut p.events, K::BYTES_PATTERN);
 }
 pub(super) fn map_pattern(p: &mut Parser<'_>, bindings: &mut HashSet<String>) {
     let marker = p.start();

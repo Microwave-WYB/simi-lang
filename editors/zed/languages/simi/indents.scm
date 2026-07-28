@@ -34,5 +34,8 @@
 (list_pattern
   "]" @end) @indent
 
+(bytes_pattern
+  "]" @end) @indent
+
 (map_pattern
   "}" @end) @indent

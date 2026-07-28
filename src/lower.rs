@@ -343,6 +343,11 @@ fn lower_pattern(node: syntax::Pattern) -> ast::Pattern {
             let rest = support::child::<syntax::RestPattern>(node.syntax()).map(lower_rest);
             ast::PatternKind::List { elements, rest }
         }
+        syntax::Pattern::Bytes(node) => ast::PatternKind::Bytes(
+            support::children::<syntax::BytesPatternSegment>(node.syntax())
+                .map(lower_bytes_pattern_segment)
+                .collect(),
+        ),
         syntax::Pattern::Map(node) => {
             let fields = support::children::<syntax::MapPatternField>(node.syntax())
                 .map(|field| {
@@ -372,6 +377,26 @@ fn lower_pattern(node: syntax::Pattern) -> ast::Pattern {
         kind,
         span: node_span,
     }
+}
+
+fn lower_bytes_pattern_segment(node: syntax::BytesPatternSegment) -> ast::BytesPatternSegment {
+    if let Some(string) = direct_token(node.syntax(), K::STRING) {
+        return ast::BytesPatternSegment::String(decode_string(string.text()));
+    }
+
+    let name = direct_token(node.syntax(), K::IDENT)
+        .map(|token| token.text().to_owned())
+        .filter(|name| !name.starts_with('_'));
+    if direct_token(node.syntax(), K::COLON).is_none() {
+        return ast::BytesPatternSegment::Byte(name);
+    }
+    if let Some(length) = direct_token(node.syntax(), K::INT) {
+        return ast::BytesPatternSegment::Fixed {
+            name,
+            length: parse_int_literal(length.text()) as usize,
+        };
+    }
+    ast::BytesPatternSegment::Remainder(name)
 }
 
 fn lower_rest(node: syntax::RestPattern) -> ast::PatternRest {

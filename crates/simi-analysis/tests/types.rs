@@ -146,6 +146,32 @@ fn append(prefix: bytes) do #[0, "PNG", prefix] end
 }
 
 #[test]
+fn bytes_patterns_constrain_scrutinees_and_infer_capture_bindings() {
+    let source = r#"
+let #[byte, fixed:bytes(2), remaining:bytes] = #[1, 2, 3, 4]
+let selected = case #["PNG", 1, 2] of
+    #["PNG", version, data:bytes] => [version, data]
+end
+"#;
+    let (inference, resolution) = inferred(source);
+    assert!(
+        inference.diagnostics.iter().all(|diagnostic| {
+            diagnostic.code == AnalysisDiagnosticCode::DestructuringLetMayFail
+                && diagnostic.severity == AnalysisDiagnosticSeverity::Warning
+        }),
+        "{:?}",
+        inference.diagnostics
+    );
+    assert_eq!(type_of(&inference, &resolution, "byte"), Type::Int);
+    assert_eq!(type_of(&inference, &resolution, "fixed"), Type::Bytes);
+    assert_eq!(type_of(&inference, &resolution, "remaining"), Type::Bytes);
+    assert_eq!(
+        type_of(&inference, &resolution, "selected").display(),
+        "[integer, bytes]"
+    );
+}
+
+#[test]
 fn boolean_singletons_are_narrow_record_discriminants() {
     let source = r#"
 alias Step<'a> =

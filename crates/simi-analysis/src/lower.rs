@@ -360,6 +360,22 @@ impl Builder {
                 }
                 self.rest_pattern(node.syntax(), scope, activation);
             }
+            syntax::Pattern::Bytes(node) => {
+                for segment in support::children::<syntax::BytesPatternSegment>(node.syntax()) {
+                    if let Some(token) = direct_token(segment.syntax(), K::IDENT)
+                        && !token.text().starts_with('_')
+                    {
+                        self.declare(
+                            scope,
+                            token.text().to_string(),
+                            SymbolKind::Pattern,
+                            Some(token_span(&token)),
+                            None,
+                            activation,
+                        );
+                    }
+                }
+            }
             syntax::Pattern::Map(node) => {
                 for field in support::children::<syntax::MapPatternField>(node.syntax()) {
                     if let Some(child) = support::child::<syntax::Pattern>(field.syntax()) {

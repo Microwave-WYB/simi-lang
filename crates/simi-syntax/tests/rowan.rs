@@ -62,6 +62,40 @@ fn bytes_literals_are_lossless_typed_expressions() {
 }
 
 #[test]
+fn bytes_patterns_are_lossless_typed_patterns_and_recover() {
+    let source =
+        r#"case packet of #["猫", version, header:bytes(2), payload:bytes] => payload end"#;
+    let parse = parse_source(source);
+    assert!(parse.diagnostics().is_empty(), "{:?}", parse.diagnostics());
+    assert_eq!(parse.syntax().to_string(), source);
+    assert_eq!(
+        parse
+            .syntax()
+            .descendants()
+            .filter(|node| node.kind() == SyntaxKind::BYTES_PATTERN_SEGMENT)
+            .count(),
+        4
+    );
+
+    let source = "case value of #[rest:bytes, later] => nil end fn later() do nil end";
+    let parse = parse_source(source);
+    assert!(
+        parse
+            .diagnostics()
+            .iter()
+            .any(|diagnostic| diagnostic.message == "unsized bytes capture must be final"),
+        "{:?}",
+        parse.diagnostics()
+    );
+    assert!(
+        Root::cast(parse.syntax().clone())
+            .expect("root")
+            .statements()
+            .any(|statement| matches!(statement, Stmt::FunctionDecl(_)))
+    );
+}
+
+#[test]
 fn delimiters_belong_to_their_typed_nodes() {
     let source = concat!(
         "case [1] of [head, ..tail] => head end ",

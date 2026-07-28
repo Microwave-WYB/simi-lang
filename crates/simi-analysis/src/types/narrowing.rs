@@ -49,6 +49,7 @@ impl Context<'_> {
             syntax::Pattern::Binding(_) | syntax::Pattern::Wildcard(_) => Some(self.fresh()),
             syntax::Pattern::Literal(node) => Some(literal_type(node.syntax())),
             syntax::Pattern::List(_) => Some(Type::ListRest(Box::new(self.fresh()))),
+            syntax::Pattern::Bytes(_) => Some(Type::Bytes),
             syntax::Pattern::Map(map) => {
                 let mut fields = Vec::new();
                 for field in support::children::<syntax::MapPatternField>(map.syntax()) {
@@ -80,6 +81,12 @@ impl Context<'_> {
             .all(|pattern| matches!(pattern, syntax::Pattern::List(_)))
         {
             return Some(Type::ListRest(Box::new(self.fresh())));
+        }
+        if patterns
+            .iter()
+            .all(|pattern| matches!(pattern, syntax::Pattern::Bytes(_)))
+        {
+            return Some(Type::Bytes);
         }
         if patterns
             .iter()

@@ -44,6 +44,7 @@ pub(super) fn rebase_pattern(pattern: &mut ast::Pattern, origins: &simi_syntax::
                 rebase_pattern(field, origins);
             }
         }
+        ast::PatternKind::Bytes(_) => {}
         ast::PatternKind::Wildcard
         | ast::PatternKind::Binding(_)
         | ast::PatternKind::Int(_)
