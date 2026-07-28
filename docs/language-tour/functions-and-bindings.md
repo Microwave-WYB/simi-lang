@@ -240,7 +240,7 @@ Calls use a fixed number of positional arguments. Supplying too few or too many 
 Labels in a callable type are documentation metadata, not named call arguments:
 
 ```simi
-let subtract: (left: integer, right: integer) -> integer ! never =
+let subtract: fn(left: integer, right: integer) -> integer ! never =
     fn(left: integer, right: integer) -> integer ! never do
         left - right
     end
@@ -248,7 +248,7 @@ let subtract: (left: integer, right: integer) -> integer ! never =
 subtract(10, 3)
 ```
 
-`! E` constrains values that may leave through the language's raised channel, while `! never` forbids them. Raised-error contracts are erased. Hard diagnostics and postfix nil propagation are separate.
+`raises E` describes values that may leave through the language's raised channel, while `noraise` means that channel is `never`. Both forms are erased. Hard diagnostics and postfix nil propagation are separate,.
 
 Named and anonymous functions can both close over mutable lists and maps. That captures the same container alias rather than making a copy; [Mutation and copies](mutation-and-copies.md) explains aliasing, mutation, and explicit copy operations.
 

@@ -3,7 +3,7 @@
 alias Step<'a> =
     | { done: true, .. }
     | { done: false, value: 'a, .. }
-alias Iterator<'a, 'e> = () -> Step<'a> ! 'e
+alias Iterator<'a, 'e> = fn() -> Step<'a> ! 'e
 alias LongestStep<'a> =
     | { done: true, left_done: boolean, right_done: boolean, .. }
     | { done: false, value: 'a, left_done: boolean, right_done: boolean, .. }
@@ -77,7 +77,7 @@ end
 
 fn map<'a, 'b, 'e, 'f>(
     iterator: Iterator<'a, 'e>,
-    transform: 'a -> 'b ! 'f,
+    transform: fn('a) -> 'b ! 'f,
 ) -> Iterator<'b, 'e | 'f> ! never do
     fn() do
         let step = iterator()
@@ -87,7 +87,7 @@ end
 
 fn filter<'a, 'e, 'f>(
     iterator: Iterator<'a, 'e>,
-    predicate: 'a -> boolean ! 'f,
+    predicate: fn('a) -> boolean ! 'f,
 ) -> Iterator<'a, 'e | 'f> ! never do
     fn() -> Step<'a> ! 'e | 'f do host.filter_next(iterator, predicate) end
 end
@@ -182,21 +182,21 @@ end
 fn fold<'state, 'a, 'e, 'f>(
     iterator: Iterator<'a, 'e>,
     initial: 'state,
-    reducer: ('state, 'a) -> 'state ! 'f,
+    reducer: fn('state, 'a) -> 'state ! 'f,
 ) -> 'state ! 'e | 'f do
     host.fold(iterator, initial, reducer)
 end
 
 fn find<'a, 'e, 'f>(
     iterator: Iterator<'a, 'e>,
-    predicate: 'a -> boolean ! 'f,
+    predicate: fn('a) -> boolean ! 'f,
 ) -> 'a | nil ! 'e | 'f do
     host.find(iterator, predicate)
 end
 
 fn find_index<'a, 'e, 'f>(
     iterator: Iterator<'a, 'e>,
-    predicate: 'a -> boolean ! 'f,
+    predicate: fn('a) -> boolean ! 'f,
 ) -> integer | nil ! 'e | 'f do
     host.find_index(iterator, predicate)
 end
@@ -207,28 +207,28 @@ end
 
 fn any<'a, 'e, 'f>(
     iterator: Iterator<'a, 'e>,
-    predicate: 'a -> boolean ! 'f,
+    predicate: fn('a) -> boolean ! 'f,
 ) -> boolean ! 'e | 'f do
     host.any(iterator, predicate)
 end
 
 fn all<'a, 'e, 'f>(
     iterator: Iterator<'a, 'e>,
-    predicate: 'a -> boolean ! 'f,
+    predicate: fn('a) -> boolean ! 'f,
 ) -> boolean ! 'e | 'f do
     host.all(iterator, predicate)
 end
 
 fn each<'a, 'e, 'f>(
     iterator: Iterator<'a, 'e>,
-    callback: 'a -> any ! 'f,
+    callback: fn('a) -> any ! 'f,
 ) -> nil ! 'e | 'f do
     host.each(iterator, callback)
 end
 
 fn count<'a, 'e, 'f>(
     iterator: Iterator<'a, 'e>,
-    predicate: 'a -> boolean ! 'f,
+    predicate: fn('a) -> boolean ! 'f,
 ) -> integer ! 'e | 'f do
     host.count(iterator, predicate)
 end
@@ -243,7 +243,7 @@ end
 
 fn each_while<'a, 'ignored, 'result, 'e, 'f>(
     iterator: Iterator<'a, 'e>,
-    callback: 'a -> Control<'ignored, 'result> ! 'f,
+    callback: fn('a) -> Control<'ignored, 'result> ! 'f,
 ) -> 'result | nil ! 'e | 'f do
     host.each_while(iterator, callback)
 end
@@ -251,12 +251,12 @@ end
 fn fold_while<'state, 'a, 'result, 'e, 'f>(
     iterator: Iterator<'a, 'e>,
     initial: 'state,
-    step: ('state, 'a) -> Control<'state, 'result> ! 'f,
+    step: fn('state, 'a) -> Control<'state, 'result> ! 'f,
 ) -> 'state | 'result ! 'e | 'f do
     host.fold_while(iterator, initial, step)
 end
 
-fn repeat_with<'a, 'e>(producer: () -> 'a ! 'e) -> Iterator<'a, 'e> ! never do
+fn repeat_with<'a, 'e>(producer: fn() -> 'a ! 'e) -> Iterator<'a, 'e> ! never do
     fn() -> Step<'a> ! 'e do
         { done = false, value = host.repeat_next(producer) }
     end

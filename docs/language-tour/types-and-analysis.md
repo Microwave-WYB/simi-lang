@@ -9,7 +9,7 @@
   - [The erasure contract](#the-erasure-contract)
   - [Primitive types and unions](#primitive-types-and-unions)
   - [Function types and generics](#function-types-and-generics)
-  - [Callable bounds and raised-error contracts](#callable-bounds-and-raised-error-contracts)
+  - [Callable bounds and raised effects](#callable-bounds-and-raised-effects)
   - [Structural list types](#structural-list-types)
   - [Structural map types](#structural-map-types)
   - [Flow analysis and narrowing](#flow-analysis-and-narrowing)
@@ -92,9 +92,9 @@ Direct named map fields are the narrow Boolean inference exception: `{done = fal
 Function types use arrows:
 
 ```simi
-alias transform = integer -> integer
-alias predicate = (integer, string) -> boolean
-alias supplier = () -> integer
+alias transform = fn(integer) -> integer
+alias predicate = fn(integer, string) -> boolean
+alias supplier = fn() -> integer
 
 let double: transform = fn(value: integer) -> integer do
     value * 2
@@ -103,7 +103,7 @@ end
 double(21)
 ```
 
-Arrows associate to the right, so `integer -> string -> boolean` means a function taking an integer and returning a function from string to Boolean. Parentheses distinguish a fixed parameter list from one parameter.
+Arrows associate to the right, so `fn(integer) -> fn(string) -> boolean` means a function taking an integer and returning a function from string to Boolean. Parentheses distinguish a fixed parameter list from one parameter.
 
 Generic variables begin with an apostrophe. Alias parameters are declared explicitly and applied with angle brackets:
 
@@ -123,7 +123,7 @@ fn identity(value: 'a) -> 'a do
     value
 end
 
-fn transform(value: 'a, callback: 'a -> 'b) -> 'b do
+fn transform(value: 'a, callback: fn('a) -> 'b) -> 'b do
     callback(value)
 end
 
@@ -134,7 +134,7 @@ end)
 
 Callers do not supply explicit generic arguments. Syntax such as `identity<string>(value)` is outside the initial design. Aliases are transparent: expanding one creates neither a nominal type nor a new runtime value category.
 
-## Callable bounds and raised-error contracts
+## Callable bounds and raised effects
 
 An explicit callable header may bound generic variables with ordinary Simi types:
 
@@ -151,7 +151,7 @@ The leading `|` is optional for every union and is convenient when variants are 
 Callable parameter labels improve signatures while calls remain positional:
 
 ```simi
-let compare: (left: integer, right: integer) -> boolean ! never =
+let compare: fn(left: integer, right: integer) -> boolean ! never =
     fn(left: integer, right: integer) -> boolean ! never do
         left < right
     end
@@ -177,7 +177,7 @@ end
 recover()
 ```
 
-Omitting the raised-error contract infers it. `! E` declares an upper bound, and `! never` forbids language raises. Raised-type variables propagate through callback signatures, while hard diagnostics and postfix `?` remain outside the raised channel. A raised-error contract after a chained arrow belongs to the nearest right-hand callable; parentheses select an outer callable explicitly.
+Omitting the clause infers the effect. `raises E` declares an upper bound, and `noraise` means `raises never`. Effect variables propagate through callback signatures, while hard diagnostics and postfix `?` remain outside the raised channel. An effect after a chained arrow belongs to the nearest right-hand callable; parentheses select an outer callable explicitly.
 
 ## Structural list types
 

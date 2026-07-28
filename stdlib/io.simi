@@ -3,19 +3,19 @@
 alias IoError = { error: "io_error", operation: string, message: string, .. }
 
 --- Read one line without its line ending, or return nil at EOF.
-let read_line: () -> string | nil ! IoError = host.read_line
+let read_line: fn() -> string | nil ! IoError = host.read_line
 
 --- Write a string and flush standard output.
-let print: (text: string) -> nil ! IoError = host.print
+let print: fn(text: string) -> nil ! IoError = host.print
 
 --- Write a string and a newline, then flush standard output.
-let println: (text: string) -> nil ! IoError = host.println
+let println: fn(text: string) -> nil ! IoError = host.println
 
 --- Write a string and flush standard error.
-let eprint: (text: string) -> nil ! IoError = host.eprint
+let eprint: fn(text: string) -> nil ! IoError = host.eprint
 
 --- Write a string and a newline, then flush standard error.
-let eprintln: (text: string) -> nil ! IoError = host.eprintln
+let eprintln: fn(text: string) -> nil ! IoError = host.eprintln
 
 {
     read_line = read_line,

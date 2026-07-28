@@ -1,10 +1,10 @@
 ==================
-Callable generics, constraints, labels, raised contracts, and leading unions
+Callable generics, constraints, labels, effects, and leading unions
 ==================
 
 fn identity<'a: | integer | string>(value: 'a) -> 'a ! never do value end
-let mapper: <'a, 'error: { error: string, .. }> (value: 'a) -> 'a ! 'error = nil
-let callback: (input: | integer | string, state: [..integer]) -> nil = nil
+let mapper: <'a, 'error: { error: string, .. }> fn(value: 'a) -> 'a ! 'error = nil
+let callback: fn(input: | integer | string, state: [..integer]) -> nil = nil
 let anonymous = fn<'a: any>(value: 'a) -> 'a ! string do value end
 
 ---
@@ -15,7 +15,7 @@ let anonymous = fn<'a: any>(value: 'a) -> 'a ! string do value end
     (callable_type_parameters
       (type_parameter
         (type_variable)
-        (function_type
+        (callable_type
           (union_type
             (named_type
               (identifier))
@@ -25,78 +25,72 @@ let anonymous = fn<'a: any>(value: 'a) -> 'a ! string do value end
       (declared_parameter
         (identifier)
         (type_annotation
-          (function_type
+          (callable_type
             (union_type
               (type_variable))))))
     (return_annotation
-      (function_type
+      (callable_type
         (union_type
           (type_variable))))
-    (effect_annotation
-      (function_type
-        (union_type
-          (named_type
-            (identifier)))))
+    (effect_annotation)
     (block_expression
       (block
         (identifier))))
   (let_statement
     (identifier)
     (type_annotation
-      (function_type
+      (callable_type
         (callable_type_parameters
           (type_parameter
             (type_variable))
           (type_parameter
             (type_variable)
-            (function_type
+            (callable_type
               (union_type
                 (map_type
                   (map_type_entry
                     (identifier)
-                    (function_type
+                    (callable_type
                       (union_type
                         (named_type
                           (identifier))))))))))
-        (union_type
-          (parenthesized_type
-            (function_type_parameter
-              (identifier)
-              (function_type
-                (union_type
-                  (type_variable))))))
-        (function_type
+        (callable_type_params
+          (callable_type_parameter
+            (identifier)
+            (callable_type
+              (union_type
+                (type_variable)))))
+        (callable_type
           (union_type
             (type_variable)))
         (effect_annotation
-          (function_type
+          (callable_type
             (union_type
               (type_variable))))))
     (nil))
   (let_statement
     (identifier)
     (type_annotation
-      (function_type
-        (union_type
-          (parenthesized_type
-            (function_type_parameter
-              (identifier)
-              (function_type
-                (union_type
-                  (named_type
-                    (identifier))
-                  (named_type
-                    (identifier)))))
-            (function_type_parameter
-              (identifier)
-              (function_type
-                (union_type
-                  (list_type
-                    (function_type
-                      (union_type
-                        (named_type
-                          (identifier))))))))))
-        (function_type
+      (callable_type
+        (callable_type_params
+          (callable_type_parameter
+            (identifier)
+            (callable_type
+              (union_type
+                (named_type
+                  (identifier))
+                (named_type
+                  (identifier)))))
+          (callable_type_parameter
+            (identifier)
+            (callable_type
+              (union_type
+                (list_type
+                  (callable_type
+                    (union_type
+                      (named_type
+                        (identifier)))))))))
+        (callable_type
           (union_type
             (literal_type
               (nil))))))
@@ -107,7 +101,7 @@ let anonymous = fn<'a: any>(value: 'a) -> 'a ! string do value end
       (callable_type_parameters
         (type_parameter
           (type_variable)
-          (function_type
+          (callable_type
             (union_type
               (named_type
                 (identifier))))))
@@ -115,15 +109,15 @@ let anonymous = fn<'a: any>(value: 'a) -> 'a ! string do value end
         (parameter
           (identifier)
           (type_annotation
-            (function_type
+            (callable_type
               (union_type
                 (type_variable))))))
       (return_annotation
-        (function_type
+        (callable_type
           (union_type
             (type_variable))))
       (effect_annotation
-        (function_type
+        (callable_type
           (union_type
             (named_type
               (identifier)))))
@@ -132,10 +126,10 @@ let anonymous = fn<'a: any>(value: 'a) -> 'a ! string do value end
           (identifier))))))
 
 ==================
-Raised contract binds to nearest arrow
+Effect tail binds to nearest arrow
 ==================
 
-let nearest: integer -> string -> boolean ! string = nil
+let nearest: fn(integer) -> fn(string) -> boolean ! string = nil
 
 ---
 
@@ -143,30 +137,36 @@ let nearest: integer -> string -> boolean ! string = nil
   (let_statement
     (identifier)
     (type_annotation
-      (function_type
-        (union_type
-          (named_type
-            (identifier)))
-        (function_type
-          (union_type
-            (named_type
-              (identifier)))
-          (function_type
+      (callable_type
+        (callable_type_params
+          (callable_type_parameter
+            (callable_type
+              (union_type
+                (named_type
+                  (identifier))))))
+        (callable_type
+          (callable_type_params
+            (callable_type_parameter
+              (callable_type
+                (union_type
+                  (named_type
+                    (identifier))))))
+          (callable_type
             (union_type
               (named_type
                 (identifier))))
           (effect_annotation
-            (function_type
+            (callable_type
               (union_type
                 (named_type
                   (identifier))))))))
     (nil)))
 
 ==================
-Raised contract on outer arrow
+Effect tail on outer arrow
 ==================
 
-let outer: integer -> (string -> boolean) ! string = nil
+let outer: fn(integer) -> fn(string) -> boolean ! string = nil
 
 ---
 
@@ -174,34 +174,36 @@ let outer: integer -> (string -> boolean) ! string = nil
   (let_statement
     (identifier)
     (type_annotation
-      (function_type
-        (union_type
-          (named_type
-            (identifier)))
-        (function_type
-          (union_type
-            (parenthesized_type
-              (function_type_parameter
-                (function_type
-                  (union_type
-                    (named_type
-                      (identifier)))
-                  (function_type
-                    (union_type
-                      (named_type
-                        (identifier)))))))))
-        (effect_annotation
-          (function_type
+      (callable_type
+        (callable_type_params
+          (callable_type_parameter
+            (callable_type
+              (union_type
+                (named_type
+                  (identifier))))))
+        (callable_type
+          (callable_type_params
+            (callable_type_parameter
+              (callable_type
+                (union_type
+                  (named_type
+                    (identifier))))))
+          (callable_type
             (union_type
               (named_type
-                (identifier)))))))
+                (identifier))))
+          (effect_annotation
+            (callable_type
+              (union_type
+                (named_type
+                  (identifier))))))))
     (nil)))
 
 ==================
-Inner and outer raised contracts
+Inner and outer effect tails
 ==================
 
-let both: integer -> (string -> boolean ! integer) ! string = nil
+let both: fn(integer) -> fn(string) -> boolean ! integer ! string = nil
 
 ---
 
@@ -209,29 +211,31 @@ let both: integer -> (string -> boolean ! integer) ! string = nil
   (let_statement
     (identifier)
     (type_annotation
-      (function_type
-        (union_type
-          (named_type
-            (identifier)))
-        (function_type
-          (union_type
-            (parenthesized_type
-              (function_type_parameter
-                (function_type
-                  (union_type
-                    (named_type
-                      (identifier)))
-                  (function_type
-                    (union_type
-                      (named_type
-                        (identifier))))
-                  (effect_annotation
-                    (function_type
-                      (union_type
-                        (named_type
-                          (identifier))))))))))
+      (callable_type
+        (callable_type_params
+          (callable_type_parameter
+            (callable_type
+              (union_type
+                (named_type
+                  (identifier))))))
+        (callable_type
+          (callable_type_params
+            (callable_type_parameter
+              (callable_type
+                (union_type
+                  (named_type
+                    (identifier))))))
+          (callable_type
+            (union_type
+              (named_type
+                (identifier))))
+          (effect_annotation
+            (callable_type
+              (union_type
+                (named_type
+                  (identifier))))))
         (effect_annotation
-          (function_type
+          (callable_type
             (union_type
               (named_type
                 (identifier)))))))

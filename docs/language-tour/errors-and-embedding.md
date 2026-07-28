@@ -244,7 +244,7 @@ A facade can attach erased type information to a native function without wrappin
 
 ```simi
 --- Double an integer using the native implementation.
-let double: integer -> integer = host.double
+let double: fn(integer) -> integer = host.double
 
 fn quadruple(value: integer) -> integer do
     double(double(value))

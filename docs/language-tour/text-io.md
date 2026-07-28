@@ -25,11 +25,11 @@
 The module currently exposes five operations:
 
 ```text
-read_line() -> string | nil
-print(string) -> nil
-println(string) -> nil
-eprint(string) -> nil
-eprintln(string) -> nil
+fn() -> string | nil
+fn(string) -> nil
+fn(string) -> nil
+fn(string) -> nil
+fn(string) -> nil
 ```
 
 `print` and `println` write to standard output. `eprint` and `eprintln` write to standard error. The `ln` variants append a line ending. All four output operations flush automatically and return `nil` after a successful write.

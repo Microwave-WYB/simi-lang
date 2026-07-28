@@ -9,43 +9,43 @@ alias IndexError = {
 alias Step<'a> =
     | { done: true, .. }
     | { done: false, value: 'a, .. }
-alias Iterator<'a> = () -> Step<'a> ! never
+alias Iterator<'a> = fn() -> Step<'a> ! never
 
 --- Return the number of visible elements in a list.
-let length: (xs: [..'a]) -> integer ! never = host.length
+let length: fn(xs: [..'a]) -> integer ! never = host.length
 
 --- Create an independent shallow copy of a list.
-let copy: (xs: [..'a]) -> [..'a] ! never = host.copy
+let copy: fn(xs: [..'a]) -> [..'a] ! never = host.copy
 
 --- Return the value at an index, or nil when it is out of range.
-let get: (xs: [..'a], index: integer) -> 'a | nil ! never = host.get
+let get: fn(xs: [..'a], index: integer) -> 'a | nil ! never = host.get
 
 --- Append a value to a list.
-let append: (xs: [..'a], value: 'b) -> nil ! never = host.append
+let append: fn(xs: [..'a], value: 'b) -> nil ! never = host.append
 
 --- Append every value from one list to another.
-let extend: (xs: [..'a], values: [..'b]) -> nil ! never = host.extend
+let extend: fn(xs: [..'a], values: [..'b]) -> nil ! never = host.extend
 
 --- Replace the value at an existing index.
-let set: (xs: [..'a], index: integer, value: 'b) -> nil ! IndexError = host.set
+let set: fn(xs: [..'a], index: integer, value: 'b) -> nil ! IndexError = host.set
 
 --- Insert a value at an existing position.
-let insert: (xs: [..'a], index: integer, value: 'b) -> nil ! IndexError = host.insert
+let insert: fn(xs: [..'a], index: integer, value: 'b) -> nil ! IndexError = host.insert
 
 --- Remove and return the value at an index.
-let remove: (xs: [..'a], index: integer) -> 'a ! IndexError = host.remove
+let remove: fn(xs: [..'a], index: integer) -> 'a ! IndexError = host.remove
 
 --- Remove and return the final value, or raise when the list is empty.
-let pop: (xs: [..'a]) -> 'a ! IndexError = host.pop
+let pop: fn(xs: [..'a]) -> 'a ! IndexError = host.pop
 
 --- Create a shallow copy of a visible range.
-let slice: (xs: [..'a], start: integer, stop: integer) -> [..'a] ! never = host.slice
+let slice: fn(xs: [..'a], start: integer, stop: integer) -> [..'a] ! never = host.slice
 
 --- Return whether a list contains a value.
-let contains: (xs: [..'a], value: 'a) -> boolean ! never = host.contains
+let contains: fn(xs: [..'a], value: 'a) -> boolean ! never = host.contains
 
 --- Reverse a list in place.
-let reverse: (xs: [..'a]) -> nil ! never = host.reverse
+let reverse: fn(xs: [..'a]) -> nil ! never = host.reverse
 
 --- Create a lazy iterator over an O(1) copy-on-write snapshot.
 fn iter<'a>(xs: [..'a]) -> Iterator<'a> ! never do
