@@ -6,7 +6,7 @@ use simi_syntax::{
     parse_source,
 };
 
-use crate::span::Span;
+use simi_syntax::span::Span;
 
 /// Static dependency metadata declared by a leading `requires` declaration.
 ///

@@ -95,6 +95,7 @@ pub struct Resolution {
 pub enum AnalysisDiagnosticCode {
     InvalidSyntax,
     SyntaxError,
+    InvalidPackageRequirements,
     TypeMismatch,
     InvalidOperator,
     NotCallable,
@@ -113,6 +114,7 @@ impl AnalysisDiagnosticCode {
         match self {
             Self::InvalidSyntax => "invalid_syntax",
             Self::SyntaxError => "syntax_error",
+            Self::InvalidPackageRequirements => "invalid_package_requirements",
             Self::TypeMismatch => "type_mismatch",
             Self::InvalidOperator => "invalid_operator",
             Self::NotCallable => "not_callable",

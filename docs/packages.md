@@ -100,8 +100,9 @@ immediately precede `requires`; no declaration or expression may separate them. 
 documentation, `requires` is the first non-comment source form. The parser preserves this ordering
 for diagnostics, editor recovery, and module hover documentation.
 
-Each alias is a unique lowercase Simi identifier. Its value is restricted to exactly one of these
-static maps:
+Each alias is a unique lowercase Simi identifier within its declaring source file. Aliases are
+lexical metadata only, so independent packages may reuse an alias for different dependencies. Its
+value is restricted to exactly one of these static maps:
 
 ```simi
 requires {
@@ -139,7 +140,7 @@ data, parsed but never evaluated:
 
 ```simi
 {
-    format = 1,
+    format = 2,
     source = {path = "app.simi", digest = "sha256:..."},
     requirements = {
         polars = {
@@ -152,7 +153,11 @@ data, parsed but never evaluated:
 }
 ```
 
-Requirement keys are package identities and are sorted, as are all complete transitive entries.
+Requirement keys are resolved manifest package identities and are sorted, as are all complete
+transitive entries. The resolver rejects a graph that resolves one package identity from
+conflicting declared sources; aliases never identify lock entries or registered modules. Package
+identities that are not Simi identifiers (for example, `tool-box`) use a quoted computed map key
+in the canonical lockfile.
 A Git revision is resolved to an exact commit. Tree digests use SHA-256 over sorted `PackageTree`
 inputs, framing every path and content byte sequence with its UTF-8 byte length; filesystem iteration
 order never affects a digest. Path requirements are relative to the declaring source file (or package

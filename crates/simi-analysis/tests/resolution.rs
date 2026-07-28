@@ -525,3 +525,23 @@ fn map_local_binding_shorthand_resolves_as_a_read() {
     assert_eq!(references.len(), 1);
     assert_eq!(&source[references[0].start..references[0].end], "first");
 }
+
+#[test]
+fn static_requirement_metadata_is_reported_by_analysis() {
+    let source = "requires {tools = {path = \"../tools\"}}";
+    let db = AnalysisDatabase::default();
+    let file = db.add_file(source);
+    let diagnostics = diagnostics(&db, file);
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(
+        diagnostics[0].code,
+        AnalysisDiagnosticCode::InvalidPackageRequirements
+    );
+    assert!(
+        diagnostics[0]
+            .detail
+            .contains("Development path must be a non-escaping"),
+        "{}",
+        diagnostics[0].detail
+    );
+}

@@ -816,6 +816,7 @@ dependencies = [
  "gc",
  "gc_derive",
  "sha2",
+ "simi-analysis",
  "simi-lsp",
  "simi-syntax",
 ]

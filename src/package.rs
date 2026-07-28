@@ -18,13 +18,12 @@ use crate::{
 };
 
 mod lock;
-mod requires;
 mod resolver;
 
-pub use requires::{
+pub use resolver::{ResolutionMode, ResolvedScript, lock_path, resolve_script};
+pub use simi_analysis::{
     PackageRequirementsError, Requirement, RequirementSource, Requires, parse_requires,
 };
-pub use resolver::{ResolutionMode, ResolvedScript, lock_path, resolve_script};
 
 /// A parsed `simi.package.simi` manifest.
 #[derive(Clone, Debug, PartialEq, Eq)]

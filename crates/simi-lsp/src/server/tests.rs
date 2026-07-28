@@ -2409,3 +2409,40 @@ fn append(xs, x) do nil end
     };
     assert_simi_hover(&markup, "fn(xs: 'a, x: 'b) -> nil\n\nAppend one value.");
 }
+
+#[test]
+fn static_requirement_metadata_diagnostics_are_published_over_lsp() {
+    for (source, code, detail, needle) in [
+        (
+            "requires {tools = {git = \"\", rev = \"v1\"}}",
+            "invalid_package_requirements",
+            "Requirement `tools` must declare either `git` and `rev`, or `path`.",
+            "tools",
+        ),
+        (
+            "requires {tools = {path = \"../tools\"}}",
+            "invalid_package_requirements",
+            "Development path must be a non-escaping, package-root-relative slash-separated path.",
+            "path",
+        ),
+        (
+            "let value = 1 requires {tools = {path = \"tools\"}}",
+            "syntax_error",
+            "`requires` must appear before executable items.",
+            "requires",
+        ),
+    ] {
+        let mut backend = Backend::new();
+        let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
+        assert_eq!(diagnostics.diagnostics.len(), 1, "{source}");
+        let diagnostic = &diagnostics.diagnostics[0];
+        assert_eq!(
+            diagnostic.code,
+            Some(NumberOrString::String(code.to_owned())),
+            "{source}"
+        );
+        assert_eq!(diagnostic.source.as_deref(), Some("simi"), "{source}");
+        assert!(diagnostic.message.ends_with(detail), "{diagnostic:?}");
+        assert_eq!(diagnostic.range.start, text_position(source, needle, 0));
+    }
+}

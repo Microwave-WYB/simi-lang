@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::BTreeMap,
     env, fs,
     path::{Path, PathBuf},
     process::Command,
@@ -102,7 +102,7 @@ fn resolve_script_with_cache(
         mode,
         cache,
         locked: locked.as_ref(),
-        visiting: BTreeSet::new(),
+        visiting: BTreeMap::new(),
         entries: BTreeMap::new(),
         modules: BTreeMap::new(),
     };
@@ -114,7 +114,11 @@ fn resolve_script_with_cache(
             path: source_path,
             digest: source_digest,
         },
-        requirements: context.entries,
+        requirements: context
+            .entries
+            .into_iter()
+            .map(|(package, node)| (package, node.requirement))
+            .collect(),
     };
     if let Some(locked) = locked.as_ref()
         && lock != *locked
@@ -130,12 +134,27 @@ fn resolve_script_with_cache(
     })
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum ResolvedSource {
+    Path(PathBuf),
+    Git { url: String, commit: String },
+}
+
+#[derive(Clone, Debug)]
+struct ResolvedNode {
+    requirement: LockedRequirement,
+    source: ResolvedSource,
+}
+
 struct ResolveContext<'a> {
     mode: ResolutionMode,
     cache: &'a Path,
     locked: Option<&'a LockFile>,
-    visiting: BTreeSet<String>,
-    entries: BTreeMap<String, LockedRequirement>,
+    /// Package identities currently being expanded. Requirement aliases are deliberately absent:
+    /// they are lexical to the source that declares them, not graph identities.
+    visiting: BTreeMap<String, ResolvedNode>,
+    /// Fully resolved graph nodes keyed by manifest package identity.
+    entries: BTreeMap<String, ResolvedNode>,
     modules: BTreeMap<String, String>,
 }
 
@@ -152,56 +171,44 @@ impl ResolveContext<'_> {
         requirement: &Requirement,
         base: &Path,
     ) -> Result<(), String> {
-        if let Some(existing) = self.entries.get(&requirement.alias) {
-            if existing.source != requirement.source {
-                return Err(format!(
-                    "requirement `{}` resolves from conflicting declared sources",
-                    requirement.alias
-                ));
+        validate_source(&requirement.source)?;
+        let (root, commit, source) = match &requirement.source {
+            RequirementSource::Path { path } => (base.join(path), None, None),
+            RequirementSource::Git { git, rev } => {
+                let commit = self.git_commit(git, rev)?;
+                let root = self.git_checkout(git, &commit)?;
+                let source = ResolvedSource::Git {
+                    url: canonical_git_url(git)?,
+                    commit: commit.clone(),
+                };
+                (root, Some(commit), Some(source))
             }
-            return Ok(());
+        };
+        let tree = PackageTree::load(&root)
+            .map_err(|error| format!("invalid package `{}`: {error}", requirement.alias))?;
+        let package = tree.manifest().name().to_owned();
+        let source = source.unwrap_or_else(|| ResolvedSource::Path(tree.root().to_owned()));
+        let node = ResolvedNode {
+            requirement: LockedRequirement {
+                source: requirement.source.clone(),
+                package: package.clone(),
+                commit,
+                tree_digest: digest_tree(&tree),
+            },
+            source,
+        };
+        self.validate_locked_node(&node)?;
+
+        if let Some(existing) = self.entries.get(&package) {
+            return self.reuse_or_conflict(&package, existing, &node);
         }
-        if !self.visiting.insert(requirement.alias.clone()) {
-            return Err(format!(
-                "cyclic package requirement involving `{}`",
-                requirement.alias
-            ));
+        if let Some(existing) = self.visiting.get(&package) {
+            self.reuse_or_conflict(&package, existing, &node)?;
+            return Err(format!("cyclic package requirement involving `{package}`"));
         }
 
+        self.visiting.insert(package.clone(), node.clone());
         let resolved = (|| {
-            validate_source(&requirement.source)?;
-            let (root, commit) = match &requirement.source {
-                RequirementSource::Path { path } => (base.join(path), None),
-                RequirementSource::Git { git, rev } => {
-                    let commit = self.git_commit(&requirement.alias, git, rev)?;
-                    let root = self.git_checkout(git, &commit)?;
-                    (root, Some(commit))
-                }
-            };
-            let tree = PackageTree::load(&root)
-                .map_err(|error| format!("invalid package `{}`: {error}", requirement.alias))?;
-            let package = tree.manifest().name().to_owned();
-            let tree_digest = digest_tree(&tree);
-            if let Some(locked) = self
-                .locked
-                .and_then(|lock| lock.requirements.get(&requirement.alias))
-            {
-                if locked.source != requirement.source {
-                    return Err(format!(
-                        "lockfile source for `{}` differs from the declaration",
-                        requirement.alias
-                    ));
-                }
-                if locked.package != package
-                    || locked.commit != commit
-                    || locked.tree_digest != tree_digest
-                {
-                    return Err(format!(
-                        "lockfile entry for `{}` does not match its package tree",
-                        requirement.alias
-                    ));
-                }
-            }
             for module in tree.modules() {
                 let name = module.module().name().to_owned();
                 let source = module.source().to_owned();
@@ -213,22 +220,87 @@ impl ResolveContext<'_> {
                     ));
                 }
             }
-            let requirements = requirements_from_tree(&tree)?;
-            self.resolve_requirements(&requirements, tree.root())?;
-            Ok(LockedRequirement {
-                source: requirement.source.clone(),
-                package,
-                commit,
-                tree_digest,
-            })
+            self.resolve_tree_requirements(&tree)
         })();
-        self.visiting.remove(&requirement.alias);
-        let entry = resolved?;
-        self.entries.insert(requirement.alias.clone(), entry);
+        self.visiting.remove(&package);
+        resolved?;
+        self.entries.insert(package, node);
         Ok(())
     }
 
-    fn git_commit(&self, name: &str, git_url: &str, rev: &str) -> Result<String, String> {
+    fn reuse_or_conflict(
+        &self,
+        package: &str,
+        existing: &ResolvedNode,
+        node: &ResolvedNode,
+    ) -> Result<(), String> {
+        if existing.requirement.source != node.requirement.source || existing.source != node.source
+        {
+            return Err(format!(
+                "package `{package}` resolves from conflicting declared sources"
+            ));
+        }
+        Ok(())
+    }
+
+    fn validate_locked_node(&self, node: &ResolvedNode) -> Result<(), String> {
+        let Some(lock) = self.locked else {
+            return Ok(());
+        };
+        let Some(locked) = lock.requirements.get(&node.requirement.package) else {
+            return Err(format!(
+                "lockfile is missing package `{}`",
+                node.requirement.package
+            ));
+        };
+        if locked.source != node.requirement.source {
+            return Err(format!(
+                "lockfile source for package `{}` differs from the declaration",
+                node.requirement.package
+            ));
+        }
+        if locked.commit != node.requirement.commit
+            || locked.tree_digest != node.requirement.tree_digest
+        {
+            return Err(format!(
+                "lockfile entry for package `{}` does not match its package tree",
+                node.requirement.package
+            ));
+        }
+        Ok(())
+    }
+
+    fn resolve_tree_requirements(&mut self, tree: &PackageTree) -> Result<(), String> {
+        for module in tree.modules() {
+            let Some(requires) = parse_requires(module.source()).map_err(|error| {
+                format!(
+                    "invalid requirements in `{}`: {error}",
+                    module.module().source_path()
+                )
+            })?
+            else {
+                continue;
+            };
+            let source_path = tree.root().join(module.module().source_path());
+            let base = source_path
+                .parent()
+                .expect("package module source has a parent");
+            self.resolve_requirements(&requires, base)?;
+        }
+        Ok(())
+    }
+
+    fn locked_requirement_for_source(
+        &self,
+        source: &RequirementSource,
+    ) -> Option<&LockedRequirement> {
+        self.locked?
+            .requirements
+            .values()
+            .find(|locked| locked.source == *source)
+    }
+
+    fn git_commit(&self, git_url: &str, rev: &str) -> Result<String, String> {
         match self.mode {
             ResolutionMode::Update => {
                 let bare = self.ensure_git_cache(git_url, true)?;
@@ -251,23 +323,29 @@ impl ResolveContext<'_> {
                 Ok(commit.trim().to_owned())
             }
             ResolutionMode::Locked | ResolutionMode::Offline => {
-                let locked = self
-                    .locked
-                    .and_then(|lock| lock.requirements.get(name))
-                    .ok_or_else(|| format!("lockfile is missing requirement `{name}`"))?;
+                let source = RequirementSource::Git {
+                    git: git_url.to_owned(),
+                    rev: rev.to_owned(),
+                };
+                let locked = self.locked_requirement_for_source(&source).ok_or_else(|| {
+                    format!("lockfile has no Git requirement for `{git_url}` at `{rev}`")
+                })?;
                 let commit = locked
                     .commit
                     .as_ref()
-                    .ok_or_else(|| {
-                        format!("lockfile requirement `{name}` is missing its Git commit")
-                    })?
+                    .ok_or_else(|| "lockfile Git requirement is missing its commit".to_owned())?
                     .clone();
                 let bare = self.ensure_git_cache(git_url, false)?;
                 git(&[
-                    "-C", bare.to_str().ok_or("non-UTF-8 Git cache path")?,
-                    "cat-file", "-e", &format!("{commit}^{{commit}}"),
+                    "-C",
+                    bare.to_str().ok_or("non-UTF-8 Git cache path")?,
+                    "cat-file",
+                    "-e",
+                    &format!("{commit}^{{commit}}"),
                 ])
-                .map_err(|_| format!("cached Git repository does not contain locked commit `{commit}` for `{name}`"))?;
+                .map_err(|_| {
+                    format!("cached Git repository does not contain locked commit `{commit}`")
+                })?;
                 Ok(commit)
             }
             ResolutionMode::OfflineUpdate => {
@@ -384,36 +462,6 @@ impl ResolveContext<'_> {
         }
         Ok(bare)
     }
-}
-
-fn requirements_from_tree(tree: &PackageTree) -> Result<Requires, String> {
-    let mut entries = BTreeMap::<String, Requirement>::new();
-    for module in tree.modules() {
-        let Some(requires) = parse_requires(module.source()).map_err(|error| {
-            format!(
-                "invalid requirements in `{}`: {error}",
-                module.module().source_path()
-            )
-        })?
-        else {
-            continue;
-        };
-        for requirement in requires.entries {
-            if let Some(existing) = entries.insert(requirement.alias.clone(), requirement.clone())
-                && existing.source != requirement.source
-            {
-                return Err(format!(
-                    "package `{}` declares conflicting sources for requirement `{}`",
-                    tree.manifest().name(),
-                    existing.alias
-                ));
-            }
-        }
-    }
-    Ok(Requires {
-        entries: entries.into_values().collect(),
-        span: crate::span::Span::new(0, 0),
-    })
 }
 
 fn validate_source(source: &RequirementSource) -> Result<(), String> {
@@ -663,7 +711,7 @@ mod tests {
             resolve_script_with_cache(&app, ResolutionMode::OfflineUpdate, &cache).unwrap();
         let lock = LockFile::parse(&resolved.lockfile).unwrap();
         assert_eq!(lock.requirements.len(), 2);
-        assert!(lock.requirements["remote"].commit.is_some());
+        assert!(lock.requirements["remote-tools"].commit.is_some());
         assert!(cache.join("checkouts").is_dir());
         fs::remove_dir_all(root).unwrap();
     }
@@ -727,13 +775,88 @@ mod tests {
         let cache = root.join("cache");
         let resolved = resolve_script_with_cache(&app, ResolutionMode::Update, &cache).unwrap();
         let lock = LockFile::parse(&resolved.lockfile).unwrap();
-        assert_eq!(lock.requirements["toolbox"].package, "tool-box");
+        assert_eq!(lock.requirements["tool-box"].package, "tool-box");
         assert_eq!(
             resolved.modules,
             vec![("tool-box".to_owned(), "\n{value = 42}".to_owned())]
         );
         fs::write(lock_path(&app), &resolved.lockfile).unwrap();
         assert!(resolve_script_with_cache(&app, ResolutionMode::Locked, &cache).is_ok());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn independent_packages_can_reuse_requirement_aliases() {
+        let root = temporary("scoped-aliases");
+        let alpha = root.join("deps/alpha");
+        let beta = root.join("deps/beta");
+        let alpha_tools = alpha.join("deps/alpha-tools");
+        let beta_tools = beta.join("deps/beta-tools");
+        for package_root in [&alpha, &beta, &alpha_tools, &beta_tools] {
+            fs::create_dir_all(package_root).unwrap();
+        }
+        package(&alpha_tools, "alpha-tools", "");
+        package(&beta_tools, "beta-tools", "");
+        package(
+            &alpha,
+            "alpha",
+            "requires {tools = {path = \"deps/alpha-tools\"}}",
+        );
+        package(
+            &beta,
+            "beta",
+            "requires {tools = {path = \"deps/beta-tools\"}}",
+        );
+        let app = root.join("app.simi");
+        fs::write(
+            &app,
+            "requires {alpha = {path = \"deps/alpha\"}, beta = {path = \"deps/beta\"}}\n42",
+        )
+        .unwrap();
+
+        let cache = root.join("cache");
+        let resolved = resolve_script_with_cache(&app, ResolutionMode::Update, &cache).unwrap();
+        let lock = LockFile::parse(&resolved.lockfile).unwrap();
+        assert_eq!(
+            lock.requirements.keys().collect::<Vec<_>>(),
+            ["alpha", "alpha-tools", "beta", "beta-tools"]
+        );
+        fs::write(lock_path(&app), resolved.lockfile).unwrap();
+        assert!(resolve_script_with_cache(&app, ResolutionMode::Locked, &cache).is_ok());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn conflicting_sources_for_one_package_identity_are_rejected() {
+        let root = temporary("identity-conflict");
+        let alpha = root.join("deps/alpha");
+        let beta = root.join("deps/beta");
+        let alpha_tools = alpha.join("deps/tools");
+        let beta_tools = beta.join("deps/tools");
+        for package_root in [&alpha, &beta, &alpha_tools, &beta_tools] {
+            fs::create_dir_all(package_root).unwrap();
+        }
+        package(&alpha_tools, "tools", "");
+        package(&beta_tools, "tools", "");
+        package(
+            &alpha,
+            "alpha",
+            "requires {tools = {path = \"deps/tools\"}}",
+        );
+        package(&beta, "beta", "requires {tools = {path = \"deps/tools\"}}");
+        let app = root.join("app.simi");
+        fs::write(
+            &app,
+            "requires {alpha = {path = \"deps/alpha\"}, beta = {path = \"deps/beta\"}}\n42",
+        )
+        .unwrap();
+
+        let error = resolve_script_with_cache(&app, ResolutionMode::Update, &root.join("cache"))
+            .unwrap_err();
+        assert!(
+            error.contains("package `tools` resolves from conflicting declared sources"),
+            "{error}"
+        );
         fs::remove_dir_all(root).unwrap();
     }
 
