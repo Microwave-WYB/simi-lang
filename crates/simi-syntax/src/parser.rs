@@ -235,6 +235,17 @@ impl<'a> Parser<'a> {
         }
     }
 
+    fn bump_as(&mut self, kind: SyntaxKind) {
+        self.eat_trivia();
+        if self.position < self.lexemes.len() {
+            self.events.push(Event::RemappedToken {
+                token: self.position,
+                kind,
+            });
+            self.position += 1;
+        }
+    }
+
     fn bump_if(&mut self, kind: SyntaxKind) -> bool {
         if self.at(kind) {
             self.bump();

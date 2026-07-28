@@ -212,6 +212,206 @@ fn malformed_steps_are_hard_contract_diagnostics() {
 }
 
 #[test]
+fn iterator_control_helpers_are_structural_and_require_one_argument() {
+    assert_eval(
+        r#"
+        let iter = require("std/iter")
+        [iter.break(7), iter.break(nil), iter.continue("next"), iter.continue(nil)]
+        "#,
+        "[{control=\"break\", value=7}, {control=\"break\"}, {control=\"continue\", value=\"next\"}, {control=\"continue\"}]",
+    );
+
+    for expression in ["iter.break()", "iter.continue(1, 2)"] {
+        let source = format!("let iter = require(\"std/iter\") {expression}");
+        assert!(matches!(
+            Engine::with_stdlib().eval(&source),
+            Err(SimiError::Runtime(_))
+        ));
+    }
+}
+
+#[test]
+fn while_drivers_handle_exhaustion_controls_aliases_and_remainders() {
+    assert_eval(
+        r#"
+        let iter = require("std/iter")
+        let source = list.iter([1, 2, 3])
+        let stopped = iter.each_while(source, fn(value) do
+            if value == 2 then iter.break(value * 10)
+            else iter.continue(nil)
+            end
+        end)
+        let exhausted = iter.each_while(list.iter([]), fn(value) do iter.break(value) end)
+        let missing_break_value = iter.each_while(
+            list.iter([1]),
+            fn(value) do { control = "break" } end,
+        )
+        [stopped, iter.to_list(source), exhausted, missing_break_value]
+        "#,
+        "[20, [3], nil, nil]",
+    );
+
+    assert_eval(
+        r#"
+        let iter = require("std/iter")
+        let state = []
+        let result = iter.fold_while(list.iter([1, 2]), state, fn(current, value) do
+            list.append(current, value)
+            iter.continue(current)
+        end)
+        list.append(result, 3)
+        let nil_state = iter.fold_while(
+            list.iter([1]),
+            10,
+            fn(current, value) do { control = "continue" } end,
+        )
+        let broken = iter.fold_while(
+            list.iter([4, 5]),
+            0,
+            fn(current, value) do iter.break(current + value) end,
+        )
+        [state, result, nil_state, broken]
+        "#,
+        "[[1, 2, 3], [1, 2, 3], nil, 4]",
+    );
+}
+
+#[test]
+fn repeat_with_is_lazy_emits_nil_and_propagates_raises() {
+    assert_eval(
+        r#"
+        let iter = require("std/iter")
+        let calls = 0
+        let repeated = iter.repeat_with(fn() do
+            calls = calls + 1
+            if calls == 1 then nil else calls end
+        end)
+        let before = calls
+        [before, iter.next(repeated), iter.next(repeated), calls]
+        "#,
+        "[0, {done=false}, {done=false, value=2}, 2]",
+    );
+
+    let raised = match eval(
+        r#"
+        let iter = require("std/iter")
+        let repeated = iter.repeat_with(fn() do raise "producer_failed" end)
+        iter.next(repeated)
+        "#,
+    )
+    .expect("producer raise should not be a hard diagnostic")
+    {
+        Err(raised) => raised,
+        Ok(value) => panic!("expected producer raise, got {}", value.render()),
+    };
+    assert_eq!(raised.value.render(), "\"producer_failed\"");
+}
+
+#[test]
+fn while_driver_source_and_callback_raises_propagate() {
+    for source in [
+        r#"
+        let iter = require("std/iter")
+        let source = fn() do raise { error = "source_failed" } end
+        iter.each_while(source, fn(value) do iter.continue(value) end)
+        "#,
+        r#"
+        let iter = require("std/iter")
+        iter.fold_while(list.iter([1]), 0, fn(state, value) do
+            raise { error = "callback_failed", value = value }
+        end)
+        "#,
+    ] {
+        let raised = match eval(source).expect("raise should not be a hard diagnostic") {
+            Err(raised) => raised,
+            Ok(value) => panic!("expected operation raise, got {}", value.render()),
+        };
+        assert!(
+            [
+                "{error=\"source_failed\"}",
+                "{error=\"callback_failed\", value=1}"
+            ]
+            .contains(&raised.value.render().as_str())
+        );
+    }
+}
+
+#[test]
+fn malformed_while_controls_are_hard_contract_diagnostics() {
+    for control in ["1", "{}", "{ control = 1 }", "{ control = \"stop\" }"] {
+        let source = format!(
+            "let iter = require(\"std/iter\") iter.each_while(list.iter([1]), fn(value) do {control} end)"
+        );
+        assert!(matches!(
+            Engine::with_stdlib().eval(&source),
+            Err(SimiError::Runtime(_))
+        ));
+    }
+    assert!(matches!(
+        Engine::with_stdlib().eval(
+            r#"let iter = require("std/iter")
+               iter.fold_while(list.iter([1]), 0, fn(state, value) do {} end)"#,
+        ),
+        Err(SimiError::Runtime(_))
+    ));
+}
+
+#[test]
+fn public_iterator_controls_support_stateful_case_and_catch_workflows() {
+    assert_eval(
+        r#"
+        let iter = require("std/iter")
+        let attempts = 0
+        let readings = iter.repeat_with(fn() do
+            attempts = attempts + 1
+            if attempts == 4 then
+                raise { error = "sensor_failed", attempt = attempts }
+            else
+                attempts * 3
+            end
+        end)
+        let summary = iter.fold_while(
+            readings,
+            { sum = 0, count = 0 },
+            fn(state, value) do
+                case value
+                    of value when value >= 9
+                        iter.break({ status = "threshold", sum = state.sum, value = value })
+                    of value
+                        iter.continue({ sum = state.sum + value, count = state.count + 1 })
+                end
+            end,
+        )
+        let recovered = do
+            iter.next(readings)
+        catch
+            of { error = "sensor_failed", attempt = attempt }
+                { status = "recovered", attempt = attempt }
+        end
+        [summary, recovered, attempts]
+        "#,
+        "[{status=\"threshold\", sum=9, value=9}, {status=\"recovered\", attempt=4}, 4]",
+    );
+}
+
+#[test]
+fn native_filter_driver_is_stack_safe_for_a_million_rejections() {
+    assert_eval(
+        r#"
+        let iter = require("std/iter")
+        let current = 0
+        let source = iter.repeat_with(fn() do
+            current = current + 1
+            current
+        end)
+        let filtered = iter.filter(source, fn(value) do value > 1000000 end)
+        iter.next(filtered)
+        "#,
+        "{done=false, value=1000001}",
+    );
+}
+
+#[test]
 fn removed_collection_hofs_and_map_views_are_not_exports() {
     let source = r#"
 

@@ -44,6 +44,37 @@ fn iterator_facades_export_item_and_effect_relationships() {
         displayed(&iter, "find"),
         "<'a, 'b, 'c> (iterator: () -> { done: true, .. } | { done: false, value: 'a, .. } raises 'b, predicate: 'a -> boolean raises 'c) -> 'a | nil raises 'b | 'c"
     );
+
+    let break_control = displayed(&iter, "break");
+    assert!(
+        break_control.contains("(value: 'a) -> { control: \"break\", value: 'a, .. } noraise"),
+        "{break_control}"
+    );
+    let continue_control = displayed(&iter, "continue");
+    assert!(
+        continue_control
+            .contains("(value: 'a) -> { control: \"continue\", value: 'a, .. } noraise"),
+        "{continue_control}"
+    );
+
+    let each_while = displayed(&iter, "each_while");
+    assert!(each_while.contains("control: \"continue\""), "{each_while}");
+    assert!(each_while.contains("control: \"break\""), "{each_while}");
+    assert!(each_while.contains("-> 'c | nil raises"), "{each_while}");
+
+    let fold_while = displayed(&iter, "fold_while");
+    assert!(fold_while.contains("initial: 'a"), "{fold_while}");
+    assert!(fold_while.contains("control: \"continue\""), "{fold_while}");
+    assert!(fold_while.contains("control: \"break\""), "{fold_while}");
+    assert!(fold_while.contains("-> 'a | 'c raises"), "{fold_while}");
+
+    let repeat_with = displayed(&iter, "repeat_with");
+    assert!(
+        repeat_with.contains("producer: () -> 'a raises 'b"),
+        "{repeat_with}"
+    );
+    assert!(repeat_with.contains("value: 'a"), "{repeat_with}");
+    assert!(repeat_with.ends_with("raises 'b noraise"), "{repeat_with}");
 }
 
 #[test]

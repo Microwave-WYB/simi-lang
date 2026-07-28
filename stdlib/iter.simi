@@ -4,6 +4,11 @@ alias Step<'a> =
     | { done: true, .. }
     | { done: false, value: 'a, .. }
 alias Iterator<'a, 'e> = () -> Step<'a> raises 'e
+alias Continue<'next> = { control: "continue", value: 'next, .. }
+alias Break<'result> = { control: "break", value: 'result, .. }
+alias Control<'next, 'result> =
+    | Continue<'next>
+    | Break<'result>
 
 fn from<'a, 'e>(next_fn: Iterator<'a, 'e>) -> Iterator<'a, 'e> noraise do
     let exhausted = false
@@ -37,27 +42,11 @@ fn filter<'a, 'e, 'f>(
     iterator: Iterator<'a, 'e>,
     predicate: 'a -> boolean raises 'f,
 ) -> Iterator<'a, 'e | 'f> noraise do
-    fn() do
-        loop
-            let step = iterator()
-            if step.done then break step
-            elseif predicate(step.value) then break step
-            else continue
-            end
-        end
-    end
+    fn() -> Step<'a> raises 'e | 'f do host.filter_next(iterator, predicate) end
 end
 
 fn to_list<'a, 'e>(iterator: Iterator<'a, 'e>) -> [..'a] raises 'e do
-    let result = []
-    loop
-        let step = iterator()
-        if step.done then break result
-        else
-            host.append(result, step.value)
-            continue
-        end
-    end
+    host.to_list(iterator)
 end
 
 fn fold<'state, 'a, 'e, 'f>(
@@ -65,108 +54,81 @@ fn fold<'state, 'a, 'e, 'f>(
     initial: 'state,
     reducer: ('state, 'a) -> 'state raises 'f,
 ) -> 'state raises 'e | 'f do
-    let state = initial
-    loop
-        let step = iterator()
-        if step.done then break state
-        else
-            state = reducer(state, step.value)
-            continue
-        end
-    end
+    host.fold(iterator, initial, reducer)
 end
 
 fn find<'a, 'e, 'f>(
     iterator: Iterator<'a, 'e>,
     predicate: 'a -> boolean raises 'f,
 ) -> 'a | nil raises 'e | 'f do
-    loop
-        let step = iterator()
-        if step.done then break nil
-        elseif predicate(step.value) then break step.value
-        else continue
-        end
-    end
+    host.find(iterator, predicate)
 end
 
 fn find_index<'a, 'e, 'f>(
     iterator: Iterator<'a, 'e>,
     predicate: 'a -> boolean raises 'f,
 ) -> integer | nil raises 'e | 'f do
-    let index = 0
-    loop
-        let step = iterator()
-        if step.done then break nil
-        elseif predicate(step.value) then break index
-        else
-            index = index + 1
-            continue
-        end
-    end
+    host.find_index(iterator, predicate)
 end
 
 fn contains<'a, 'e>(iterator: Iterator<'a, 'e>, needle: 'a) -> boolean raises 'e do
-    loop
-        let step = iterator()
-        if step.done then break false
-        elseif step.value == needle then break true
-        else continue
-        end
-    end
+    host.contains(iterator, needle)
 end
 
 fn any<'a, 'e, 'f>(
     iterator: Iterator<'a, 'e>,
     predicate: 'a -> boolean raises 'f,
 ) -> boolean raises 'e | 'f do
-    loop
-        let step = iterator()
-        if step.done then break false
-        elseif predicate(step.value) then break true
-        else continue
-        end
-    end
+    host.any(iterator, predicate)
 end
 
 fn all<'a, 'e, 'f>(
     iterator: Iterator<'a, 'e>,
     predicate: 'a -> boolean raises 'f,
 ) -> boolean raises 'e | 'f do
-    loop
-        let step = iterator()
-        if step.done then break true
-        elseif predicate(step.value) then continue
-        else break false
-        end
-    end
+    host.all(iterator, predicate)
 end
 
 fn each<'a, 'e, 'f>(
     iterator: Iterator<'a, 'e>,
     callback: 'a -> any raises 'f,
 ) -> nil raises 'e | 'f do
-    loop
-        let step = iterator()
-        if step.done then break nil
-        else
-            callback(step.value)
-            continue
-        end
-    end
+    host.each(iterator, callback)
 end
 
 fn count<'a, 'e, 'f>(
     iterator: Iterator<'a, 'e>,
     predicate: 'a -> boolean raises 'f,
 ) -> integer raises 'e | 'f do
-    let total = 0
-    loop
-        let step = iterator()
-        if step.done then break total
-        else
-            if predicate(step.value) then total = total + 1 end
-            continue
-        end
+    host.count(iterator, predicate)
+end
+
+fn break_control<'result>(value: 'result) -> Break<'result> noraise do
+    { control = "break", value = value }
+end
+
+fn continue_control<'next>(value: 'next) -> Continue<'next> noraise do
+    { control = "continue", value = value }
+end
+
+fn each_while<'a, 'ignored, 'result, 'e, 'f>(
+    iterator: Iterator<'a, 'e>,
+    callback: 'a -> Control<'ignored, 'result> raises 'f,
+) -> 'result | nil raises 'e | 'f do
+    host.each_while(iterator, callback)
+end
+
+fn fold_while<'state, 'a, 'result, 'e, 'f>(
+    iterator: Iterator<'a, 'e>,
+    initial: 'state,
+    step: ('state, 'a) -> Control<'state, 'result> raises 'f,
+) -> 'state | 'result raises 'e | 'f do
+    host.fold_while(iterator, initial, step)
+end
+
+fn repeat_with<'a, 'e>(producer: () -> 'a raises 'e) -> Iterator<'a, 'e> noraise do
+    fn() -> Step<'a> raises 'e do
+        { done = false, value = host.repeat_next(producer) }
     end
 end
 
@@ -174,4 +136,6 @@ end
     from = from, next = next, map = map, filter = filter,
     to_list = to_list, fold = fold, find = find, find_index = find_index,
     contains = contains, any = any, all = all, each = each, count = count,
+    ["break"] = break_control, ["continue"] = continue_control,
+    each_while = each_while, fold_while = fold_while, repeat_with = repeat_with,
 }

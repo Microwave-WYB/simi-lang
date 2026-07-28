@@ -118,15 +118,15 @@ pub fn module_shape(db: &dyn salsa::Database, file: FileId) -> ModuleShape {
         .descendants()
         .filter_map(syntax::MapEntry::cast)
         .filter_map(|entry| {
-            let key = support::token(entry.syntax(), K::IDENT)?;
-            let value = support::child::<syntax::Expr>(entry.syntax())?;
+            let (_, key_span, value) = map_entry_parts(&entry)?;
+            let value = value?;
             let range = value.syntax().text_range();
             let value_span = Span::new(range.start().into(), range.end().into());
             let ty = inference
                 .expression_types
                 .iter()
                 .find_map(|(at, ty)| (*at == value_span).then(|| ty.clone()))?;
-            Some((token_span(&key), ty))
+            Some((key_span, ty))
         })
         .collect::<Vec<_>>();
     attach_field_types(
@@ -178,10 +178,7 @@ fn fields_from_map(
 ) -> Vec<ExportField> {
     support::children::<syntax::MapEntry>(node)
         .filter_map(|entry| {
-            let key = support::token(entry.syntax(), K::IDENT)?;
-            let name = key.text().to_owned();
-            let span = token_span(&key);
-            let value = support::child::<syntax::Expr>(entry.syntax());
+            let (name, span, value) = map_entry_parts(&entry)?;
             match value {
                 Some(value) if is_nil(&value) => None,
                 Some(value) => Some(field_from_value(name, span, value, resolution, maps)),
@@ -192,6 +189,27 @@ fn fields_from_map(
             }
         })
         .collect()
+}
+
+fn map_entry_parts(entry: &syntax::MapEntry) -> Option<(String, Span, Option<syntax::Expr>)> {
+    if let Some(key) = support::token(entry.syntax(), K::IDENT) {
+        return Some((
+            key.text().to_owned(),
+            token_span(&key),
+            support::child::<syntax::Expr>(entry.syntax()),
+        ));
+    }
+
+    let mut expressions = support::children::<syntax::Expr>(entry.syntax());
+    let syntax::Expr::Literal(key) = expressions.next()? else {
+        return None;
+    };
+    let token = support::token(key.syntax(), K::STRING)?;
+    Some((
+        string_literal(token.text())?,
+        token_span(&token),
+        expressions.next(),
+    ))
 }
 
 fn field_from_value(

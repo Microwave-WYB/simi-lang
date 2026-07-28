@@ -112,7 +112,11 @@ impl Context<'_> {
                 if !matches!(concrete, Type::Unknown) && is_subtype(&actual, &concrete) {
                     return;
                 }
-                if let Some(variable) = expected.iter().find(|item| contains_infer(item)) {
+                if let Some(variable) = expected.iter().find(|item| {
+                    contains_infer(item) && is_subtype(&actual, &public_type((*item).clone()))
+                }) {
+                    self.constrain(variable, &actual, at);
+                } else if let Some(variable) = expected.iter().find(|item| contains_infer(item)) {
                     self.constrain(variable, &actual, at);
                 } else {
                     self.require_subtype(&actual, &Type::Union(expected.clone()), at);

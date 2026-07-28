@@ -137,6 +137,24 @@ pub struct NativeFunction {
 pub(crate) enum NativeImplementation {
     Callback(Arc<NativeCallback>),
     Require,
+    Iterator(IteratorIntrinsic),
+}
+
+#[derive(Clone, Copy)]
+pub(crate) enum IteratorIntrinsic {
+    FilterNext,
+    ToList,
+    Fold,
+    Find,
+    FindIndex,
+    Contains,
+    Any,
+    All,
+    Each,
+    Count,
+    EachWhile,
+    FoldWhile,
+    RepeatNext,
 }
 
 impl NativeFunction {
@@ -164,6 +182,18 @@ impl NativeFunction {
         }
     }
 
+    pub(crate) fn iterator(
+        name: impl Into<String>,
+        arity: usize,
+        intrinsic: IteratorIntrinsic,
+    ) -> Self {
+        Self {
+            name: name.into(),
+            arity,
+            implementation: NativeImplementation::Iterator(intrinsic),
+        }
+    }
+
     pub(crate) fn implementation(&self) -> &NativeImplementation {
         &self.implementation
     }
@@ -172,7 +202,7 @@ impl NativeFunction {
 impl Finalize for NativeFunction {}
 unsafe impl Trace for NativeFunction {
     // Callback closures are Send + Sync, which prevents safe captures of Simi's
-    // non-Send managed values. The remaining require intrinsic is data-free.
+    // non-Send managed values. The remaining intrinsic discriminators are data-free.
     gc::unsafe_empty_trace!();
 }
 

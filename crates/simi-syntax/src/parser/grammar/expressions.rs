@@ -74,7 +74,7 @@ pub(super) fn pipeline_stage(p: &mut Parser<'_>) {
     while p.at(K::DOT) {
         let field = callee.marker.precede(&mut p.events);
         p.bump();
-        p.expect(K::IDENT, "field name after `.`");
+        field_name(p);
         callee = Parsed {
             marker: field.complete(&mut p.events, K::FIELD_EXPR),
             flavor: Flavor::Field,
@@ -86,6 +86,16 @@ pub(super) fn pipeline_stage(p: &mut Parser<'_>) {
     }
     marker.complete(&mut p.events, K::PIPELINE_STAGE);
 }
+fn field_name(p: &mut Parser<'_>) {
+    if p.at(K::IDENT) {
+        p.bump();
+    } else if p.at(K::BREAK_KW) || p.at(K::CONTINUE_KW) {
+        p.bump_as(K::IDENT);
+    } else {
+        p.expect(K::IDENT, "field name after `.`");
+    }
+}
+
 pub(super) fn trailing_argument(p: &mut Parser<'_>) -> Parsed {
     let left = parse_or(p);
     if !p.at(K::LESS_PIPE) {
@@ -182,7 +192,7 @@ pub(super) fn postfix(p: &mut Parser<'_>) -> Parsed {
         } else if p.at(K::DOT) {
             let marker = value.marker.precede(&mut p.events);
             p.bump();
-            p.expect(K::IDENT, "field name after `.`");
+            field_name(p);
             value = Parsed {
                 marker: marker.complete(&mut p.events, K::FIELD_EXPR),
                 flavor: Flavor::Field,
