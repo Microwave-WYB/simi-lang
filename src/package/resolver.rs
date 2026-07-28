@@ -173,7 +173,7 @@ impl ResolveContext<'_> {
     ) -> Result<(), String> {
         validate_source(&requirement.source)?;
         let (root, commit, source) = match &requirement.source {
-            RequirementSource::Path { path } => (base.join(path), None, None),
+            RequirementSource::Path { path } => (resolve_path_requirement(base, path)?, None, None),
             RequirementSource::Git { git, rev } => {
                 let commit = self.git_commit(git, rev)?;
                 let root = self.git_checkout(git, &commit)?;
@@ -476,6 +476,47 @@ fn validate_source(source: &RequirementSource) -> Result<(), String> {
     }
 }
 
+/// Resolve a path source without allowing any component to redirect outside its declaration.
+fn resolve_path_requirement(base: &Path, path: &str) -> Result<PathBuf, String> {
+    if !valid_relative_path(path) || Path::new(path).is_absolute() {
+        return Err("path requirement must be package-root-relative".to_owned());
+    }
+    let base = base.canonicalize().map_err(|error| {
+        format!(
+            "cannot canonicalize declaring source directory `{}`: {error}",
+            base.display()
+        )
+    })?;
+    let mut candidate = base.clone();
+    for component in path.split('/') {
+        candidate.push(component);
+        let metadata = fs::symlink_metadata(&candidate).map_err(|error| {
+            format!(
+                "cannot inspect path requirement `{path}` from `{}`: {error}",
+                base.display()
+            )
+        })?;
+        if metadata.file_type().is_symlink() {
+            return Err(format!(
+                "path requirement `{path}` contains a symlink component"
+            ));
+        }
+    }
+    let canonical = candidate.canonicalize().map_err(|error| {
+        format!(
+            "cannot canonicalize path requirement `{path}` from `{}`: {error}",
+            base.display()
+        )
+    })?;
+    if !canonical.starts_with(&base) {
+        return Err(format!(
+            "path requirement `{path}` escapes declaring source directory `{}`",
+            base.display()
+        ));
+    }
+    Ok(canonical)
+}
+
 fn default_git_cache() -> Result<PathBuf, String> {
     if let Some(cache) = env::var_os("XDG_CACHE_HOME") {
         return Ok(PathBuf::from(cache).join("simi"));
@@ -620,6 +661,55 @@ mod tests {
         fs::write(dependency.join("tools.simi"), "{value = 9}").unwrap();
         assert!(resolve_script_with_cache(&app, ResolutionMode::Locked, &cache).is_err());
         fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn path_resolution_rejects_symlinked_intermediate_components() {
+        use std::os::unix::fs::symlink;
+
+        let root = temporary("path-symlink");
+        let outside = temporary("path-symlink-outside");
+        let dependency = outside.join("tools");
+        fs::create_dir_all(&dependency).unwrap();
+        package(&dependency, "tools", "");
+        symlink(&outside, root.join("deps")).unwrap();
+        let app = root.join("app.simi");
+        fs::write(&app, "requires {tools = {path = \"deps/tools\"}}\n42").unwrap();
+
+        let error = resolve_script_with_cache(&app, ResolutionMode::Update, &root.join("cache"))
+            .unwrap_err();
+        assert!(error.contains("contains a symlink component"), "{error}");
+        fs::remove_dir_all(root).unwrap();
+        fs::remove_dir_all(outside).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn transitive_path_resolution_rejects_symlinked_intermediate_components() {
+        use std::os::unix::fs::symlink;
+
+        let root = temporary("transitive-path-symlink");
+        let outside = temporary("transitive-path-symlink-outside");
+        let alpha = root.join("deps/alpha");
+        let dependency = outside.join("tools");
+        fs::create_dir_all(&alpha).unwrap();
+        fs::create_dir_all(&dependency).unwrap();
+        package(&dependency, "tools", "");
+        package(
+            &alpha,
+            "alpha",
+            "requires {tools = {path = \"deps/tools\"}}",
+        );
+        symlink(&outside, alpha.join("deps")).unwrap();
+        let app = root.join("app.simi");
+        fs::write(&app, "requires {alpha = {path = \"deps/alpha\"}}\n42").unwrap();
+
+        let error = resolve_script_with_cache(&app, ResolutionMode::Update, &root.join("cache"))
+            .unwrap_err();
+        assert!(error.contains("contains a symlink component"), "{error}");
+        fs::remove_dir_all(root).unwrap();
+        fs::remove_dir_all(outside).unwrap();
     }
 
     fn git_at(root: &Path, arguments: &[&str]) {
