@@ -1,9 +1,67 @@
 use std::collections::HashMap;
 
 use simi_analysis::{
-    AnalysisDatabase, CallableType, Type, imported_members, imported_modules, member_at,
-    member_completions, module_at, module_shape,
+    AnalysisDatabase, CallableType, Type, imported_members, imported_modules, infer_types,
+    member_at, member_completions, module_at, module_shape,
 };
+
+#[test]
+fn bytes_facade_exports_precise_types_and_infers_through_require() {
+    let db = AnalysisDatabase::default();
+    let module_file = db.add_file(include_str!("../../../stdlib/bytes.simi"));
+    let diagnostics = simi_analysis::diagnostics(&db, module_file);
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    let shape = module_shape(&db, module_file);
+
+    let displayed = |name: &str| {
+        shape
+            .fields
+            .iter()
+            .find(|field| field.name == name)
+            .and_then(|field| field.ty.as_ref())
+            .expect("typed bytes facade export")
+            .display()
+    };
+    assert_eq!(displayed("length"), "fn(data: bytes) -> integer ! never");
+    assert_eq!(
+        displayed("get"),
+        "fn(data: bytes, index: integer) -> integer | nil ! never"
+    );
+    assert_eq!(
+        displayed("slice"),
+        "fn(data: bytes, start: integer, stop: integer) -> bytes ! never"
+    );
+    assert_eq!(
+        displayed("concat"),
+        "fn(left: bytes, right: bytes) -> bytes ! never"
+    );
+    assert_eq!(
+        displayed("from_list"),
+        "fn(values: [..integer]) -> bytes ! never"
+    );
+    assert_eq!(
+        displayed("to_list"),
+        "fn(data: bytes) -> [..integer] ! never"
+    );
+
+    let source = "let bytes = require(\"std/bytes\") bytes.to_list(bytes.slice(#[1, 2], 1, 2))";
+    let file = db.add_file(source);
+    let modules = HashMap::from([("std/bytes".to_owned(), shape)]);
+    let inference = infer_types(&db, file, &modules);
+    assert!(
+        inference.diagnostics.is_empty(),
+        "{:?}",
+        inference.diagnostics
+    );
+    assert_eq!(
+        inference
+            .result_type
+            .as_ref()
+            .expect("inferred bytes conversion result")
+            .display(),
+        "[..integer]"
+    );
+}
 
 #[test]
 fn iterator_facades_export_item_and_effect_relationships() {

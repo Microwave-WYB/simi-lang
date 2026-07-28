@@ -1,14 +1,31 @@
 use crate::Module;
 use crate::native::{
-    io_eprint, io_eprintln, io_print, io_println, list_append, list_contains, list_copy,
-    list_extend, list_get, list_insert, list_iter, list_length, list_pop, list_remove,
-    list_reverse, list_set, list_slice, map_clear, map_copy, map_has, map_iter, map_length,
-    number_to_string, stdin_read_line, string_concat, string_contains, string_ends_with,
-    string_length, string_lower, string_slice, string_split, string_starts_with, string_to_number,
-    string_trim, string_upper,
+    bytes_concat, bytes_from_list, bytes_get, bytes_length, bytes_slice, bytes_to_list, io_eprint,
+    io_eprintln, io_print, io_println, list_append, list_contains, list_copy, list_extend,
+    list_get, list_insert, list_iter, list_length, list_pop, list_remove, list_reverse, list_set,
+    list_slice, map_clear, map_copy, map_has, map_iter, map_length, number_to_string,
+    stdin_read_line, string_concat, string_contains, string_ends_with, string_length, string_lower,
+    string_slice, string_split, string_starts_with, string_to_number, string_trim, string_upper,
 };
 use crate::runtime::{NativeFunction, Value};
 use crate::value::IteratorIntrinsic;
+
+pub fn bytes() -> Module {
+    let host = crate::host_value! {
+        name: "std/bytes",
+        functions: {
+            "length" => (1, bytes_length),
+            "get" => (2, bytes_get),
+            "slice" => (3, bytes_slice),
+            "concat" => (2, bytes_concat),
+            "from_list" => (1, bytes_from_list),
+            "to_list" => (1, bytes_to_list),
+        },
+    };
+    Module::source("std/bytes", include_str!("../stdlib/bytes.simi"))
+        .host(host)
+        .build()
+}
 
 pub fn list() -> Module {
     let host = crate::host_value! {

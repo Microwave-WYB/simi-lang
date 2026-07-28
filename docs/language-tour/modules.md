@@ -14,6 +14,7 @@
   - [The portable standard library](#the-portable-standard-library)
   - [Module identity and state](#module-identity-and-state)
   - [Conversion and string helpers](#conversion-and-string-helpers)
+  - [Byte helpers](#byte-helpers)
   - [Prelude globals](#prelude-globals)
 - [Text IO](text-io.md)
 - [Iterators](iterators.md)
@@ -32,7 +33,7 @@ number
 string
 ```
 
-Each value also has a canonical `std/*` module path for `require`. Direct use is the ordinary form:
+Each prelude value also has a canonical `std/*` module path for `require`. Direct use is the ordinary form:
 
 ```simi
 let values = [10, 20, 30]
@@ -82,9 +83,23 @@ name
 |> string.upper()
 ```
 
+## Byte helpers
+
+The portable `std/bytes` module is available explicitly through `require`; it intentionally does not add a `bytes` prelude global. It provides immutable octet inspection, O(1) range views, concatenation, and conversion to or from integer lists. List input must contain only integers from `0` through `255`.
+
+```simi
+let bytes = require("std/bytes")
+let header = bytes.from_list([137, 80, 78, 71])
+let body = bytes.slice(header, 1, 20)
+
+[bytes.length(body), bytes.get(body, 2), bytes.to_list(body)]
+```
+
+`bytes.get` returns `nil` beyond the end. Negative and non-integer indices, invalid octets, and wrong argument categories are hard diagnostics.
+
 ## Prelude globals
 
-Normal `Engine` evaluations provide `require`, `type`, `inspect`, `list`, `map`, `iter`, `number`, and `string` as ordinary shadowable globals. `require("std/list")` through `require("std/string")` return the same cached values as their prelude names. `type` returns stable runtime category labels. `inspect` produces cycle-safe, human-readable text; it is not serialization.
+Normal `Engine` evaluations provide `require`, `type`, `inspect`, `list`, `map`, `iter`, `number`, and `string` as ordinary shadowable globals. `require("std/list")` through `require("std/string")` return the same cached values as their prelude names, while `require("std/bytes")` provides the explicit bytes module. `type` returns stable runtime category labels. `inspect` produces cycle-safe, human-readable text; it is not serialization.
 
 ```simi
 let values = []

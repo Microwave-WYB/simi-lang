@@ -89,6 +89,7 @@ fn highlighted_simi_fences(markdown: &str, page: &Path) -> Vec<String> {
 
 fn module_catalog(db: &AnalysisDatabase) -> HashMap<String, simi_analysis::ModuleShape> {
     [
+        ("std/bytes", include_str!("../../../stdlib/bytes.simi")),
         ("std/list", include_str!("../../../stdlib/list.simi")),
         ("std/map", include_str!("../../../stdlib/map.simi")),
         ("std/iter", include_str!("../../../stdlib/iter.simi")),

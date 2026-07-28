@@ -221,7 +221,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-`Engine::new()` and `Engine::with_stdlib()` provide the same portable `list`, `map`, `iter`, `number`, and `string` prelude globals, alongside `type`, `inspect`, and `require`. Their canonical `std/*` paths remain require-able and return the same cached module values. `Engine::builder().build()` remains a bare explicit-host constructor. Text IO is a separate capability:
+`Engine::new()` and `Engine::with_stdlib()` provide the same portable `list`, `map`, `iter`, `number`, and `string` prelude globals, alongside `type`, `inspect`, and `require`. Their canonical `std/*` paths remain require-able and return the same cached module values; `std/bytes` is portable but intentionally require-only. `Engine::builder().build()` remains a bare explicit-host constructor. Text IO is a separate capability:
 
 ```rust
 use simi::Engine;

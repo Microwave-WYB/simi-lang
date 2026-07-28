@@ -164,6 +164,7 @@ impl EngineBuilder {
     fn prelude(mut self) -> Self {
         self.install_prelude = true;
         for module in [
+            stdlib::bytes(),
             stdlib::list(),
             stdlib::map(),
             stdlib::iter(),

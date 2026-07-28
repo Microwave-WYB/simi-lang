@@ -81,6 +81,55 @@ fn bytes_literals_reject_dynamic_text_invalid_categories_and_out_of_range_intege
 }
 
 #[test]
+fn standard_bytes_module_is_require_only_and_converts_immutable_values() {
+    let value = simi::eval(
+        r#"
+        let bytes = require("std/bytes")
+        let source = bytes.from_list([0, 127, 255])
+        let view = bytes.slice(source, 1, 20)
+        [
+            type(source),
+            bytes.length(source),
+            bytes.get(source, 3),
+            inspect(view),
+            inspect(bytes.concat(view, #[1])),
+            bytes.to_list(source),
+        ]
+        "#,
+    )
+    .expect("std/bytes should be available from the portable engine")
+    .expect("std/bytes operations should not raise");
+
+    assert_eq!(
+        value.render(),
+        "[\"bytes\", 3, nil, \"bytes[7f ff]\", \"bytes[7f ff 01]\", [0, 127, 255]]"
+    );
+
+    assert!(matches!(
+        simi::eval("bytes.length(#[1])"),
+        Err(SimiError::Runtime(_))
+    ));
+}
+
+#[test]
+fn standard_bytes_module_rejects_invalid_arguments_as_hard_diagnostics() {
+    for source in [
+        r#"require("std/bytes").get(#[1], -1)"#,
+        r#"require("std/bytes").slice(#[1], 0.0, 1)"#,
+        r#"require("std/bytes").concat(#[1], [])"#,
+        r#"require("std/bytes").from_list([0, 256])"#,
+        r#"require("std/bytes").from_list([0, "x"])"#,
+    ] {
+        let error = match simi::eval(source) {
+            Err(error) => error,
+            Ok(_) => panic!("invalid bytes arguments must be hard errors"),
+        };
+        assert!(matches!(error, SimiError::Runtime(_)), "{error}");
+        assert!(error.to_string().contains("std/bytes."), "{error}");
+    }
+}
+
+#[test]
 fn bytes_indices_and_writes_remain_hard_runtime_diagnostics() {
     for source in [
         r#"let data = require("host/bytes").data data[-1]"#,

@@ -113,7 +113,7 @@ simi lsp
 - lexical closures, recursion, and same-scope shadowing;
 - expression-valued `if`, `case`, protected and standalone `do` blocks, and iterator controls;
 - ordinary, nil-aware, tap, and trailing-callback pipeline operators;
-- mutable zero-based lists and insertion-ordered maps;
+- mutable zero-based lists, insertion-ordered maps, and immutable packed bytes;
 - structural list/map patterns and catchable raised values;
 - tracing garbage collection with cycle-safe inspection;
 - explicit source-backed modules with private native host values;
@@ -132,7 +132,7 @@ pub type ScriptResult = Result<Value, Raised>;
 pub fn eval(source: &str) -> Result<ScriptResult, SimiError>;
 ```
 
-`eval` uses a fresh portable engine. `Engine::new()` and `Engine::with_stdlib()` provide the same shadowable `list`, `map`, `iter`, `number`, and `string` prelude globals, together with `type`, `inspect`, and `require`; their canonical `std/*` paths remain available through `require` and share the same cached module values. For persistent module state or custom capabilities, construct an `Engine`:
+`eval` uses a fresh portable engine. `Engine::new()` and `Engine::with_stdlib()` provide the same shadowable `list`, `map`, `iter`, `number`, and `string` prelude globals, together with `type`, `inspect`, and `require`; their canonical `std/*` paths remain available through `require` and share the same cached module values. The portable `std/bytes` module is require-only and intentionally has no global alias. For persistent module state or custom capabilities, construct an `Engine`:
 
 ```rust
 use simi::Engine;
@@ -154,7 +154,7 @@ Hosts can register direct value modules or use `host_value!` to generate a priva
 `Engine::new()` and `Engine::with_stdlib()` both provide the portable prelude:
 
 - `list`, `map`, `iter`, `number`, and `string` globals;
-- canonical `std/list`, `std/map`, `std/iter`, `std/number`, and `std/string` paths for `require`.
+- canonical `std/list`, `std/map`, `std/iter`, `std/number`, `std/string`, and require-only `std/bytes` paths for `require`.
 
 `Engine::builder().build()` remains an explicit bare host configuration. Use `.stdlib()` to install this portable prelude, and add `.stdio()` only when text IO is required.
 

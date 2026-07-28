@@ -2229,6 +2229,33 @@ fn rename_expands_map_pattern_binding_shorthand_without_renaming_its_key() {
 }
 
 #[test]
+fn real_bytes_module_hover_uses_its_typed_facade_documentation() {
+    let module = include_str!("../../../../stdlib/bytes.simi");
+    let source = "let bytes = require(\"std/bytes\")\nbytes.get";
+    let mut backend = Backend::with_module_sources([("std/bytes", module)]);
+    open(&mut backend, source);
+    let hover: Option<Hover> = serde_json::from_value(
+        request(
+            &mut backend,
+            HoverRequest::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": text_position(source, "get", 0),
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let HoverContents::Markup(markup) = hover.expect("bytes get hover").contents else {
+        panic!("expected markup")
+    };
+    assert_simi_hover(
+        &markup,
+        "fn(data: bytes, index: integer) -> integer | nil ! never\n\nReturn the octet at an index, or nil when it is out of range.",
+    );
+}
+
+#[test]
 fn real_string_module_hover_wraps_export_map_at_presentation_width() {
     let module = include_str!("../../../../stdlib/string.simi");
     let source = "let string = require(\"std/string\")\nstring";
