@@ -12,7 +12,7 @@
   },
   "main": "./src/extension.js",
   "engines": {
-    "vscode": "^1.85.0"
+    "vscode": "^1.91.0"
   },
   "categories": [
     "Programming Languages"
@@ -83,7 +83,7 @@
     "publish": "vsce publish"
   },
   "dependencies": {
-    "vscode-languageclient": "9.0.1",
+    "vscode-languageclient": "10.1.0",
     "web-tree-sitter": "0.25.10"
   },
   "devDependencies": {

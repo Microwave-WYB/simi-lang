@@ -41,8 +41,9 @@ test("extension manifest associates .simi files with the TextMate grammar", asyn
       ({ command }) => command === "simi.restartLanguageServer",
     ),
   );
-  assert.equal(manifest.dependencies["vscode-languageclient"], "9.0.1");
+  assert.equal(manifest.dependencies["vscode-languageclient"], "10.1.0");
   assert.equal(manifest.dependencies["web-tree-sitter"], "0.25.10");
+  assert.equal(manifest.engines.vscode, "^1.91.0");
   const parserWasm = await readFile(new URL("syntaxes/tree-sitter-simi.wasm", root));
   assert.deepEqual([...parserWasm.subarray(0, 4)], [0, 97, 115, 109], "bundled parser must be WebAssembly");
   assert.equal(manifest.scripts.prepackage, "npm test");
