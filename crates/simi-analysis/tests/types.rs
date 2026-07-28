@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use simi_analysis::{
-    AnalysisDatabase, AnalysisDiagnosticCode, AnalysisDiagnosticSeverity, Type, diagnostics,
-    expression_type_at, infer_types, module_shape, parse, resolve, symbol_type_at,
+    AnalysisDatabase, AnalysisDiagnosticCode, AnalysisDiagnosticSeverity, ModuleShape, Type,
+    diagnostics, expression_type_at, infer_types, module_shape, parse, resolve, symbol_type_at,
 };
 
 fn inferred(
@@ -20,6 +20,24 @@ fn inferred(
     );
     let resolution = resolve(&db, file);
     (infer_types(&db, file, &HashMap::new()), resolution)
+}
+
+fn inferred_with_modules(
+    source: &str,
+    modules: &HashMap<String, ModuleShape>,
+) -> (
+    simi_analysis::TypeInference,
+    std::sync::Arc<simi_analysis::Resolution>,
+) {
+    let db = AnalysisDatabase::default();
+    let file = db.add_file(source);
+    assert!(
+        parse(&db, file).diagnostics.is_empty(),
+        "syntax diagnostics: {:?}",
+        parse(&db, file).diagnostics
+    );
+    let resolution = resolve(&db, file);
+    (infer_types(&db, file, modules), resolution)
 }
 
 #[test]
@@ -377,6 +395,23 @@ fn type_of(
         .find(|(_, symbol)| symbol.name == name && !symbol.builtin)
         .map(|(id, _)| id)
         .unwrap_or_else(|| panic!("missing symbol {name}"));
+    inference.symbol_types[&symbol].clone()
+}
+
+fn type_of_any(
+    inference: &simi_analysis::TypeInference,
+    resolution: &simi_analysis::Resolution,
+    name: &str,
+    occurrence: usize,
+) -> Type {
+    let symbol = resolution
+        .hir
+        .symbols
+        .iter()
+        .filter(|(_, symbol)| symbol.name == name)
+        .nth(occurrence)
+        .map(|(id, _)| id)
+        .unwrap_or_else(|| panic!("missing symbol {name} occurrence {occurrence}"));
     inference.symbol_types[&symbol].clone()
 }
 
@@ -2394,5 +2429,121 @@ let set_dynamic = fn() do dynamic_state[key] = 1 end
         2,
         "{:?}",
         inference.diagnostics
+    );
+}
+
+#[test]
+fn portable_builtins_use_registered_module_shapes_for_global_type() {
+    let db = AnalysisDatabase::default();
+    let modules = [
+        (
+            "std/list",
+            "fn append(xs, x) do nil end { append = append }",
+        ),
+        ("std/map", "fn clear(entries) do nil end { clear = clear }"),
+        (
+            "std/number",
+            "fn to_string(value) do nil end { to_string = to_string }",
+        ),
+    ]
+    .into_iter()
+    .map(|(name, source)| {
+        let file = db.add_file(source);
+        (name.to_owned(), module_shape(&db, file))
+    })
+    .collect::<HashMap<_, _>>();
+
+    let source = "list map number";
+    let (inference, resolution) = inferred_with_modules(source, &modules);
+    assert!(
+        inference.diagnostics.is_empty(),
+        "{:?}",
+        inference.diagnostics
+    );
+
+    for name in ["list", "map", "number"] {
+        let ty = type_of_any(&inference, &resolution, name, 0);
+        assert!(
+            !ty.display().contains("any"),
+            "{name} should not be Any, got {ty:?}"
+        );
+    }
+}
+
+#[test]
+fn portable_builtins_fallback_to_any_when_shapes_absent() {
+    let source = "list map iter number string";
+    let (inference, resolution) = inferred(source);
+    for name in ["list", "map", "iter", "number", "string"] {
+        assert_eq!(
+            type_of_any(&inference, &resolution, name, 0).display(),
+            "any",
+            "{name} should be Any in bare context"
+        );
+    }
+}
+
+#[test]
+fn literal_require_retains_precise_type_when_module_registered() {
+    let db = AnalysisDatabase::default();
+    let module_source = "let exports = { answer = 42, empty = {} } exports";
+    let module_file = db.add_file(module_source);
+    let modules = HashMap::from([("known".to_owned(), module_shape(&db, module_file))]);
+
+    let source = "let data = require(\"known\")\ndata";
+    let (inference, resolution) = inferred_with_modules(source, &modules);
+    assert!(
+        inference.diagnostics.is_empty(),
+        "{:?}",
+        inference.diagnostics
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "data").display(),
+        "{ answer: integer, empty: {} }"
+    );
+}
+
+#[test]
+fn require_alias_retains_precise_type_when_module_registered() {
+    let db = AnalysisDatabase::default();
+    let module_source = "fn append(xs, x) do nil end { append = append }";
+    let module_file = db.add_file(module_source);
+    let modules = HashMap::from([("std/list".to_owned(), module_shape(&db, module_file))]);
+
+    for source in [
+        "let list = require(\"std/list\") list",
+        "let list = require(\"std/list\") list.append",
+    ] {
+        let (inference, resolution) = inferred_with_modules(source, &modules);
+        assert!(
+            inference.diagnostics.is_empty(),
+            "{:?}",
+            inference.diagnostics
+        );
+        let ty = type_of(&inference, &resolution, "list");
+        assert!(
+            ty.display().contains("append"),
+            "alias should carry module shape, got {ty:?}"
+        );
+    }
+}
+
+#[test]
+fn shadowed_builtin_uses_user_binding_not_module_shape() {
+    let db = AnalysisDatabase::default();
+    let module_source = "fn append(xs, x) do nil end { append = append }";
+    let module_file = db.add_file(module_source);
+    let modules = HashMap::from([("std/list".to_owned(), module_shape(&db, module_file))]);
+
+    let source = "let list = 42\nlist";
+    let (inference, resolution) = inferred_with_modules(source, &modules);
+    assert!(
+        inference.diagnostics.is_empty(),
+        "{:?}",
+        inference.diagnostics
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "list").display(),
+        "integer"
     );
 }

@@ -1915,3 +1915,131 @@ fn destructuring_let_certainty_diagnostics_publish_warnings_and_errors() {
     };
     assert_simi_hover(&markup, "any");
 }
+
+#[test]
+fn registered_portable_builtins_hover_with_module_shape_type() {
+    let module = "fn append(xs, x) do nil end { append = append }";
+    let source = "list";
+    let mut backend = Backend::with_module_sources([("std/list", module)]);
+    open(&mut backend, source);
+    let hover: Option<Hover> = serde_json::from_value(
+        request(
+            &mut backend,
+            HoverRequest::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": text_position(source, "list", 0),
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let HoverContents::Markup(markup) = hover.expect("registered builtin hover").contents else {
+        panic!("expected markup")
+    };
+    assert!(
+        markup.value.contains("append"),
+        "expected module shape type, got {}",
+        markup.value
+    );
+}
+
+#[test]
+fn bare_portable_builtins_hover_as_any_when_not_registered() {
+    let source = "list";
+    let mut backend = Backend::default();
+    open(&mut backend, source);
+    let hover: Option<Hover> = serde_json::from_value(
+        request(
+            &mut backend,
+            HoverRequest::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": text_position(source, "list", 0),
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let HoverContents::Markup(markup) = hover.expect("bare builtin hover").contents else {
+        panic!("expected markup")
+    };
+    assert_simi_hover(&markup, "any");
+}
+
+#[test]
+fn portable_builtin_member_completion_when_registered() {
+    let module = "fn append(xs, x) do nil end { append = append }";
+    let source = "list.";
+    let mut backend = Backend::with_module_sources([("std/list", module)]);
+    open(&mut backend, source);
+    let completion: Option<CompletionResponse> = serde_json::from_value(
+        request(
+            &mut backend,
+            Completion::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": position::position(source, source.len()).unwrap(),
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let CompletionResponse::Array(items) = completion.unwrap() else {
+        panic!("expected completion array")
+    };
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0].label, "append");
+}
+
+#[test]
+fn shadowed_builtin_does_not_export_module_members() {
+    let module = "fn append(xs, x) do nil end { append = append }";
+    let source = "let list = 42\nlist.";
+    let mut backend = Backend::with_module_sources([("std/list", module)]);
+    open(&mut backend, source);
+    let completion: Option<CompletionResponse> = serde_json::from_value(
+        request(
+            &mut backend,
+            Completion::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": position::position(source, source.len()).unwrap(),
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let CompletionResponse::Array(items) = completion.unwrap() else {
+        panic!("expected completion array")
+    };
+    assert!(items.is_empty(), "shadowed builtin should have no members");
+}
+
+#[test]
+fn require_alias_retains_precise_member_metadata_with_registered_shape() {
+    let module = r#"
+--- Append one value.
+fn append(xs, x) do nil end
+{ append = append }
+"#;
+    let source = "let list = require(\"std/list\") list.append";
+    let mut backend = Backend::with_module_sources([("std/list", module)]);
+    open(&mut backend, source);
+    let hover: Option<Hover> = serde_json::from_value(
+        request(
+            &mut backend,
+            HoverRequest::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": text_position(source, "append", 0),
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let HoverContents::Markup(markup) = hover.expect("require alias hover").contents else {
+        panic!("expected markup")
+    };
+    assert_simi_hover(&markup, "(xs: 'a, x: 'b) -> nil\n\nAppend one value.");
+}
