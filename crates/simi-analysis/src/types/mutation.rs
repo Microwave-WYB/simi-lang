@@ -166,15 +166,26 @@ impl Context<'_> {
                 }
             }
             Some(target) => {
-                let expected = self.expression(target.clone());
+                let sealed = mutation_owner_symbol(&target, self.resolution)
+                    .is_some_and(|symbol| self.annotated_symbols.contains(&symbol));
+                let unbound_deferred_empty_map_target = match &target {
+                    syntax::Expr::Index(index) => child_expr(index.syntax(), 0)
+                        .and_then(|owner| expression_symbol(&owner, self.resolution))
+                        .and_then(|symbol| self.symbol_types.get(&symbol))
+                        .is_some_and(|ty| self.is_unbound_deferred_empty_map(ty)),
+                    _ => false,
+                };
+                let expected = if sealed || !unbound_deferred_empty_map_target {
+                    self.expression(target.clone())
+                } else {
+                    Type::Unknown
+                };
                 let resolved_expected = self.resolve_type(expected.clone());
                 let checked_value = value_node
                     .as_ref()
                     .and_then(direct_literal_type)
                     .filter(|literal| type_contains_exact(&resolved_expected, literal))
                     .unwrap_or_else(|| value.clone());
-                let sealed = mutation_owner_symbol(&target, self.resolution)
-                    .is_some_and(|symbol| self.annotated_symbols.contains(&symbol));
                 if sealed {
                     self.constrain(&expected, &checked_value, span(node.syntax()));
                 }
@@ -221,18 +232,31 @@ impl Context<'_> {
             .symbol_bounds
             .get(&symbol)
             .cloned()
-            .map(|ty| self.resolve_type(ty))
             .unwrap_or(Type::Unknown);
-        if is_subtype(updated, &bound) {
-            return true;
+        if self.is_unbound_deferred_empty_map(&bound)
+            || !is_subtype(updated, &self.resolve_type(bound))
+        {
+            self.diagnostic(
+                AnalysisDiagnosticCode::TypeMismatch,
+                "Captured mutation exceeds declared type",
+                "Structural widening is inferred only in a binding's defining scope; annotate the captured binding with a type that admits this mutation.".to_owned(),
+                at,
+            );
+            return false;
         }
-        self.diagnostic(
-            AnalysisDiagnosticCode::TypeMismatch,
-            "Captured mutation exceeds declared type",
-            "Structural widening is inferred only in a binding's defining scope; annotate the captured binding with a type that admits this mutation.".to_owned(),
-            at,
-        );
-        false
+        true
+    }
+    fn is_unbound_deferred_empty_map(&self, ty: &Type) -> bool {
+        let Type::Map {
+            index: Some((key, value)),
+            ..
+        } = ty
+        else {
+            return false;
+        };
+        self.is_deferred_empty_map_index(key, value)
+            && matches!(self.resolve_type((**key).clone()), Type::Infer(_))
+            && matches!(self.resolve_type((**value).clone()), Type::Infer(_))
     }
     pub(super) fn apply_field_assignment(&mut self, field: &syntax::FieldExpr, value: &Type) {
         let Some(owner) = child_expr(field.syntax(), 0) else {
@@ -281,7 +305,11 @@ impl Context<'_> {
                     .find(|(at, _)| *at == span(key.syntax()))
                     .map(|(_, ty)| ty.clone())
             })
-            .unwrap_or(Type::Unknown);
+            .unwrap_or_else(|| {
+                key.clone()
+                    .map(|key| self.expression(key))
+                    .unwrap_or(Type::Unknown)
+            });
         let Some(symbol) = expression_symbol(&object, self.resolution) else {
             self.invalidate_mutated_owner(&object);
             return;
@@ -307,6 +335,23 @@ impl Context<'_> {
             _ => None,
         };
         let updated = if let Some((key_hole, value_hole)) = deferred_empty_map_index {
+            let holes_are_unbound =
+                matches!(self.resolve_type((*key_hole).clone()), Type::Infer(_))
+                    && matches!(self.resolve_type((*value_hole).clone()), Type::Infer(_));
+            if *value == Type::Nil && holes_are_unbound {
+                return;
+            }
+            let Type::Map { fields, open, .. } = &current else {
+                unreachable!("deferred empty map indexes belong to maps")
+            };
+            let updated = Type::Map {
+                fields: fields.clone(),
+                index: Some((Box::new(key_type.clone()), Box::new(value.clone()))),
+                open: *open,
+            };
+            if !self.capture_mutation_is_compatible(symbol, &updated, span(index.syntax())) {
+                return;
+            }
             self.bind_infer(*key_hole, key_type);
             self.bind_infer(*value_hole, value.clone());
             current

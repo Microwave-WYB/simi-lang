@@ -1450,6 +1450,52 @@ fn two_sum(values: [..integer], target: integer)
 }
 
 #[test]
+fn contextual_empty_map_capture_and_nil_delete_hovers_remain_exact() {
+    let source = r#"fn bridge<'state>(initial: 'state, callback: fn('state) -> 'state) -> 'state do
+    callback(initial)
+end
+let captured = bridge({}, fn(state) do
+    let mutate = fn(key) do state[key] = 1 end
+    state
+end)
+let deleted = bridge({}, fn(state) do
+    let key = "missing"
+    state[key] = nil
+    state
+end)
+let unchanged = bridge({}, fn(state) do state end)
+"#;
+    let mut backend = Backend::new();
+    let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
+    assert_eq!(diagnostics.diagnostics.len(), 1, "{diagnostics:?}");
+    assert!(
+        diagnostics.diagnostics[0]
+            .message
+            .starts_with("Captured mutation exceeds declared type"),
+        "{diagnostics:?}"
+    );
+
+    for name in ["captured", "deleted", "unchanged"] {
+        let hover: Option<Hover> = serde_json::from_value(
+            request(
+                &mut backend,
+                HoverRequest::METHOD,
+                json!({
+                    "textDocument": { "uri": uri() },
+                    "position": text_position(source, name, 0),
+                }),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let HoverContents::Markup(markup) = hover.expect("exact empty map hover").contents else {
+            panic!("expected markup")
+        };
+        assert_simi_hover(&markup, "{}");
+    }
+}
+
+#[test]
 fn fold_accumulator_nested_empty_lists_have_precise_protocol_hovers() {
     let source = r#"let iter = require("std/iter")
 alias number = integer | float

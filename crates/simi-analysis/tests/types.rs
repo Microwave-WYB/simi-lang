@@ -1174,6 +1174,42 @@ end)
 }
 
 #[test]
+fn contextual_empty_maps_seal_captured_dynamic_writes_and_preserve_nil_deletes() {
+    let source = r#"fn bridge<'state>(initial: 'state, callback: fn('state) -> 'state) -> 'state do
+    callback(initial)
+end
+let captured = bridge({}, fn(state) do
+    let mutate = fn(key) do state[key] = 1 end
+    state
+end)
+let deleted = bridge({}, fn(state) do
+    let key = "missing"
+    state[key] = nil
+    state
+end)
+let unchanged = bridge({}, fn(state) do state end)
+"#;
+    let (inference, resolution) = inferred(source);
+    assert_eq!(
+        inference
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.title == "Captured mutation exceeds declared type")
+            .count(),
+        1,
+        "{:?}",
+        inference.diagnostics
+    );
+    for name in ["captured", "deleted", "unchanged"] {
+        assert_eq!(
+            type_of(&inference, &resolution, name).display(),
+            "{}",
+            "{name}"
+        );
+    }
+}
+
+#[test]
 fn contextual_fold_accumulators_preserve_annotated_and_exact_list_failures() {
     let db = AnalysisDatabase::default();
     let modules = [
