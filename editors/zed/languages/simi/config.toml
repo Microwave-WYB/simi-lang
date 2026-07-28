@@ -12,7 +12,8 @@ brackets = [
     { start = "\"", end = "\"", close = true, newline = false, not_in = ["string", "comment"] },
 ]
 
-# These patterns complement indents.scm while a construct is incomplete.
-# Direct arm headers indent their following expression; complete one-line forms do not match.
+# These patterns are recovery-only while a construct is incomplete; sibling arm
+# alignment is owned by the grammar-backed regions in indents.scm. Line regexes
+# cannot model first-versus-later `of` state.
 increase_indent_pattern = "^(?:.*\\b(do|then|else|catch)\\s*|\\s*(?:case|fn|of)\\b(?:[^-]|-[^-])*(?:[^d\\s]|[^n\\s]d|[^e\\s]nd)\\s*)(--.*)?$"
-decrease_indent_pattern = "^\\s*(elseif|else|of|catch|end)\\b"
+decrease_indent_pattern = "^\\s*(elseif|else|catch|end)\\b"

@@ -68,10 +68,13 @@ fn classify(value)
   case value
     of 1
       "one"
-    of _ do
-      let fallback = "other"
-      fallback
-    end
+    of 2
+      "two"
+    of _
+      do
+        let fallback = "other"
+        fallback
+      end
   end
 
 fn recover(value)
@@ -80,10 +83,13 @@ fn recover(value)
   catch
     of {error = message}
       message
-    of _ do
-      let fallback = "unknown"
-      fallback
-    end
+    of "retry"
+      "again"
+    of _
+      do
+        let fallback = "unknown"
+        fallback
+      end
   end
 
 ---
@@ -102,6 +108,10 @@ fn recover(value)
         (identifier)))
     (case_expression
       (identifier)
+      (case_clause
+        (integer)
+        (string
+          (string_content)))
       (case_clause
         (integer)
         (string
@@ -130,6 +140,11 @@ fn recover(value)
             (identifier)
             (identifier)))
         (identifier))
+      (catch_arm
+        (string
+          (string_content))
+        (string
+          (string_content)))
       (catch_arm
         (wildcard_pattern)
         (block_expression

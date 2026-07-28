@@ -27,6 +27,5 @@
 [
   "elseif"
   "else"
-  "of"
   "catch"
 ] @indent.branch

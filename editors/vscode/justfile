@@ -9,9 +9,9 @@ dependencies:
 
 install: dependencies
 
-# The TextMate grammar is maintained as source and has no generated artifacts.
-generate:
-    @echo "VS Code TextMate sources are already generated"
+# Rebuild the bundled parser from the shared grammar; TextMate sources are maintained directly.
+generate: dependencies
+    cd "{{component}}" && npm run generate:parser
 
 test: dependencies
     cd "{{component}}" && npm test
