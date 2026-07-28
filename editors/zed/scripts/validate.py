@@ -102,8 +102,26 @@ def check_source_extension() -> None:
         prefixes == {"case", "catch", "do", "fn", "fnexpr", "if", "ifelse", "loop"},
         "unexpected Simi snippet inventory",
     )
-    check(list(snippets["Case expression"]["body"]).count("end") == 1, "case needs one final end")
-    check(list(snippets["Protected expression"]["body"]).count("end") == 1, "protected expression needs one final end")
+    expected_case_snippet = [
+        "case $1",
+        "    of $2",
+        "        $3",
+        "    of _",
+        "        $0",
+        "end",
+    ]
+    expected_catch_snippet = [
+        "do",
+        "    $1",
+        "catch",
+        "    of $2",
+        "        $0",
+        "end",
+    ]
+    check(snippets["Case expression"]["body"] == expected_case_snippet, "invalid case snippet indentation")
+    check(snippets["Protected expression"]["body"] == expected_catch_snippet, "invalid catch snippet indentation")
+    check(list(expected_case_snippet).count("end") == 1, "case needs one final end")
+    check(list(expected_catch_snippet).count("end") == 1, "protected expression needs one final end")
     vscode_snippets = COMPONENT.parent / "vscode" / "snippets" / "simi.json"
     check(
         snippets_path.read_bytes() == vscode_snippets.read_bytes(),
@@ -131,13 +149,12 @@ def check_source_extension() -> None:
         check(increase.search(line) is not None, f"line should increase indentation: {line}")
     for line in ("fn add(a, b) do a + b end", "of _ do value end", "case n of _ do n end", 'case "x of y" of _ do 1 end'):
         check(increase.search(line) is None, f"one-line form must not indent next line: {line}")
-    for line in ("end", "of _", "catch", "elseif ready then", "else"):
+    for line in ("end", "catch", "elseif ready then", "else"):
         check(decrease.search(line) is not None, f"line should decrease indentation: {line}")
+    check(decrease.search("of _") is None, "line regex must not counteract structural of indentation")
     case_indent = 4
     provisional_indent = case_indent + (4 if increase.search("    case n") else 0)
-    aligned_of_indent = provisional_indent - (4 if decrease.search("of") else 0)
     check(provisional_indent == 8, "incomplete case must provisionally indent one level")
-    check(aligned_of_indent == case_indent, "of must realign exactly with its case")
     for legacy in ("match value with", "case value ->"):
         check(increase.search(legacy) is None, f"legacy syntax affects indentation: {legacy}")
         check(decrease.search(legacy) is None, f"legacy syntax affects indentation: {legacy}")
@@ -149,18 +166,27 @@ def check_source_extension() -> None:
         check(removed not in highlights, f"legacy highlight token remains: {removed}")
     check('"->"' in highlights, "type return arrow is not highlighted")
 
+    shared_indents = (COMPONENT.parent / "tree-sitter" / "queries" / "indents.scm").read_text(encoding="utf-8")
+    branch_capture = shared_indents.rsplit("[", 1)[-1]
+    check('"of"' not in branch_capture, "shared query must not capture of as an indent branch")
+    check("(case_expression)" in shared_indents, "shared query must indent the enclosing case")
+    check("(case_clause)" in shared_indents, "shared query must indent each case-arm body")
+    check("(catch_arm)" in shared_indents, "shared query must indent each catch-arm body")
+
     indents = (language / "indents.scm").read_text(encoding="utf-8")
-    check("(case_expression" not in indents, "case_expression double-indents sibling clauses")
+    check('(case_expression\n  "end" @end) @indent' in indents, "case_expression must own clause-level indentation")
     check("(case_clause) @indent" in indents, "each case clause must own its body indentation")
     check('(protected_expression\n  "end" @end) @indent' in indents, "protected_expression must own its final end indentation")
-    check('(catch_arm\n  "of" @end) @indent' in indents, "each catch arm must realign and indent its body")
+    check("(catch_arm) @indent" in indents, "each catch arm must own its body indentation")
+    check('"of" @end' not in indents, "of must not be an arm alignment/end capture")
     for removed_node in ("match_expression", "pattern_clause"):
         check(removed_node not in indents, f"legacy indent node remains: {removed_node}")
 
     fixture = (COMPONENT / "tests" / "fixtures" / "language.simi").read_text(encoding="utf-8")
-    check("case value" in fixture and fixture.count("\n    of ") >= 2, "fixture does not exercise repeated-of syntax")
+    check("case value" in fixture and fixture.count("\n        of ") >= 4, "fixture does not exercise repeated case arms")
     check("of _\n            nil\n" in fixture, "fixture does not exercise a direct final case arm")
-    check(sum(line.lstrip().startswith("of ") for line in fixture.splitlines()) >= 5, "fixture does not exercise repeated case and catch arms")
+    check("of 0\n            do\n" in fixture, "fixture does not exercise a direct do case-arm expression")
+    check(sum(line.lstrip().startswith("of ") for line in fixture.splitlines()) >= 7, "fixture does not exercise repeated case and catch arms")
     protected_block = [
         ("do", 0),
         ("let error = { error = \"example\" }", 4),
@@ -168,6 +194,11 @@ def check_source_extension() -> None:
         ("catch", 0),
         ("of { error = message } when message != nil", 4),
         ("classify([final])", 8),
+        ("of \"retry\"", 4),
+        ("do", 8),
+        ("let recovered = classify([final])", 12),
+        ("recovered", 12),
+        ("end", 8),
         ("of _", 4),
         ("nil", 8),
         ("end", 0),
@@ -265,6 +296,27 @@ def run_tree_sitter_checks(extension: Path, grammar: Path) -> None:
             cwd=grammar,
             check=True,
         )
+
+    shared_indent_result = subprocess.run(
+        [
+            "tree-sitter",
+            "query",
+            str(COMPONENT.parent / "tree-sitter" / "queries" / "indents.scm"),
+            str(fixture),
+        ],
+        cwd=grammar,
+        check=True,
+        text=True,
+        stdout=subprocess.PIPE,
+    )
+    check(
+        re.search(r"indent\\.branch[^\\n]*text: `of`", shared_indent_result.stdout) is None,
+        "shared query must not emit branch captures for of tokens",
+    )
+    check(
+        shared_indent_result.stdout.count("capture: indent.begin") >= 6,
+        "shared query must capture enclosing case/protected expressions and their arms",
+    )
     print("tree-sitter parse, semantic highlight, and query checks passed")
 
 

@@ -7,13 +7,14 @@
 (loop_expression
   "end" @end) @indent
 
+(case_expression
+  "end" @end) @indent
+
 (protected_expression
   "end" @end) @indent
 
 (case_clause) @indent
-
-(catch_arm
-  "of" @end) @indent
+(catch_arm) @indent
 
 (elseif_clause) @indent
 (else_clause) @indent

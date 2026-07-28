@@ -3,7 +3,12 @@ import { createRequire } from "node:module";
 import test from "node:test";
 
 const require = createRequire(import.meta.url);
-const { createDoEndTypingController } = require("../src/typing.js");
+const {
+  createDoEndTypingController,
+  createSimiParser,
+  createStructuralIndentTypingController,
+  parsedArmTarget,
+} = require("../src/typing.js");
 
 class Position {
   constructor(line, character) {
@@ -93,6 +98,7 @@ class MockEditor {
     this.options = { insertSpaces: true, tabSize: 2 };
     this.selection = new Selection(cursor, cursor);
     this.editCount = 0;
+    this.editOptions = [];
   }
 
   get selection() {
@@ -103,7 +109,7 @@ class MockEditor {
     this.selections = [selection];
   }
 
-  async edit(callback) {
+  async edit(callback, options) {
     const edits = [];
     callback({
       delete(range) {
@@ -114,6 +120,7 @@ class MockEditor {
       },
     });
     this.editCount += 1;
+    this.editOptions.push(options);
     const event = this.document.applyEdits(edits);
     await this.document.changeListener(event);
     return true;
@@ -131,7 +138,12 @@ function harness(source, cursor = undefined) {
     window: { activeTextEditor: editor },
   };
   const controller = createDoEndTypingController({ vscode });
-  document.changeListener = controller.onDidChangeTextDocument;
+  const controllers = [controller];
+  document.changeListener = async (event) => {
+    for (const current of controllers) {
+      await current.onDidChangeTextDocument(event);
+    }
+  };
 
   async function changeDocument(text) {
     const selection = editor.selection;
@@ -145,15 +157,22 @@ function harness(source, cursor = undefined) {
 
   async function changeSelection(position) {
     editor.selection = new Selection(position, position);
-    await controller.onDidChangeTextEditorSelection({
+    const event = {
       textEditor: editor,
       selections: editor.selections,
-    });
+    };
+    for (const current of controllers) {
+      await current.onDidChangeTextEditorSelection(event);
+    }
   }
 
   return {
     controller,
     document,
+    vscode,
+    addController(nextController) {
+      controllers.push(nextController);
+    },
     editor,
     changeDocument,
     changeSelection,
@@ -166,6 +185,28 @@ function harness(source, cursor = undefined) {
       editor.selection = new Selection(position, position);
     },
   };
+}
+
+async function structuralHarness(source, cursor = undefined, options = {}) {
+  const app = harness(source, cursor);
+  Object.assign(app.editor.options, options);
+  const parser = await createSimiParser(new URL("../", import.meta.url).pathname);
+  const structural = createStructuralIndentTypingController({
+    vscode: app.vscode,
+    parser,
+  });
+  app.addController(structural);
+  return { ...app, parser, structural };
+}
+
+function indentationLevels(source, tabSize = 2) {
+  return source.split("\n").map((line) => {
+    const prefix = line.match(/^[ \t]*/)[0];
+    return [...prefix].reduce(
+      (width, character) => width + (character === "\t" ? 1 : 1 / tabSize),
+      0,
+    );
+  });
 }
 
 test("Enter waits for VS Code's change-before-selection event sequence", async () => {
@@ -264,4 +305,198 @@ test("ordinary changes and untracked end text are not intercepted", async () => 
   await existingCloser.insert("e");
   assert.equal(existingCloser.document.text, "eend");
   assert.equal(existingCloser.editor.editCount, 0);
+});
+
+test("parser-backed typing indents successive direct case arms and the final end", async () => {
+  const app = await structuralHarness("case value\nof first");
+
+  await app.insert("\n");
+  await app.insert("first()");
+  await app.insert("\n");
+  await app.insert("of second");
+  await app.insert("\n");
+  await app.insert("second()");
+  await app.insert("\n");
+  await app.insert("end");
+  assert.equal(app.document.lineAt(5).text, "end", "the final end must align before another Enter");
+  await app.insert("\n");
+
+  assert.equal(app.document.text, [
+    "case value",
+    "  of first",
+    "    first()",
+    "  of second",
+    "    second()",
+    "end",
+    "",
+  ].join("\n"));
+  assert.deepEqual(indentationLevels(app.document.text), [0, 1, 2, 1, 2, 0, 0]);
+  assert.ok(
+    app.editor.editOptions.every(
+      (options) => options.undoStopBefore === false && options.undoStopAfter === false,
+    ),
+    "structural indentation edits must join the Enter undo group",
+  );
+  app.parser.delete();
+});
+
+test("parser-backed typing indents successive catch arms", async () => {
+  const app = await structuralHarness([
+    "do",
+    "  prepare()",
+    "catch",
+    "of first",
+  ].join("\n"));
+
+  await app.insert("\n");
+  await app.insert("recover_first()");
+  await app.insert("\n");
+  await app.insert("of second");
+  await app.insert("\n");
+  await app.insert("recover_second()");
+  await app.insert("\n");
+  await app.insert("end");
+  assert.equal(app.document.lineAt(7).text, "end", "the protected final end must align immediately");
+  await app.insert("\n");
+
+  assert.deepEqual(indentationLevels(app.document.text), [0, 1, 0, 1, 2, 1, 2, 0, 0]);
+  app.parser.delete();
+});
+
+test("parser-backed typing preserves the generated do shell used as a direct arm expression", async () => {
+  const app = await structuralHarness("case value\nof _ do");
+
+  await app.insert("\n");
+
+  assert.equal(app.document.text, "case value\n  of _ do\n    \n  end");
+  assert.deepEqual(app.editor.selection.active, new Position(2, 4));
+  assert.equal(app.editor.editCount, 2, "the do shell and structural indent are separate joined edits");
+  app.parser.delete();
+});
+
+test("parser-backed typing treats a multiline do block as an ordinary direct arm expression", async () => {
+  const app = await structuralHarness("case value\nof _");
+
+  await app.insert("\n");
+  await app.insert("do");
+  await app.insert("\n");
+
+  assert.equal(app.document.text, [
+    "case value",
+    "  of _",
+    "    do",
+    "      ",
+    "    end",
+  ].join("\n"));
+  assert.deepEqual(app.editor.selection.active, new Position(3, 6));
+  app.parser.delete();
+});
+
+test("parser-backed typing keeps same-line direct arms and do expressions valid", async () => {
+  for (const header of ["of first first()", "of _ do value end"]) {
+    const app = await structuralHarness(`case value\n${header}`);
+
+    await app.insert("\n");
+
+    assert.equal(app.document.text, `case value\n  ${header}\n  `);
+    app.parser.delete();
+  }
+});
+
+test("parser-backed typing uses the nearest nested case owner", async () => {
+  const app = await structuralHarness([
+    "case outer",
+    "  of _",
+    "    case inner",
+    "of first",
+  ].join("\n"));
+
+  await app.insert("\n");
+
+  assert.equal(app.document.lineAt(3).text, "      of first");
+  assert.equal(app.document.lineAt(4).text, "        ");
+  app.parser.delete();
+});
+
+test("parser-backed typing has no fixed nesting-depth completion cap", async () => {
+  const lines = [];
+  const depth = 12;
+  for (let level = 0; level < depth; level += 1) {
+    lines.push(`${"  ".repeat(level * 2)}case ${level}`);
+    if (level < depth - 1) {
+      lines.push(`${"  ".repeat(level * 2 + 1)}of _`);
+    }
+  }
+  lines.push("of target");
+  const app = await structuralHarness(lines.join("\n"));
+
+  await app.insert("\n");
+
+  assert.equal(app.document.lineAt(depth * 2 - 1).text, `${"  ".repeat(depth * 2 - 1)}of target`);
+  assert.equal(app.document.lineAt(depth * 2).text, "  ".repeat(depth * 2));
+  app.parser.delete();
+});
+
+test("parser-backed typing fails open when a parse exceeds its budget", () => {
+  const parser = {
+    resets: 0,
+    parse(_source, _oldTree, options) {
+      assert.equal(typeof options.progressCallback, "function");
+      return null;
+    },
+    reset() {
+      this.resets += 1;
+    },
+  };
+
+  assert.equal(parsedArmTarget(parser, "case value\nof _\n", 1, 16), undefined);
+  assert.equal(parser.resets, 3, "each canceled candidate parse must reset parser state");
+});
+
+test("parser-backed typing respects hard tabs and non-default tab settings", async () => {
+  const app = await structuralHarness("\tcase value\nof _", undefined, {
+    insertSpaces: false,
+    tabSize: 8,
+  });
+
+  await app.insert("\n");
+
+  assert.equal(app.document.text, "\tcase value\n\t\tof _\n\t\t\t");
+  app.parser.delete();
+});
+
+test("parser-backed typing ignores comments, strings, invalid syntax, and one-line forms", async () => {
+  for (const source of [
+    "case value\n-- of fake",
+    "case value\n\"of fake\"",
+    "case value\nof )",
+    "case value of _ do value end",
+  ]) {
+    const app = await structuralHarness(source);
+
+    await app.insert("\n");
+
+    assert.equal(app.document.text, `${source}\n`, source);
+    assert.equal(app.editor.editCount, 0, source);
+    app.parser.delete();
+  }
+});
+
+test("parser-backed typing leaves multi-cursor documents unmodified", async () => {
+  const app = await structuralHarness("case value\nof first");
+  const cursor = app.editor.selection.active;
+  app.editor.selections = [
+    new Selection(cursor, cursor),
+    new Selection(cursor, cursor),
+  ];
+
+  const event = app.document.applyEdits([{
+    range: new Range(cursor, cursor),
+    text: "\n",
+  }]);
+  await app.document.changeListener(event);
+
+  assert.equal(app.document.text, "case value\nof first\n");
+  assert.equal(app.editor.editCount, 0);
+  app.parser.delete();
 });

@@ -1,9 +1,20 @@
 "use strict";
 
-const { createDoEndTypingController } = require("./typing");
+const {
+  createDoEndTypingController,
+  createStructuralIndentTypingController,
+} = require("./typing");
 
-function createExtensionRuntime({ vscode, LanguageClient, resolveServerCommand, environment }) {
-  const typing = createDoEndTypingController({ vscode });
+function createExtensionRuntime({
+  vscode,
+  LanguageClient,
+  resolveServerCommand,
+  environment,
+  createSimiParser,
+}) {
+  const doEndTyping = createDoEndTypingController({ vscode });
+  let structuralTyping;
+  let syntaxParser;
   let active;
   let starting;
   let restartQueue = Promise.resolve();
@@ -137,10 +148,37 @@ function createExtensionRuntime({ vscode, LanguageClient, resolveServerCommand, 
   async function activate(context) {
     deactivated = false;
     extensionPath = context.extensionPath;
+    if (createSimiParser) {
+      try {
+        syntaxParser = await createSimiParser(extensionPath);
+        structuralTyping = createStructuralIndentTypingController({
+          vscode,
+          parser: syntaxParser,
+        });
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : String(error);
+        await Promise.resolve(vscode.window.showErrorMessage(
+          `Unable to load the Simi indentation parser: ${detail}`,
+        )).catch(() => undefined);
+      }
+    }
+
+    const onDidChangeTextDocument = async (event) => {
+      const doEndChange = doEndTyping.onDidChangeTextDocument(event);
+      const structuralChange = structuralTyping?.onDidChangeTextDocument(event);
+      await Promise.all([doEndChange, structuralChange]);
+    };
+    const onDidChangeTextEditorSelection = async (event) => {
+      await doEndTyping.onDidChangeTextEditorSelection(event);
+      if (structuralTyping) {
+        await structuralTyping.onDidChangeTextEditorSelection(event);
+      }
+    };
+
     context.subscriptions.push(
       vscode.commands.registerCommand("simi.restartLanguageServer", queueRestart),
-      vscode.workspace.onDidChangeTextDocument(typing.onDidChangeTextDocument),
-      vscode.window.onDidChangeTextEditorSelection(typing.onDidChangeTextEditorSelection),
+      vscode.workspace.onDidChangeTextDocument(onDidChangeTextDocument),
+      vscode.window.onDidChangeTextEditorSelection(onDidChangeTextEditorSelection),
       vscode.workspace.onDidChangeConfiguration((event) => {
         if (event.affectsConfiguration("simi.languageServer.path")) {
           return queueRestart();
@@ -153,7 +191,11 @@ function createExtensionRuntime({ vscode, LanguageClient, resolveServerCommand, 
 
   async function deactivate() {
     deactivated = true;
-    typing.clear();
+    doEndTyping.clear();
+    structuralTyping?.clear();
+    structuralTyping = undefined;
+    syntaxParser?.delete();
+    syntaxParser = undefined;
     await restartQueue;
     await stopActive();
   }

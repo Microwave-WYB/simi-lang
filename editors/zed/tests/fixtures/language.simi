@@ -26,6 +26,11 @@ fn classify(value) do
             { kind = "positive\n", value = first, rest = rest }
         of { error = message, ..details }
             { kind = "error", message = message, details = details }
+        of 0
+            do
+                let kind = "zero"
+                { kind = kind, value = value }
+            end
         of _
             nil
     end
@@ -65,6 +70,11 @@ do
 catch
     of { error = message } when message != nil
         classify([final])
+    of "retry"
+        do
+            let recovered = classify([final])
+            recovered
+        end
     of _
         nil
 end

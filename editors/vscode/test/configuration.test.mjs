@@ -42,6 +42,9 @@ test("extension manifest associates .simi files with the TextMate grammar", asyn
     ),
   );
   assert.equal(manifest.dependencies["vscode-languageclient"], "9.0.1");
+  assert.equal(manifest.dependencies["web-tree-sitter"], "0.25.10");
+  const parserWasm = await readFile(new URL("syntaxes/tree-sitter-simi.wasm", root));
+  assert.deepEqual([...parserWasm.subarray(0, 4)], [0, 97, 115, 109], "bundled parser must be WebAssembly");
   assert.equal(manifest.scripts.prepackage, "npm test");
   assert.equal(manifest.scripts.package, "vsce package");
   assert.equal(manifest.scripts.publish, "vsce publish");
@@ -122,7 +125,13 @@ test("language configuration covers comments, pairs, indentation, and folding", 
   assert.deepEqual(
     levels,
     [0, 0, 1, 0, 1, 0],
-    "each sibling of and the final end must align with case",
+    "line-regex fallback cannot retain the enclosing case contribution",
+  );
+  const structuralCaseTarget = [0, 1, 2, 1, 2, 0];
+  assert.notDeepEqual(
+    levels,
+    structuralCaseTarget,
+    "declarative indentation must not be represented as sufficient for the structural target",
   );
 
   const protectedLines = [
@@ -139,8 +148,22 @@ test("language configuration covers comments, pairs, indentation, and folding", 
   for (let index = 1; index < protectedLines.length; index += 1) {
     protectedLevels.push(nextIndent(protectedLevels[index - 1], protectedLines[index - 1], protectedLines[index]));
   }
-  assert.deepEqual(protectedLevels, [0, 1, 0, 0, 1, 0, 1, 0]);
+  assert.deepEqual(
+    protectedLevels,
+    [0, 1, 0, 0, 1, 0, 1, 0],
+    "line-regex fallback likewise cannot retain the protected-expression contribution",
+  );
+  const structuralCatchTarget = [0, 1, 0, 1, 2, 1, 2, 0];
+  assert.notDeepEqual(
+    protectedLevels,
+    structuralCatchTarget,
+    "declarative indentation must not be represented as sufficient for catch arms",
+  );
 
+  assert.match('of "text containing of"', increase);
+  assert.doesNotMatch("-- of comment", increase);
+  assert.match("of _ do", increase);
+  assert.match("    case nested", indentNext);
   assert.doesNotMatch("do operation() catch of _ value end", increase);
 
   for (const legacyLine of ["match value with", "case value ->"]) {
