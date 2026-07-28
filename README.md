@@ -138,7 +138,7 @@ pub type ScriptResult = Result<Value, Raised>;
 pub fn eval(source: &str) -> Result<ScriptResult, SimiError>;
 ```
 
-`eval` uses a fresh engine with the portable standard library. `Engine::new()` instead provides the built-in `list` and `map` prelude globals in addition to `type`, `inspect`, and `require`. Built-in `require("std/list")` and `require("std/map")` raise `module_not_found`; hosts may still explicitly register modules at those paths. For persistent module state or custom capabilities, construct an `Engine`:
+`eval` uses a fresh portable engine. `Engine::new()` and `Engine::with_stdlib()` provide the same shadowable `list`, `map`, `iter`, `number`, and `string` prelude globals, together with `type`, `inspect`, and `require`; their canonical `std/*` paths remain available through `require` and share the same cached module values. For persistent module state or custom capabilities, construct an `Engine`:
 
 ```rust
 use simi::Engine;
@@ -157,15 +157,12 @@ Hosts can register direct value modules or use `host_value!` to generate a priva
 
 ## Standard modules
 
-`Engine::new()` provides the minimum prelude:
+`Engine::new()` and `Engine::with_stdlib()` both provide the portable prelude:
 
-- built-in `list` and `map` globals
+- `list`, `map`, `iter`, `number`, and `string` globals;
+- canonical `std/list`, `std/map`, `std/iter`, `std/number`, and `std/string` paths for `require`.
 
-`Engine::with_stdlib()` additionally provides:
-
-- `std/iter`
-- `std/number`
-- `std/string`
+`Engine::builder().build()` remains an explicit bare host configuration. Use `.stdlib()` to install this portable prelude, and add `.stdio()` only when text IO is required.
 
 The CLI additionally registers the opt-in `std/io` capability. Filesystem and package module discovery are not implemented yet; embedders register modules explicitly.
 

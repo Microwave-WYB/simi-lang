@@ -27,7 +27,6 @@
 
 ```simi
 
-let iter = require("std/iter")
 let values = [1, 2]
 let source = list.iter(values)
 
@@ -44,7 +43,6 @@ list.append(values, 3)
 
 ```simi
 
-let iter = require("std/iter")
 let calls: [..any] = []
 
 let transformed =
@@ -86,7 +84,6 @@ Consumers advance the iterator they receive. `to_list` consumes all remaining va
 
 ```simi
 
-let iter = require("std/iter")
 let values = [1, 2, 3, 4]
 
 let total =
@@ -107,7 +104,6 @@ The initial accumulator supplies the stable state type for `fold`. A mixed integ
 
 ```simi
 
-let iter = require("std/iter")
 
 iter.fold(list.iter([1, 2.5]), 0.0, fn(total, value) do
     total + value
@@ -118,7 +114,6 @@ Predicates passed to `find`, `find_index`, `any`, `all`, and predicate-based `co
 
 ```simi
 
-let iter = require("std/iter")
 let source = list.iter([1, 2, 3, 4])
 
 let found = iter.find(source, fn(value) do
@@ -134,7 +129,6 @@ Iterators are single-pass: once a value has been consumed, it is not available a
 
 ```simi
 
-let iter = require("std/iter")
 let values: [..string] = ["a", "b"]
 let source = list.iter(values)
 
@@ -172,7 +166,6 @@ An `if step.done` check narrows the `else` branch to the false variant, where `s
 A custom producer is a zero-argument function returning these step maps. Wrap it with `iter.from` to obtain a public iterator:
 
 ```simi
-let iter = require("std/iter")
 
 fn countdown(start) do
     let current = start

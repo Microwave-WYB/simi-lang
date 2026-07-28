@@ -351,6 +351,9 @@ fn prelude_module(name: &str) -> Option<&'static str> {
     match name {
         "list" => Some("std/list"),
         "map" => Some("std/map"),
+        "iter" => Some("std/iter"),
+        "number" => Some("std/number"),
+        "string" => Some("std/string"),
         _ => None,
     }
 }

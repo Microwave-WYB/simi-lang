@@ -173,49 +173,54 @@ fn hidden(value) do value end
 }
 
 #[test]
-fn prelude_modules_provide_members_and_remain_shadowable() {
-    let list_source = "fn append(xs, x) do nil end { append = append }";
-    let map_source = "fn clear(entries) do nil end { clear = clear }";
-    let source = " list.append map.clear";
+fn portable_prelude_modules_provide_members_and_remain_shadowable() {
     let db = AnalysisDatabase::default();
-    let list_file = db.add_file(list_source);
-    let map_file = db.add_file(map_source);
+    let source = "list.append map.clear iter.map number.to_string string.upper";
     let file = db.add_file(source);
-    let modules = HashMap::from([
-        ("std/list".to_owned(), module_shape(&db, list_file)),
-        ("std/map".to_owned(), module_shape(&db, map_file)),
-    ]);
-    assert_eq!(imported_modules(&db, file).len(), 2);
+    let modules = [
+        (
+            "std/list",
+            "fn append(xs, x) do nil end { append = append }",
+        ),
+        ("std/map", "fn clear(entries) do nil end { clear = clear }"),
+        (
+            "std/iter",
+            "fn map(iterator, callback) do nil end { map = map }",
+        ),
+        (
+            "std/number",
+            "fn to_string(value) do nil end { to_string = to_string }",
+        ),
+        ("std/string", "fn upper(value) do nil end { upper = upper }"),
+    ]
+    .into_iter()
+    .map(|(name, source)| {
+        let module = db.add_file(source);
+        (name.to_owned(), module_shape(&db, module))
+    })
+    .collect::<HashMap<_, _>>();
+    assert_eq!(imported_modules(&db, file).len(), 5);
 
-    let append = member_at(
-        &db,
-        file,
-        &modules,
-        source,
-        source.find("append").expect("append") + 1,
-    )
-    .expect("known list member");
-    assert_eq!(append.field.name, "append");
-    assert_eq!(append.field.parameters.as_ref().unwrap(), &["xs", "x"]);
+    for member in ["append", "clear", "map", "to_string", "upper"] {
+        let field = member_at(
+            &db,
+            file,
+            &modules,
+            source,
+            source.rfind(member).expect("member") + 1,
+        )
+        .expect("known prelude member");
+        assert_eq!(field.field.name, member);
+    }
 
-    let clear = member_at(
-        &db,
-        file,
-        &modules,
-        source,
-        source.find("clear").expect("clear") + 1,
-    )
-    .expect("known map member");
-    assert_eq!(clear.field.name, "clear");
-
-    let incomplete = " list.";
+    let incomplete = "iter.";
     let incomplete_file = db.add_file(incomplete);
     let completions =
         member_completions(&db, incomplete_file, &modules, incomplete, incomplete.len());
     assert_eq!(completions.len(), 1);
-    assert_eq!(completions[0].name, "append");
+    assert_eq!(completions[0].name, "map");
 
-    let shadowed = "let list = {} list.";
+    let shadowed = "let string = {} string.";
     let shadowed_file = db.add_file(shadowed);
     assert!(member_completions(&db, shadowed_file, &modules, shadowed, shadowed.len()).is_empty());
 }

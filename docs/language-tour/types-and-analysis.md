@@ -31,8 +31,8 @@ An annotated script is still an ordinary Simi script. Removing its type syntax m
 ```simi
 let count: integer = 1
 
-fn display(value: integer | float) -> string do
-    require("std/number").to_string(value)
+fn display(value: number) -> string do
+    number.to_string(value)
 end
 
 display(count)
@@ -68,7 +68,7 @@ string
 any
 ```
 
-There is deliberately no static `number` type. Use the union `integer | float` for values accepted from either numeric runtime category.
+`number` is a built-in erased alias for `integer | float`, for values accepted from either numeric runtime category. It affects analysis only: `type(value)` still reports either `"integer"` or `"float"` at runtime.
 
 `never` is the bottom type: it describes an expression with no normal return path and disappears when unions are normalized. `any` is the explicit dynamic escape hatch; operations involving it remain valid but lose static precision. When analysis has insufficient evidence, editor presentation also falls back to `any`.
 
@@ -275,7 +275,7 @@ Analysis narrows branch-local types through:
 ```simi
 fn describe(value: integer | string) -> string do
     if type(value) == "integer" then
-        require("std/number").to_string(value)
+        number.to_string(value)
     else
         value
     end

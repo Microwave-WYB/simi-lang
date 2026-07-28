@@ -35,13 +35,13 @@ Read the relevant topic in the [language tour](../../../docs/language-tour.md) b
 
 ## Standard modules
 
-- built-in `list`: list primitives, mutation, copy, and slicing.
-- built-in `map`: map primitives and inspection.
-- `std/iter`: lazy single-pass adapters and consumers.
-- `std/number` and `std/string`: explicit conversions and scalar operations.
+- `list`: list primitives, mutation, copy, and slicing.
+- `map`: map primitives and inspection.
+- `iter`: lazy single-pass adapters and consumers.
+- `number` and `string`: explicit conversions and scalar operations.
 - `std/io`: opt-in text IO available from the CLI and engines configured with stdio.
 
-Use `require("std/...")` explicitly for registered modules; `list` and `map` are built-in globals. Filesystem/package discovery, serialization, bytes, a formatter, a REPL, runtime tuples, and script-visible command-line arguments are not implemented.
+The portable `list`, `map`, `iter`, `number`, and `string` values are globals; their canonical `std/*` paths remain available through `require`. `std/io` always requires an opt-in host capability. Filesystem/package discovery, serialization, bytes, a formatter, a REPL, runtime tuples, and script-visible command-line arguments are not implemented.
 
 ## Formatting and checks
 

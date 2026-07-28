@@ -118,6 +118,17 @@ impl Interpreter {
         }
     }
 
+    pub(crate) fn evaluate_with_prelude(
+        &mut self,
+        program: &Program,
+    ) -> RuntimeResult<ScriptResult> {
+        match self.install_prelude_modules() {
+            Ok(()) => self.evaluate(program),
+            Err(EvaluationError::Raised(raised)) => Ok(Err(raised)),
+            Err(error) => Err(error.into_runtime_error()),
+        }
+    }
+
     pub fn evaluate(&mut self, program: &Program) -> RuntimeResult<ScriptResult> {
         let globals = self.globals.clone();
         match self.evaluate_items_with_environment(&program.items, &globals) {

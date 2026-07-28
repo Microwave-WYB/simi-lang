@@ -94,10 +94,9 @@ let name = "Ada"
 "Hello, " <> name <> "!"
 ```
 
-Concatenation is strict: both operands must be strings. Convert numbers explicitly with `std/number`:
+Concatenation is strict: both operands must be strings. Convert numbers explicitly with the portable `number` module value:
 
 ```simi
-let number = require("std/number")
 "The answer is " <> number.to_string(42)
 ```
 
