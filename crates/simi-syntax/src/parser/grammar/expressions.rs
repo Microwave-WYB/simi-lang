@@ -386,7 +386,12 @@ pub(super) fn list_expr(p: &mut Parser<'_>) -> Parsed {
 pub(super) fn bytes_expr(p: &mut Parser<'_>) -> Parsed {
     let marker = p.start();
     p.bump();
-    p.expect(K::L_BRACKET, "`[` after `#`");
+    if !p.expect(K::L_BRACKET, "`[` after `#`") {
+        return Parsed {
+            marker: marker.complete(&mut p.events, K::BYTES_EXPR),
+            flavor: Flavor::Other,
+        };
+    }
     if !p.at(K::R_BRACKET) && !p.at_end() {
         loop {
             expression(p);

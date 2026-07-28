@@ -155,6 +155,29 @@ fn recovery_keeps_later_declarations_typed() {
 }
 
 #[test]
+fn malformed_bytes_literals_recover_before_later_declarations() {
+    for source in ["#\nfn later() do nil end", "#[1 fn later() do nil end"] {
+        let parse = parse_source(source);
+        assert!(
+            parse
+                .diagnostics()
+                .iter()
+                .any(|diagnostic| diagnostic.kind == DiagnosticKind::Parse),
+            "{source}: {:?}",
+            parse.diagnostics()
+        );
+        assert_eq!(parse.syntax().to_string(), source);
+
+        let root = Root::cast(parse.syntax().clone()).expect("root");
+        assert!(
+            root.statements()
+                .any(|statement| matches!(statement, Stmt::FunctionDecl(_))),
+            "{source}"
+        );
+    }
+}
+
+#[test]
 fn postfix_nil_propagation_requires_an_enclosing_block() {
     let source = "nil?";
     let parse = parse_source(source);
