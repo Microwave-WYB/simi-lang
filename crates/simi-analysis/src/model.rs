@@ -406,7 +406,7 @@ fn display_type(ty: &Type, nested: bool) -> String {
                     })
                     .collect::<Vec<_>>()
                     .join(", ");
-                format!("<{values}> ")
+                format!("<{values}>")
             };
             let rendered_parameters = callable
                 .parameters
@@ -419,12 +419,9 @@ fn display_type(ty: &Type, nested: bool) -> String {
                     value
                 })
                 .collect::<Vec<_>>();
-            let left = match callable.parameters.as_slice() {
-                [parameter] if parameter.name.is_none() => display_type(&parameter.ty, true),
-                _ => format!("({})", rendered_parameters.join(", ")),
-            };
             let mut value = format!(
-                "{constraints}{left} -> {}",
+                "fn{constraints}({}) -> {}",
+                rendered_parameters.join(", "),
                 display_type(&callable.result, false)
             );
             let orphan_inferred_effect = match callable.raised.as_ref() {
@@ -446,13 +443,14 @@ fn display_type(ty: &Type, nested: bool) -> String {
             };
             match (&*callable.raised, callable.raised_annotation) {
                 (Type::Never, RaisedAnnotation::Inferred) => {}
+                (Type::Never, _) => value.push_str(" ! never"),
                 (raised, _) if !orphan_inferred_effect => {
                     value.push_str(" ! ");
                     value.push_str(&display_type(raised, false));
                 }
                 _ => {}
             }
-            if nested { format!("({value})") } else { value }
+            value
         }
         Type::FunctionArgs(items) => format!(
             "({})",
@@ -604,10 +602,10 @@ fn pretty_function(callable: &CallableType, continuation_indent: usize, width: u
             })
             .collect::<Vec<_>>();
         if constraints.join(", ").len() + continuation_indent + 3 <= width {
-            format!("<{}> ", constraints.join(", "))
+            format!("<{}>", constraints.join(", "))
         } else {
             format!(
-                "<\n{}\n{}> ",
+                "<\n{}\n{}>",
                 constraints
                     .iter()
                     .map(|constraint| format!("{}{},", " ".repeat(indent), constraint))
@@ -624,9 +622,10 @@ fn pretty_function(callable: &CallableType, continuation_indent: usize, width: u
         continuation_indent,
         width,
     );
-    let mut value = format!("{constraints}{parameters} -> {result}");
+    let mut value = format!("fn{constraints}{parameters} -> {result}");
     match (&*callable.raised, callable.raised_annotation) {
         (Type::Never, RaisedAnnotation::Inferred) => {}
+        (Type::Never, _) => value.push_str(" ! never"),
         (raised, _) => {
             value.push_str(" ! ");
             let raised = if value.len() + raised.display().len() <= width {
@@ -812,11 +811,11 @@ mod tests {
         };
         assert_eq!(
             ty.pretty_display(40),
-            "{\n    concat: (\n        left: string,\n        right: string,\n    ) -> string ! never,\n    length: integer,\n    ..\n}"
+            "{\n    concat: fn(\n        left: string,\n        right: string,\n    ) -> string ! never,\n    length: integer,\n    ..\n}"
         );
         assert_eq!(
             ty.display(),
-            "{ concat: (left: string, right: string) -> string ! never, length: integer, .. }"
+            "{ concat: fn(left: string, right: string) -> string ! never, length: integer, .. }"
         );
     }
 
@@ -837,7 +836,7 @@ mod tests {
     }
 
     #[test]
-    fn pretty_display_preserves_generics_and_raised_contracts() {
+    fn pretty_display_preserves_generics_and_raised_effects() {
         let ty = Type::Function(Box::new(CallableType {
             constraints: vec![GenericConstraint {
                 variable: Type::Generic(0),
@@ -853,7 +852,7 @@ mod tests {
         }));
         let rendered = ty.pretty_display(40);
         assert!(rendered.contains("<"));
-        assert!(rendered.contains(" ! "));
+        assert!(rendered.contains("raises"));
         assert!(rendered.lines().all(|line| line.len() <= 40), "{rendered}");
     }
 }

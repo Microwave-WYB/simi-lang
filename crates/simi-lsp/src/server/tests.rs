@@ -598,7 +598,7 @@ fn append(xs, x) do nil end
     assert_eq!(items[0].label, "append");
     assert_eq!(
         items[0].detail.as_deref(),
-        Some("append : (xs: 'a, x: 'b) -> nil")
+        Some("append : fn(xs: 'a, x: 'b) -> nil")
     );
     assert_eq!(
         items[0].documentation,
@@ -623,7 +623,7 @@ fn append(xs, x) do nil end
     let HoverContents::Markup(markup) = hover.unwrap().contents else {
         panic!("expected markup")
     };
-    assert_simi_hover(&markup, "(xs: 'a, x: 'b) -> nil\n\nAppend one value.");
+    assert_simi_hover(&markup, "fn(xs: 'a, x: 'b) -> nil\n\nAppend one value.");
 }
 
 #[test]
@@ -640,12 +640,12 @@ fn println(value) do nil end
         (
             "std/io",
             0,
-            "{ println: (value: 'a) -> nil }\n\nStandard output operations.\nValues are flushed automatically.",
+            "{ println: fn(value: 'a) -> nil }\n\nStandard output operations.\nValues are flushed automatically.",
         ),
         (
             "stdout",
             1,
-            "{ println: (value: 'a) -> nil }\n\nStandard output operations.\nValues are flushed automatically.",
+            "{ println: fn(value: 'a) -> nil }\n\nStandard output operations.\nValues are flushed automatically.",
         ),
     ] {
         let mut backend = Backend::with_module_sources([("std/io", module)]);
@@ -675,7 +675,7 @@ fn direct_module_fields_and_aliases_keep_signatures_and_docs() {
 --- Print one value.
 fn println(value) do nil end
 --- Inspect text through a native alias.
-let inspect: string -> string ! never = host.inspect
+let inspect: fn(string) -> string ! never = host.inspect
 { println = println, identity = fn(value) do value end, inspect = inspect }
 "#;
 
@@ -684,25 +684,25 @@ let inspect: string -> string ! never = host.inspect
             "require(\"std/io\").println",
             "println",
             0,
-            "(value: 'a) -> nil\n\nPrint one value.",
+            "fn(value: 'a) -> nil\n\nPrint one value.",
         ),
         (
             "let print = require(\"std/io\").println print",
             "print",
             2,
-            "(value: 'a) -> nil\n\nPrint one value.",
+            "fn(value: 'a) -> nil\n\nPrint one value.",
         ),
         (
             "require(\"std/io\").identity",
             "identity",
             0,
-            "(value: 'a) -> 'a",
+            "fn(value: 'a) -> 'a",
         ),
         (
             "require(\"std/io\").inspect",
             "inspect",
             0,
-            "string -> string ! never\n\nInspect text through a native alias.",
+            "fn(string) -> string ! never\n\nInspect text through a native alias.",
         ),
     ] {
         let mut backend = Backend::with_module_sources([("std/io", module)]);
@@ -748,7 +748,10 @@ let inspect: string -> string ! never = host.inspect
         .find(|item| item.label == "print")
         .expect("print completion");
     assert_eq!(print.kind, Some(CompletionItemKind::FUNCTION));
-    assert_eq!(print.detail.as_deref(), Some("print : (value: 'a) -> nil"));
+    assert_eq!(
+        print.detail.as_deref(),
+        Some("print : fn(value: 'a) -> nil")
+    );
     assert_eq!(
         print.documentation,
         Some(Documentation::String("Print one value.".to_owned()))
@@ -756,7 +759,7 @@ let inspect: string -> string ! never = host.inspect
 
     let typed_source = concat!(
         "let inspect = require(\"std/io\").inspect\n",
-        "let callback: integer -> integer = fn(value) do value end\n",
+        "let callback: fn(integer) -> integer = fn(value) do value end\n",
     );
     let mut backend = Backend::with_module_sources([("std/io", module)]);
     open(&mut backend, typed_source);
@@ -808,7 +811,7 @@ let inspect: string -> string ! never = host.inspect
     assert_eq!(inspect.kind, Some(CompletionItemKind::FUNCTION));
     assert_eq!(
         inspect.detail.as_deref(),
-        Some("inspect : string -> string ! never")
+        Some("inspect : fn(string) -> string ! never")
     );
     assert_eq!(
         inspect.documentation,
@@ -845,7 +848,7 @@ fn run(value) do value end
     let HoverContents::Markup(markup) = hover.unwrap().contents else {
         panic!("expected markup")
     };
-    assert_simi_hover(&markup, "(value: 'a) -> 'a\n\nRun a nested operation.");
+    assert_simi_hover(&markup, "fn(value: 'a) -> 'a\n\nRun a nested operation.");
 
     let incomplete = "let emoji = \"😀\"\nlet module = require(\"nested\")\nmodule.nested.";
     let mut backend = Backend::with_module_sources([("nested", module)]);
@@ -866,7 +869,10 @@ fn run(value) do value end
         panic!("expected completion array")
     };
     assert_eq!(items.len(), 1);
-    assert_eq!(items[0].detail.as_deref(), Some("run : (value: 'a) -> 'a"));
+    assert_eq!(
+        items[0].detail.as_deref(),
+        Some("run : fn(value: 'a) -> 'a")
+    );
 }
 
 #[test]
@@ -892,7 +898,7 @@ fn real_annotated_stdlib_facade_supplies_generic_member_types() {
     };
     assert_simi_hover(
         &markup,
-        "<'a, 'b, 'c, 'd> (\n    iterator: () -> { done: true, .. } | { done: false, value: 'a, .. } ! 'c,\n    transform: 'a -> 'b ! 'd,\n) -> () -> { done: true, .. } | { done: false, value: 'b, .. } ! 'c | 'd ! never",
+        "fn<'a, 'b, 'c, 'd>(\n    iterator: fn() -> { done: true, .. } | { done: false, value: 'a, .. } ! 'c,\n    transform: fn('a) -> 'b ! 'd,\n) -> fn() -> { done: true, .. } | { done: false, value: 'b, .. } ! 'c | 'd ! never",
     );
 }
 
@@ -922,7 +928,11 @@ fn iterator_pair_adapter_hover_preserves_item_and_source_effect_types() {
         "{}",
         markup.value
     );
-    assert!(markup.value.contains("! 'b ! never"), "{}", markup.value);
+    assert!(
+        markup.value.contains("raises 'b ! never"),
+        "{}",
+        markup.value
+    );
     assert!(
         markup
             .value
@@ -957,7 +967,7 @@ fn portable_prelude_members_have_the_same_lsp_metadata_as_require() {
     };
     assert_simi_hover(
         &markup,
-        "(value: integer | float) -> string ! never\n\nRender a number using canonical Simi notation.",
+        "fn(value: integer | float) -> string ! never\n\nRender a number using canonical Simi notation.",
     );
 }
 
@@ -1030,7 +1040,7 @@ fn contextual_singleton_function_bodies_and_mutations_publish_exact_hovers() {
     let source = r#"fn direct_true() -> true true
 fn direct_int() -> 42 42
 let anon = fn() -> false false
-let annotated: () -> true ! never = fn() true
+let annotated: fn() -> true ! never = fn() true
 let tagged: {done: true} = {done = true}
 tagged.done = true
 let indexed: {done: true} = {done = true}
@@ -1052,10 +1062,10 @@ index_union["code"] = 41
     );
 
     for (name, expected) in [
-        ("direct_true", "() -> true"),
-        ("direct_int", "() -> 42"),
-        ("anon", "() -> false"),
-        ("annotated", "() -> true ! never"),
+        ("direct_true", "fn() -> true"),
+        ("direct_int", "fn() -> 42"),
+        ("anon", "fn() -> false"),
+        ("annotated", "fn() -> true ! never"),
         ("tagged", "{ done: true }"),
         ("indexed", "{ done: true }"),
         ("field_union", "{ code: 41 | 42 }"),
@@ -1127,7 +1137,7 @@ end
     for (name, expected) in [
         (
             "next",
-            "<'a, 'b> (\n    iterator: () -> { done: true, .. } | { done: false, value: 'a, .. } ! 'b,\n) -> { done: true, .. } | { done: false, value: 'a, .. } ! 'b",
+            "fn<'a, 'b>(\n    iterator: fn() -> { done: true, .. } | { done: false, value: 'a, .. } ! 'b,\n) -> { done: true, .. } | { done: false, value: 'a, .. } ! 'b",
         ),
         ("exhausted_entry", "any"),
         (
@@ -1228,7 +1238,7 @@ let keys =
 
 #[test]
 fn generic_callback_without_element_evidence_has_exact_empty_list_hovers() {
-    let source = r#"fn bridge<'state>(initial: 'state, callback: 'state -> 'state) -> 'state do
+    let source = r#"fn bridge<'state>(initial: 'state, callback: fn('state) -> 'state) -> 'state do
     callback(initial)
 end
 let inferred = bridge([], fn(xs) do xs end)
@@ -1294,7 +1304,7 @@ fn partition(ns: [..number], pivot: number)
         (
             "partition",
             0,
-            "(\n    ns: [..(integer | float)],\n    pivot: integer | float,\n) -> { lower: [..(integer | float)], higher: [..(integer | float)] }",
+            "fn(\n    ns: [..(integer | float)],\n    pivot: integer | float,\n) -> { lower: [..(integer | float)], higher: [..(integer | float)] }",
         ),
         (
             "acc",
@@ -1377,7 +1387,7 @@ nums[3]"#;
     };
     assert_simi_hover(
         &markup,
-        "(xs: [..'a], value: 'b) -> nil ! never\n\nAppend a value to a list.",
+        "fn(xs: [..'a], value: 'b) -> nil ! never\n\nAppend a value to a list.",
     );
 }
 
@@ -1545,9 +1555,9 @@ let found = indexed[key]
     let mut backend = Backend::new();
     open(&mut backend, source);
     for (name, expected) in [
-        ("process", "(n: integer | float) -> integer | float"),
-        ("increment", "(n: integer) -> integer"),
-        ("identity", "(value: 'a) -> 'a"),
+        ("process", "fn(n: integer | float) -> integer | float"),
+        ("increment", "fn(n: integer) -> integer"),
+        ("identity", "fn(value: 'a) -> 'a"),
         ("selected", "\"text\""),
         ("values", "[integer, \"two\"]"),
         ("found", "integer | nil"),
@@ -1582,7 +1592,7 @@ fn raised_contract_diagnostics_and_hover_use_protocol_types() {
         .find(|diagnostic| {
             diagnostic.code == Some(NumberOrString::String("type_mismatch".to_owned()))
         })
-        .expect("! never contract diagnostic");
+        .expect("noraise contract diagnostic");
     assert_eq!(contract.range.start.line, 1);
     assert_eq!(contract.range.start.character, 0);
     assert!(contract.message.contains("never"));
@@ -1602,11 +1612,11 @@ fn raised_contract_diagnostics_and_hover_use_protocol_types() {
     let HoverContents::Markup(markup) = hover.expect("bad hover").contents else {
         panic!("expected markup")
     };
-    assert_simi_hover(&markup, "() -> integer ! never");
+    assert_simi_hover(&markup, "fn() -> integer ! never");
 }
 
 #[test]
-fn varied_direct_bang_never_bodies_are_clean_and_have_exact_hover_types() {
+fn varied_direct_noraise_bodies_are_clean_and_have_exact_hover_types() {
     let source = concat!(
         "fn identity(value: integer) -> integer ! never value\n",
         "fn text() -> string ! never \"ok\"\n",
@@ -1624,12 +1634,12 @@ fn varied_direct_bang_never_bodies_are_clean_and_have_exact_hover_types() {
     );
 
     for (name, expected) in [
-        ("identity", "(value: integer) -> integer ! never"),
-        ("text", "() -> string ! never"),
-        ("values", "() -> [..integer] ! never"),
-        ("nothing", "() -> nil ! never"),
-        ("grouped", "() -> integer ! never"),
-        ("append", "(xs: [..integer]) -> nil ! never"),
+        ("identity", "fn(value: integer) -> integer ! never"),
+        ("text", "fn() -> string ! never"),
+        ("values", "fn() -> [..integer] ! never"),
+        ("nothing", "fn() -> nil ! never"),
+        ("grouped", "fn() -> integer ! never"),
+        ("append", "fn(xs: [..integer]) -> nil ! never"),
     ] {
         let hover: Option<Hover> = serde_json::from_value(
             request(
@@ -1864,7 +1874,7 @@ fn real_string_module_hover_wraps_export_map_at_presentation_width() {
     };
     assert_simi_hover(
         &markup,
-        "{\n    to_number: (text: string) -> integer | float | nil ! never,\n    concat: (left: string, right: string) -> string ! never,\n    length: (text: string) -> integer ! never,\n    slice: (text: string, start: integer, stop: integer) -> string ! never,\n    contains: (text: string, needle: string) -> boolean ! never,\n    starts_with: (text: string, prefix: string) -> boolean ! never,\n    ends_with: (text: string, suffix: string) -> boolean ! never,\n    split: (text: string, separator: string) -> [..string] ! never,\n    trim: (text: string) -> string ! never,\n    lower: (text: string) -> string ! never,\n    upper: (text: string) -> string ! never,\n}\n\nUnicode-aware string inspection, transformation, and conversion.",
+        "{\n    to_number: fn(text: string) -> integer | float | nil ! never,\n    concat: fn(left: string, right: string) -> string ! never,\n    length: fn(text: string) -> integer ! never,\n    slice: fn(text: string, start: integer, stop: integer) -> string ! never,\n    contains: fn(text: string, needle: string) -> boolean ! never,\n    starts_with: fn(text: string, prefix: string) -> boolean ! never,\n    ends_with: fn(text: string, suffix: string) -> boolean ! never,\n    split: fn(text: string, separator: string) -> [..string] ! never,\n    trim: fn(text: string) -> string ! never,\n    lower: fn(text: string) -> string ! never,\n    upper: fn(text: string) -> string ! never,\n}\n\nUnicode-aware string inspection, transformation, and conversion.",
     );
 }
 
@@ -2077,5 +2087,5 @@ fn append(xs, x) do nil end
     let HoverContents::Markup(markup) = hover.expect("require alias hover").contents else {
         panic!("expected markup")
     };
-    assert_simi_hover(&markup, "(xs: 'a, x: 'b) -> nil\n\nAppend one value.");
+    assert_simi_hover(&markup, "fn(xs: 'a, x: 'b) -> nil\n\nAppend one value.");
 }

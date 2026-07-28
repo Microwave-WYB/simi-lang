@@ -6,7 +6,7 @@ use simi_analysis::{
 };
 
 #[test]
-fn iterator_facades_export_item_and_raised_contract_relationships() {
+fn iterator_facades_export_item_and_effect_relationships() {
     let db = AnalysisDatabase::default();
     let list_file = db.add_file(include_str!("../../../stdlib/list.simi"));
     let map_file = db.add_file(include_str!("../../../stdlib/map.simi"));
@@ -30,63 +30,63 @@ fn iterator_facades_export_item_and_raised_contract_relationships() {
     };
     assert_eq!(
         displayed(&list, "iter"),
-        "<'a> (xs: [..'a]) -> () -> { done: true, .. } | { done: false, value: 'a, .. } ! never ! never"
+        "fn<'a>(xs: [..'a]) -> fn() -> { done: true, .. } | { done: false, value: 'a, .. } ! never ! never"
     );
     assert_eq!(
         displayed(&map, "iter"),
-        "(entries: { .. }) -> () -> { done: true, .. } | { done: false, value: { key: boolean | integer | float | string, value: any, .. }, .. } ! never ! never"
+        "fn(entries: { .. }) -> fn() -> { done: true, .. } | { done: false, value: { key: boolean | integer | float | string, value: any, .. }, .. } ! never ! never"
     );
     assert_eq!(
         displayed(&iter, "to_list"),
-        "<'a, 'b> (iterator: () -> { done: true, .. } | { done: false, value: 'a, .. } ! 'b) -> [..'a] ! 'b"
+        "fn<'a, 'b>(iterator: fn() -> { done: true, .. } | { done: false, value: 'a, .. } ! 'b) -> [..'a] ! 'b"
     );
     assert_eq!(
         displayed(&iter, "find"),
-        "<'a, 'b, 'c> (iterator: () -> { done: true, .. } | { done: false, value: 'a, .. } ! 'b, predicate: 'a -> boolean ! 'c) -> 'a | nil ! 'b | 'c"
+        "fn<'a, 'b, 'c>(iterator: fn() -> { done: true, .. } | { done: false, value: 'a, .. } ! 'b, predicate: fn('a) -> boolean ! 'c) -> 'a | nil ! 'b | 'c"
     );
 
     let break_control = displayed(&iter, "break");
     assert!(
-        break_control.contains("(value: 'a) -> { control: \"break\", value: 'a, .. } ! never"),
+        break_control.contains("fn(value: 'a) -> { control: \"break\", value: 'a, .. } ! never"),
         "{break_control}"
     );
     let continue_control = displayed(&iter, "continue");
     assert!(
         continue_control
-            .contains("(value: 'a) -> { control: \"continue\", value: 'a, .. } ! never"),
+            .contains("fn(value: 'a) -> { control: \"continue\", value: 'a, .. } ! never"),
         "{continue_control}"
     );
 
     let each_while = displayed(&iter, "each_while");
     assert!(each_while.contains("control: \"continue\""), "{each_while}");
     assert!(each_while.contains("control: \"break\""), "{each_while}");
-    assert!(each_while.contains("-> 'c | nil !"), "{each_while}");
+    assert!(each_while.contains("-> 'c | nil raises"), "{each_while}");
 
     let fold_while = displayed(&iter, "fold_while");
     assert!(fold_while.contains("initial: 'a"), "{fold_while}");
     assert!(fold_while.contains("control: \"continue\""), "{fold_while}");
     assert!(fold_while.contains("control: \"break\""), "{fold_while}");
-    assert!(fold_while.contains("-> 'a | 'c !"), "{fold_while}");
+    assert!(fold_while.contains("-> 'a | 'c raises"), "{fold_while}");
 
     let repeat_with = displayed(&iter, "repeat_with");
     assert!(
-        repeat_with.contains("producer: () -> 'a ! 'b"),
+        repeat_with.contains("producer: fn() -> 'a ! 'b"),
         "{repeat_with}"
     );
     assert!(repeat_with.contains("value: 'a"), "{repeat_with}");
-    assert!(repeat_with.ends_with("! 'b ! never"), "{repeat_with}");
+    assert!(repeat_with.ends_with("raises 'b ! never"), "{repeat_with}");
 
     let empty = displayed(&iter, "empty");
-    assert!(empty.starts_with("<'a> () -> () ->"), "{empty}");
-    assert!(empty.ends_with("! never ! never"), "{empty}");
+    assert!(empty.starts_with("fn<'a>() -> fn() ->"), "{empty}");
+    assert!(empty.ends_with("noraise ! never"), "{empty}");
 
     let once = displayed(&iter, "once");
-    assert!(once.contains("(value: 'a)"), "{once}");
+    assert!(once.contains("fn(value: 'a)"), "{once}");
     assert!(once.contains("value: 'a"), "{once}");
 
     let repeat = displayed(&iter, "repeat");
     assert!(repeat.contains("value: 'a, count: integer"), "{repeat}");
-    assert!(repeat.ends_with("! never ! never"), "{repeat}");
+    assert!(repeat.ends_with("noraise ! never"), "{repeat}");
 
     let range = displayed(&iter, "range");
     assert!(range.contains("start: integer, stop: integer"), "{range}");
@@ -94,18 +94,18 @@ fn iterator_facades_export_item_and_raised_contract_relationships() {
 
     let take = displayed(&iter, "take");
     assert!(take.contains("count: integer"), "{take}");
-    assert!(take.ends_with("! 'b ! never"), "{take}");
+    assert!(take.ends_with("raises 'b ! never"), "{take}");
     let drop = displayed(&iter, "drop");
     assert!(drop.contains("count: integer"), "{drop}");
-    assert!(drop.ends_with("! 'b ! never"), "{drop}");
+    assert!(drop.ends_with("raises 'b ! never"), "{drop}");
 
     let enumerate = displayed(&iter, "enumerate");
     assert!(enumerate.contains("value: [integer, 'a]"), "{enumerate}");
-    assert!(enumerate.ends_with("! 'b ! never"), "{enumerate}");
+    assert!(enumerate.ends_with("raises 'b ! never"), "{enumerate}");
 
     let zip = displayed(&iter, "zip");
     assert!(zip.contains("value: ['a, 'b]"), "{zip}");
-    assert!(zip.ends_with("! 'c | 'd ! never"), "{zip}");
+    assert!(zip.ends_with("raises 'c | 'd ! never"), "{zip}");
 
     let zip_longest = displayed(&iter, "zip_longest");
     assert!(zip_longest.contains("fill: 'c"), "{zip_longest}");
@@ -113,16 +113,19 @@ fn iterator_facades_export_item_and_raised_contract_relationships() {
         zip_longest.contains("value: ['a | 'c, 'b | 'c]"),
         "{zip_longest}"
     );
-    assert!(zip_longest.ends_with("! 'd | 'e ! never"), "{zip_longest}");
+    assert!(
+        zip_longest.ends_with("raises 'd | 'e ! never"),
+        "{zip_longest}"
+    );
 }
 
 #[test]
 fn documented_typed_native_aliases_keep_callable_module_metadata() {
     let source = r#"
 --- Return the text length.
-let length: string -> integer = host.length
+let length: fn(string) -> integer = host.length
 --- Append a value.
-let append: ([..'a], 'b) -> nil = host.append
+let append: fn([..'a], 'b) -> nil = host.append
 {length = length, append = append}
 "#;
     let db = AnalysisDatabase::default();
@@ -151,7 +154,7 @@ let append: ([..'a], 'b) -> nil = host.append
 #[test]
 fn function_type_aliases_preserve_callable_alias_metadata() {
     let source = r#"
-alias appender<'a, 'b> = ([..'a], 'b) -> nil
+alias appender<'a, 'b> = fn([..'a], 'b) -> nil
 let append: appender<integer, string> = host.append
 let wrapped: ((appender<integer, string>)) = host.append
 {append = append, wrapped = wrapped}
@@ -413,7 +416,7 @@ fn println(value) do nil end
 #[test]
 fn annotated_exported_functions_carry_types_and_trailing_aliases_are_erased() {
     let source = r#"
-fn map(xs: [..'a], transform: 'a -> 'b) -> [..'b] do [] end
+fn map(xs: [..'a], transform: fn('a) -> 'b) -> [..'b] do [] end
 { map = map, identity = fn(value) do value end }
 alias option<'a> = 'a | nil
 "#;
@@ -427,7 +430,7 @@ alias option<'a> = 'a | nil
         .unwrap();
     assert_eq!(
         map.ty.as_ref().map(simi_analysis::Type::display).as_deref(),
-        Some("(xs: [..'a], transform: 'a -> 'b) -> [..'b]")
+        Some("fn(xs: [..'a], transform: fn('a) -> 'b) -> [..'b]")
     );
     let identity = shape
         .fields
@@ -440,7 +443,7 @@ alias option<'a> = 'a | nil
             .as_ref()
             .map(simi_analysis::Type::display)
             .as_deref(),
-        Some("(value: 'a) -> 'a")
+        Some("fn(value: 'a) -> 'a")
     );
 }
 

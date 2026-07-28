@@ -7,32 +7,52 @@ pub(super) fn type_expr(p: &mut Parser<'_>) {
 }
 pub(super) fn type_function(p: &mut Parser<'_>) {
     let marker = p.start();
-    let generic = if p.at(K::LESS) {
-        callable_type_param_list(p);
-        true
+    if p.bump_if(K::FN_KW) {
+        if p.at(K::LESS) {
+            callable_type_param_list(p);
+        }
+        if p.at(K::L_PAREN) {
+            type_paren(p, true);
+        } else {
+            p.error("expected `(` after `fn` in callable type".to_owned());
+        }
+        if p.bump_if(K::ARROW) {
+            if at_type_start(p) {
+                type_function(p);
+                effect_annotation(p);
+            } else {
+                p.error("expected a result type after `->`".to_owned());
+            }
+        } else {
+            p.error("expected `->` and a result type in callable type".to_owned());
+        }
     } else {
-        false
-    };
-    type_union(p);
-    if p.bump_if(K::ARROW) {
-        type_function(p);
-        effect_annotation(p);
-    } else if generic {
-        p.error("a callable generic header must be followed by `->` and a result type".to_owned());
+        let generic = if p.at(K::LESS) {
+            callable_type_param_list(p);
+            true
+        } else {
+            false
+        };
+        type_union(p);
+        if p.bump_if(K::ARROW) {
+            p.error("legacy callable types are not supported; use `fn(...) -> result`".to_owned());
+            if at_type_start(p) {
+                type_function(p);
+                effect_annotation(p);
+            } else {
+                p.error("expected a result type after `->`".to_owned());
+            }
+        } else if generic {
+            p.error(
+                "legacy callable generic headers are not supported; use `fn<'a>(...) -> result`"
+                    .to_owned(),
+            );
+        }
     }
     marker.complete(&mut p.events, K::TYPE_FUNCTION);
 }
 pub(super) fn effect_annotation(p: &mut Parser<'_>) {
-    if at_legacy_effect(p) {
-        let takes_type = p.current_text() == Some("raises");
-        p.error("legacy callable contracts are removed; use `! RaisedType`".to_owned());
-        p.bump();
-        if takes_type && at_type_start(p) {
-            type_expr(p);
-        }
-        return;
-    }
-    if !at_effect(p) {
+    if !p.at(K::BANG) {
         return;
     }
     let marker = p.start();
@@ -43,12 +63,6 @@ pub(super) fn effect_annotation(p: &mut Parser<'_>) {
         p.error("expected a raised type after `!`".to_owned());
     }
     marker.complete(&mut p.events, K::EFFECT_ANNOTATION);
-}
-pub(super) fn at_effect(p: &Parser<'_>) -> bool {
-    p.at(K::BANG)
-}
-pub(super) fn at_legacy_effect(p: &Parser<'_>) -> bool {
-    p.at(K::IDENT) && matches!(p.current_text(), Some("raises" | "noraise"))
 }
 pub(super) fn at_type_start(p: &Parser<'_>) -> bool {
     matches!(
@@ -63,6 +77,7 @@ pub(super) fn at_type_start(p: &Parser<'_>) -> bool {
             | K::FLOAT
             | K::MINUS
             | K::IDENT
+            | K::FN_KW
             | K::L_PAREN
             | K::L_BRACKET
             | K::L_BRACE
@@ -98,35 +113,7 @@ pub(super) fn type_primary(p: &mut Parser<'_>) {
         }
         marker.complete(&mut p.events, K::TYPE_NAME);
     } else if p.at(K::L_PAREN) {
-        let marker = p.start();
-        p.bump();
-        let mut label_spans = Vec::new();
-        if !p.at(K::R_PAREN) {
-            loop {
-                let parameter = p.start();
-                if p.at(K::IDENT) && p.nth(1) == K::COLON {
-                    label_spans.push(p.current_span());
-                    p.bump();
-                    p.bump();
-                }
-                type_expr(p);
-                parameter.complete(&mut p.events, K::TYPE_FUNCTION_PARAM);
-                if !p.bump_if(K::COMMA) || p.at(K::R_PAREN) {
-                    break;
-                }
-            }
-        }
-        p.expect(K::R_PAREN, "`)` after type");
-        if !label_spans.is_empty() && !p.at(K::ARROW) {
-            for at in label_spans {
-                p.error_at(
-                    at,
-                    "a labeled parameter list must be followed by `->` and a result type"
-                        .to_owned(),
-                );
-            }
-        }
-        marker.complete(&mut p.events, K::TYPE_PAREN);
+        type_paren(p, false);
     } else if p.at(K::L_BRACKET) {
         type_list(p);
     } else if p.at(K::L_BRACE) {
@@ -142,6 +129,32 @@ pub(super) fn type_primary(p: &mut Parser<'_>) {
         }
         marker.complete(&mut p.events, K::ERROR);
     }
+}
+fn type_paren(p: &mut Parser<'_>, callable_parameters: bool) {
+    let marker = p.start();
+    p.bump();
+    if !p.at(K::R_PAREN) {
+        loop {
+            let parameter = p.start();
+            if p.at(K::IDENT) && p.nth(1) == K::COLON {
+                if !callable_parameters {
+                    p.error_at(
+                        p.current_span(),
+                        "parameter labels are only valid in `fn(...)` callable types".to_owned(),
+                    );
+                }
+                p.bump();
+                p.bump();
+            }
+            type_expr(p);
+            parameter.complete(&mut p.events, K::TYPE_FUNCTION_PARAM);
+            if !p.bump_if(K::COMMA) || p.at(K::R_PAREN) {
+                break;
+            }
+        }
+    }
+    p.expect(K::R_PAREN, "`)` after type");
+    marker.complete(&mut p.events, K::TYPE_PAREN);
 }
 pub(super) fn type_variable(p: &mut Parser<'_>) {
     let marker = p.start();
