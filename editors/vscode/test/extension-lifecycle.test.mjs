@@ -14,12 +14,14 @@ function deferred() {
   return { promise, resolve };
 }
 
-function harness(plans) {
+function harness(plans, createSimiParser = undefined) {
   const commands = new Map();
   const errors = [];
   const clients = [];
   const watchers = [];
   let configurationListener;
+  let textDocumentListener;
+  let textEditorSelectionListener;
   let configuredPath = "";
 
   const vscode = {
@@ -32,6 +34,10 @@ function harness(plans) {
     window: {
       async showErrorMessage(message) {
         errors.push(message);
+      },
+      onDidChangeTextEditorSelection(callback) {
+        textEditorSelectionListener = callback;
+        return { dispose() {} };
       },
     },
     workspace: {
@@ -57,6 +63,10 @@ function harness(plans) {
       },
       onDidChangeConfiguration(callback) {
         configurationListener = callback;
+        return { dispose() {} };
+      },
+      onDidChangeTextDocument(callback) {
+        textDocumentListener = callback;
         return { dispose() {} };
       },
     },
@@ -97,6 +107,7 @@ function harness(plans) {
     LanguageClient,
     resolveServerCommand,
     environment: { SIMI_PATH: "/env/simi" },
+    createSimiParser,
   });
   const context = { extensionPath: "/extension", subscriptions: [] };
 
@@ -118,8 +129,52 @@ function harness(plans) {
         },
       });
     },
+    get textDocumentListener() {
+      return textDocumentListener;
+    },
+    get textEditorSelectionListener() {
+      return textEditorSelectionListener;
+    },
   };
 }
+
+test("activation loads structural indentation without intercepting global typing", async () => {
+  const parser = { deleted: false, delete() { this.deleted = true; } };
+  const paths = [];
+  const app = harness([{}], async (extensionPath) => {
+    paths.push(extensionPath);
+    return parser;
+  });
+
+  await app.activate(app.context);
+
+  assert.deepEqual(paths, ["/extension"]);
+  assert.equal(app.commands.has("type"), false, "VSCodeVim-compatible typing must stay event-based");
+  assert.equal(typeof app.textDocumentListener, "function");
+  assert.equal(typeof app.textEditorSelectionListener, "function");
+  assert.equal(app.context.subscriptions.length, 4);
+
+  await app.deactivate();
+  assert.equal(parser.deleted, true);
+});
+
+test("activation falls back safely when the structural parser cannot load", async () => {
+  const app = harness([{}], async () => {
+    throw new Error("invalid parser module");
+  });
+
+  await app.activate(app.context);
+
+  assert.equal(app.clients.length, 1);
+  assert.equal(app.clients[0].starts, 1, "parser failure must not disable the language server");
+  assert.deepEqual(app.errors, [
+    "Unable to load the Simi indentation parser: invalid parser module",
+  ]);
+  assert.equal(typeof app.textDocumentListener, "function");
+  assert.equal(typeof app.textEditorSelectionListener, "function");
+
+  await app.deactivate();
+});
 
 test("activation remains successful when simi lsp cannot start", async () => {
   const app = harness([{ startError: "ENOENT" }]);
@@ -135,7 +190,9 @@ test("activation remains successful when simi lsp cannot start", async () => {
   assert.match(app.errors[0], /simi\.languageServer\.path/);
   assert.ok(app.commands.has("simi.restartLanguageServer"));
   assert.equal(app.commands.has("type"), false, "activation must not intercept global typing");
-  assert.equal(app.context.subscriptions.length, 2);
+  assert.equal(typeof app.textDocumentListener, "function");
+  assert.equal(typeof app.textEditorSelectionListener, "function");
+  assert.equal(app.context.subscriptions.length, 4);
 });
 
 test("successful activation uses language client defaults and deactivates cleanly", async () => {

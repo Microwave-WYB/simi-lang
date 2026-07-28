@@ -7,7 +7,8 @@ Visual Studio Code language support for Simi, including:
 - TextMate-based syntax highlighting that remains available when the server is absent;
 - `--` line comments;
 - bracket matching, single-character auto-closing and surrounding pairs;
-- construct-specific snippets with empty numeric tab stops for blocks, functions, and case expressions;
+- parser-backed structural indentation for sibling `case`/`catch` arms;
+- explicit snippets with empty numeric tab stops for blocks, functions, and case expressions;
 - indentation-based folding plus `-- region` / `-- endregion` folding markers.
 
 The extension is a workspace extension. Platform-specific VSIX release assets bundle the matching `simi` language server. Ordinary source-development packages created with `just package` contain no native binary and fall back to an externally installed server.
@@ -76,9 +77,11 @@ CONFIRM_PUBLISH=1 VSCE_PAT=... just publish
 
 The guard prevents an accidental `just publish`; `npm run publish` is the underlying unguarded `vsce publish` command for release automation that deliberately invokes it.
 
-## TextMate grammar
+## TextMate and Tree-sitter boundary
 
-VS Code's stable declarative grammar contribution point consumes TextMate grammars, not Tree-sitter parsers. Consequently, this extension uses `syntaxes/simi.tmLanguage.json` for highlighting. The declarative indentation rules are the recovery fallback for incomplete input.
+VS Code's stable declarative grammar contribution point consumes TextMate grammars, not Tree-sitter parsers. Consequently, this extension uses `syntaxes/simi.tmLanguage.json` for highlighting. VS Code also has no indentation-provider contribution point: line regexes alone cannot align sibling `=>` arms while preserving the enclosing final `end` level.
+
+For exact structural Enter handling, the extension directly loads the bundled shared Simi Tree-sitter WASM parser through `web-tree-sitter`. This parser is controller implementation detail, not an unsupported grammar contribution: highlighting remains TextMate-based and the declarative indentation rules remain an incomplete-source fallback. The shared `editors/tree-sitter` grammar is authoritative for both the VS Code controller and Zed indentation.
 
 Canonical pattern dispatch is `case expression of pattern [when guard] => expression ... end`. A zero- or multi-item arm result is an ordinary `do ... end` expression. Protected expressions use `do ... catch of`, followed by `pattern [when guard] => expression` arms and one final `end`. Standalone `do ... end`, postfix `?`, and nil-aware `?>` pipelines share the normal block/operator highlighting. Removed legacy spellings such as repeated `of` arms, `match ... with`, thin case arrows, `try`, and `catch pattern do` are not highlighted as control syntax.
 
@@ -94,8 +97,12 @@ The extension provides three explicit snippets with empty numeric tab stops. Sni
 | `fn`   | `fn ${1}(${2}) ${3}` |
 | `do`   | `do` / `    ${1}` / `end` |
 
-Typing `fn`, `do`, or `case` followed by Enter never inserts closing `end` or other text automatically. The extension observes no document-change or editor-selection events for automatic block shell injection or structural indentation, which preserves compatibility with VSCodeVim and other keyboard-driven editors.
+Typing `fn`, `do`, or `case` followed by Enter never inserts closing `end` or other shell text automatically. The indentation controller only corrects whitespace for parsed case/catch arms and their enclosing final `end`; it does not expand standalone keywords, create blocks, add closers, or replace text. It observes VS Code's document-change-before-selection event sequence and never registers or overrides the global `type` command, preserving compatibility with VSCodeVim and other keyboard-driven editors.
+
+## Structural indentation
+
+With a single cursor, Enter after a line-ending `=>` arm header uses its parsed `case_clause` or `catch_arm` owner to place the arm at one indent and its direct body at two indents. Completing the enclosing final `end` restores the owner's indentation. Guarded parser completion handles an arm awaiting its body or enclosing ends; malformed syntax, comments, strings, selections, and multi-cursor entry remain untouched. Tabs and the configured indentation unit are preserved.
 
 ## Validation
 
-The tests load the highlighting grammar through the same `vscode-textmate` and Oniguruma libraries used by VS Code and assert scopes against a representative Simi fixture. Lifecycle tests confirm the language server, restart command, and configuration wiring. These focused Node tests are not an Extension Development Host test.
+The tests load the highlighting grammar through the same `vscode-textmate` and Oniguruma libraries used by VS Code and assert scopes against a representative Simi fixture. They also load the packaged Tree-sitter WASM parser and exercise exact case/catch levels, nested ownership, comments, strings, tabs, multi-cursor input, no automatic shell insertion, and VSCodeVim-compatible event handling. These focused Node tests are not an Extension Development Host test.
