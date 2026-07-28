@@ -76,7 +76,7 @@ fn delimiters_belong_to_their_typed_nodes() {
 }
 
 #[test]
-fn ! never_functions_accept_varied_direct_expression_bodies() {
+fn bang_never_functions_accept_varied_direct_expression_bodies() {
     let source = concat!(
         "fn identity(value: integer) -> integer ! never value\n",
         "fn text() -> string ! never \"ok\"\n",
@@ -339,7 +339,7 @@ fn legacy_callable_types_are_rejected() {
     assert!(effect.diagnostics().iter().any(|diagnostic| {
         diagnostic
             .message
-            .contains("effect requires `->` and a result type")
+            .contains("raised-error contract requires `->` and a result type")
     }));
 }
 

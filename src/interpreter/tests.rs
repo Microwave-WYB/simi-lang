@@ -41,7 +41,7 @@ fn expect_raised(source: &str) -> Raised {
 fn callable_generic_constraints_labels_and_effects_are_runtime_erased() {
     let value = evaluate(
         r#"
-fn apply<'a: | integer | string>(callback: (input: 'a) -> 'a ! string, value: 'a) -> 'a ! never do
+fn apply<'a: | integer | string>(callback: fn(input: 'a) -> 'a ! string, value: 'a) -> 'a ! never do
     callback(value)
 end
 let identity = fn<'a: any>(value: 'a) -> 'a ! string do value end

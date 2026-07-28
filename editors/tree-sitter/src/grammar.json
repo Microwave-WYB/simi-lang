@@ -1735,6 +1735,10 @@
             "type": "SEQ",
             "members": [
               {
+                "type": "STRING",
+                "value": "fn"
+              },
+              {
                 "type": "CHOICE",
                 "members": [
                   {
@@ -1751,10 +1755,6 @@
                 ]
               },
               {
-                "type": "STRING",
-                "value": "fn"
-              },
-              {
                 "type": "FIELD",
                 "name": "parameters",
                 "content": {
@@ -1763,40 +1763,27 @@
                 }
               },
               {
+                "type": "STRING",
+                "value": "->"
+              },
+              {
+                "type": "FIELD",
+                "name": "result",
+                "content": {
+                  "type": "SYMBOL",
+                  "name": "_type"
+                }
+              },
+              {
                 "type": "CHOICE",
                 "members": [
                   {
-                    "type": "SEQ",
-                    "members": [
-                      {
-                        "type": "STRING",
-                        "value": "->"
-                      },
-                      {
-                        "type": "FIELD",
-                        "name": "result",
-                        "content": {
-                          "type": "SYMBOL",
-                          "name": "_type"
-                        }
-                      },
-                      {
-                        "type": "CHOICE",
-                        "members": [
-                          {
-                            "type": "FIELD",
-                            "name": "effect",
-                            "content": {
-                              "type": "SYMBOL",
-                              "name": "effect_annotation"
-                            }
-                          },
-                          {
-                            "type": "BLANK"
-                          }
-                        ]
-                      }
-                    ]
+                    "type": "FIELD",
+                    "name": "effect",
+                    "content": {
+                      "type": "SYMBOL",
+                      "name": "effect_annotation"
+                    }
                   },
                   {
                     "type": "BLANK"
@@ -1806,54 +1793,8 @@
             ]
           },
           {
-            "type": "SEQ",
-            "members": [
-              {
-                "type": "SYMBOL",
-                "name": "union_type"
-              },
-              {
-                "type": "CHOICE",
-                "members": [
-                  {
-                    "type": "SEQ",
-                    "members": [
-                      {
-                        "type": "STRING",
-                        "value": "->"
-                      },
-                      {
-                        "type": "FIELD",
-                        "name": "result",
-                        "content": {
-                          "type": "SYMBOL",
-                          "name": "_type"
-                        }
-                      },
-                      {
-                        "type": "CHOICE",
-                        "members": [
-                          {
-                            "type": "FIELD",
-                            "name": "effect",
-                            "content": {
-                              "type": "SYMBOL",
-                              "name": "effect_annotation"
-                            }
-                          },
-                          {
-                            "type": "BLANK"
-                          }
-                        ]
-                      }
-                    ]
-                  },
-                  {
-                    "type": "BLANK"
-                  }
-                ]
-              }
-            ]
+            "type": "SYMBOL",
+            "name": "union_type"
           }
         ]
       }

@@ -57,6 +57,15 @@ fn assert_simi_hover(markup: &MarkupContent, expected: &str) {
     assert_eq!(markup.value, formatted);
 }
 
+fn assert_simi_hover_raw(markup: &MarkupContent) -> String {
+    assert_eq!(markup.kind, MarkupKind::Markdown);
+    let value = &markup.value;
+    let start = value.find("```simi\n").unwrap();
+    let body_start = start + "```simi\n".len();
+    let end = value[body_start..].find("\n```").unwrap();
+    value[body_start..body_start + end].to_owned()
+}
+
 fn text_position(source: &str, needle: &str, occurrence: usize) -> Position {
     let offset = source
         .match_indices(needle)
@@ -928,11 +937,7 @@ fn iterator_pair_adapter_hover_preserves_item_and_source_effect_types() {
         "{}",
         markup.value
     );
-    assert!(
-        markup.value.contains("raises 'b ! never"),
-        "{}",
-        markup.value
-    );
+    assert!(markup.value.contains("! 'b ! never"), "{}", markup.value);
     assert!(
         markup
             .value
@@ -1592,7 +1597,7 @@ fn raised_contract_diagnostics_and_hover_use_protocol_types() {
         .find(|diagnostic| {
             diagnostic.code == Some(NumberOrString::String("type_mismatch".to_owned()))
         })
-        .expect("noraise contract diagnostic");
+        .expect("! never contract diagnostic");
     assert_eq!(contract.range.start.line, 1);
     assert_eq!(contract.range.start.character, 0);
     assert!(contract.message.contains("never"));
@@ -1616,7 +1621,50 @@ fn raised_contract_diagnostics_and_hover_use_protocol_types() {
 }
 
 #[test]
-fn varied_direct_noraise_bodies_are_clean_and_have_exact_hover_types() {
+fn callable_or_nil_hover_roundtrips_through_annotation() {
+    let source = r#"
+fn nullable(flag: boolean) do
+    if flag then fn(value: integer) do value end end
+end
+"#;
+    let mut backend = Backend::new();
+    let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
+    assert!(
+        diagnostics.diagnostics.is_empty(),
+        "{:?}",
+        diagnostics.diagnostics,
+    );
+    let hover: Option<Hover> = serde_json::from_value(
+        request(
+            &mut backend,
+            HoverRequest::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": text_position(source, "nullable", 0),
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let HoverContents::Markup(markup) = hover.expect("hover").contents else {
+        panic!("expected markup")
+    };
+    let displayed = assert_simi_hover_raw(&markup);
+    assert_eq!(
+        displayed,
+        "fn(flag: boolean) -> (fn(value: integer) -> integer) | nil"
+    );
+    // Round-trip: reusing the hover text as an annotation must parse.
+    let parse = simi_syntax::parse_source(&format!("let _: {displayed} = nil"));
+    assert!(
+        parse.diagnostics().is_empty(),
+        "round-trip parse failed for '{displayed}': {:?}",
+        parse.diagnostics()
+    );
+}
+
+#[test]
+fn varied_direct_bang_never_bodies_are_clean_and_have_exact_hover_types() {
     let source = concat!(
         "fn identity(value: integer) -> integer ! never value\n",
         "fn text() -> string ! never \"ok\"\n",

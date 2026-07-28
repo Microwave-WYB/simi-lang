@@ -3,7 +3,7 @@ Callable generics, constraints, labels, effects, and leading unions
 ==================
 
 fn identity<'a: | integer | string>(value: 'a) -> 'a ! never do value end
-let mapper: <'a, 'error: { error: string, .. }> fn(value: 'a) -> 'a ! 'error = nil
+let mapper: fn<'a, 'error: { error: string, .. }>(value: 'a) -> 'a ! 'error = nil
 let callback: fn(input: | integer | string, state: [..integer]) -> nil = nil
 let anonymous = fn<'a: any>(value: 'a) -> 'a ! string do value end
 
@@ -32,7 +32,11 @@ let anonymous = fn<'a: any>(value: 'a) -> 'a ! string do value end
       (callable_type
         (union_type
           (type_variable))))
-    (effect_annotation)
+    (effect_annotation
+      (callable_type
+        (union_type
+          (named_type
+            (identifier)))))
     (block_expression
       (block
         (identifier))))
@@ -166,7 +170,7 @@ let nearest: fn(integer) -> fn(string) -> boolean ! string = nil
 Effect tail on outer arrow
 ==================
 
-let outer: fn(integer) -> fn(string) -> boolean ! string = nil
+let outer: fn(integer) -> (fn(string) -> boolean) ! string = nil
 
 ---
 
@@ -182,21 +186,24 @@ let outer: fn(integer) -> fn(string) -> boolean ! string = nil
                 (named_type
                   (identifier))))))
         (callable_type
-          (callable_type_params
-            (callable_type_parameter
+          (union_type
+            (parenthesized_type
               (callable_type
-                (union_type
-                  (named_type
-                    (identifier))))))
+                (callable_type_params
+                  (callable_type_parameter
+                    (callable_type
+                      (union_type
+                        (named_type
+                          (identifier))))))
+                (callable_type
+                  (union_type
+                    (named_type
+                      (identifier))))))))
+        (effect_annotation
           (callable_type
             (union_type
               (named_type
-                (identifier))))
-          (effect_annotation
-            (callable_type
-              (union_type
-                (named_type
-                  (identifier))))))))
+                (identifier)))))))
     (nil)))
 
 ==================

@@ -55,7 +55,7 @@ same spelling.
 
 ## Functions and generics
 
-Function types use arrows:
+Callable types use explicit `fn(parameters) -> result` syntax:
 
 ```simi
 fn(integer) -> integer
@@ -64,8 +64,7 @@ fn() -> integer
 fn(integer) -> fn(string) -> boolean
 ```
 
-Arrows associate to the right. Parentheses distinguish fixed parameter lists
-from a single parameter.
+Callable parameter lists always use parentheses. Results may themselves be callable types, so nesting remains explicit and right-associative. Legacy bare arrow forms such as `integer -> integer` are rejected.
 
 Generic variables begin with an apostrophe. Alias parameters are explicit, and
 type application uses angle brackets:
@@ -110,7 +109,7 @@ fn(string) -> integer ! {error: "invalid_input", ..}
 fn(string) -> integer ! never
 ```
 
-Omitting an effect clause asks the analyzer to infer it. `raises E` declares and checks an upper bound; `noraise` is canonical sugar for `raises never`. Raised effects may use the callable's generics and propagate through callbacks. Hard diagnostics and postfix `?` are outside this channel. In chained shorthand, an effect tail belongs to the nearest right-hand arrow; use parentheses to put an effect on an outer callable.
+Omitting a raised-error contract asks the analyzer to infer it. `! E` declares and checks an upper bound; `! never` forbids language raises. Raised-error contracts may use the callable's generics and propagate through callbacks. Hard diagnostics and postfix `?` are outside this channel. In nested callable types, a raised-error contract belongs to the callable immediately before it.
 
 ## Unions and literal types
 

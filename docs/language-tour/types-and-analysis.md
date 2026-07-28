@@ -9,7 +9,7 @@
   - [The erasure contract](#the-erasure-contract)
   - [Primitive types and unions](#primitive-types-and-unions)
   - [Function types and generics](#function-types-and-generics)
-  - [Callable bounds and raised effects](#callable-bounds-and-raised-effects)
+  - [Callable bounds and raised-error contracts](#callable-bounds-and-raised-error-contracts)
   - [Structural list types](#structural-list-types)
   - [Structural map types](#structural-map-types)
   - [Flow analysis and narrowing](#flow-analysis-and-narrowing)
@@ -89,7 +89,7 @@ Direct named map fields are the narrow Boolean inference exception: `{done = fal
 
 ## Function types and generics
 
-Function types use arrows:
+Callable types use explicit `fn(parameters) -> result` syntax:
 
 ```simi
 alias transform = fn(integer) -> integer
@@ -103,7 +103,7 @@ end
 double(21)
 ```
 
-Arrows associate to the right, so `fn(integer) -> fn(string) -> boolean` means a function taking an integer and returning a function from string to Boolean. Parentheses distinguish a fixed parameter list from one parameter.
+Callable parameter lists always use parentheses. `fn(integer) -> fn(string) -> boolean` means a function taking an integer and returning a function from string to Boolean. Legacy bare arrow forms are rejected.
 
 Generic variables begin with an apostrophe. Alias parameters are declared explicitly and applied with angle brackets:
 
@@ -134,7 +134,7 @@ end)
 
 Callers do not supply explicit generic arguments. Syntax such as `identity<string>(value)` is outside the initial design. Aliases are transparent: expanding one creates neither a nominal type nor a new runtime value category.
 
-## Callable bounds and raised effects
+## Callable bounds and raised-error contracts
 
 An explicit callable header may bound generic variables with ordinary Simi types:
 
@@ -177,7 +177,7 @@ end
 recover()
 ```
 
-Omitting the clause infers the effect. `raises E` declares an upper bound, and `noraise` means `raises never`. Effect variables propagate through callback signatures, while hard diagnostics and postfix `?` remain outside the raised channel. An effect after a chained arrow belongs to the nearest right-hand callable; parentheses select an outer callable explicitly.
+Omitting the contract infers the raised type. `! E` declares an upper bound, and `! never` forbids language raises. Raised-type variables propagate through callback signatures, while hard diagnostics and postfix `?` remain outside the raised channel. In nested callable types, a raised-error contract belongs to the callable immediately before it.
 
 ## Structural list types
 

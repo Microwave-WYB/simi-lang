@@ -52,7 +52,16 @@ pub(super) fn type_function(p: &mut Parser<'_>) {
     marker.complete(&mut p.events, K::TYPE_FUNCTION);
 }
 pub(super) fn effect_annotation(p: &mut Parser<'_>) {
-    if !p.at(K::BANG) {
+    if at_legacy_effect(p) {
+        let takes_type = p.current_text() == Some("raises");
+        p.error("legacy callable contracts are removed; use `! RaisedType`".to_owned());
+        p.bump();
+        if takes_type && at_type_start(p) {
+            type_expr(p);
+        }
+        return;
+    }
+    if !at_effect(p) {
         return;
     }
     let marker = p.start();
@@ -63,6 +72,12 @@ pub(super) fn effect_annotation(p: &mut Parser<'_>) {
         p.error("expected a raised type after `!`".to_owned());
     }
     marker.complete(&mut p.events, K::EFFECT_ANNOTATION);
+}
+pub(super) fn at_effect(p: &Parser<'_>) -> bool {
+    p.at(K::BANG)
+}
+pub(super) fn at_legacy_effect(p: &Parser<'_>) -> bool {
+    p.at(K::IDENT) && matches!(p.current_text(), Some("raises" | "noraise"))
 }
 pub(super) fn at_type_start(p: &Parser<'_>) -> bool {
     matches!(

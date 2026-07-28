@@ -296,23 +296,14 @@ module.exports = grammar({
 
     callable_type: ($) => prec.right(choice(
       seq(
-        optional(field("type_parameters", $.callable_type_parameters)),
         "fn",
+        optional(field("type_parameters", $.callable_type_parameters)),
         field("parameters", $.callable_type_params),
-        optional(seq(
-          "->",
-          field("result", $._type),
-          optional(field("effect", $.effect_annotation)),
-        )),
+        "->",
+        field("result", $._type),
+        optional(field("effect", $.effect_annotation)),
       ),
-      seq(
-        $.union_type,
-        optional(seq(
-          "->",
-          field("result", $._type),
-          optional(field("effect", $.effect_annotation)),
-        )),
-      ),
+      $.union_type,
     )),
 
     callable_type_params: ($) => seq(

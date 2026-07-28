@@ -2032,6 +2032,47 @@ let result = add(1, 2)
 }
 
 #[test]
+fn callable_or_nil_display_parenthesizes_function() {
+    let source = r#"
+fn nullable(flag: boolean) do
+    if flag then fn(value: integer) do value end end
+end
+"#;
+    let (inference, resolution) = inferred(source);
+    let ty = type_of(&inference, &resolution, "nullable");
+    let compact = ty.display();
+    assert_eq!(
+        compact,
+        "fn(flag: boolean) -> (fn(value: integer) -> integer) | nil"
+    );
+    let pretty = ty.pretty_display(80);
+    assert!(
+        pretty.contains("(fn(value: integer) -> integer)"),
+        "wide pretty must include parenthesized callable, got {pretty:?}"
+    );
+    assert!(
+        pretty.ends_with("| nil"),
+        "wide pretty ends with union nil tail, got {pretty:?}"
+    );
+}
+
+#[test]
+fn callable_union_displays_roundtrippable_parenthesized_callable() {
+    let source = r#"
+fn choose(flag: boolean, callback: fn(integer) -> integer) do
+    if flag then callback else fn(value: integer) do value end end
+end
+"#;
+    let (inference, resolution) = inferred(source);
+    let ty = type_of(&inference, &resolution, "choose");
+    let compact = ty.display();
+    assert_eq!(
+        compact,
+        "fn(flag: boolean, callback: fn(integer) -> integer) -> fn(integer) -> integer"
+    );
+}
+
+#[test]
 fn require_and_raised_callbacks_propagate_effects_with_raised_path_mutation() {
     let source = r#"
 fn load(name: string) do require(name) end
@@ -2116,7 +2157,7 @@ end
 }
 
 #[test]
-fn varied_direct_bodies_honor_noraise_without_suppressing_raises() {
+fn varied_direct_bodies_honor_bang_never_without_suppressing_raises() {
     let source = r#"
 fn identity(value: integer) -> integer ! never value
 fn text() -> string ! never "ok"

@@ -9,8 +9,8 @@ let option = 40
 let deliberately_wrong: integer = "still dynamic"
 let erased_number: number = "also dynamic"
 fn identity(value: 'a) -> 'a do value end
-let add: (integer, integer) -> integer = fn(left: integer, right: integer) -> integer do left + right end
-let mutator: ([..integer], string) -> nil = fn(values, value) do nil end
+let add: fn(integer, integer) -> integer = fn(left: integer, right: integer) -> integer do left + right end
+let mutator: fn([..integer], string) -> nil = fn(values, value) do nil end
 let exact: pair<integer, string> = [1, "one"]
 let many: [..integer] = [2, 3]
 let record: { name: string, .. } = { name = "Simi", enabled = true }

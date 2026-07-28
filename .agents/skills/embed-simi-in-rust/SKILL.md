@@ -63,7 +63,7 @@ For map-shaped hosts, construct the complete map with `host_value!` or `ModuleBu
 - The macro `name` prefixes native rendering and diagnostics; it is not a field in the generated map.
 - Duplicate registrations are last-wins. Map entries with `nil` are absent.
 
-Prefer a direct typed alias in the Simi facade when it adds only erased metadata. Label parameters and declare `noraise` or `raises E` explicitly when the host contract is known; omission asks analysis to infer from an opaque host value and therefore remains conservative:
+Prefer a direct typed alias in the Simi facade when it adds only erased metadata. Label parameters and declare `! never` or `! E` explicitly when the host contract is known; omission asks analysis to infer from an opaque host value and therefore remains conservative:
 
 ```simi
 let append: fn(xs: [..'a], value: 'b) -> nil ! never = host.append
@@ -75,7 +75,7 @@ Use a Simi wrapper only when it deliberately adds Simi behavior. The final facad
 
 Source modules evaluate lazily and cache their result once per engine, including `nil`. Failed loads may be retried; circular loads raise a structural `circular_module_dependency` value. Missing modules raise `module_not_found`.
 
-Source spans do not carry source identities. When ! cross source-module domains, function names are retained but origins and frame spans are remapped to the caller's public boundary. Do not expose private facade spans as though they belonged to the caller's source.
+Source spans do not carry source identities. When raises cross source-module domains, function names are retained but origins and frame spans are remapped to the caller's public boundary. Do not expose private facade spans as though they belonged to the caller's source.
 
 ## Verification
 

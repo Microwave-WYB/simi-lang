@@ -450,7 +450,7 @@ fn display_type(ty: &Type, nested: bool) -> String {
                 }
                 _ => {}
             }
-            value
+            if nested { format!("({value})") } else { value }
         }
         Type::FunctionArgs(items) => format!(
             "({})",
@@ -852,7 +852,7 @@ mod tests {
         }));
         let rendered = ty.pretty_display(40);
         assert!(rendered.contains("<"));
-        assert!(rendered.contains("raises"));
+        assert!(rendered.contains("!"));
         assert!(rendered.lines().all(|line| line.len() <= 40), "{rendered}");
     }
 }
