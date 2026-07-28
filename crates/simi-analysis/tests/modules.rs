@@ -75,6 +75,48 @@ fn iterator_facades_export_item_and_effect_relationships() {
     );
     assert!(repeat_with.contains("value: 'a"), "{repeat_with}");
     assert!(repeat_with.ends_with("raises 'b noraise"), "{repeat_with}");
+
+    let empty = displayed(&iter, "empty");
+    assert!(empty.starts_with("<'a> () -> () ->"), "{empty}");
+    assert!(empty.ends_with("noraise noraise"), "{empty}");
+
+    let once = displayed(&iter, "once");
+    assert!(once.contains("(value: 'a)"), "{once}");
+    assert!(once.contains("value: 'a"), "{once}");
+
+    let repeat = displayed(&iter, "repeat");
+    assert!(repeat.contains("value: 'a, count: integer"), "{repeat}");
+    assert!(repeat.ends_with("noraise noraise"), "{repeat}");
+
+    let range = displayed(&iter, "range");
+    assert!(range.contains("start: integer, stop: integer"), "{range}");
+    assert!(range.contains("value: integer"), "{range}");
+
+    let take = displayed(&iter, "take");
+    assert!(take.contains("count: integer"), "{take}");
+    assert!(take.ends_with("raises 'b noraise"), "{take}");
+    let drop = displayed(&iter, "drop");
+    assert!(drop.contains("count: integer"), "{drop}");
+    assert!(drop.ends_with("raises 'b noraise"), "{drop}");
+
+    let enumerate = displayed(&iter, "enumerate");
+    assert!(enumerate.contains("value: [integer, 'a]"), "{enumerate}");
+    assert!(enumerate.ends_with("raises 'b noraise"), "{enumerate}");
+
+    let zip = displayed(&iter, "zip");
+    assert!(zip.contains("value: ['a, 'b]"), "{zip}");
+    assert!(zip.ends_with("raises 'c | 'd noraise"), "{zip}");
+
+    let zip_longest = displayed(&iter, "zip_longest");
+    assert!(zip_longest.contains("fill: 'c"), "{zip_longest}");
+    assert!(
+        zip_longest.contains("value: ['a | 'c, 'b | 'c]"),
+        "{zip_longest}"
+    );
+    assert!(
+        zip_longest.ends_with("raises 'd | 'e noraise"),
+        "{zip_longest}"
+    );
 }
 
 #[test]

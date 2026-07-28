@@ -56,13 +56,15 @@ let final = iter.fold_while(iter.repeat_with(fn() do 1 end), 0, fn(state, _) do
     if state < 2 or state <= -1 then iter.continue(state + 1)
     else iter.break(state) end
 end)
+let ranged_pairs = iter.zip_longest(iter.range(0, 2), iter.once(final), nil)
+let indexed_pairs = iter.enumerate(iter.take(iter.drop(ranged_pairs, 0), 2))
 
 do
     let error = { error = "example" }
     raise error
 catch of
     { error = message } when message != nil =>
-        classify([final])
+        classify([final, indexed_pairs])
     "retry" =>
         do
             let recovered = classify([final])

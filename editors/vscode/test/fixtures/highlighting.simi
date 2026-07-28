@@ -35,6 +35,8 @@ let optional = do mapped? end
 let final = iter.fold_while(iter.repeat_with(fn() do 1 end), 0, fn(state, _) do
     if state > 1 then iter.break(state) else iter.continue(state + 1) end
 end)
+let ranged_pairs = iter.enumerate(iter.zip_longest(iter.range(0, 2), iter.once(final), nil))
+let sliced_pairs = iter.take(iter.drop(ranged_pairs, 0), 2)
 let bad_escape = "\q"
 let concatenated = "Simi" <> " language"
 let integer_check = type(threshold) == "integer"

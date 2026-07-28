@@ -200,7 +200,7 @@ def check_source_extension() -> None:
         ("raise error", 4),
         ("catch of", 0),
         ("{ error = message } when message != nil =>", 4),
-        ("classify([final])", 8),
+        ("classify([final, indexed_pairs])", 8),
         ("\"retry\" =>", 4),
         ("do", 8),
         ("let recovered = classify([final])", 12),

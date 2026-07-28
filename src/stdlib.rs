@@ -44,6 +44,34 @@ pub fn iter() -> Module {
     };
     let host = Module::builder("std/iter")
         .value(
+            "typed_iterator",
+            intrinsic("typed_iterator", 1, IteratorIntrinsic::TypedIterator),
+        )
+        .value(
+            "validate_count",
+            intrinsic("validate_count", 1, IteratorIntrinsic::ValidateCount),
+        )
+        .value(
+            "validate_range",
+            intrinsic("validate_range", 2, IteratorIntrinsic::ValidateRange),
+        )
+        .value(
+            "drop_next",
+            intrinsic("drop_next", 2, IteratorIntrinsic::DropNext),
+        )
+        .value(
+            "enumerate_next",
+            intrinsic("enumerate_next", 2, IteratorIntrinsic::EnumerateNext),
+        )
+        .value(
+            "zip_next",
+            intrinsic("zip_next", 2, IteratorIntrinsic::ZipNext),
+        )
+        .value(
+            "zip_longest_next",
+            intrinsic("zip_longest_next", 5, IteratorIntrinsic::ZipLongestNext),
+        )
+        .value(
             "filter_next",
             intrinsic("filter_next", 2, IteratorIntrinsic::FilterNext),
         )
