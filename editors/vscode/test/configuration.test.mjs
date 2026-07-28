@@ -42,10 +42,6 @@ test("extension manifest associates .simi files with the TextMate grammar", asyn
     ),
   );
   assert.equal(manifest.dependencies["vscode-languageclient"], "9.0.1");
-  assert.equal(manifest.dependencies["web-tree-sitter"], "0.25.10");
-  const parserWasm = await readFile(new URL("syntaxes/tree-sitter-simi.wasm", root));
-  assert.deepEqual([...parserWasm.subarray(0, 4)], [0, 97, 115, 109], "bundled parser must be WebAssembly");
-  assert.equal(manifest.scripts.prepackage, "npm test");
   assert.equal(manifest.scripts.package, "vsce package");
   assert.equal(manifest.scripts.publish, "vsce publish");
 });
@@ -175,42 +171,38 @@ test("language configuration covers comments, pairs, indentation, and folding", 
   }
 });
 
-test("control-flow snippets use construct-specific final ends", async () => {
+test("control-flow snippets use empty numeric tab stops without defaults", async () => {
   const snippets = await json("snippets/simi.json");
   const byPrefix = Object.fromEntries(
     Object.values(snippets).map((snippet) => [snippet.prefix, snippet]),
   );
 
   assert.deepEqual(Object.keys(byPrefix).sort(), [
-    "case", "catch", "do", "fn", "fnexpr", "if", "ifelse",
+    "case", "do", "fn",
   ]);
   assert.deepEqual(byPrefix.case.body, [
-    "case $1 of",
-    "    $2 =>",
-    "        $3",
-    "    _ =>",
-    "        $0",
+    "case ${1} of",
+    "    ${2}",
     "end",
   ]);
   assert.equal(byPrefix.case.body.filter((line) => line === "end").length, 1);
-  assert.deepEqual(byPrefix.catch.body, [
+  assert.deepEqual(byPrefix.fn.body, [
+    "fn ${1}(${2}) ${3}",
+  ]);
+  assert.deepEqual(byPrefix.do.body, [
     "do",
-    "    $1",
-    "catch of",
-    "    $2 =>",
-    "        $0",
+    "    ${1}",
     "end",
   ]);
-  assert.equal(byPrefix.catch.body.filter((line) => line === "end").length, 1);
-  assert.ok(!byPrefix.of, "case clauses must not insert their own end");
 
   for (const snippet of Object.values(snippets)) {
-    if (!["fn", "fnexpr"].includes(snippet.prefix)) {
-      assert.equal(snippet.body.at(-1), "end", `${snippet.prefix} must own one final end`);
-    }
     assert.ok(
       snippet.body.every((line) => !/\$\{\d+:[^}]+\}/.test(line)),
-      `${snippet.prefix} must use blank tab stops rather than visible placeholder defaults`,
+      `${snippet.prefix} must use blank tab stops without visible placeholder defaults`,
+    );
+    assert.ok(
+      snippet.body.every((line) => !/\$0/.test(line)),
+      `${snippet.prefix} must use numeric-only tab stops without $0`,
     );
     assert.equal(typeof snippet.description, "string");
   }

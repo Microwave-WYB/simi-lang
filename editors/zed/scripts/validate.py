@@ -99,29 +99,29 @@ def check_source_extension() -> None:
     snippets = json.loads(snippets_path.read_text(encoding="utf-8"))
     prefixes = {snippet["prefix"] for snippet in snippets.values()}
     check(
-        prefixes == {"case", "catch", "do", "fn", "fnexpr", "if", "ifelse"},
+        prefixes == {"case", "do", "fn"},
         "unexpected Simi snippet inventory",
     )
     expected_case_snippet = [
-        "case $1 of",
-        "    $2 =>",
-        "        $3",
-        "    _ =>",
-        "        $0",
+        "case ${1} of",
+        "    ${2}",
         "end",
     ]
-    expected_catch_snippet = [
+    expected_fn_snippet = [
+        "fn ${1}(${2}) ${3}",
+    ]
+    expected_do_snippet = [
         "do",
-        "    $1",
-        "catch of",
-        "    $2 =>",
-        "        $0",
+        "    ${1}",
         "end",
     ]
-    check(snippets["Case expression"]["body"] == expected_case_snippet, "invalid case snippet indentation")
-    check(snippets["Protected expression"]["body"] == expected_catch_snippet, "invalid catch snippet indentation")
-    check(list(expected_case_snippet).count("end") == 1, "case needs one final end")
-    check(list(expected_catch_snippet).count("end") == 1, "protected expression needs one final end")
+    check(snippets["Case expression"]["body"] == expected_case_snippet, "invalid case snippet body")
+    check(snippets["Named function"]["body"] == expected_fn_snippet, "invalid fn snippet body")
+    check(snippets["Standalone block"]["body"] == expected_do_snippet, "invalid do snippet body")
+    for snippet in snippets.values():
+        flat = "\n".join(snippet["body"])
+        check("$0" not in flat, f"{snippet['prefix']} must not use $0")
+        check("${0" not in flat, f"{snippet['prefix']} must use numeric-only tab stops")
     vscode_snippets = COMPONENT.parent / "vscode" / "snippets" / "simi.json"
     check(
         snippets_path.read_bytes() == vscode_snippets.read_bytes(),
