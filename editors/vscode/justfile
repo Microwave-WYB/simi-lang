@@ -21,10 +21,10 @@ package: dependencies
     rm -rf "{{component}}/bin"
     cd "{{component}}" && npm run package
 
-# Release automation stages the matching native server before invoking this recipe.
+# Release automation stages the matching native server and packages the validated committed parser.
 package-bundled: dependencies
     test -f "{{component}}/bin/simi" || test -f "{{component}}/bin/simi.exe"
-    cd "{{component}}" && npm run package
+    cd "{{component}}" && npm run package:release
 
 # Build, bundle, and install the language server from the current checkout.
 install-local: dependencies

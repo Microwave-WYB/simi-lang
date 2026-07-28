@@ -77,9 +77,11 @@
   "scripts": {
     "generate:parser": "node scripts/generate-parser.mjs",
     "check:generated-parser": "node scripts/check-generated-parser.mjs",
+    "check:release-parser": "node scripts/check-release-parser.mjs",
     "test": "npm run check:generated-parser && node --test test/*.test.mjs",
     "prepackage": "npm test",
     "package": "vsce package",
+    "package:release": "npm run check:release-parser && vsce package",
     "publish": "vsce publish"
   },
   "dependencies": {

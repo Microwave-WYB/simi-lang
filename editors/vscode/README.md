@@ -65,9 +65,9 @@ Reload any open Simi editor after installing or updating the VSIX. To develop in
 
 ## Packaging and publication
 
-`npm run package` validates the grammar and creates `simi-language-<version>.vsix`. The component `just package` recipe first removes any staged native binary so source-development packages use an external server. Generated VSIX files and `node_modules` are ignored.
+`npm run package` regenerates the Tree-sitter parser, compares its exact bytes with the committed WASM, runs the editor tests, and creates `simi-language-<version>.vsix`. The component `just package` recipe first removes any staged native binary so source-development packages use an external server. Generated VSIX files and `node_modules` are ignored.
 
-The root `just release-vscode TARGET PLATFORM` recipe stages a platform-specific release VSIX by copying the already-built native server into `bin/` and invoking `package-bundled`. The generated `bin/` directory is ignored and must never be committed.
+The root `just release-vscode TARGET PLATFORM` recipe stages a platform-specific release VSIX by copying the already-built native server into `bin/` and invoking `package-bundled`. This release-only path validates that the committed WASM is tracked, unmodified, loadable, and able to parse Simi source, then packages it without regeneration. Normal development packages and CI continue to perform reproducible regeneration. The generated `bin/` directory is ignored and must never be committed.
 
 Marketplace publication is intentionally explicit and is not a dependency of any other task. After configuring the `simi` publisher and a Marketplace token:
 
