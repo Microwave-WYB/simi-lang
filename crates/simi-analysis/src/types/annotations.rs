@@ -155,16 +155,15 @@ impl Context<'_> {
         let Some(effect) = support::child::<syntax::EffectAnnotation>(parent) else {
             return (self.fresh(), RaisedAnnotation::Inferred);
         };
-        let keyword = direct_token(effect.syntax(), K::IDENT)
-            .map(|token| token.text().to_owned())
-            .unwrap_or_default();
-        if keyword == "noraise" {
-            return (Type::Never, RaisedAnnotation::NoRaise);
-        }
         let raised = support::child::<syntax::TypeExpr>(effect.syntax())
             .map(|ty| self.parse_type(ty.syntax(), generics))
             .unwrap_or(Type::Unknown);
-        (raised, RaisedAnnotation::Explicit)
+        let annotation = if raised == Type::Never {
+            RaisedAnnotation::NoRaise
+        } else {
+            RaisedAnnotation::Explicit
+        };
+        (raised, annotation)
     }
     pub(super) fn parse_type(
         &mut self,

@@ -34,7 +34,7 @@ Before changing behavior, write down:
 
 - Static annotations, aliases, generic bounds, callable labels, and raised contracts are erased and never alter runtime behavior.
 - Callable labels are presentation-only and calls remain positional. Nested generic headers own distinct binders; bounds are ordinary Simi types, never traits or protocols.
-- Omitted callable effects infer, `raises E` checks an upper bound, and `noraise` means `raises never`. Hard diagnostics and postfix `?` stay outside the raised channel.
+- Omitted callable raised-error contracts infer, `! E` checks an upper bound, and `! never` forbids language raises. This is not a general or resumable effect system; hard diagnostics and postfix `?` stay outside the raised channel.
 - Same-scope repeated `let` creates a new binding version; earlier closures retain earlier versions.
 - Map patterns are closed unless they contain `..` or `..rest`.
 - Postfix `?` stops the nearest lexical block.

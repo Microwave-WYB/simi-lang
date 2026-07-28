@@ -1,11 +1,11 @@
 ==================
-Callable generics, constraints, labels, effects, and leading unions
+Callable generics, constraints, labels, raised contracts, and leading unions
 ==================
 
-fn identity<'a: | integer | string>(value: 'a) -> 'a noraise do value end
-let mapper: <'a, 'error: { error: string, .. }> (value: 'a) -> 'a raises 'error = nil
+fn identity<'a: | integer | string>(value: 'a) -> 'a ! never do value end
+let mapper: <'a, 'error: { error: string, .. }> (value: 'a) -> 'a ! 'error = nil
 let callback: (input: | integer | string, state: [..integer]) -> nil = nil
-let anonymous = fn<'a: any>(value: 'a) -> 'a raises string do value end
+let anonymous = fn<'a: any>(value: 'a) -> 'a ! string do value end
 
 ---
 
@@ -32,7 +32,11 @@ let anonymous = fn<'a: any>(value: 'a) -> 'a raises string do value end
       (function_type
         (union_type
           (type_variable))))
-    (effect_annotation)
+    (effect_annotation
+      (function_type
+        (union_type
+          (named_type
+            (identifier)))))
     (block_expression
       (block
         (identifier))))
@@ -128,10 +132,10 @@ let anonymous = fn<'a: any>(value: 'a) -> 'a raises string do value end
           (identifier))))))
 
 ==================
-Effect tail binds to nearest arrow
+Raised contract binds to nearest arrow
 ==================
 
-let nearest: integer -> string -> boolean raises string = nil
+let nearest: integer -> string -> boolean ! string = nil
 
 ---
 
@@ -159,10 +163,10 @@ let nearest: integer -> string -> boolean raises string = nil
     (nil)))
 
 ==================
-Effect tail on outer arrow
+Raised contract on outer arrow
 ==================
 
-let outer: integer -> (string -> boolean) raises string = nil
+let outer: integer -> (string -> boolean) ! string = nil
 
 ---
 
@@ -194,10 +198,10 @@ let outer: integer -> (string -> boolean) raises string = nil
     (nil)))
 
 ==================
-Inner and outer effect tails
+Inner and outer raised contracts
 ==================
 
-let both: integer -> (string -> boolean raises integer) raises string = nil
+let both: integer -> (string -> boolean ! integer) ! string = nil
 
 ---
 

@@ -158,7 +158,7 @@ each
 count
 ```
 
-Consumers advance the iterator they receive. `to_list` consumes all remaining values. `fold` threads an accumulator. `find` and `find_index` return `nil` when there is no match, and `each` always returns `nil` after successful traversal. Iterator item types propagate through adapters and consumers, while source and callback raised effects remain part of the resulting iterator or consumer type.
+Consumers advance the iterator they receive. `to_list` consumes all remaining values. `fold` threads an accumulator. `find` and `find_index` return `nil` when there is no match, and `each` always returns `nil` after successful traversal. Iterator item types propagate through adapters and consumers, while source and callback raised types remain part of the resulting iterator or consumer type.
 
 ```simi
 
@@ -171,7 +171,7 @@ let total =
         sum + value
     end
 
-let even_count = iter.count(list.iter(values), fn(value: integer) -> boolean noraise do
+let even_count = iter.count(list.iter(values), fn(value: integer) -> boolean ! never do
     value % 2 == 0
 end)
 

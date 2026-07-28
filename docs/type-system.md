@@ -80,18 +80,18 @@ let name: option<string> = nil
 Free generic variables in a function annotation are implicitly quantified. A callable may also declare an explicit generic header, with optional ordinary-type upper bounds:
 
 ```simi
-fn identity(value: 'a) -> 'a noraise do
+fn identity(value: 'a) -> 'a ! never do
     value
 end
 
-fn negate<'a: integer | float>(value: 'a) -> 'a noraise do
+fn negate<'a: integer | float>(value: 'a) -> 'a ! never do
     -value
 end
 
 fn transform<'e>(
     value: 'a,
-    callback: (input: 'a) -> 'b raises 'e,
-) -> 'b raises 'e do
+    callback: (input: 'a) -> 'b ! 'e,
+) -> 'b ! 'e do
     callback(value)
 end
 ```
@@ -106,11 +106,11 @@ A callable has a normal result type and a separate raised type:
 
 ```simi
 string -> integer
-string -> integer raises {error: "invalid_input", ..}
-string -> integer noraise
+string -> integer ! {error: "invalid_input", ..}
+string -> integer ! never
 ```
 
-Omitting an effect clause asks the analyzer to infer it. `raises E` declares and checks an upper bound; `noraise` is canonical sugar for `raises never`. Raised effects may use the callable's generics and propagate through callbacks. Hard diagnostics and postfix `?` are outside this channel. In chained shorthand, an effect tail belongs to the nearest right-hand arrow; use parentheses to put an effect on an outer callable.
+Omitting a raised-error contract asks the analyzer to infer it. `! E` declares and checks an upper bound; `! never` forbids language raises. Raised-error contracts may use the callable's generics and propagate through callbacks. Hard diagnostics and postfix `?` are outside this channel. In chained shorthand, a raised-error contract belongs to the nearest right-hand arrow; use parentheses to put a raised-error contract on an outer callable.
 
 ## Unions and literal types
 

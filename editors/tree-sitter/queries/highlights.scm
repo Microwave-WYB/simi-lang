@@ -26,8 +26,6 @@
   "todo"
   "catch"
   "tap"
-  "raises"
-  "noraise"
 ] @keyword
 
 [
@@ -40,6 +38,7 @@
   "="
   "=="
   "!="
+  "!"
   "+"
   "-"
   "*"

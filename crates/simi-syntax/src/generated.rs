@@ -54,6 +54,7 @@ pub enum SyntaxKind {
     DOT_DOT,
     EQ,
     EQ_EQ,
+    BANG,
     BANG_EQ,
     PLUS,
     MINUS,

@@ -187,8 +187,15 @@ impl<'a> Scanner<'a> {
                 );
                 Ok(())
             }
-            b'!' if self.peek(1) == Some(b'=') => {
-                self.double(start, SyntaxKind::BANG_EQ, TokenKind::BangEqual);
+            b'!' => {
+                self.one_or_two(
+                    start,
+                    SyntaxKind::BANG,
+                    TokenKind::Bang,
+                    b'=',
+                    SyntaxKind::BANG_EQ,
+                    TokenKind::BangEqual,
+                );
                 Ok(())
             }
             b'<' if self.peek(1) == Some(b'|') => {

@@ -446,9 +446,8 @@ fn display_type(ty: &Type, nested: bool) -> String {
             };
             match (&*callable.raised, callable.raised_annotation) {
                 (Type::Never, RaisedAnnotation::Inferred) => {}
-                (Type::Never, _) => value.push_str(" noraise"),
                 (raised, _) if !orphan_inferred_effect => {
-                    value.push_str(" raises ");
+                    value.push_str(" ! ");
                     value.push_str(&display_type(raised, false));
                 }
                 _ => {}
@@ -628,9 +627,8 @@ fn pretty_function(callable: &CallableType, continuation_indent: usize, width: u
     let mut value = format!("{constraints}{parameters} -> {result}");
     match (&*callable.raised, callable.raised_annotation) {
         (Type::Never, RaisedAnnotation::Inferred) => {}
-        (Type::Never, _) => value.push_str(" noraise"),
         (raised, _) => {
-            value.push_str(" raises ");
+            value.push_str(" ! ");
             let raised = if value.len() + raised.display().len() <= width {
                 raised.display()
             } else {
@@ -814,11 +812,11 @@ mod tests {
         };
         assert_eq!(
             ty.pretty_display(40),
-            "{\n    concat: (\n        left: string,\n        right: string,\n    ) -> string noraise,\n    length: integer,\n    ..\n}"
+            "{\n    concat: (\n        left: string,\n        right: string,\n    ) -> string ! never,\n    length: integer,\n    ..\n}"
         );
         assert_eq!(
             ty.display(),
-            "{ concat: (left: string, right: string) -> string noraise, length: integer, .. }"
+            "{ concat: (left: string, right: string) -> string ! never, length: integer, .. }"
         );
     }
 
@@ -839,7 +837,7 @@ mod tests {
     }
 
     #[test]
-    fn pretty_display_preserves_generics_and_raised_effects() {
+    fn pretty_display_preserves_generics_and_raised_contracts() {
         let ty = Type::Function(Box::new(CallableType {
             constraints: vec![GenericConstraint {
                 variable: Type::Generic(0),
@@ -855,7 +853,7 @@ mod tests {
         }));
         let rendered = ty.pretty_display(40);
         assert!(rendered.contains("<"));
-        assert!(rendered.contains("raises"));
+        assert!(rendered.contains(" ! "));
         assert!(rendered.lines().all(|line| line.len() <= 40), "{rendered}");
     }
 }

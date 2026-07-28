@@ -675,7 +675,7 @@ fn direct_module_fields_and_aliases_keep_signatures_and_docs() {
 --- Print one value.
 fn println(value) do nil end
 --- Inspect text through a native alias.
-let inspect: string -> string noraise = host.inspect
+let inspect: string -> string ! never = host.inspect
 { println = println, identity = fn(value) do value end, inspect = inspect }
 "#;
 
@@ -702,7 +702,7 @@ let inspect: string -> string noraise = host.inspect
             "require(\"std/io\").inspect",
             "inspect",
             0,
-            "string -> string noraise\n\nInspect text through a native alias.",
+            "string -> string ! never\n\nInspect text through a native alias.",
         ),
     ] {
         let mut backend = Backend::with_module_sources([("std/io", module)]);
@@ -808,7 +808,7 @@ let inspect: string -> string noraise = host.inspect
     assert_eq!(inspect.kind, Some(CompletionItemKind::FUNCTION));
     assert_eq!(
         inspect.detail.as_deref(),
-        Some("inspect : string -> string noraise")
+        Some("inspect : string -> string ! never")
     );
     assert_eq!(
         inspect.documentation,
@@ -892,7 +892,7 @@ fn real_annotated_stdlib_facade_supplies_generic_member_types() {
     };
     assert_simi_hover(
         &markup,
-        "<'a, 'b, 'c, 'd> (\n    iterator: () -> { done: true, .. } | { done: false, value: 'a, .. } raises 'c,\n    transform: 'a -> 'b raises 'd,\n) -> () -> { done: true, .. } | { done: false, value: 'b, .. } raises 'c | 'd noraise",
+        "<'a, 'b, 'c, 'd> (\n    iterator: () -> { done: true, .. } | { done: false, value: 'a, .. } ! 'c,\n    transform: 'a -> 'b ! 'd,\n) -> () -> { done: true, .. } | { done: false, value: 'b, .. } ! 'c | 'd ! never",
     );
 }
 
@@ -922,11 +922,7 @@ fn iterator_pair_adapter_hover_preserves_item_and_source_effect_types() {
         "{}",
         markup.value
     );
-    assert!(
-        markup.value.contains("raises 'b noraise"),
-        "{}",
-        markup.value
-    );
+    assert!(markup.value.contains("! 'b ! never"), "{}", markup.value);
     assert!(
         markup
             .value
@@ -961,7 +957,7 @@ fn portable_prelude_members_have_the_same_lsp_metadata_as_require() {
     };
     assert_simi_hover(
         &markup,
-        "(value: integer | float) -> string noraise\n\nRender a number using canonical Simi notation.",
+        "(value: integer | float) -> string ! never\n\nRender a number using canonical Simi notation.",
     );
 }
 
@@ -1034,7 +1030,7 @@ fn contextual_singleton_function_bodies_and_mutations_publish_exact_hovers() {
     let source = r#"fn direct_true() -> true true
 fn direct_int() -> 42 42
 let anon = fn() -> false false
-let annotated: () -> true noraise = fn() true
+let annotated: () -> true ! never = fn() true
 let tagged: {done: true} = {done = true}
 tagged.done = true
 let indexed: {done: true} = {done = true}
@@ -1059,7 +1055,7 @@ index_union["code"] = 41
         ("direct_true", "() -> true"),
         ("direct_int", "() -> 42"),
         ("anon", "() -> false"),
-        ("annotated", "() -> true noraise"),
+        ("annotated", "() -> true ! never"),
         ("tagged", "{ done: true }"),
         ("indexed", "{ done: true }"),
         ("field_union", "{ code: 41 | 42 }"),
@@ -1131,7 +1127,7 @@ end
     for (name, expected) in [
         (
             "next",
-            "<'a, 'b> (\n    iterator: () -> { done: true, .. } | { done: false, value: 'a, .. } raises 'b,\n) -> { done: true, .. } | { done: false, value: 'a, .. } raises 'b",
+            "<'a, 'b> (\n    iterator: () -> { done: true, .. } | { done: false, value: 'a, .. } ! 'b,\n) -> { done: true, .. } | { done: false, value: 'a, .. } ! 'b",
         ),
         ("exhausted_entry", "any"),
         (
@@ -1381,7 +1377,7 @@ nums[3]"#;
     };
     assert_simi_hover(
         &markup,
-        "(xs: [..'a], value: 'b) -> nil noraise\n\nAppend a value to a list.",
+        "(xs: [..'a], value: 'b) -> nil ! never\n\nAppend a value to a list.",
     );
 }
 
@@ -1577,7 +1573,7 @@ let found = indexed[key]
 
 #[test]
 fn raised_contract_diagnostics_and_hover_use_protocol_types() {
-    let source = "let prefix = \"😀\"\nfn bad() -> integer noraise do raise \"boom\" end\n";
+    let source = "let prefix = \"😀\"\nfn bad() -> integer ! never do raise \"boom\" end\n";
     let mut backend = Backend::new();
     let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
     let contract = diagnostics
@@ -1586,7 +1582,7 @@ fn raised_contract_diagnostics_and_hover_use_protocol_types() {
         .find(|diagnostic| {
             diagnostic.code == Some(NumberOrString::String("type_mismatch".to_owned()))
         })
-        .expect("noraise contract diagnostic");
+        .expect("! never contract diagnostic");
     assert_eq!(contract.range.start.line, 1);
     assert_eq!(contract.range.start.character, 0);
     assert!(contract.message.contains("never"));
@@ -1606,18 +1602,18 @@ fn raised_contract_diagnostics_and_hover_use_protocol_types() {
     let HoverContents::Markup(markup) = hover.expect("bad hover").contents else {
         panic!("expected markup")
     };
-    assert_simi_hover(&markup, "() -> integer noraise");
+    assert_simi_hover(&markup, "() -> integer ! never");
 }
 
 #[test]
-fn varied_direct_noraise_bodies_are_clean_and_have_exact_hover_types() {
+fn varied_direct_bang_never_bodies_are_clean_and_have_exact_hover_types() {
     let source = concat!(
-        "fn identity(value: integer) -> integer noraise value\n",
-        "fn text() -> string noraise \"ok\"\n",
-        "fn values() -> [..integer] noraise [1, 2]\n",
-        "fn nothing() -> nil noraise nil\n",
-        "fn grouped() -> integer noraise (1 + 2)\n",
-        "fn append(xs: [..integer]) -> nil noraise host.append(xs)\n",
+        "fn identity(value: integer) -> integer ! never value\n",
+        "fn text() -> string ! never \"ok\"\n",
+        "fn values() -> [..integer] ! never [1, 2]\n",
+        "fn nothing() -> nil ! never nil\n",
+        "fn grouped() -> integer ! never (1 + 2)\n",
+        "fn append(xs: [..integer]) -> nil ! never host.append(xs)\n",
     );
     let mut backend = Backend::new();
     let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
@@ -1628,12 +1624,12 @@ fn varied_direct_noraise_bodies_are_clean_and_have_exact_hover_types() {
     );
 
     for (name, expected) in [
-        ("identity", "(value: integer) -> integer noraise"),
-        ("text", "() -> string noraise"),
-        ("values", "() -> [..integer] noraise"),
-        ("nothing", "() -> nil noraise"),
-        ("grouped", "() -> integer noraise"),
-        ("append", "(xs: [..integer]) -> nil noraise"),
+        ("identity", "(value: integer) -> integer ! never"),
+        ("text", "() -> string ! never"),
+        ("values", "() -> [..integer] ! never"),
+        ("nothing", "() -> nil ! never"),
+        ("grouped", "() -> integer ! never"),
+        ("append", "(xs: [..integer]) -> nil ! never"),
     ] {
         let hover: Option<Hover> = serde_json::from_value(
             request(
@@ -1868,7 +1864,7 @@ fn real_string_module_hover_wraps_export_map_at_presentation_width() {
     };
     assert_simi_hover(
         &markup,
-        "{\n    to_number: (text: string) -> integer | float | nil noraise,\n    concat: (left: string, right: string) -> string noraise,\n    length: (text: string) -> integer noraise,\n    slice: (text: string, start: integer, stop: integer) -> string noraise,\n    contains: (text: string, needle: string) -> boolean noraise,\n    starts_with: (text: string, prefix: string) -> boolean noraise,\n    ends_with: (text: string, suffix: string) -> boolean noraise,\n    split: (text: string, separator: string) -> [..string] noraise,\n    trim: (text: string) -> string noraise,\n    lower: (text: string) -> string noraise,\n    upper: (text: string) -> string noraise,\n}\n\nUnicode-aware string inspection, transformation, and conversion.",
+        "{\n    to_number: (text: string) -> integer | float | nil ! never,\n    concat: (left: string, right: string) -> string ! never,\n    length: (text: string) -> integer ! never,\n    slice: (text: string, start: integer, stop: integer) -> string ! never,\n    contains: (text: string, needle: string) -> boolean ! never,\n    starts_with: (text: string, prefix: string) -> boolean ! never,\n    ends_with: (text: string, suffix: string) -> boolean ! never,\n    split: (text: string, separator: string) -> [..string] ! never,\n    trim: (text: string) -> string ! never,\n    lower: (text: string) -> string ! never,\n    upper: (text: string) -> string ! never,\n}\n\nUnicode-aware string inspection, transformation, and conversion.",
     );
 }
 

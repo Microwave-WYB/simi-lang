@@ -9,7 +9,7 @@
   - [The erasure contract](#the-erasure-contract)
   - [Primitive types and unions](#primitive-types-and-unions)
   - [Function types and generics](#function-types-and-generics)
-  - [Callable bounds and raised effects](#callable-bounds-and-raised-effects)
+  - [Callable bounds and raised-error contracts](#callable-bounds-and-raised-error-contracts)
   - [Structural list types](#structural-list-types)
   - [Structural map types](#structural-map-types)
   - [Flow analysis and narrowing](#flow-analysis-and-narrowing)
@@ -134,12 +134,12 @@ end)
 
 Callers do not supply explicit generic arguments. Syntax such as `identity<string>(value)` is outside the initial design. Aliases are transparent: expanding one creates neither a nominal type nor a new runtime value category.
 
-## Callable bounds and raised effects
+## Callable bounds and raised-error contracts
 
 An explicit callable header may bound generic variables with ordinary Simi types:
 
 ```simi
-fn negate<'a: integer | float>(value: 'a) -> 'a noraise do
+fn negate<'a: integer | float>(value: 'a) -> 'a ! never do
     -value
 end
 
@@ -151,8 +151,8 @@ The leading `|` is optional for every union and is convenient when variants are 
 Callable parameter labels improve signatures while calls remain positional:
 
 ```simi
-let compare: (left: integer, right: integer) -> boolean noraise =
-    fn(left: integer, right: integer) -> boolean noraise do
+let compare: (left: integer, right: integer) -> boolean ! never =
+    fn(left: integer, right: integer) -> boolean ! never do
         left < right
     end
 
@@ -162,11 +162,11 @@ compare(1, 2)
 A function's raised type is separate from its normal result:
 
 ```simi
-fn fail(value: 'e) -> never raises 'e do
+fn fail(value: 'e) -> never ! 'e do
     raise value
 end
 
-fn recover() -> integer noraise do
+fn recover() -> integer ! never do
     do
         fail("missing")
     catch of "missing" =>
@@ -177,7 +177,7 @@ end
 recover()
 ```
 
-Omitting the clause infers the effect. `raises E` declares an upper bound, and `noraise` means `raises never`. Effect variables propagate through callback signatures, while hard diagnostics and postfix `?` remain outside the raised channel. An effect after a chained arrow belongs to the nearest right-hand callable; parentheses select an outer callable explicitly.
+Omitting the raised-error contract infers it. `! E` declares an upper bound, and `! never` forbids language raises. Raised-type variables propagate through callback signatures, while hard diagnostics and postfix `?` remain outside the raised channel. A raised-error contract after a chained arrow belongs to the nearest right-hand callable; parentheses select an outer callable explicitly.
 
 ## Structural list types
 

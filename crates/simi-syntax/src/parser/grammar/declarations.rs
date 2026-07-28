@@ -38,22 +38,14 @@ pub(super) fn function_parts(p: &mut Parser<'_>, open: &str) {
         p.bump();
         type_expr(p);
         result.complete(&mut p.events, K::RETURN_ANNOTATION);
-        function_effect_annotation(p);
+        effect_annotation(p);
     } else if at_effect(p) {
-        p.error("a callable effect requires `->` and a result type".to_owned());
+        p.error("a callable raised-error contract requires `->` and a result type".to_owned());
+        effect_annotation(p);
+    } else if at_legacy_effect(p) {
         effect_annotation(p);
     }
     function_body(p);
-}
-
-fn function_effect_annotation(p: &mut Parser<'_>) {
-    if p.current_text() == Some("noraise") {
-        let marker = p.start();
-        p.bump();
-        marker.complete(&mut p.events, K::EFFECT_ANNOTATION);
-    } else {
-        effect_annotation(p);
-    }
 }
 
 pub(super) fn function_body(p: &mut Parser<'_>) {

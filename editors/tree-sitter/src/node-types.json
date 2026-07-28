@@ -857,7 +857,7 @@
     "fields": {
       "type": {
         "multiple": false,
-        "required": false,
+        "required": true,
         "types": [
           {
             "type": "function_type",
@@ -2686,6 +2686,10 @@
     }
   },
   {
+    "type": "!",
+    "named": false
+  },
+  {
     "type": "!=",
     "named": false
   },
@@ -2871,10 +2875,6 @@
     "named": true
   },
   {
-    "type": "noraise",
-    "named": false
-  },
-  {
     "type": "not",
     "named": false
   },
@@ -2892,10 +2892,6 @@
   },
   {
     "type": "raise",
-    "named": false
-  },
-  {
-    "type": "raises",
     "named": false
   },
   {
