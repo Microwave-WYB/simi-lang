@@ -12,10 +12,6 @@ pub(super) enum Event {
     },
     Finish,
     Token(usize),
-    RemappedToken {
-        token: usize,
-        kind: SyntaxKind,
-    },
 }
 
 #[derive(Debug)]
@@ -72,9 +68,6 @@ pub(super) fn build(mut events: Vec<Event>, lexemes: &[Lexeme]) -> SyntaxNode {
             Event::Token(token) => {
                 let lexeme = &lexemes[token];
                 builder.token(SimiLanguage::kind_to_raw(lexeme.kind), &lexeme.text);
-            }
-            Event::RemappedToken { token, kind } => {
-                builder.token(SimiLanguage::kind_to_raw(kind), &lexemes[token].text);
             }
             Event::Start {
                 kind,

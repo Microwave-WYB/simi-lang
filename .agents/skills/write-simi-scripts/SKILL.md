@@ -15,15 +15,15 @@ Read the relevant topic in the [language tour](../../../docs/language-tour.md) b
 
 1. Identify whether the script needs only portable modules or the CLI-only `std/io` capability.
 2. Write a complete `.simi` program using current syntax and compact delimiter formatting.
-3. Prefer expression-valued control flow, structural patterns, and explicit-state `loop` when state evolves.
+3. Prefer expression-valued control flow, structural patterns, and lazy iterator drivers when state evolves.
 4. Run the script with `simi run FILE`; use `simi run --inspect FILE` when the final value should also be rendered.
 5. If the script belongs to this repository, add a focused test or independently validated documentation example at the lowest useful layer.
 
 ## Core contracts
 
 - Runtime typing is dynamic. Optional annotations and aliases are erased and must not change runtime behavior.
-- `if`, `case`, protected `do ... catch of ... end`, standalone `do`, function bodies, and loop bodies are value-producing lexical blocks.
-- Postfix `?` passes non-`nil` values through; `nil` evaluates the nearest lexical block as `nil`. In a loop body that supplies the next state rather than breaking the loop.
+- `if`, `case`, protected `do ... catch of ... end`, standalone `do`, and function bodies are value-producing lexical blocks.
+- Postfix `?` passes non-`nil` values through; `nil` evaluates the nearest lexical block as `nil`.
 - Booleans are strict; there is no truthiness. Use `type(value) == "integer"` for runtime category checks.
 - Lists are zero-based and mutable. Maps are insertion-ordered, normalize numeric keys, and delete entries assigned `nil`.
 - Map patterns are closed by default. Add `..` to permit extra fields or `..rest` to capture them.

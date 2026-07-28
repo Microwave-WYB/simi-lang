@@ -20,19 +20,11 @@
         "named": true
       },
       {
-        "type": "break_expression",
-        "named": true
-      },
-      {
         "type": "call_expression",
         "named": true
       },
       {
         "type": "case_expression",
-        "named": true
-      },
-      {
-        "type": "continue_expression",
         "named": true
       },
       {
@@ -65,10 +57,6 @@
       },
       {
         "type": "list",
-        "named": true
-      },
-      {
-        "type": "loop_expression",
         "named": true
       },
       {
@@ -320,19 +308,11 @@
             "named": true
           },
           {
-            "type": "break_expression",
-            "named": true
-          },
-          {
             "type": "call_expression",
             "named": true
           },
           {
             "type": "case_expression",
-            "named": true
-          },
-          {
-            "type": "continue_expression",
             "named": true
           },
           {
@@ -365,10 +345,6 @@
           },
           {
             "type": "list",
-            "named": true
-          },
-          {
-            "type": "loop_expression",
             "named": true
           },
           {
@@ -496,19 +472,11 @@
             "named": true
           },
           {
-            "type": "break_expression",
-            "named": true
-          },
-          {
             "type": "call_expression",
             "named": true
           },
           {
             "type": "case_expression",
-            "named": true
-          },
-          {
-            "type": "continue_expression",
             "named": true
           },
           {
@@ -541,10 +509,6 @@
           },
           {
             "type": "list",
-            "named": true
-          },
-          {
-            "type": "loop_expression",
             "named": true
           },
           {
@@ -628,32 +592,6 @@
     "fields": {}
   },
   {
-    "type": "break_expression",
-    "named": true,
-    "fields": {
-      "label": {
-        "multiple": false,
-        "required": false,
-        "types": [
-          {
-            "type": "loop_label",
-            "named": true
-          }
-        ]
-      },
-      "value": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "_expression",
-            "named": true
-          }
-        ]
-      }
-    }
-  },
-  {
     "type": "call_expression",
     "named": true,
     "fields": {
@@ -680,19 +618,11 @@
             "named": true
           },
           {
-            "type": "break_expression",
-            "named": true
-          },
-          {
             "type": "call_expression",
             "named": true
           },
           {
             "type": "case_expression",
-            "named": true
-          },
-          {
-            "type": "continue_expression",
             "named": true
           },
           {
@@ -725,10 +655,6 @@
           },
           {
             "type": "list",
-            "named": true
-          },
-          {
-            "type": "loop_expression",
             "named": true
           },
           {
@@ -885,22 +811,6 @@
     }
   },
   {
-    "type": "continue_expression",
-    "named": true,
-    "fields": {
-      "label": {
-        "multiple": false,
-        "required": false,
-        "types": [
-          {
-            "type": "loop_label",
-            "named": true
-          }
-        ]
-      }
-    }
-  },
-  {
     "type": "declared_parameter",
     "named": true,
     "fields": {
@@ -1026,19 +936,11 @@
             "named": true
           },
           {
-            "type": "break_expression",
-            "named": true
-          },
-          {
             "type": "call_expression",
             "named": true
           },
           {
             "type": "case_expression",
-            "named": true
-          },
-          {
-            "type": "continue_expression",
             "named": true
           },
           {
@@ -1071,10 +973,6 @@
           },
           {
             "type": "list",
-            "named": true
-          },
-          {
-            "type": "loop_expression",
             "named": true
           },
           {
@@ -1388,19 +1286,11 @@
             "named": true
           },
           {
-            "type": "break_expression",
-            "named": true
-          },
-          {
             "type": "call_expression",
             "named": true
           },
           {
             "type": "case_expression",
-            "named": true
-          },
-          {
-            "type": "continue_expression",
             "named": true
           },
           {
@@ -1433,10 +1323,6 @@
           },
           {
             "type": "list",
-            "named": true
-          },
-          {
-            "type": "loop_expression",
             "named": true
           },
           {
@@ -1621,48 +1507,6 @@
           "named": true
         }
       ]
-    }
-  },
-  {
-    "type": "loop_expression",
-    "named": true,
-    "fields": {
-      "body": {
-        "multiple": false,
-        "required": false,
-        "types": [
-          {
-            "type": "block",
-            "named": true
-          }
-        ]
-      },
-      "label": {
-        "multiple": false,
-        "required": false,
-        "types": [
-          {
-            "type": "loop_label",
-            "named": true
-          }
-        ]
-      }
-    }
-  },
-  {
-    "type": "loop_label",
-    "named": true,
-    "fields": {
-      "name": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "identifier",
-            "named": true
-          }
-        ]
-      }
     }
   },
   {
@@ -1910,19 +1754,11 @@
             "named": true
           },
           {
-            "type": "break_expression",
-            "named": true
-          },
-          {
             "type": "call_expression",
             "named": true
           },
           {
             "type": "case_expression",
-            "named": true
-          },
-          {
-            "type": "continue_expression",
             "named": true
           },
           {
@@ -1955,10 +1791,6 @@
           },
           {
             "type": "list",
-            "named": true
-          },
-          {
-            "type": "loop_expression",
             "named": true
           },
           {
@@ -2158,19 +1990,11 @@
             "named": true
           },
           {
-            "type": "break_expression",
-            "named": true
-          },
-          {
             "type": "call_expression",
             "named": true
           },
           {
             "type": "case_expression",
-            "named": true
-          },
-          {
-            "type": "continue_expression",
             "named": true
           },
           {
@@ -2203,10 +2027,6 @@
           },
           {
             "type": "list",
-            "named": true
-          },
-          {
-            "type": "loop_expression",
             "named": true
           },
           {
@@ -2308,19 +2128,11 @@
             "named": true
           },
           {
-            "type": "break_expression",
-            "named": true
-          },
-          {
             "type": "call_expression",
             "named": true
           },
           {
             "type": "case_expression",
-            "named": true
-          },
-          {
-            "type": "continue_expression",
             "named": true
           },
           {
@@ -2353,10 +2165,6 @@
           },
           {
             "type": "list",
-            "named": true
-          },
-          {
-            "type": "loop_expression",
             "named": true
           },
           {
@@ -2556,19 +2364,11 @@
             "named": true
           },
           {
-            "type": "break_expression",
-            "named": true
-          },
-          {
             "type": "call_expression",
             "named": true
           },
           {
             "type": "case_expression",
-            "named": true
-          },
-          {
-            "type": "continue_expression",
             "named": true
           },
           {
@@ -2601,10 +2401,6 @@
           },
           {
             "type": "list",
-            "named": true
-          },
-          {
-            "type": "loop_expression",
             "named": true
           },
           {
@@ -2757,19 +2553,11 @@
             "named": true
           },
           {
-            "type": "break_expression",
-            "named": true
-          },
-          {
             "type": "call_expression",
             "named": true
           },
           {
             "type": "case_expression",
-            "named": true
-          },
-          {
-            "type": "continue_expression",
             "named": true
           },
           {
@@ -2802,10 +2590,6 @@
           },
           {
             "type": "list",
-            "named": true
-          },
-          {
-            "type": "loop_expression",
             "named": true
           },
           {
@@ -3002,10 +2786,6 @@
     "named": false
   },
   {
-    "type": "@",
-    "named": false
-  },
-  {
     "type": "[",
     "named": false
   },
@@ -3022,10 +2802,6 @@
     "named": false
   },
   {
-    "type": "break",
-    "named": false
-  },
-  {
     "type": "case",
     "named": false
   },
@@ -3037,10 +2813,6 @@
     "type": "comment",
     "named": true,
     "extra": true
-  },
-  {
-    "type": "continue",
-    "named": false
   },
   {
     "type": "do",
@@ -3088,10 +2860,6 @@
   },
   {
     "type": "let",
-    "named": false
-  },
-  {
-    "type": "loop",
     "named": false
   },
   {

@@ -4,9 +4,6 @@
 (if_expression
   "end" @end) @indent
 
-(loop_expression
-  "end" @end) @indent
-
 (case_expression
   "end" @end) @indent
 

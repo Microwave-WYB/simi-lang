@@ -44,15 +44,6 @@
     ],
     "description": "Create an if/else expression"
   },
-  "Loop": {
-    "prefix": "loop",
-    "body": [
-      "loop",
-      "    $0",
-      "end"
-    ],
-    "description": "Create an expression-valued loop"
-  },
   "Case expression": {
     "prefix": "case",
     "body": [

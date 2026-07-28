@@ -18,9 +18,6 @@
   "then"
   "elseif"
   "else"
-  "loop"
-  "break"
-  "continue"
   "case"
   "of"
   "when"
@@ -61,7 +58,6 @@
   ".."
   "->"
   "|"
-  "@"
 ] @operator
 
 (function_declaration
@@ -108,5 +104,3 @@
 
 ["(" ")" "[" "]" "{" "}"] @punctuation.bracket
 ["," "."] @punctuation.delimiter
-
-(loop_label name: (identifier) @variable)

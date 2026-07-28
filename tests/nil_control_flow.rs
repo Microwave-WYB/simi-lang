@@ -165,25 +165,6 @@ fn nil_propagation_evaluates_each_kind_of_current_block_as_nil() {
 }
 
 #[test]
-fn nil_propagation_from_a_loop_body_repeats_the_iteration() {
-    let result = value(
-        r#"
-        let direct = do
-            let remaining = 1
-            loop
-                if remaining == 0 then break "continued after nil" end
-                remaining = remaining - 1
-                nil?
-            end
-        end
-        let plain_break = loop break nil end
-        [direct, plain_break]
-        "#,
-    );
-    assert_eq!(result.render(), "[\"continued after nil\", nil]");
-}
-
-#[test]
 fn nil_propagation_requires_an_enclosing_block() {
     let error = outer_error("nil?");
     assert!(matches!(error, SimiError::Parse(_)));

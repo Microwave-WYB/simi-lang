@@ -99,7 +99,7 @@ def check_source_extension() -> None:
     snippets = json.loads(snippets_path.read_text(encoding="utf-8"))
     prefixes = {snippet["prefix"] for snippet in snippets.values()}
     check(
-        prefixes == {"case", "catch", "do", "fn", "fnexpr", "if", "ifelse", "loop"},
+        prefixes == {"case", "catch", "do", "fn", "fnexpr", "if", "ifelse"},
         "unexpected Simi snippet inventory",
     )
     expected_case_snippet = [
@@ -204,7 +204,7 @@ def check_source_extension() -> None:
         ("end", 0),
     ]
     fixture_lines = fixture.splitlines()
-    protected_start = fixture_lines.index("do", fixture_lines.index("let final = do") + 1)
+    protected_start = fixture_lines.index("do")
     actual_protected_block = [
         (line.lstrip(), len(line) - len(line.lstrip(" ")))
         for line in fixture_lines[protected_start : protected_start + len(protected_block)]

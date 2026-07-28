@@ -236,24 +236,6 @@ fn lower_expr(node: syntax::Expr) -> ast::Expr {
                 else_branch,
             }
         }
-        syntax::Expr::Loop(node) => {
-            let label = direct_token(node.syntax(), K::AT)
-                .and_then(|_| direct_token(node.syntax(), K::IDENT))
-                .map(|token| token.text().to_string());
-            let body = lower_block(support::child(node.syntax()).expect("loop body"));
-            ast::ExprKind::Loop { label, body }
-        }
-        syntax::Expr::Continue(node) => ast::ExprKind::Continue {
-            label: direct_token(node.syntax(), K::AT)
-                .and_then(|_| direct_token(node.syntax(), K::IDENT))
-                .map(|token| token.text().to_string()),
-        },
-        syntax::Expr::Break(node) => ast::ExprKind::Break {
-            label: direct_token(node.syntax(), K::AT)
-                .and_then(|_| direct_token(node.syntax(), K::IDENT))
-                .map(|token| token.text().to_string()),
-            value: Box::new(lower_expr(child_expr(node.syntax(), 0))),
-        },
     };
     ast::Expr {
         kind,

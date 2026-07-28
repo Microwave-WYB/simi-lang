@@ -21,12 +21,10 @@ fn variable_assignment_is_expression_valued_right_associative_and_lexical() {
             of [item]
                 item = item + 1
         end
-        let looped = do
-            let state = 0
-            loop
-                if state == 3 then break state else state = state + 1 end
-            end
-        end
+        let iter = require("std/iter")
+        let looped = iter.fold_while(iter.repeat_with(fn() do 1 end), 0, fn(state, _) do
+            if state == 3 then iter.break(state) else iter.continue(state + 1) end
+        end)
         [inside, outer, other, matched, looped]
         "#,
     );

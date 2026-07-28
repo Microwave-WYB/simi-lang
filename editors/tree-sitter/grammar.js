@@ -23,13 +23,17 @@ module.exports = grammar({
 
   word: ($) => $.identifier,
 
+  reserved: {
+    global: (_) => [],
+    expression: (_) => ["loop", "break", "continue"],
+  },
+
   supertypes: ($) => [$._statement, $._expression, $._pattern],
 
   conflicts: ($) => [
     [$.assignment_target, $._primary_expression],
     [$.assignment_target, $._postfix_expression],
     [$.parenthesized_call, $._postfix_expression],
-    [$.loop_expression],
     [$._primary_expression, $.function_expression],
     [$._primary_expression, $.function_declaration],
     [$._primary_expression, $.case_clause],
@@ -134,7 +138,7 @@ module.exports = grammar({
 
     pipeline_callee: ($) => seq(
       $.identifier,
-      repeat(seq(".", $.identifier)),
+      repeat(seq(".", $._member_identifier)),
     ),
 
     trailing_argument_expression: ($) => prec.right(PREC.TRAILING_ARGUMENT, seq(
@@ -210,8 +214,15 @@ module.exports = grammar({
     field_expression: ($) => prec.left(PREC.POSTFIX, seq(
       field("object", $._postfix_expression),
       ".",
-      field("name", $.identifier),
+      field("name", $._member_identifier),
     )),
+
+    _member_identifier: ($) => choice(
+      $.identifier,
+      alias("loop", $.identifier),
+      alias("break", $.identifier),
+      alias("continue", $.identifier),
+    ),
 
     index_expression: ($) => prec.left(PREC.POSTFIX, seq(
       field("object", $._postfix_expression),
@@ -374,7 +385,7 @@ module.exports = grammar({
     ),
 
     _primary_expression: ($) => choice(
-      $.identifier,
+      reserved("expression", $.identifier),
       $.integer,
       $.float,
       $.string,
@@ -386,15 +397,11 @@ module.exports = grammar({
       $.function_expression,
       $.block_expression,
       $.if_expression,
-      $.loop_expression,
       $.case_expression,
       $.protected_expression,
       $.raise_expression,
       $.panic_expression,
       $.todo_expression,
-
-      $.continue_expression,
-      $.break_expression,
     ),
 
     parenthesized_expression: ($) => seq("(", $._expression, ")"),
@@ -472,26 +479,6 @@ module.exports = grammar({
     else_clause: ($) => seq(
       "else",
       optional(field("body", $.block)),
-    ),
-
-    loop_expression: ($) => seq(
-      optional(field("label", $.loop_label)),
-      "loop",
-      optional(field("body", $.block)),
-      "end",
-    ),
-
-    loop_label: ($) => seq("@", field("name", $.identifier)),
-
-    continue_expression: ($) => prec.right(seq(
-      "continue",
-      optional(field("label", $.loop_label)),
-    )),
-
-    break_expression: ($) => seq(
-      "break",
-      optional(field("label", $.loop_label)),
-      field("value", $._expression),
     ),
 
     case_expression: ($) => seq(

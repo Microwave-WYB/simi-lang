@@ -342,13 +342,6 @@ fn rejects_malformed_or_stray_terminators() {
 }
 
 #[test]
-fn handles_nested_loops_and_restores_function_loop_depth() {
-    parse_source("loop loop break 1 end continue end").unwrap();
-    parse_source("fn f() do loop break 1 end end").unwrap();
-    parse_source("loop fn f() do loop continue end end break 1 end").unwrap();
-}
-
-#[test]
 fn parses_match_into_canonical_nested_patterns_and_spans() {
     let source = concat!(
         "case input ",
@@ -404,59 +397,24 @@ fn parses_match_into_canonical_nested_patterns_and_spans() {
 }
 
 #[test]
-fn case_is_a_primary_expression_and_preserves_nested_block_ownership() {
-    let source = concat!(
-        "loop ",
-        "case 1 ",
-        "of x do if true then case x of y y end else nil end ",
-        "fn f() do case x of y y end end ",
-        "loop break x end end ",
-        "of _ break 9 ",
-        "end ",
-        "end"
-    );
-    let program = parse_source(source).unwrap();
-    let StmtKind::Expr(Expr {
-        kind: ExprKind::Loop { body, .. },
-        ..
-    }) = &program.items[0].kind
-    else {
-        panic!("expected loop");
-    };
-    let StmtKind::Expr(Expr {
-        kind: ExprKind::Case { clauses, .. },
-        ..
-    }) = &body.items[0].kind
-    else {
-        panic!("expected match");
-    };
-    assert_eq!(clauses.len(), 2);
-    assert!(matches!(
-        clauses[0].body.items[0].kind,
-        StmtKind::Expr(Expr {
-            kind: ExprKind::If { .. },
-            ..
-        })
-    ));
-    assert!(matches!(
-        clauses[0].body.items[1].kind,
-        StmtKind::Function { .. }
-    ));
-    assert!(matches!(
-        clauses[0].body.items[2].kind,
-        StmtKind::Expr(Expr {
-            kind: ExprKind::Loop { .. },
-            ..
-        })
-    ));
-    assert!(matches!(
-        clauses[1].body.items[0].kind,
-        StmtKind::Expr(Expr {
-            kind: ExprKind::Break { .. },
-            ..
-        })
-    ));
+fn legacy_loop_forms_are_rejected_while_iterator_control_members_parse() {
+    for source in ["loop break 1 end", "break 1", "continue"] {
+        assert!(parse_source(source).is_err(), "{source} should be rejected");
+    }
+    parse_source("iter.break(1) iter.continue(nil)").unwrap();
+}
 
+#[test]
+fn case_is_a_primary_expression_and_preserves_nested_block_ownership() {
+    let source = "case 1 of x if true then x else nil end of _ 9 end";
+    let program = parse_source(source).unwrap();
+    assert!(matches!(
+        program.items[0].kind,
+        StmtKind::Expr(Expr {
+            kind: ExprKind::Case { .. },
+            ..
+        })
+    ));
     let postfixed = parse_source("case [1] of x x end[0]").unwrap();
     assert!(matches!(
         postfixed.items[0].kind,

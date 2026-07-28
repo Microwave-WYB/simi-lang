@@ -162,8 +162,6 @@ struct Parser<'a> {
     position: usize,
     events: Vec<Event>,
     diagnostics: Vec<SyntaxDiagnostic>,
-    loop_depth: usize,
-    loop_labels: Vec<String>,
     block_depth: usize,
 }
 
@@ -175,8 +173,6 @@ impl<'a> Parser<'a> {
             position: 0,
             events: Vec::new(),
             diagnostics: Vec::new(),
-            loop_depth: 0,
-            loop_labels: Vec::new(),
             block_depth: 0,
         }
     }
@@ -231,17 +227,6 @@ impl<'a> Parser<'a> {
         self.eat_trivia();
         if self.position < self.lexemes.len() {
             self.events.push(Event::Token(self.position));
-            self.position += 1;
-        }
-    }
-
-    fn bump_as(&mut self, kind: SyntaxKind) {
-        self.eat_trivia();
-        if self.position < self.lexemes.len() {
-            self.events.push(Event::RemappedToken {
-                token: self.position,
-                kind,
-            });
             self.position += 1;
         }
     }
@@ -327,9 +312,6 @@ fn token_name(kind: SyntaxKind, eof: bool) -> &'static str {
         SyntaxKind::AND_KW => "and",
         SyntaxKind::OR_KW => "or",
         SyntaxKind::NOT_KW => "not",
-        SyntaxKind::LOOP_KW => "loop",
-        SyntaxKind::BREAK_KW => "break",
-        SyntaxKind::CONTINUE_KW => "continue",
         SyntaxKind::CASE_KW => "case",
         SyntaxKind::OF_KW => "of",
         SyntaxKind::WHEN_KW => "when",
@@ -431,9 +413,6 @@ fn token_lexeme(kind: TokenKind) -> (SyntaxKind, String) {
         TokenKind::And => (SyntaxKind::AND_KW, "and"),
         TokenKind::Or => (SyntaxKind::OR_KW, "or"),
         TokenKind::Not => (SyntaxKind::NOT_KW, "not"),
-        TokenKind::Loop => (SyntaxKind::LOOP_KW, "loop"),
-        TokenKind::Break => (SyntaxKind::BREAK_KW, "break"),
-        TokenKind::Continue => (SyntaxKind::CONTINUE_KW, "continue"),
         TokenKind::Case => (SyntaxKind::CASE_KW, "case"),
         TokenKind::Of => (SyntaxKind::OF_KW, "of"),
         TokenKind::When => (SyntaxKind::WHEN_KW, "when"),
@@ -451,7 +430,6 @@ fn token_lexeme(kind: TokenKind) -> (SyntaxKind, String) {
         TokenKind::Comma => (SyntaxKind::COMMA, ","),
         TokenKind::Colon => (SyntaxKind::COLON, ":"),
         TokenKind::Apostrophe => (SyntaxKind::APOSTROPHE, "'"),
-        TokenKind::At => (SyntaxKind::AT, "@"),
         TokenKind::Arrow => (SyntaxKind::ARROW, "->"),
         TokenKind::Pipe => (SyntaxKind::PIPE, "|"),
         TokenKind::Dot => (SyntaxKind::DOT, "."),

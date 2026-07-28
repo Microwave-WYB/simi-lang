@@ -180,7 +180,7 @@ test("control-flow snippets use construct-specific final ends", async () => {
   );
 
   assert.deepEqual(Object.keys(byPrefix).sort(), [
-    "case", "catch", "do", "fn", "fnexpr", "if", "ifelse", "loop",
+    "case", "catch", "do", "fn", "fnexpr", "if", "ifelse",
   ]);
   assert.deepEqual(byPrefix.case.body, [
     "case $1",
@@ -220,7 +220,7 @@ test("grammar keyword inventory follows the current Simi lexer", async () => {
   const keywordInventory = keywordPatterns.replaceAll("\\b", "");
   const lexerKeywords = [
     "fn", "do", "end", "if", "then", "elseif", "else", "let", "tap", "and", "or", "not",
-    "loop", "break", "continue", "case", "of", "when", "raise", "catch",
+    "case", "of", "when", "raise", "catch",
   ];
 
   for (const keyword of lexerKeywords) {

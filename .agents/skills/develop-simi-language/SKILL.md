@@ -37,7 +37,7 @@ Before changing behavior, write down:
 - Omitted callable effects infer, `raises E` checks an upper bound, and `noraise` means `raises never`. Hard diagnostics and postfix `?` stay outside the raised channel.
 - Same-scope repeated `let` creates a new binding version; earlier closures retain earlier versions.
 - Map patterns are closed unless they contain `..` or `..rest`.
-- Postfix `?` stops the nearest lexical block. In a loop body its `nil` value supplies the next state.
+- Postfix `?` stops the nearest lexical block.
 - Raised values and hard diagnostics remain separate result layers.
 - Every new edge capable of reaching a managed Simi value participates in tracing.
 - Native callbacks remain `Send + Sync + 'static`; do not capture managed values as untraced edges.

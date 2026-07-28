@@ -84,35 +84,6 @@ fn recover_statement(p: &mut Parser<'_>) {
     marker.complete(&mut p.events, K::ERROR);
 }
 
-fn can_begin_expression(kind: K) -> bool {
-    matches!(
-        kind,
-        K::INT
-            | K::FLOAT
-            | K::STRING
-            | K::IDENT
-            | K::NIL_KW
-            | K::TRUE_KW
-            | K::FALSE_KW
-            | K::MINUS
-            | K::NOT_KW
-            | K::L_PAREN
-            | K::L_BRACKET
-            | K::L_BRACE
-            | K::DO_KW
-            | K::RAISE_KW
-            | K::PANIC_KW
-            | K::TODO_KW
-            | K::TRY_KW
-            | K::CATCH_KW
-            | K::CASE_KW
-            | K::IF_KW
-            | K::LOOP_KW
-            | K::BREAK_KW
-            | K::CONTINUE_KW
-    )
-}
-
 fn node_span_hint(p: &Parser<'_>, marker: CompletedMarker) -> crate::span::Span {
     let target = marker.position();
     let mut first_event = target;

@@ -277,12 +277,6 @@ impl Builder {
                     }
                 }
             }
-            syntax::Expr::Loop(node) => {
-                let child = self.child_scope(scope, node.syntax(), false);
-                if let Some(body) = support::child::<syntax::Block>(node.syntax()) {
-                    self.block(&body, child);
-                }
-            }
             other => self.walk_nested(other.syntax(), scope),
         }
     }

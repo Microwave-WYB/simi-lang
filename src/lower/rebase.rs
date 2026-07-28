@@ -89,9 +89,7 @@ pub(super) fn rebase_expr(expression: &mut ast::Expr, origins: &simi_syntax::Tok
         }
         ast::ExprKind::Raise { value }
         | ast::ExprKind::NilPropagate { value }
-        | ast::ExprKind::Unary { value, .. }
-        | ast::ExprKind::Break { value, .. } => rebase_expr(value, origins),
-        ast::ExprKind::Continue { .. } => {}
+        | ast::ExprKind::Unary { value, .. } => rebase_expr(value, origins),
         ast::ExprKind::Try { protected, clauses } => {
             rebase_block(protected, origins);
             for clause in clauses {
@@ -116,7 +114,6 @@ pub(super) fn rebase_expr(expression: &mut ast::Expr, origins: &simi_syntax::Tok
                 rebase_block(body, origins);
             }
         }
-        ast::ExprKind::Loop { body, .. } => rebase_block(body, origins),
         ast::ExprKind::Call { callee, args } => {
             rebase_expr(callee, origins);
             for argument in args {

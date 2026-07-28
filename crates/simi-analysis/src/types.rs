@@ -100,7 +100,6 @@ pub fn infer_types(
         next_region: 0,
         expression_types: Vec::new(),
         pattern_types: Vec::new(),
-        loops: Vec::new(),
         nil_abort_states: Vec::new(),
         raised_exit_frames: vec![Vec::new()],
         generic_bound_frames: Vec::new(),
@@ -218,11 +217,6 @@ fn builtin_types(resolution: &Resolution) -> HashMap<SymbolId, Type> {
     types
 }
 
-struct LoopContext {
-    label: Option<String>,
-    breaks: Vec<(Type, FlowState)>,
-}
-
 #[derive(Clone)]
 struct RaisedExit {
     raised: Type,
@@ -272,7 +266,6 @@ struct Context<'a> {
     next_region: u32,
     expression_types: Vec<(Span, Type)>,
     pattern_types: Vec<(Span, Type)>,
-    loops: Vec<LoopContext>,
     nil_abort_states: Vec<Vec<FlowState>>,
     raised_exit_frames: Vec<Vec<RaisedExit>>,
     generic_bound_frames: Vec<HashMap<u32, Type>>,

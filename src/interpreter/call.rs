@@ -187,9 +187,6 @@ impl Interpreter {
                     Err(error @ EvaluationError::NilPropagate { .. }) => {
                         Err(EvaluationError::Runtime(error.into_runtime_error()))
                     }
-                    Err(
-                        error @ (EvaluationError::Break { .. } | EvaluationError::Continue { .. }),
-                    ) => Err(EvaluationError::Runtime(error.into_runtime_error())),
                 }
             }
             Value::NativeFunction(function) => {
