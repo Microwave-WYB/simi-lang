@@ -46,15 +46,18 @@ fn representative_tree_shape_is_stable() {
 #[test]
 fn delimiters_belong_to_their_typed_nodes() {
     let source = concat!(
-        "case [1] of [head, ..tail] head end ",
-        "do 1 catch of _ 2 end ",
+        "case [1] of [head, ..tail] => head end ",
+        "do 1 catch of _ => 2 end ",
         "if false then 0 else f(1) end",
     );
     let parse = parse_source(source);
     assert!(parse.diagnostics().is_empty(), "{:?}", parse.diagnostics());
     for (node_kind, token_kind) in [
-        (SyntaxKind::CASE_CLAUSE, SyntaxKind::OF_KW),
+        (SyntaxKind::CASE_EXPR, SyntaxKind::OF_KW),
+        (SyntaxKind::CASE_CLAUSE, SyntaxKind::FAT_ARROW),
         (SyntaxKind::PROTECTED_EXPR, SyntaxKind::CATCH_KW),
+        (SyntaxKind::PROTECTED_EXPR, SyntaxKind::OF_KW),
+        (SyntaxKind::CATCH_ARM, SyntaxKind::FAT_ARROW),
         (SyntaxKind::REST_PATTERN, SyntaxKind::DOT_DOT),
         (SyntaxKind::ELSE_BRANCH, SyntaxKind::ELSE_KW),
         (SyntaxKind::ARG_LIST, SyntaxKind::L_PAREN),

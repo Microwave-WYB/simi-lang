@@ -225,9 +225,9 @@ fn protected_expression_catches_values_and_leaves_unmatched_raises_unchanged() {
     let value = evaluate(
         r#"
                 do raise {kind="missing", payload=[1, 2]}
-                    catch of {kind="missing", payload=[head, ..tail]} when head == 1
+                    catch of {kind="missing", payload=[head, ..tail]} when head == 1 =>
                         tail
-                    of _
+                    _ =>
                         nil
                 end
             "#,
@@ -235,7 +235,7 @@ fn protected_expression_catches_values_and_leaves_unmatched_raises_unchanged() {
     .expect("the structural catch should match");
     assert_eq!(value.render(), "[2]");
 
-    let source = "do raise 1 catch of 2 nil end";
+    let source = "do raise 1 catch of 2 => nil end";
     let raised = expect_raised(source);
     let raise_start = source
         .find("raise 1")
@@ -258,7 +258,7 @@ fn protected_expression_evaluates_its_body_exactly_once() {
             Arc::new(count_protected_evaluation),
         )),
     );
-    let source = "do raise tick() catch of count count end";
+    let source = "do raise tick() catch of count => count end";
     let program = parser::parse_source(source).expect("test source should parse");
     let outcome = Interpreter::with_globals(globals)
         .evaluate(&program)
@@ -274,11 +274,11 @@ fn protected_expression_evaluates_its_body_exactly_once() {
 
 #[test]
 fn hard_errors_and_non_boolean_catch_guards_bypass_language_catches() {
-    let undefined = expect_runtime_error("do missing_name catch of _ \"must not catch\" end");
+    let undefined = expect_runtime_error("do missing_name catch of _ => \"must not catch\" end");
     assert_eq!(undefined.span, Span::new(3, 15));
     assert!(undefined.message.contains("undefined name"));
 
-    let guard_source = "do raise 1 catch of _ when 2 nil end";
+    let guard_source = "do raise 1 catch of _ when 2 => nil end";
     let guard = expect_runtime_error(guard_source);
     let guard_start = guard_source.find("2").expect("guard should exist");
     assert_eq!(guard.span, Span::new(guard_start, guard_start + 1));
@@ -288,14 +288,14 @@ fn hard_errors_and_non_boolean_catch_guards_bypass_language_catches() {
 #[test]
 fn handler_raises_escape_siblings_and_append_the_caught_chain() {
     let source = r#"do do raise "old"
-                catch of _
+                catch of _ =>
                     raise "middle"
-                of _
+                _ =>
                     "inner sibling must not run"
             end
-                catch of _
+                catch of _ =>
                     raise "new"
-                of _
+                _ =>
                     "outer sibling must not run"
             end"#;
     let raised = expect_raised(source);
@@ -332,7 +332,7 @@ fn handler_raises_escape_siblings_and_append_the_caught_chain() {
 fn handler_reraise_records_a_new_origin_and_freezes_caught_frames_in_its_cause() {
     let source = r#"fn leaf() do raise "old" end
 do leaf()
-catch of error
+catch of error =>
     raise error
 end"#;
     let raised = expect_raised(source);
@@ -368,9 +368,9 @@ end"#;
 #[test]
 fn a_raise_from_a_catch_guard_escapes_without_trying_siblings() {
     let source = r#"do raise "caught"
-catch of _ when raise "guard"
+catch of _ when raise "guard" =>
     "body must not run"
-of _
+_ =>
     "sibling must not run"
 end"#;
     let raised = expect_raised(source);

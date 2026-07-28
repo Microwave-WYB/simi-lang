@@ -13,32 +13,33 @@ fn direct_function_and_case_bodies_are_whitespace_independent() {
         r#"
             fn add(left, right)
                 left + right
-            let label = case 2 of 1
+            let label = case 2 of
+            1 =>
                 "one"
-            of value
+            value =>
                 add(value, 1)
             end
             label
         "#,
         "3",
     );
-    assert_eval("case 1 of value value + 1 of _ 0 end", "2");
+    assert_eval("case 1 of value => value + 1 _ => 0 end", "2");
 }
 
 #[test]
 fn protected_do_and_direct_catch_body_preserve_raise_semantics() {
     assert_eval(
-        "fn recover() do raise \"x\" catch of _ 1 end recover()",
+        "fn recover() do raise \"x\" catch of _ => 1 end recover()",
         "1",
     );
-    assert_eval("case 1 of _ do raise \"x\" catch of _ 2 end end", "2");
-    assert_eval("case 1 of 1 do let value = 2 value end of _ 0 end", "2");
+    assert_eval("case 1 of _ => do raise \"x\" catch of _ => 2 end end", "2");
+    assert_eval("case 1 of 1 => do let value = 2 value end _ => 0 end", "2");
     assert_eval(
         r#"
             do
                 raise "missing"
-            catch
-                of "missing"
+            catch of
+                "missing" =>
                     "recovered"
             end
         "#,

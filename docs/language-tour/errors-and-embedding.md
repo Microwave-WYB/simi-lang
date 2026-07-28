@@ -68,7 +68,7 @@ end
 
 ## Catching raised values
 
-A protected `do` expression evaluates one or more protected items. Its `catch` section contains `of` arms using the same structural patterns and Boolean guards as `case`, in source order:
+A protected `do` expression evaluates one or more protected items. One `of` introduces its `catch` arms, which use the same structural patterns and Boolean guards as `case`; every arm separates its header and result with `=>`:
 
 ```simi
 fn load(key) do
@@ -77,10 +77,10 @@ end
 
 do
     load("profile")
-catch
-    of {error = "not_found", key = key}
+catch of
+    {error = "not_found", key = key} =>
         "missing: " <> key
-    of error
+    error =>
         raise error
 end
 ```
@@ -93,12 +93,12 @@ A raise from a catch guard or handler body escapes the current protected express
 do
     do
         raise "original"
-    catch
-        of error
+    catch of
+        error =>
             raise {error = "replacement", cause = error}
     end
-catch
-    of {error = "replacement", cause = cause}
+catch of
+    {error = "replacement", cause = cause} =>
         cause
 end
 ```
@@ -109,8 +109,8 @@ A protected `do` catches neither postfix nil propagation nor hard diagnostics. T
 -- Expected type and runtime diagnostics: catch handles raises, not hard diagnostics.
 do
     1 + "two"
-catch
-    of _
+catch of
+    _ =>
         "not reached"
 end
 ```
@@ -130,7 +130,7 @@ end
 
 do
     lookup("profile")
-catch of {error = "not_found", key = key}
+catch of {error = "not_found", key = key} =>
     "missing: " <> key
 end
 ```

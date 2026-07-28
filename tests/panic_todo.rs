@@ -27,8 +27,8 @@ fn terminal_expressions_are_hard_diagnostics_with_exact_spans() {
 #[test]
 fn protected_expression_cannot_catch_terminal_expressions() {
     for source in [
-        "do panic catch of _ \"not reached\" end",
-        "do todo \"finish\" catch of _ \"not reached\" end",
+        "do panic catch of _ => \"not reached\" end",
+        "do todo \"finish\" catch of _ => \"not reached\" end",
     ] {
         assert!(matches!(eval(source), Err(SimiError::Runtime(_))));
     }

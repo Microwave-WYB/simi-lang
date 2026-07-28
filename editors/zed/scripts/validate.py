@@ -103,18 +103,18 @@ def check_source_extension() -> None:
         "unexpected Simi snippet inventory",
     )
     expected_case_snippet = [
-        "case $1",
-        "    of $2",
+        "case $1 of",
+        "    $2 =>",
         "        $3",
-        "    of _",
+        "    _ =>",
         "        $0",
         "end",
     ]
     expected_catch_snippet = [
         "do",
         "    $1",
-        "catch",
-        "    of $2",
+        "catch of",
+        "    $2 =>",
         "        $0",
         "end",
     ]
@@ -138,22 +138,29 @@ def check_source_extension() -> None:
     decrease = re.compile(config["decrease_indent_pattern"])
     for line in (
         "fn add(left, right)",
-        "of [head, ..tail] when ready",
-        "of [head, ..tail] when ready do",
-        "catch",
-        "    case n",
-        '    case "x of y"',
-        '    case " of "',
-        "    case n -- of in a comment",
+        "[head, ..tail] when ready =>",
+        "[head, ..tail] when ready => do",
+        "catch of",
+        "    case value of",
+        '    case "x of y" of',
+        '    case " of " of',
+        "    case value of -- of in a comment",
+        "    do",
     ):
         check(increase.search(line) is not None, f"line should increase indentation: {line}")
-    for line in ("fn add(a, b) do a + b end", "of _ do value end", "case n of _ do n end", 'case "x of y" of _ do 1 end'):
-        check(increase.search(line) is None, f"one-line form must not indent next line: {line}")
+    for line in (
+        "fn add(a, b) do a + b end",
+        "_ => do value end",
+        "case value of _ => do n end",
+        'case "x of y" of _ => do 1 end',
+        "    value -- fake =>",
+    ):
+        check(increase.search(line) is None, f"one-line or comment-arrow form must not indent: {line}")
     for line in ("end", "catch", "elseif ready then", "else"):
         check(decrease.search(line) is not None, f"line should decrease indentation: {line}")
-    check(decrease.search("of _") is None, "line regex must not counteract structural of indentation")
+    check(decrease.search("_ =>") is None, "arm arrow must not decrease indentation")
     case_indent = 4
-    provisional_indent = case_indent + (4 if increase.search("    case n") else 0)
+    provisional_indent = case_indent + (4 if increase.search("    case value of") else 0)
     check(provisional_indent == 8, "incomplete case must provisionally indent one level")
     for legacy in ("match value with", "case value ->"):
         check(increase.search(legacy) is None, f"legacy syntax affects indentation: {legacy}")
@@ -183,23 +190,23 @@ def check_source_extension() -> None:
         check(removed_node not in indents, f"legacy indent node remains: {removed_node}")
 
     fixture = (COMPONENT / "tests" / "fixtures" / "language.simi").read_text(encoding="utf-8")
-    check("case value" in fixture and fixture.count("\n        of ") >= 4, "fixture does not exercise repeated case arms")
-    check("of _\n            nil\n" in fixture, "fixture does not exercise a direct final case arm")
-    check("of 0\n            do\n" in fixture, "fixture does not exercise a direct do case-arm expression")
-    check(sum(line.lstrip().startswith("of ") for line in fixture.splitlines()) >= 7, "fixture does not exercise repeated case and catch arms")
+    check("case value" in fixture and fixture.count(" =>") >= 7, "fixture does not exercise repeated case arms")
+    check("        _ =>" in fixture, "fixture does not exercise a direct final case arm")
+    check("        0 =>" in fixture, "fixture does not exercise a direct do case-arm expression")
+    check(fixture.count(" =>") >= 7, "fixture does not exercise repeated case and catch arms")
     protected_block = [
         ("do", 0),
         ("let error = { error = \"example\" }", 4),
         ("raise error", 4),
-        ("catch", 0),
-        ("of { error = message } when message != nil", 4),
+        ("catch of", 0),
+        ("{ error = message } when message != nil =>", 4),
         ("classify([final])", 8),
-        ("of \"retry\"", 4),
+        ("\"retry\" =>", 4),
         ("do", 8),
         ("let recovered = classify([final])", 12),
         ("recovered", 12),
         ("end", 8),
-        ("of _", 4),
+        ("_ =>", 4),
         ("nil", 8),
         ("end", 0),
     ]

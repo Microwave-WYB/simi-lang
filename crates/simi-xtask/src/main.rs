@@ -47,6 +47,7 @@ const TOKENS: &[&str] = &[
     "COLON",
     "APOSTROPHE",
     "ARROW",
+    "FAT_ARROW",
     "PIPE",
     "DOT",
     "DOT_DOT",

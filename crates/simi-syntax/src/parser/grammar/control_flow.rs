@@ -36,51 +36,35 @@ pub(super) fn case_expr(p: &mut Parser<'_>) -> Parsed {
     let marker = p.start();
     p.bump();
     expression(p);
-    pattern_clauses(p, K::CASE_CLAUSE, "`of` after case value");
+    pattern_arms(p, K::CASE_CLAUSE, "`of` after case value");
     p.expect(K::END_KW, "`end` after case expression");
     Parsed {
         marker: marker.complete(&mut p.events, K::CASE_EXPR),
         flavor: Flavor::Other,
     }
 }
-pub(super) fn pattern_clauses(p: &mut Parser<'_>, clause_kind: K, first_marker: &str) {
-    let mut first = true;
-    while p.at(K::OF_KW) || first {
-        let clause = p.start();
-        if !p.expect(
-            K::OF_KW,
-            if first {
-                first_marker
-            } else {
-                "`of` before next arm"
-            },
-        ) {
-            clause.complete(&mut p.events, clause_kind);
-            break;
-        }
-        first = false;
-        if p.at(K::END_KW) {
-            p.error("expected pattern after `of`, found `end`".to_owned());
-            clause.complete(&mut p.events, clause_kind);
-            break;
-        }
+pub(super) fn pattern_arms(p: &mut Parser<'_>, arm_kind: K, of_marker: &str) {
+    if !p.expect(K::OF_KW, of_marker) {
+        return;
+    }
+    if p.at(K::END_KW) {
+        p.error("expected pattern after `of`, found `end`".to_owned());
+        return;
+    }
+    while !p.at(K::END_KW) && !p.at_end() {
+        let arm = p.start();
         let mut bindings = HashSet::new();
         pattern(p, &mut bindings);
         if p.bump_if(K::WHEN_KW) {
             expression(p);
         }
+        p.expect(K::FAT_ARROW, "`=>` after arm pattern and guard");
         let body = p.start();
         p.block_depth += 1;
-        if p.at(K::DO_KW) && !do_starts_protected(p) {
-            p.bump();
-            block(p);
-            p.expect(K::END_KW, "`end` after clause block body");
-        } else {
-            expression(p);
-        }
+        expression(p);
         p.block_depth -= 1;
         body.complete(&mut p.events, K::BODY);
-        clause.complete(&mut p.events, clause_kind);
+        arm.complete(&mut p.events, arm_kind);
     }
 }
 pub(super) fn if_expr(p: &mut Parser<'_>) -> Parsed {

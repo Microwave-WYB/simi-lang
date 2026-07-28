@@ -17,8 +17,8 @@ fn variable_assignment_is_expression_valued_right_associative_and_lexical() {
             [outer, other, parameter]
         end
         let inside = update(3)
-        let matched = case [4]
-            of [item]
+        let matched = case [4] of
+            [item] =>
                 item = item + 1
         end
         let iter = require("std/iter")
@@ -133,12 +133,12 @@ fn list_bounds_reads_return_nil_while_writes_raise_without_growth() {
         let rhs_ran = []
         let read = values[2]
         let write = do values[3] = list.append(rhs_ran, true)
-            catch of {error=error, index=index, length=length, ..}
+            catch of {error=error, index=index, length=length, ..} =>
                 [error, index, length]
         end
         let get = list.get(values, 4)
         let set = do list.set(values, 5, 9)
-            catch of {error=error, index=index, length=length, ..}
+            catch of {error=error, index=index, length=length, ..} =>
                 [error, index, length]
         end
         [read, write, get, set, values, rhs_ran]
@@ -174,10 +174,10 @@ fn native_set_bounds_raises_preserve_the_call_origin_and_user_frame() {
 #[test]
 fn negative_and_wrong_type_list_indices_remain_hard_errors() {
     for source in [
-        "do [1][0 - 1] catch of _ nil end",
-        "do [1][\"0\"] = 2 catch of _ nil end",
-        "\ndo list.get([1], 0 - 1) catch of _ nil end",
-        "\ndo list.set([1], \"0\", 2) catch of _ nil end",
+        "do [1][0 - 1] catch of _ => nil end",
+        "do [1][\"0\"] = 2 catch of _ => nil end",
+        "\ndo list.get([1], 0 - 1) catch of _ => nil end",
+        "\ndo list.set([1], \"0\", 2) catch of _ => nil end",
     ] {
         assert!(matches!(eval(source), Err(SimiError::Runtime(_))));
     }

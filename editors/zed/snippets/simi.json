@@ -47,10 +47,10 @@
   "Case expression": {
     "prefix": "case",
     "body": [
-      "case $1",
-      "    of $2",
+      "case $1 of",
+      "    $2 =>",
       "        $3",
-      "    of _",
+      "    _ =>",
       "        $0",
       "end"
     ],
@@ -61,8 +61,8 @@
     "body": [
       "do",
       "    $1",
-      "catch",
-      "    of $2",
+      "catch of",
+      "    $2 =>",
       "        $0",
       "end"
     ],

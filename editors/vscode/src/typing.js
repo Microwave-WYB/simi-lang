@@ -511,7 +511,7 @@ function createStructuralIndentTypingController({ vscode, parser }) {
     const insertedIndent = insertedLineBreak[1];
     const bodyLine = headerLine + 1;
     const insertionOffset = change.rangeOffset + change.text.length;
-    const arm = /^\s*of\b/.test(line.text)
+    const arm = /=>\s*(?:do\s*)?(?:--.*)?$/.test(line.text)
       ? parsedArmTarget(parser, source, headerLine, insertionOffset)
       : undefined;
     if (arm) {

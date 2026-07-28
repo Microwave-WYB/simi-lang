@@ -342,7 +342,7 @@ pub(super) fn block_expr(p: &mut Parser<'_>) -> Parsed {
                 "expected at least one protected block item".to_owned(),
             );
         }
-        pattern_clauses(p, K::CATCH_ARM, "`of` after `catch`");
+        pattern_arms(p, K::CATCH_ARM, "`of` after `catch`");
         p.expect(K::END_KW, "`end` after protected expression");
         return Parsed {
             marker: marker.complete(&mut p.events, K::PROTECTED_EXPR),

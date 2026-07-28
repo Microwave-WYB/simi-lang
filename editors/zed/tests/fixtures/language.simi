@@ -21,17 +21,17 @@ fn declared_effect(
 let iter = require("std/iter")
 
 fn classify(value) do
-    case value
-        of [first, ..rest] when first >= 1
+    case value of
+        [first, ..rest] when first >= 1 =>
             { kind = "positive\n", value = first, rest = rest }
-        of { error = message, ..details }
+        { error = message, ..details } =>
             { kind = "error", message = message, details = details }
-        of 0
+        0 =>
             do
                 let kind = "zero"
                 { kind = kind, value = value }
             end
-        of _
+        _ =>
             nil
     end
 end
@@ -60,14 +60,14 @@ end)
 do
     let error = { error = "example" }
     raise error
-catch
-    of { error = message } when message != nil
+catch of
+    { error = message } when message != nil =>
         classify([final])
-    of "retry"
+    "retry" =>
         do
             let recovered = classify([final])
             recovered
         end
-    of _
+    _ =>
         nil
 end

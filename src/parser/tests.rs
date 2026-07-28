@@ -344,10 +344,10 @@ fn rejects_malformed_or_stray_terminators() {
 #[test]
 fn parses_match_into_canonical_nested_patterns_and_spans() {
     let source = concat!(
-        "case input ",
-        "of {payload=[nil, true, 7, \"ok\", value, ..tail], ignored=_x, .._rest} ",
-        "when value == 7 value ",
-        "of _ignored do end ",
+        "case input of ",
+        "{payload=[nil, true, 7, \"ok\", value, ..tail], ignored=_x, .._rest} ",
+        "when value == 7 => value ",
+        "_ignored => do end ",
         "end"
     );
     let program = parse_source(source).unwrap();
@@ -391,9 +391,14 @@ fn parses_match_into_canonical_nested_patterns_and_spans() {
     assert!(matches!(rest, Some(PatternRest::Binding(name)) if name == "tail"));
     assert!(matches!(fields[1].1.kind, PatternKind::Wildcard));
     assert!(matches!(clauses[1].pattern.kind, PatternKind::Wildcard));
-    assert_eq!(clauses[1].body.items.len(), 0);
-    let final_do_end = source.rfind("do").unwrap() + 2;
-    assert_eq!(clauses[1].body.span, Span::new(final_do_end, final_do_end));
+    assert_eq!(clauses[1].body.items.len(), 1);
+    assert!(matches!(
+        clauses[1].body.items[0].kind,
+        StmtKind::Expr(Expr {
+            kind: ExprKind::Block(_),
+            ..
+        })
+    ));
 }
 
 #[test]
@@ -406,7 +411,7 @@ fn legacy_loop_forms_are_rejected_while_iterator_control_members_parse() {
 
 #[test]
 fn case_is_a_primary_expression_and_preserves_nested_block_ownership() {
-    let source = "case 1 of x if true then x else nil end of _ 9 end";
+    let source = "case 1 of x => if true then x else nil end _ => 9 end";
     let program = parse_source(source).unwrap();
     assert!(matches!(
         program.items[0].kind,
@@ -415,7 +420,7 @@ fn case_is_a_primary_expression_and_preserves_nested_block_ownership() {
             ..
         })
     ));
-    let postfixed = parse_source("case [1] of x x end[0]").unwrap();
+    let postfixed = parse_source("case [1] of x => x end[0]").unwrap();
     assert!(matches!(
         postfixed.items[0].kind,
         StmtKind::Expr(Expr {
@@ -429,17 +434,17 @@ fn case_is_a_primary_expression_and_preserves_nested_block_ownership() {
 fn rejects_duplicate_bindings_and_map_pattern_fields_at_second_name() {
     for (source, message, second_name) in [
         (
-            "case 0 of {a=x, b=[x]} nil end",
+            "case 0 of {a=x, b=[x]} => nil end",
             "duplicate binding `x` in pattern",
             "x",
         ),
         (
-            "case 0 of [x, ..x] nil end",
+            "case 0 of [x, ..x] => nil end",
             "duplicate binding `x` in pattern",
             "x",
         ),
         (
-            "case 0 of {a=x, a=y} nil end",
+            "case 0 of {a=x, a=y} => nil end",
             "duplicate map pattern field `a`",
             "a",
         ),
@@ -450,29 +455,29 @@ fn rejects_duplicate_bindings_and_map_pattern_fields_at_second_name() {
         assert_eq!(error.span, Span::new(start, start + second_name.len()));
     }
 
-    parse_source("case 0 of [_x, {_x=_x}, .._x] nil end").unwrap();
+    parse_source("case 0 of [_x, {_x=_x}, .._x] => nil end").unwrap();
 }
 
 #[test]
 fn accepts_discarded_pattern_rests_and_rejects_malformed_positions_and_keys() {
-    parse_source("case [] of [..] nil end").unwrap();
-    parse_source("case {} of {..} nil end").unwrap();
+    parse_source("case [] of [..] => nil end").unwrap();
+    parse_source("case {} of {..} => nil end").unwrap();
 
     for (source, expected_message) in [
         (
-            "case [] of [..xs, value] nil end",
+            "case [] of [..xs, value] => nil end",
             "expected `]` after list pattern, found `identifier`",
         ),
         (
-            "case {} of {..rest, field=x} nil end",
+            "case {} of {..rest, field=x} => nil end",
             "expected `}` after map pattern, found `identifier`",
         ),
         (
-            "case {} of {[\"x\"]=value} nil end",
+            "case {} of {[\"x\"]=value} => nil end",
             "expected map pattern field name or `..`, found `[`",
         ),
         (
-            "case {} of {field value} nil end",
+            "case {} of {field value} => nil end",
             "expected `}` after map pattern, found `identifier`",
         ),
     ] {
@@ -497,16 +502,20 @@ fn reports_required_case_arm_delimiters() {
             "expected expression, found `end`",
         ),
         (
-            "case value of _ do nil",
-            "expected `end` after clause block body, found `end of file`",
+            "case value of _ nil end",
+            "expected `=>` after arm pattern and guard, found `nil`",
         ),
         (
-            "case value of _ do nil of _ nil end",
-            "expected `end` after clause block body, found `of`",
+            "case value of _ => do nil",
+            "expected `end` after standalone block, found `end of file`",
+        ),
+        (
+            "case value of _ => nil of _ => nil end",
+            "expected pattern, found `of`",
         ),
         (
             "case value of _ -> nil end",
-            "expected expression, found `->`",
+            "expected `=>` after arm pattern and guard, found `->`",
         ),
     ] {
         let error = parse_source(source).unwrap_err();
@@ -556,8 +565,8 @@ fn parses_raise_with_a_full_expression_operand_and_contract_span() {
 fn parses_protected_catch_arms_with_guards_empty_bodies_and_postfix_syntax() {
     let source = concat!(
         "do raise [1, 2] ",
-        "catch of [head, ..tail] when head == 1 tail ",
-        "of _ do end ",
+        "catch of [head, ..tail] when head == 1 => tail ",
+        "_ => do end ",
         "end[0]"
     );
     let program = parse_source(source).unwrap();
@@ -598,19 +607,24 @@ fn parses_protected_catch_arms_with_guards_empty_bodies_and_postfix_syntax() {
         })
     ));
     assert_eq!(clauses[0].body.items.len(), 1);
-    assert!(clauses[1].body.items.is_empty());
-    let final_do_end = source.rfind("do").unwrap() + 2;
-    assert_eq!(clauses[1].body.span, Span::new(final_do_end, final_do_end));
+    assert_eq!(clauses[1].body.items.len(), 1);
+    assert!(matches!(
+        clauses[1].body.items[0].kind,
+        StmtKind::Expr(Expr {
+            kind: ExprKind::Block(_),
+            ..
+        })
+    ));
 }
 
 #[test]
 fn preserves_nested_protected_case_and_if_body_ownership() {
     let source = concat!(
         "do if true then ",
-        "case 1 of x do x catch of _ nil end end ",
+        "case 1 of x => do x catch of _ => nil end end ",
         "else nil end ",
-        "catch of error when true if false then error end ",
-        "of _ nil end"
+        "catch of error when true => if false then error end ",
+        "_ => nil end"
     );
     let program = parse_source(source).unwrap();
     let StmtKind::Expr(Expr {
@@ -651,8 +665,12 @@ fn reports_required_protected_expression_delimiters_and_stray_catch() {
             "expected expression, found `end`",
         ),
         (
-            "do 1 catch of _ do nil",
-            "expected `end` after clause block body, found `end of file`",
+            "do 1 catch of _ nil end",
+            "expected `=>` after arm pattern and guard, found `nil`",
+        ),
+        (
+            "do 1 catch of _ => do nil",
+            "expected `end` after standalone block, found `end of file`",
         ),
         ("catch", "unexpected `catch` outside of a block"),
     ] {
@@ -663,7 +681,7 @@ fn reports_required_protected_expression_delimiters_and_stray_catch() {
 
 #[test]
 fn reports_empty_protected_body_at_the_catch_keyword() {
-    let source = "do catch of _ nil end";
+    let source = "do catch of _ => nil end";
     let error = parse_source(source).unwrap_err();
     assert_eq!(error.message, "expected at least one protected block item");
     assert_eq!(error.span, Span::new(3, 8));
@@ -671,7 +689,7 @@ fn reports_empty_protected_body_at_the_catch_keyword() {
 
 #[test]
 fn catch_clauses_reuse_existing_pattern_validation() {
-    let source = "do 0 catch of [value, ..value] nil end";
+    let source = "do 0 catch of [value, ..value] => nil end";
     let error = parse_source(source).unwrap_err();
     assert_eq!(error.message, "duplicate binding `value` in pattern");
     let start = source.rfind("value").unwrap();
@@ -752,7 +770,7 @@ fn parses_float_unary_and_operator_precedence() {
         }
     ));
 
-    let program = parse_source("case 1 of 1.0 2.5 end").unwrap();
+    let program = parse_source("case 1 of 1.0 => 2.5 end").unwrap();
     let StmtKind::Expr(expression) = &program.items[0].kind else {
         panic!("expected match expression");
     };

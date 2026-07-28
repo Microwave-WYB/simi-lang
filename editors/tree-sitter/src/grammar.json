@@ -2950,6 +2950,10 @@
           }
         },
         {
+          "type": "STRING",
+          "value": "of"
+        },
+        {
           "type": "REPEAT1",
           "content": {
             "type": "SYMBOL",
@@ -2965,10 +2969,6 @@
     "case_clause": {
       "type": "SEQ",
       "members": [
-        {
-          "type": "STRING",
-          "value": "of"
-        },
         {
           "type": "FIELD",
           "name": "pattern",
@@ -3003,20 +3003,15 @@
           ]
         },
         {
+          "type": "STRING",
+          "value": "=>"
+        },
+        {
           "type": "FIELD",
           "name": "body",
           "content": {
-            "type": "CHOICE",
-            "members": [
-              {
-                "type": "SYMBOL",
-                "name": "block_expression"
-              },
-              {
-                "type": "SYMBOL",
-                "name": "_expression"
-              }
-            ]
+            "type": "SYMBOL",
+            "name": "_expression"
           }
         }
       ]
@@ -3041,6 +3036,10 @@
           "value": "catch"
         },
         {
+          "type": "STRING",
+          "value": "of"
+        },
+        {
           "type": "REPEAT1",
           "content": {
             "type": "SYMBOL",
@@ -3056,10 +3055,6 @@
     "catch_arm": {
       "type": "SEQ",
       "members": [
-        {
-          "type": "STRING",
-          "value": "of"
-        },
         {
           "type": "FIELD",
           "name": "pattern",
@@ -3094,20 +3089,15 @@
           ]
         },
         {
+          "type": "STRING",
+          "value": "=>"
+        },
+        {
           "type": "FIELD",
           "name": "body",
           "content": {
-            "type": "CHOICE",
-            "members": [
-              {
-                "type": "SYMBOL",
-                "name": "block_expression"
-              },
-              {
-                "type": "SYMBOL",
-                "name": "_expression"
-              }
-            ]
+            "type": "SYMBOL",
+            "name": "_expression"
           }
         }
       ]
@@ -3678,14 +3668,6 @@
     [
       "_primary_expression",
       "function_declaration"
-    ],
-    [
-      "_primary_expression",
-      "case_clause"
-    ],
-    [
-      "_primary_expression",
-      "catch_arm"
     ]
   ],
   "precedences": [],

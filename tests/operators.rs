@@ -62,9 +62,9 @@ fn boolean_operators_are_strict_and_short_circuit() {
 fn numeric_equality_comparison_and_patterns_promote_integers() {
     let result = value(
         r#"
-        let first = case 1.0 of 1 "int" end
-        let second = case 1 of 1.0 "float" end
-        let third = case 1.5 of 1.5 "fraction" end
+        let first = case 1.0 of 1 => "int" end
+        let second = case 1 of 1.0 => "float" end
+        let third = case 1.5 of 1.5 => "fraction" end
         [1 == 1.0, 1 < 1.5, 2.0 >= 2, 9007199254740992 < 9007199254740993, first, second, third]
         "#,
     );
@@ -92,10 +92,10 @@ fn float_map_keys_normalize_integral_values_and_preserve_fractions() {
 fn mixed_numeric_comparisons_remain_exact_at_float_boundaries() {
     let result = value(
         r#"
-        let boundary_pattern = case 9223372036854775807
-            of 9223372036854775808.0
+        let boundary_pattern = case 9223372036854775807 of
+            9223372036854775808.0 =>
                 false
-            of _
+            _ =>
                 true
         end
         [
@@ -115,9 +115,9 @@ fn mixed_numeric_comparisons_remain_exact_at_float_boundaries() {
 fn every_zero_divisor_raises_the_same_structural_value() {
     let result = value(
         r#"
-        let divide = do 1 / 0 catch of {error=error, ..} error  end
-        let floor = do 1 // -0.0 catch of {error=error, ..} error  end
-        let remainder = do 1 % 0 catch of {error=error, ..} error  end
+        let divide = do 1 / 0 catch of {error=error, ..} => error end
+        let floor = do 1 // -0.0 catch of {error=error, ..} => error end
+        let remainder = do 1 % 0 catch of {error=error, ..} => error end
         [divide, floor, remainder]
         "#,
     );

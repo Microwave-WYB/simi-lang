@@ -84,10 +84,11 @@ test("TextMate grammar assigns semantic scopes to representative Simi syntax", a
   assertScope(lines, 8, "tap", "storage.modifier.tap.simi");
   assertScope(lines, 8, "inspect", "support.function.builtin.simi");
   assertScope(lines, 10, "case", "keyword.control.case.simi");
-  assertScope(lines, 11, "of", "keyword.control.case.simi");
+  assertScope(lines, 10, "of", "keyword.control.case.simi");
   assertScope(lines, 11, "..", "keyword.operator.rest.simi");
   assertScope(lines, 11, "when", "keyword.control.case.simi");
-  assertScope(lines, 13, "of", "keyword.control.case.simi");
+  assertScope(lines, 11, "=>", "keyword.operator.arm.simi");
+  assertScope(lines, 13, "=>", "keyword.operator.arm.simi");
   assertScope(lines, 15, "end", "keyword.control.block.simi");
   assertScope(lines, 20, "integer", "support.type.primitive.simi");
   assertScope(lines, 20, "..", "keyword.operator.rest.simi");
@@ -98,7 +99,8 @@ test("TextMate grammar assigns semantic scopes to representative Simi syntax", a
   assertScope(lines, 26, "<|", "keyword.operator.pipeline.simi");
   assertScope(lines, 29, "raise", "keyword.control.exception.simi");
   assertScope(lines, 30, "catch", "keyword.control.exception.simi");
-  assertScope(lines, 31, "of", "keyword.control.case.simi");
+  assertScope(lines, 30, "of", "keyword.control.case.simi");
+  assertScope(lines, 31, "=>", "keyword.operator.arm.simi");
   assertScope(lines, 34, "?", "keyword.operator.pipeline.simi");
   assertScope(lines, 36, "state", "variable.other.simi");
   assertScope(lines, 36, "break", "variable.other.property.simi");
