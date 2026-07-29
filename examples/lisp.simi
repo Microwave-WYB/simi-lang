@@ -1,161 +1,179 @@
 ---- A single-file Lisp interpreter implemented in Simi.
-
----- Runtime constructors for the Lisp example's closed AST variants.
 ----
----- Recursive aliases are intentionally not used: the AST is validated structurally
----- at evaluator boundaries, so annotations remain erased and optional.
+---- It demonstrates recursive closed types, parsing, lexical environments,
+---- closures, special forms, and meaningful raised interpreter errors.
 
-fn integer(value: integer)
-    {kind = "integer", value = value}
-
-fn boolean(value: boolean)
-    {kind = "boolean", value = value}
-
-fn symbol(name: string)
-    {kind = "symbol", name = name}
-
-fn list_expression(items: [..any])
-    {kind = "list", items = items}
-
-let ast = {integer = integer, boolean = boolean, symbol = symbol, list = list_expression}
-
----- A deliberately small reader for integers, booleans, symbols, and lists.
-
-
+alias Name = string
 alias Token = string
 alias Tokens = [..Token]
-alias Cursor = {..}
+alias MaybeValue = Value | nil
+alias Symbol = {kind: "symbol", name: Name}
+
+type Expr =
+    | {kind: "integer", value: integer}
+    | {kind: "boolean", value: boolean}
+    | Symbol
+    | {kind: "list", items: [..Expr]}
+
+type Value =
+    | integer
+    | boolean
+    | Symbol
+    | [..Value]
+    | Closure
+    | Builtin
+
+type Closure = {
+    kind: "closure",
+    parameters: [..Name],
+    body: Expr,
+    environment: Environment,
+}
+
+type Builtin = {kind: "builtin", name: Name}
+
+type Environment = {
+    values: {[Name]: Value},
+    parent: Environment | nil,
+    ..,
+}
+
+---- AST constructors return only the closed Expr variants.
+
+fn integer_expression(value: integer) -> Expr
+    {kind = "integer", value = value}
+
+fn boolean_expression(value: boolean) -> Expr
+    {kind = "boolean", value = value}
+
+fn symbol_expression(name: Name) -> Expr
+    {kind = "symbol", name = name}
+
+fn list_expression(items: [..Expr]) -> Expr
+    {kind = "list", items = items}
+
+---- Reader
+----
+---- ParseResult carries the immutable next-token cursor through recursive parsing.
+
+type ParseResult = {expression: Expr, next: integer}
 
 fn is_space(character: string) -> boolean
     character == " " or character == "\n" or character == "\t" or character == "\r"
 
-fn scan(source: string, state: Cursor, tokens: Tokens) -> Tokens
-    if state.index >= string.length(source) then
+fn scan(source: string, index: integer, tokens: Tokens) -> Tokens
+    if index >= string.length(source) then
         tokens
     else
-        let character = string.slice(source, state.index, state.index + 1)
-        if is_space(character) then
-            state.index = state.index + 1
-            scan(source, state, tokens)
-        elseif character == "(" or character == ")" then
-            list.append(tokens, character)
-            state.index = state.index + 1
-            scan(source, state, tokens)
-        else
-            scan_word(source, state, tokens, state.index)
+        let character = string.slice(source, index, index + 1)
+        case character of
+            _ when is_space(character) => scan(source, index + 1, tokens)
+            "(" => do
+                list.append(tokens, character)
+                scan(source, index + 1, tokens)
+            end
+            ")" => do
+                list.append(tokens, character)
+                scan(source, index + 1, tokens)
+            end
+            _ => scan_word(source, index, index, tokens)
         end
     end
 
-fn scan_word(source: string, state: Cursor, tokens: Tokens, start: integer) -> Tokens
-    if state.index >= string.length(source) then
-        list.append(tokens, string.slice(source, start, state.index))
+fn scan_word(source: string, index: integer, start: integer, tokens: Tokens) -> Tokens
+    if index >= string.length(source) then
+        list.append(tokens, string.slice(source, start, index))
         tokens
     else
-        let character = string.slice(source, state.index, state.index + 1)
-        if is_space(character) or character == "(" or character == ")" then
-            list.append(tokens, string.slice(source, start, state.index))
-            scan(source, state, tokens)
-        else
-            state.index = state.index + 1
-            scan_word(source, state, tokens, start)
+        let character = string.slice(source, index, index + 1)
+        case character of
+            _ when is_space(character) => do
+                list.append(tokens, string.slice(source, start, index))
+                scan(source, index, tokens)
+            end
+            "(" => do
+                list.append(tokens, string.slice(source, start, index))
+                scan(source, index, tokens)
+            end
+            ")" => do
+                list.append(tokens, string.slice(source, start, index))
+                scan(source, index, tokens)
+            end
+            _ => scan_word(source, index + 1, start, tokens)
         end
     end
 
 fn tokenize(source: string) -> Tokens
-    scan(source, {index = 0}, [])
+    scan(source, 0, [])
 
-fn peek(tokens: Tokens, state: Cursor)
-    if state.index >= list.length(tokens) then nil else tokens[state.index] end
+fn token_at(tokens: Tokens, index: integer) -> Token | nil
+    if index >= list.length(tokens) then nil else tokens[index] end
 
-fn take(tokens: Tokens, state: Cursor) -> Token do
-    let token = peek(tokens, state)
-    if token == nil then
-        raise {error = "lisp_parse_error", message = "unexpected end of input"}
-    else
-        state.index = state.index + 1
-        token
+fn take(tokens: Tokens, index: integer) -> Token
+    case token_at(tokens, index) of
+        nil => raise {error = "lisp_parse_error", message = "unexpected end of input"}
+        token => token
     end
 
+fn parse_list(tokens: Tokens, index: integer) -> ParseResult do
+    let items: [..Expr] = []
+    parse_list_items(tokens, index + 1, items)
 end
 
-fn parse_list(tokens: Tokens, state: Cursor) -> any do
-    let items = []
-    parse_list_items(tokens, state, items)
-
-end
-
-fn parse_list_items(tokens: Tokens, state: Cursor, items: [..any]) -> any do
-    let token = peek(tokens, state)
-    if token == nil then
-        raise {error = "lisp_parse_error", message = "missing closing parenthesis"}
-    elseif token == ")" then
-        state.index = state.index + 1
-        ast.list(items)
-    else
-        list.append(items, parse_expression(tokens, state))
-        parse_list_items(tokens, state, items)
+fn parse_list_items(tokens: Tokens, index: integer, items: [..Expr]) -> ParseResult
+    case token_at(tokens, index) of
+        nil => raise {error = "lisp_parse_error", message = "missing closing parenthesis"}
+        ")" => {expression = list_expression(items), next = index + 1}
+        _ => do
+            let parsed = parse_expression(tokens, index)
+            list.append(items, parsed.expression)
+            parse_list_items(tokens, parsed.next, items)
+        end
     end
 
-end
-
-fn parse_atom(token: Token)
-    if token == "#t" then
-        ast.boolean(true)
-    elseif token == "#f" then
-        ast.boolean(false)
-    else
-        let number = string.to_number(token)
-        if type(number) == "integer" then ast.integer(number) else ast.symbol(token) end
+fn parse_atom(token: Token) -> Expr
+    case token of
+        "#t" => boolean_expression(true)
+        "#f" => boolean_expression(false)
+        _ => do
+            let number = string.to_number(token)
+            if type(number) == "integer" then integer_expression(number) else symbol_expression(token) end
+        end
     end
 
-fn parse_expression(tokens: Tokens, state: Cursor) -> any do
-    let token = take(tokens, state)
-    if token == "(" then
-        parse_list(tokens, state)
-    elseif token == ")" then
-        raise {error = "lisp_parse_error", message = "unexpected closing parenthesis"}
-    else
-        parse_atom(token)
+fn parse_expression(tokens: Tokens, index: integer) -> ParseResult
+    case take(tokens, index) of
+        "(" => parse_list(tokens, index)
+        ")" => raise {error = "lisp_parse_error", message = "unexpected closing parenthesis"}
+        token => {expression = parse_atom(token), next = index + 1}
     end
 
-end
-
-fn read(source: string) do
+fn read(source: string) -> Expr do
     let tokens = tokenize(source)
-    let state = {index = 0}
-    let expression = parse_expression(tokens, state)
-    if state.index == list.length(tokens) then
-        expression
+    let parsed = parse_expression(tokens, 0)
+    if parsed.next == list.length(tokens) then
+        parsed.expression
     else
         raise {error = "lisp_parse_error", message = "expected one complete expression"}
     end
 end
 
-
----- Evaluator for the closed runtime AST constructed by reader.simi.
----- Invalid externally supplied AST maps raise lisp_invalid_ast rather than being accepted.
-
-alias Name = string
-type Environment = {values: {..}, parent: Environment | nil, ..}
+---- Evaluator
 
 fn environment(parent: Environment | nil) -> Environment
     {values = {}, parent = parent}
 
-fn define(env: Environment, name: any, value: any) do
-    env.values[name] = value
-    value
-end
-
-fn lookup(env: Environment, name: Name) -> any
-    if map.has(env.values, name) then
-        env.values[name]
-    elseif type(env.parent) == "nil" then
-        raise {error = "lisp_unbound_symbol", symbol = name}
-    else
-        lookup(env.parent, name)
+fn lookup(env: Environment, name: Name) -> Value
+    case env.values[name] of
+        nil =>
+            case env.parent of
+                nil => raise {error = "lisp_unbound_symbol", symbol = name}
+                parent => lookup(parent, name)
+            end
+        value => value
     end
 
-fn expect_arity(values: [..any], expected: integer, form: string)
+fn expect_arity(values: [..Value], expected: integer, form: string) -> nil
     if list.length(values) == expected then
         nil
     else
@@ -167,49 +185,53 @@ fn expect_arity(values: [..any], expected: integer, form: string)
         }
     end
 
-fn expect_symbol(expression: any, form: string)
+fn expect_symbol(expression: Expr, form: string) -> Name
     case expression of
         {kind = "symbol", name = name} => name
         _ => raise {error = "lisp_invalid_form", form = form, message = "expected a symbol"}
     end
 
-fn expect_list(value: any, form: string)
+fn expect_value(value: MaybeValue, form: string) -> Value
+    case value of
+        nil => raise {error = "lisp_type_error", form = form, expected = "value", actual = "nil"}
+        value => value
+    end
+
+fn expect_list(value: MaybeValue, form: string) -> [..Value]
     if type(value) == "list" then
         value
     else
         raise {error = "lisp_type_error", form = form, expected = "list", actual = type(value)}
     end
 
-fn expect_integer(value: any, form: string)
+fn expect_integer(value: MaybeValue, form: string) -> integer
     if type(value) == "integer" then
         value
     else
         raise {error = "lisp_type_error", form = form, expected = "integer", actual = type(value)}
     end
 
-fn expect_boolean(value: any, form: string)
+fn expect_boolean(value: MaybeValue, form: string) -> boolean
     if type(value) == "boolean" then
         value
     else
         raise {error = "lisp_type_error", form = form, expected = "boolean", actual = type(value)}
     end
 
-fn datum(expression: any) -> any
+fn datum(expression: Expr) -> Value
     case expression of
         {kind = "integer", value = value} => value
         {kind = "boolean", value = value} => value
         {kind = "symbol", name = name} => {kind = "symbol", name = name}
         {kind = "list", items = items} => datum_list(items)
-        _ => raise {error = "lisp_invalid_ast", message = "quote received an invalid expression"}
     end
 
-fn datum_list(expressions: [..any]) -> [..any] do
-    let values = []
+fn datum_list(expressions: [..Expr]) -> [..Value] do
+    let values: [..Value] = []
     datum_items(expressions, 0, values)
-
 end
 
-fn datum_items(expressions: [..any], index: integer, values: [..any]) -> [..any]
+fn datum_items(expressions: [..Expr], index: integer, values: [..Value]) -> [..Value]
     if index == list.length(expressions) then
         values
     else
@@ -217,13 +239,13 @@ fn datum_items(expressions: [..any], index: integer, values: [..any]) -> [..any]
         datum_items(expressions, index + 1, values)
     end
 
-fn parameters(expression: any)
+fn parameters(expression: Expr) -> [..Name]
     case expression of
         {kind = "list", items = items} => parameter_items(items, 0, [])
         _ => raise {error = "lisp_invalid_form", form = "lambda", message = "expected a parameter list"}
     end
 
-fn parameter_items(items: [..any], index: integer, names: [..string]) -> [..string]
+fn parameter_items(items: [..Expr], index: integer, names: [..Name]) -> [..Name]
     if index == list.length(items) then
         names
     else
@@ -231,29 +253,35 @@ fn parameter_items(items: [..any], index: integer, names: [..string]) -> [..stri
         parameter_items(items, index + 1, names)
     end
 
-fn evaluate(expression: any, env: Environment) -> any
+fn evaluate(expression: Expr, env: Environment) -> Value
     case expression of
         {kind = "integer", value = value} => value
         {kind = "boolean", value = value} => value
         {kind = "symbol", name = name} => lookup(env, name)
         {kind = "list", items = items} => evaluate_list(items, env)
-        _ => raise {error = "lisp_invalid_ast", message = "expected a closed Lisp expression variant"}
     end
 
-fn is_named(expression: any, name: string)
+fn is_named(expression: Expr, name: Name) -> boolean
     case expression of
         {kind = "symbol", name = actual} => actual == name
         _ => false
     end
 
-fn evaluate_list(items: [..any], env: Environment) -> any
+fn closure(parameters: [..Name], body: Expr, captured: Environment) -> Closure
+    {kind = "closure", parameters = parameters, body = body, environment = captured}
+
+fn builtin(name: Name) -> Builtin
+    {kind = "builtin", name = name}
+
+fn evaluate_list(items: [..Expr], env: Environment) -> Value
     if list.length(items) == 0 then
         raise {error = "lisp_empty_list", form = "application"}
-    elseif is_named(items[0], "quote") then
-        expect_arity(items, 2, "quote")
+    elseif is_named(items[0], "quote") then do
+        expect_arity_expr(items, 2, "quote")
         datum(items[1])
+    end
     elseif is_named(items[0], "if") then do
-        expect_arity(items, 4, "if")
+        expect_arity_expr(items, 4, "if")
         if expect_boolean(evaluate(items[1], env), "if") then
             evaluate(items[2], env)
         else
@@ -261,20 +289,20 @@ fn evaluate_list(items: [..any], env: Environment) -> any
         end
     end
     elseif is_named(items[0], "let") then do
-        expect_arity(items, 4, "let")
+        expect_arity_expr(items, 4, "let")
         let name = expect_symbol(items[1], "let")
         let value = evaluate(items[2], env)
         let child = environment(env)
-        define(child, name, value)
+        child.values[name] = value
         evaluate(items[3], child)
     end
     elseif is_named(items[0], "define") then do
-        expect_arity(items, 3, "define")
-        define(env, expect_symbol(items[1], "define"), evaluate(items[2], env))
+        expect_arity_expr(items, 3, "define")
+        env.values[expect_symbol(items[1], "define")] = evaluate(items[2], env)
     end
     elseif is_named(items[0], "lambda") then do
-        expect_arity(items, 3, "lambda")
-        {kind = "closure", parameters = parameters(items[1]), body = items[2], environment = env}
+        expect_arity_expr(items, 3, "lambda")
+        closure(parameters(items[1]), items[2], env)
     end
     elseif is_named(items[0], "and") then
         evaluate_and(items, 1, env)
@@ -284,13 +312,24 @@ fn evaluate_list(items: [..any], env: Environment) -> any
         apply(evaluate(items[0], env), evaluate_arguments(items, 1, env))
     end
 
-fn evaluate_arguments(items: [..any], index: integer, env: Environment) -> [..any] do
-    let values = []
-    evaluate_argument_items(items, index, env, values)
+fn expect_arity_expr(values: [..Expr], expected: integer, form: string) -> nil
+    if list.length(values) == expected then
+        nil
+    else
+        raise {
+            error = "lisp_arity_error",
+            form = form,
+            expected = expected,
+            actual = list.length(values),
+        }
+    end
 
+fn evaluate_arguments(items: [..Expr], index: integer, env: Environment) -> [..Value] do
+    let values: [..Value] = []
+    evaluate_argument_items(items, index, env, values)
 end
 
-fn evaluate_argument_items(items: [..any], index: integer, env: Environment, values: [..any]) -> [..any]
+fn evaluate_argument_items(items: [..Expr], index: integer, env: Environment, values: [..Value]) -> [..Value]
     if index == list.length(items) then
         values
     else
@@ -298,7 +337,7 @@ fn evaluate_argument_items(items: [..any], index: integer, env: Environment, val
         evaluate_argument_items(items, index + 1, env, values)
     end
 
-fn evaluate_and(items: [..any], index: integer, env: Environment) -> boolean
+fn evaluate_and(items: [..Expr], index: integer, env: Environment) -> boolean
     if index == list.length(items) then
         true
     else
@@ -306,7 +345,7 @@ fn evaluate_and(items: [..any], index: integer, env: Environment) -> boolean
         if value then evaluate_and(items, index + 1, env) else false end
     end
 
-fn evaluate_or(items: [..any], index: integer, env: Environment) -> boolean
+fn evaluate_or(items: [..Expr], index: integer, env: Environment) -> boolean
     if index == list.length(items) then
         false
     else
@@ -314,15 +353,15 @@ fn evaluate_or(items: [..any], index: integer, env: Environment) -> boolean
         if value then true else evaluate_or(items, index + 1, env) end
     end
 
-fn bind(parameters: [..string], arguments: [..any], env: Environment, index: integer) -> nil
+fn bind(parameters: [..Name], arguments: [..Value], env: Environment, index: integer) -> nil
     if index == list.length(parameters) then
         nil
     else
-        define(env, parameters[index], arguments[index])
+        env.values[parameters[index]] = expect_value(arguments[index], "lambda")
         bind(parameters, arguments, env, index + 1)
     end
 
-fn apply(value: any, arguments: [..any]) -> any
+fn apply(value: MaybeValue, arguments: [..Value]) -> Value
     case value of
         {kind = "builtin", name = name} => apply_builtin(name, arguments)
         {kind = "closure", parameters = parameters, body = body, environment = captured} => do
@@ -334,7 +373,7 @@ fn apply(value: any, arguments: [..any]) -> any
         _ => raise {error = "lisp_not_callable", actual = type(value)}
     end
 
-fn equal(left: any, right: any) -> boolean
+fn equal(left: MaybeValue, right: MaybeValue) -> boolean
     if type(left) == "integer" and type(right) == "integer" then
         left == right
     elseif type(left) == "boolean" and type(right) == "boolean" then
@@ -345,7 +384,7 @@ fn equal(left: any, right: any) -> boolean
         symbols_equal(left, right)
     end
 
-fn symbols_equal(left: any, right: any)
+fn symbols_equal(left: MaybeValue, right: MaybeValue) -> boolean
     case left of
         {kind = "symbol", name = left_name} =>
             case right of
@@ -355,7 +394,7 @@ fn symbols_equal(left: any, right: any)
         _ => false
     end
 
-fn list_equal(left: [..any], right: [..any], index: integer) -> boolean
+fn list_equal(left: [..Value], right: [..Value], index: integer) -> boolean
     if list.length(left) != list.length(right) then
         false
     elseif index == list.length(left) then
@@ -366,80 +405,98 @@ fn list_equal(left: [..any], right: [..any], index: integer) -> boolean
         false
     end
 
-fn apply_builtin(name: string, arguments: [..any])
-    if name == "+" then do
+fn apply_builtin(name: Name, arguments: [..Value]) -> Value
+    case name of
+        "+" => do
         expect_arity(arguments, 2, name)
         expect_integer(arguments[0], name) + expect_integer(arguments[1], name)
     end
-    elseif name == "-" then do
+        "-" => do
         expect_arity(arguments, 2, name)
         expect_integer(arguments[0], name) - expect_integer(arguments[1], name)
     end
-    elseif name == "*" then do
+        "*" => do
         expect_arity(arguments, 2, name)
         expect_integer(arguments[0], name) * expect_integer(arguments[1], name)
     end
-    elseif name == "/" then do
+        "/" => do
         expect_arity(arguments, 2, name)
         let divisor = expect_integer(arguments[1], name)
         if divisor == 0 then raise {error = "lisp_division_by_zero"} else expect_integer(arguments[0], name) // divisor end
     end
-    elseif name == "=" then do
+        "=" => do
         expect_arity(arguments, 2, name)
         equal(arguments[0], arguments[1])
     end
-    elseif name == "not" then do
+        "not" => do
         expect_arity(arguments, 1, name)
         not expect_boolean(arguments[0], name)
     end
-    elseif name == "cons" then do
+        "cons" => do
         expect_arity(arguments, 2, name)
-        let values = [arguments[0]]
+        let values: [..Value] = [expect_value(arguments[0], name)]
         list.extend(values, expect_list(arguments[1], name))
         values
     end
-    elseif name == "car" then do
+        "car" => do
         expect_arity(arguments, 1, name)
         let values = expect_list(arguments[0], name)
         if list.length(values) == 0 then raise {error = "lisp_empty_list", form = name} else values[0] end
     end
-    elseif name == "cdr" then do
+        "cdr" => do
         expect_arity(arguments, 1, name)
         let values = expect_list(arguments[0], name)
         if list.length(values) == 0 then raise {error = "lisp_empty_list", form = name} else list.slice(values, 1, list.length(values)) end
     end
-    elseif name == "empty" then
-        if list.length(arguments) == 0 then [] else raise {
-            error = "lisp_arity_error",
-            form = name,
-            expected = 0,
-            actual = list.length(arguments),
-        } end
+        "empty" => do
+        if list.length(arguments) == 0 then
+            let values: [..Value] = []
+            values
+        else
+            raise {
+                error = "lisp_arity_error",
+                form = name,
+                expected = 0,
+                actual = list.length(arguments),
+            }
+        end
+    end
+        _ => raise {error = "lisp_unknown_builtin", name = name}
+    end
+
+fn expect_name(value: Name | nil) -> Name
+    if type(value) == "string" then
+        value
     else
-        raise {error = "lisp_unknown_builtin", name = name}
+        raise {error = "lisp_type_error", form = "builtin installation", expected = "string", actual = type(value)}
+    end
+
+fn install_builtin(env: Environment, name: Name) -> nil do
+    env.values[name] = builtin(name)
+    nil
+end
+
+fn install_builtins(env: Environment, names: [..Name], index: integer) -> nil
+    if index == list.length(names) then
+        nil
+    else
+        install_builtin(env, expect_name(names[index]))
+        install_builtins(env, names, index + 1)
     end
 
 fn global_environment() -> Environment do
     let env = environment(nil)
-    define(env, "+", {kind = "builtin", name = "+"})
-    define(env, "-", {kind = "builtin", name = "-"})
-    define(env, "*", {kind = "builtin", name = "*"})
-    define(env, "/", {kind = "builtin", name = "/"})
-    define(env, "=", {kind = "builtin", name = "="})
-    define(env, "not", {kind = "builtin", name = "not"})
-    define(env, "cons", {kind = "builtin", name = "cons"})
-    define(env, "car", {kind = "builtin", name = "car"})
-    define(env, "cdr", {kind = "builtin", name = "cdr"})
-    define(env, "empty", {kind = "builtin", name = "empty"})
+    let names: [..Name] = ["+", "-", "*", "/", "=", "not", "cons", "car", "cdr", "empty"]
+    install_builtins(env, names, 0)
     env
 end
 
-
-let env = global_environment()
-define(env, "square", evaluate(read("(lambda (value) (* value value))"), env))
+let env: Environment = global_environment()
+let final_environment: Environment = env
 
 {
-    arithmetic = evaluate(read("(let enabled #t (if enabled (square 6) 0))"), env),
+    arithmetic = evaluate(read("(let square (lambda (value) (* value value)) (square 6))"), env),
+    conditional = evaluate(read("(if #t 1 0)"), env),
     list_operations = evaluate(read("(= (car (cdr (cons 1 (cons 2 (empty))))) 2)"), env),
     quoted_symbols_equal = evaluate(read("(= (quote (one two)) (quote (one two)))"), env),
     boolean_logic = evaluate(read("(and #t (or #f (not #f)))"), env),

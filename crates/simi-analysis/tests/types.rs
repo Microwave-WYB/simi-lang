@@ -481,7 +481,7 @@ fn fibonacci_example_is_syntax_and_type_clean() {
 }
 
 #[test]
-fn lisp_example_is_syntax_and_type_clean_with_a_recursive_environment() {
+fn lisp_example_is_a_fully_typed_recursive_interpreter() {
     let source = include_str!("../../../examples/lisp.simi");
     let (inference, resolution) = inferred(source);
     assert!(
@@ -490,7 +490,7 @@ fn lisp_example_is_syntax_and_type_clean_with_a_recursive_environment() {
         inference.diagnostics
     );
     assert_eq!(
-        type_of(&inference, &resolution, "env"),
+        type_of(&inference, &resolution, "final_environment"),
         Type::Named("Environment".to_owned())
     );
 }
