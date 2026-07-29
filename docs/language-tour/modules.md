@@ -11,7 +11,7 @@
 - [Control flow and patterns](control-flow-and-patterns.md)
 - [Mutation and copies](mutation-and-copies.md)
 - Modules
-  - [The portable standard library](#the-portable-standard-library)
+  - [The standard library catalog](#the-standard-library-catalog)
   - [Module identity and state](#module-identity-and-state)
   - [Conversion and string helpers](#conversion-and-string-helpers)
   - [Byte helpers](#byte-helpers)
@@ -27,19 +27,16 @@
 - [Errors and embedding](errors-and-embedding.md)
 <!-- tour:contents:end -->
 
-## The portable standard library
+## The standard library catalog
 
-`Engine::new()` and `Engine::with_stdlib()` provide the same portable, shadowable value prelude:
+`Engine::new()` provides the bundled, shadowable `list` and `map` prelude. `Engine::with_stdlib()` and root `eval` additionally attach the distribution-supplied official standard-library catalog, which provides the `iter`, `number`, and `string` aliases and their canonical `std/*` module paths. Standalone scripts declare its exact revision before using a non-prelude module:
 
-```text
-list
-map
-iter
-number
-string
+```simi
+requires {std = {simi = "0.1.0-alpha.1"}}
+let iter = require("std/iter")
 ```
 
-Each prelude value also has a canonical `std/*` module path for `require`. Direct use is the ordinary form:
+Direct use is ordinary in a standard-library engine:
 
 ```simi
 let values = [10, 20, 30]
@@ -47,11 +44,11 @@ list.length(values)
 |> number.to_string()
 ```
 
-`std/io` is deliberately not in this portable set. It is a separate host capability covered on the next page.
+`std/io` is deliberately not in this catalog. It is a separate host capability covered on the next page.
 
 ## Module identity and state
 
-A module's exports are a mutable map. Prelude values and repeated `require` calls in one engine share the same map with the same alias identity, so mutations are visible through every reference:
+A module's exports are a mutable map. Standard-library aliases and repeated `require` calls in one standard-library engine share the same map with the same alias identity, so mutations are visible through every reference:
 
 ```simi
 string.tour_marker = "shared"
@@ -64,7 +61,7 @@ The cache belongs to an `Engine`. Module state persists across evaluations made 
 
 Source-backed modules are evaluated lazily on first use and then cached. A circular lazy load raises `{error = "circular_module_dependency", module = name}`.
 
-Hosts may override a portable module's canonical path. During portable prelude installation, all five canonical module values are resolved before any of their global aliases are installed. Source-backed overrides therefore do not see a partially installed portable value prelude; they use explicit `require("std/...")` calls for module dependencies. If every load succeeds, the five globals are installed together and retain identity with their canonical cached values. A raised or circular override load remains a language raise from `Engine::eval`.
+Hosts can register direct modules explicitly. The bundled `list` and `map` prelude remains runtime-core behavior; non-prelude `std/*` facades are supplied only by the exact official catalog or by an explicitly registered host module. Source-backed modules use explicit `require("std/...")` calls for dependencies. A raised or circular load remains a language raise from `Engine::eval`.
 
 ## Conversion and string helpers
 
@@ -91,7 +88,7 @@ name
 
 ## Byte helpers
 
-The portable `std/bytes` module is available explicitly through `require`; it intentionally does not add a `bytes` prelude global. It provides immutable octet inspection, O(1) range views, concatenation, and conversion to or from integer lists. List input must contain only integers from `0` through `255`.
+The official-catalog `std/bytes` module is available explicitly through `require`; it intentionally does not add a `bytes` prelude global. It provides immutable octet inspection, O(1) range views, concatenation, and conversion to or from integer lists. List input must contain only integers from `0` through `255`.
 
 ```simi
 let bytes = require("std/bytes")
@@ -157,7 +154,7 @@ let text = utf16.decode_le(little)
 
 ## Prelude globals
 
-Normal `Engine` evaluations provide `require`, `type`, `inspect`, `list`, `map`, `iter`, `number`, and `string` as ordinary shadowable globals. `require("std/list")` through `require("std/string")` return the same cached values as their prelude names, while `require("std/bytes")` provides the explicit bytes module. `type` returns stable runtime category labels. `inspect` produces cycle-safe, human-readable text; it is not serialization.
+Normal `Engine::new()` evaluations provide `require`, `type`, `inspect`, `list`, and `map` as ordinary shadowable globals. `Engine::with_stdlib()` and root `eval` additionally provide `iter`, `number`, and `string`; their canonical paths share cached identity with those aliases. `require("std/bytes")` is an explicit official-catalog module. `type` returns stable runtime category labels. `inspect` produces cycle-safe, human-readable text; it is not serialization.
 
 ```simi
 let values = []

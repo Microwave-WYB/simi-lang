@@ -145,12 +145,21 @@ fn parses_and_rejects_nonstatic_leading_requirements() {
         requires.entries[1].source,
         RequirementSource::Path { ref path } if path == "dev/local"
     ));
+    let official = parse_requires(r#"requires {std = {simi = "0.1.0-alpha.1"}}"#)
+        .unwrap()
+        .expect("official stdlib header");
+    assert!(matches!(
+        official.entries[0].source,
+        RequirementSource::Official { ref revision } if revision == "0.1.0-alpha.1"
+    ));
 
     for source in [
         "requires {tools = {git = url, rev = \"v1\"}}",
         "requires {tools = {git = \"\", rev = \"v1\"}}",
         "requires {tools = {path = \"../tools\"}}",
         "requires {tools = {git = \"url\", rev = \"v1\", path = \"tools\"}}",
+        "requires {tools = {simi = \"0.1.0-alpha.1\"}}",
+        "requires {std = {simi = \"0.1.0-alpha.1\", path = \"tools\"}}",
         "let value = 1 requires {tools = {path = \"tools\"}}",
     ] {
         assert!(parse_requires(source).is_err(), "{source}");

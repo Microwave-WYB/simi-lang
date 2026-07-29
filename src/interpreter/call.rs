@@ -42,15 +42,12 @@ impl Interpreter {
         Ok(value)
     }
 
-    pub(super) fn install_prelude_modules(&mut self) -> EvaluationResult<()> {
-        let mut modules = Vec::with_capacity(5);
-        for (alias, module) in [
-            ("list", "std/list"),
-            ("map", "std/map"),
-            ("iter", "std/iter"),
-            ("number", "std/number"),
-            ("string", "std/string"),
-        ] {
+    pub(super) fn install_prelude_modules(
+        &mut self,
+        aliases: &[(&str, &str)],
+    ) -> EvaluationResult<()> {
+        let mut modules = Vec::with_capacity(aliases.len());
+        for &(alias, module) in aliases {
             let value = self.require_module(&Value::String(module.to_owned()), Span::new(0, 0))?;
             modules.push((alias, value));
         }

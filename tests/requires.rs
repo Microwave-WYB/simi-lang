@@ -4,6 +4,7 @@ use simi::{
 };
 
 const REQUIREMENT: &str = r#"requires {tools = {path = "deps/tools"}}"#;
+const OFFICIAL_REQUIREMENT: &str = r#"requires {std = {simi = "0.1.0-alpha.1"}}"#;
 
 fn catalog() -> PackageCatalog {
     PackageCatalog::new(
@@ -36,8 +37,54 @@ fn bare_and_portable_engines_reject_unresolved_package_metadata_before_execution
         let Err(error) = result else {
             panic!("unresolved requirements must be a hard error");
         };
-        assert!(error.to_string().contains("no resolved package catalog"));
+        assert!(
+            error.to_string().contains("no resolved package catalog")
+                || error
+                    .to_string()
+                    .contains("does not satisfy requirement `tools`")
+        );
     }
+}
+
+#[test]
+fn official_stdlib_requires_an_exact_catalog_revision() {
+    let source = format!("{OFFICIAL_REQUIREMENT}\ntype(require(\"std/iter\"))");
+    let error = match Engine::new().eval(&source) {
+        Err(error) => error,
+        Ok(_) => panic!("bare engine must reject the unresolved official requirement"),
+    };
+    assert!(error.to_string().contains("no resolved package catalog"));
+
+    for result in [Engine::with_stdlib().eval(&source), eval(&source)] {
+        assert_eq!(result.unwrap().unwrap().render(), "\"map\"");
+    }
+
+    let incompatible = match Engine::with_stdlib().eval("requires {std = {simi = \"0.0.0\"}}\n42") {
+        Err(error) => error,
+        Ok(_) => panic!("incompatible official revision must be rejected"),
+    };
+    assert!(
+        incompatible
+            .to_string()
+            .contains("does not satisfy requirement `std`")
+    );
+
+    let no_capability =
+        Engine::with_stdlib().eval(&format!("{OFFICIAL_REQUIREMENT}\nrequire(\"std/io\")"));
+    assert!(no_capability.unwrap().is_err());
+
+    let catalog_only = Engine::builder()
+        .catalog(simi::stdlib::official_catalog())
+        .build();
+    assert_eq!(
+        catalog_only
+            .eval("type(require(\"std/iter\"))")
+            .unwrap()
+            .unwrap()
+            .render(),
+        "\"map\""
+    );
+    assert!(catalog_only.eval("iter").is_err());
 }
 
 #[test]
@@ -235,6 +282,24 @@ fn catalogs_and_direct_modules_remain_explicit_and_package_relative_imports_are_
         panic!("module collision must be a hard error");
     };
     assert!(collision.to_string().contains("conflicts"));
+
+    let forged_std = PackageCatalog::new(
+        [CatalogModule::new(
+            "std/forged",
+            "{}",
+            "std",
+            "std/forged.simi",
+            CatalogModuleVisibility::Public,
+        )
+        .unwrap()],
+        [],
+    )
+    .unwrap();
+    let reserved = match Engine::builder().catalog(forged_std).build().eval("42") {
+        Err(error) => error,
+        Ok(_) => panic!("forged std namespace must be rejected"),
+    };
+    assert!(reserved.to_string().contains("reserved `std/` namespace"));
 
     let Err(relative) = Engine::new().eval("require(\"./private.simi\")") else {
         panic!("relative import must be a hard error");

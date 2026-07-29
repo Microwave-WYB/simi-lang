@@ -64,13 +64,14 @@ pub fn run(file: &Path, mode: ResolutionMode) -> Result<ScriptResult, CliError> 
         let path = lock_path(file);
         fs::write(&path, &resolved.lockfile).map_err(|source| CliError::Io { path, source })?;
     }
-    Engine::builder()
-        .stdlib()
-        .stdio()
-        .catalog(resolved.catalog)
-        .build()
-        .eval(&source)
-        .map_err(CliError::Simi)
+    let has_official_stdlib = crate::stdlib::is_official_catalog(&resolved.catalog);
+    let builder = Engine::builder().prelude().catalog(resolved.catalog);
+    let builder = if has_official_stdlib {
+        builder.stdio()
+    } else {
+        builder
+    };
+    builder.build().eval(&source).map_err(CliError::Simi)
 }
 
 pub fn lock(file: &Path, offline: bool) -> Result<PathBuf, CliError> {
@@ -236,6 +237,7 @@ mod tests {
         fs::write(
             &path,
             r#"
+            requires {std = {simi = "0.1.0-alpha.1"}}
             let io = require("std/io")
             [type(io.println), type(io.eprintln)]
             "#,
@@ -244,6 +246,24 @@ mod tests {
         let result = run(&path, ResolutionMode::Update).unwrap().unwrap();
         fs::remove_file(path).unwrap();
         assert_eq!(result.render(), "[\"function\", \"function\"]");
+    }
+
+    #[test]
+    fn cli_requires_the_official_catalog_for_non_prelude_modules() {
+        let path = std::env::temp_dir().join(format!("simi-stdlib-{}.simi", std::process::id()));
+        fs::write(&path, "require(\"std/iter\")").unwrap();
+        let result = match run(&path, ResolutionMode::Update).unwrap() {
+            Err(raised) => raised,
+            Ok(value) => panic!(
+                "missing stdlib module unexpectedly returned {}",
+                value.render()
+            ),
+        };
+        fs::remove_file(&path).unwrap();
+        assert_eq!(
+            result.value.render(),
+            "{error=\"module_not_found\", module=\"std/iter\"}"
+        );
     }
 
     #[test]

@@ -11,6 +11,7 @@ fn cli_routes_text_output_and_inspects_results_only_when_requested() {
     fs::write(
         &path,
         r#"
+        requires {std = {simi = "0.1.0-alpha.1"}}
         let io = require("std/io")
         io.println("hello")
         io.eprintln("warning")
@@ -47,6 +48,7 @@ fn cli_print_flushes_prompt_before_reading_stdin() {
     fs::write(
         &path,
         r#"
+        requires {std = {simi = "0.1.0-alpha.1"}}
         let io = require("std/io")
         io.print("prompt: ")
         io.read_line()
@@ -98,6 +100,7 @@ fn cli_stdin_reads_unicode_lines_and_returns_nil_at_eof() {
     fs::write(
         &path,
         r#"
+        requires {std = {simi = "0.1.0-alpha.1"}}
         let io = require("std/io")
         [io.read_line(), io.read_line()]
         "#,
@@ -133,7 +136,11 @@ fn cli_stdin_reads_unicode_lines_and_returns_nil_at_eof() {
 #[test]
 fn io_print_helpers_reject_non_strings() {
     let path = std::env::temp_dir().join(format!("simi-stdio-type-{}.simi", std::process::id()));
-    fs::write(&path, "let io = require(\"std/io\") io.println(42)").unwrap();
+    fs::write(
+        &path,
+        "requires {std = {simi = \"0.1.0-alpha.1\"}} let io = require(\"std/io\") io.println(42)",
+    )
+    .unwrap();
     let output = Command::new(env!("CARGO_BIN_EXE_simi"))
         .arg("run")
         .arg(&path)

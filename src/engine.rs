@@ -100,14 +100,14 @@ impl ModuleRegistry {
 
 pub struct Engine {
     modules: ModuleRegistry,
-    install_prelude: bool,
+    prelude_modules: Vec<(&'static str, &'static str)>,
     catalog: Option<PackageCatalog>,
     configuration_errors: Vec<String>,
 }
 
 impl Engine {
     pub fn new() -> Self {
-        Self::builder().stdlib().build()
+        Self::builder().prelude().build()
     }
 
     pub fn builder() -> EngineBuilder {
@@ -169,12 +169,12 @@ impl Engine {
             )));
         }
         let mut interpreter = Interpreter::with_modules(self.modules.clone());
-        if self.install_prelude {
-            interpreter
-                .evaluate_with_prelude(&program)
-                .map_err(SimiError::Runtime)
-        } else {
+        if self.prelude_modules.is_empty() {
             interpreter.evaluate(&program).map_err(SimiError::from)
+        } else {
+            interpreter
+                .evaluate_with_prelude(&program, &self.prelude_modules)
+                .map_err(SimiError::Runtime)
         }
     }
 }
@@ -189,7 +189,7 @@ pub struct EngineBuilder {
     modules: HashMap<String, Module>,
     catalog: Option<PackageCatalog>,
     configuration_errors: Vec<String>,
-    install_prelude: bool,
+    prelude_modules: Vec<(&'static str, &'static str)>,
 }
 
 impl EngineBuilder {
@@ -198,24 +198,17 @@ impl EngineBuilder {
             modules: HashMap::new(),
             catalog: None,
             configuration_errors: Vec::new(),
-            install_prelude: false,
+            prelude_modules: Vec::new(),
         }
     }
 
-    fn prelude(mut self) -> Self {
-        self.install_prelude = true;
-        for module in [
-            stdlib::bytes(),
-            stdlib::float(),
-            stdlib::integer(),
-            stdlib::list(),
-            stdlib::map(),
-            stdlib::iter(),
-            stdlib::number(),
-            stdlib::string(),
-            stdlib::utf8(),
-            stdlib::utf16(),
-        ] {
+    /// Install the bundled minimum prelude: mutable list and map operations.
+    ///
+    /// The official non-prelude standard library remains unavailable until an exact official
+    /// catalog is installed through [`Self::stdlib`] or [`Self::catalog`].
+    pub fn prelude(mut self) -> Self {
+        self.prelude_modules = vec![("list", "std/list"), ("map", "std/map")];
+        for module in [stdlib::list(), stdlib::map()] {
             self.modules.insert(module.name().to_owned(), module);
         }
         self
@@ -227,6 +220,8 @@ impl EngineBuilder {
                 .modules()
                 .iter()
                 .any(|entry| entry.name() == module.name())
+                && !(stdlib::is_official_catalog(catalog)
+                    && (module.name() == "std" || module.name().starts_with("std/")))
         }) {
             self.configuration_errors.push(format!(
                 "direct module `{}` conflicts with a resolved package catalog module",
@@ -243,29 +238,78 @@ impl EngineBuilder {
     /// downloads packages, invokes Cargo, runs build scripts, or grants native capabilities.
     /// Catalog/declaration compatibility is checked as a hard error before each evaluation.
     pub fn catalog(mut self, catalog: PackageCatalog) -> Self {
-        if self.catalog.is_some() {
-            self.configuration_errors
-                .push("an engine may receive at most one resolved package catalog".to_owned());
+        let catalog = if let Some(existing) = &self.catalog {
+            if stdlib::is_official_catalog(existing) && !stdlib::is_official_catalog(&catalog) {
+                match existing.merged_with(&catalog) {
+                    Ok(merged) => merged,
+                    Err(error) => {
+                        self.configuration_errors.push(format!(
+                            "resolved package catalog conflicts with the official catalog: {error}"
+                        ));
+                        return self;
+                    }
+                }
+            } else {
+                self.configuration_errors
+                    .push("an engine may receive at most one resolved package catalog".to_owned());
+                return self;
+            }
+        } else {
+            catalog
+        };
+        let official_stdlib = stdlib::is_official_catalog(&catalog);
+        if !official_stdlib
+            && catalog
+                .modules()
+                .iter()
+                .any(|entry| entry.name() == "std" || entry.name().starts_with("std/"))
+        {
+            self.configuration_errors.push(
+                "only the exact distribution official catalog may supply the reserved `std/` namespace"
+                    .to_owned(),
+            );
             return self;
         }
         for entry in catalog.modules() {
             if self.modules.contains_key(entry.name()) {
+                if official_stdlib && (entry.name() == "std" || entry.name().starts_with("std/")) {
+                    continue;
+                }
                 self.configuration_errors.push(format!(
                     "resolved package catalog module `{}` conflicts with a direct module",
                     entry.name()
                 ));
+                continue;
             }
-            self.modules.insert(
-                entry.name().to_owned(),
-                Module::source(entry.name(), entry.source()).build(),
-            );
+            let module =
+                if official_stdlib && (entry.name() == "std" || entry.name().starts_with("std/")) {
+                    stdlib::official_module(entry.name())
+                        .expect("official catalog has only built-in module identities")
+                } else {
+                    Module::source(entry.name(), entry.source()).build()
+                };
+            self.modules.insert(entry.name().to_owned(), module);
+        }
+        if official_stdlib
+            && !self.prelude_modules.is_empty()
+            && !self
+                .prelude_modules
+                .iter()
+                .any(|(alias, _)| *alias == "iter")
+        {
+            self.prelude_modules.extend([
+                ("iter", "std/iter"),
+                ("number", "std/number"),
+                ("string", "std/string"),
+            ]);
         }
         self.catalog = Some(catalog);
         self
     }
 
+    /// Install the bundled prelude and the exact distribution official standard-library catalog.
     pub fn stdlib(self) -> Self {
-        self.prelude()
+        self.prelude().catalog(stdlib::official_catalog())
     }
 
     pub fn stdio(self) -> Self {
@@ -291,7 +335,7 @@ impl EngineBuilder {
             .collect();
         Engine {
             modules: ModuleRegistry::new(modules),
-            install_prelude: self.install_prelude,
+            prelude_modules: self.prelude_modules,
             catalog: self.catalog,
             configuration_errors: self.configuration_errors,
         }

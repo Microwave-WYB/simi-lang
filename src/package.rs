@@ -206,6 +206,19 @@ impl PackageCatalog {
         &self.requirements
     }
 
+    pub(crate) fn merged_with(&self, other: &Self) -> Result<Self, PackageCatalogError> {
+        Self::new(
+            self.modules
+                .iter()
+                .cloned()
+                .chain(other.modules.iter().cloned()),
+            self.requirements
+                .iter()
+                .cloned()
+                .chain(other.requirements.iter().cloned()),
+        )
+    }
+
     pub(crate) fn satisfies(&self, requirement: &Requirement) -> bool {
         self.requirements.iter().any(|catalog_requirement| {
             catalog_requirement.source == requirement.source

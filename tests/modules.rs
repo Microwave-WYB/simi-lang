@@ -204,10 +204,10 @@ fn require_type_errors_and_qualified_native_arity_errors_are_hard() {
 
 #[test]
 fn portable_prelude_values_are_direct_shadowable_and_share_require_identity() {
-    for engine in [Engine::new(), Engine::with_stdlib()] {
-        let value = engine
-            .eval(
-                r#"
+    let engine = Engine::with_stdlib();
+    let value = engine
+        .eval(
+            r#"
                 iter.marker = "cached"
                 number.marker = "numeric"
                 [
@@ -220,20 +220,31 @@ fn portable_prelude_values_are_direct_shadowable_and_share_require_identity() {
                     require("std/number").marker,
                 ]
                 "#,
-            )
-            .expect("portable prelude calls should have no hard diagnostic")
-            .expect("portable prelude calls should not raise");
-        assert_eq!(
-            value.render(),
-            "[3, 0, 4, \"5\", \"SIMI\", \"cached\", \"numeric\"]"
-        );
+        )
+        .expect("portable prelude calls should have no hard diagnostic")
+        .expect("portable prelude calls should not raise");
+    assert_eq!(
+        value.render(),
+        "[3, 0, 4, \"5\", \"SIMI\", \"cached\", \"numeric\"]"
+    );
 
-        let value = engine
-            .eval("require(\"std/iter\").marker")
-            .expect("cached prelude state should have no hard diagnostic")
-            .expect("cached prelude state should not raise");
-        assert_eq!(value.render(), "\"cached\"");
-    }
+    let value = engine
+        .eval("require(\"std/iter\").marker")
+        .expect("cached prelude state should have no hard diagnostic")
+        .expect("cached prelude state should not raise");
+    assert_eq!(value.render(), "\"cached\"");
+
+    let minimal = Engine::new()
+        .eval("[list.length([1]), map.length({})]")
+        .expect("minimum prelude should have no hard diagnostic")
+        .expect("minimum prelude should not raise");
+    assert_eq!(minimal.render(), "[1, 0]");
+    assert!(
+        Engine::new()
+            .eval("require(\"std/iter\")")
+            .unwrap()
+            .is_err()
+    );
 
     let value = eval("list.length([1])")
         .expect("root eval should provide the portable prelude")
@@ -1041,6 +1052,7 @@ fn engine_lsp_catalog_includes_bundled_prelude_facades() {
     assert_eq!(
         sources.iter().map(|(name, _)| name).collect::<Vec<_>>(),
         [
+            "std",
             "std/bytes",
             "std/float",
             "std/integer",

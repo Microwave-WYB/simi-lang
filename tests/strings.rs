@@ -54,8 +54,8 @@ fn slice_bounds_and_split_semantics_are_publicly_observable() {
 }
 
 #[test]
-fn string_prelude_and_canonical_path_are_portable() {
-    let value = Engine::new()
+fn string_prelude_and_canonical_path_share_standard_library_identity() {
+    let value = Engine::with_stdlib()
         .eval(
             r#"
             string.marker = "shared"

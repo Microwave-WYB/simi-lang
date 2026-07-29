@@ -189,7 +189,11 @@ impl ResolveContext<'_> {
         base: &Path,
     ) -> Result<(), String> {
         validate_source(&requirement.source)?;
+        if let RequirementSource::Official { revision } = &requirement.source {
+            return self.resolve_official_stdlib(requirement, revision);
+        }
         let (root, commit, source) = match &requirement.source {
+            RequirementSource::Official { .. } => unreachable!("handled above"),
             RequirementSource::Path { path } => (resolve_path_requirement(base, path)?, None, None),
             RequirementSource::Git { git, rev } => {
                 let commit = self.git_commit(git, rev)?;
@@ -281,6 +285,47 @@ impl ResolveContext<'_> {
         self.visiting.remove(&package);
         resolved?;
         self.entries.insert(package, node);
+        Ok(())
+    }
+
+    fn resolve_official_stdlib(
+        &mut self,
+        requirement: &Requirement,
+        revision: &str,
+    ) -> Result<(), String> {
+        if requirement.alias != "std" {
+            return Err("the official standard-library requirement alias must be `std`".to_owned());
+        }
+        if revision != crate::stdlib::OFFICIAL_REVISION {
+            return Err(format!(
+                "official standard-library revision `{revision}` is incompatible with this Simi distribution (expected `{}`)",
+                crate::stdlib::OFFICIAL_REVISION
+            ));
+        }
+        let catalog = crate::stdlib::official_catalog();
+        let node = ResolvedNode {
+            requirement: LockedRequirement {
+                source: requirement.source.clone(),
+                package: "std".to_owned(),
+                commit: None,
+                tree_digest: digest_entries(
+                    catalog
+                        .modules()
+                        .iter()
+                        .map(|module| (module.source_path(), module.source().as_bytes())),
+                ),
+            },
+            source: ResolvedSource::Path(PathBuf::from("<distribution stdlib>")),
+        };
+        self.validate_locked_node(&node)?;
+        if let Some(existing) = self.entries.get("std") {
+            return self.reuse_or_conflict("std", existing, &node);
+        }
+        for module in catalog.modules() {
+            self.modules
+                .insert(module.name().to_owned(), module.clone());
+        }
+        self.entries.insert("std".to_owned(), node);
         Ok(())
     }
 
@@ -527,6 +572,10 @@ impl ResolveContext<'_> {
 
 fn validate_source(source: &RequirementSource) -> Result<(), String> {
     match source {
+        RequirementSource::Official { revision } if revision.is_empty() => {
+            Err("official standard-library revision must not be empty".to_owned())
+        }
+        RequirementSource::Official { .. } => Ok(()),
         RequirementSource::Git { git, rev } if git.is_empty() || rev.is_empty() => {
             Err("Git requirement `git` and `rev` must not be empty".to_owned())
         }
@@ -1342,6 +1391,38 @@ let string = require("std/string")
         let error = resolve_script_with_cache(&app, ResolutionMode::Update, &root.join("cache"))
             .unwrap_err();
         assert!(error.contains("src/bad.simi"), "{error}");
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn official_stdlib_is_resolved_offline_and_locked_by_exact_revision() {
+        let root = temporary("official-stdlib");
+        let app = root.join("app.simi");
+        fs::write(
+            &app,
+            format!(
+                "requires {{std = {{simi = \"{}\"}}}}\nrequire(\"std/iter\")",
+                crate::stdlib::OFFICIAL_REVISION
+            ),
+        )
+        .unwrap();
+        let cache = root.join("cache");
+        let resolved = resolve_script_with_cache(&app, ResolutionMode::Update, &cache).unwrap();
+        assert!(resolved.lockfile.contains("simi = "));
+        assert!(
+            resolved
+                .catalog
+                .modules()
+                .iter()
+                .any(|module| module.name() == "std/iter")
+        );
+        fs::write(lock_path(&app), &resolved.lockfile).unwrap();
+        let locked = resolve_script_with_cache(&app, ResolutionMode::Locked, &cache).unwrap();
+        assert_eq!(locked.catalog, resolved.catalog);
+
+        fs::write(&app, "requires {std = {simi = \"incompatible\"}}\n42").unwrap();
+        let error = resolve_script_with_cache(&app, ResolutionMode::Update, &cache).unwrap_err();
+        assert!(error.contains("incompatible"), "{error}");
         fs::remove_dir_all(root).unwrap();
     }
 

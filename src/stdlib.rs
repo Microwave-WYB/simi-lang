@@ -1,4 +1,79 @@
-use crate::Module;
+use crate::{
+    CatalogModule, CatalogModuleVisibility, CatalogRequirement, Module, PackageCatalog,
+    RequirementSource,
+};
+
+/// Exact revision of the distribution-supplied official standard-library catalog.
+pub const OFFICIAL_REVISION: &str = env!("CARGO_PKG_VERSION");
+
+/// Source-only manifest of the official non-prelude standard library.
+///
+/// The catalog deliberately excludes `std/list`, `std/map`, and capability modules such as
+/// `std/io`. Engine installation pairs these source facades with the core's fixed native hosts;
+/// loading the catalog alone grants neither globals nor capabilities.
+pub fn official_catalog() -> PackageCatalog {
+    PackageCatalog::new(
+        [
+            catalog_module("std", "{}"),
+            catalog_module("std/bytes", include_str!("../stdlib/bytes.simi")),
+            catalog_module("std/float", include_str!("../stdlib/float.simi")),
+            catalog_module("std/integer", include_str!("../stdlib/integer.simi")),
+            catalog_module("std/iter", include_str!("../stdlib/iter.simi")),
+            catalog_module("std/number", include_str!("../stdlib/number.simi")),
+            catalog_module("std/string", include_str!("../stdlib/string.simi")),
+            catalog_module("std/utf8", include_str!("../stdlib/utf8.simi")),
+            catalog_module("std/utf16", include_str!("../stdlib/utf16.simi")),
+        ],
+        [CatalogRequirement::new(
+            "std",
+            RequirementSource::Official {
+                revision: OFFICIAL_REVISION.to_owned(),
+            },
+        )],
+    )
+    .expect("the built-in official standard-library catalog is valid")
+}
+
+fn catalog_module(name: &str, source: &str) -> CatalogModule {
+    CatalogModule::new(
+        name,
+        source,
+        "std",
+        format!("{name}.simi"),
+        CatalogModuleVisibility::Public,
+    )
+    .expect("the built-in official standard-library module is valid")
+}
+
+pub(crate) fn is_official_catalog(catalog: &PackageCatalog) -> bool {
+    let official = official_catalog();
+    official.modules().iter().all(|module| {
+        catalog
+            .modules()
+            .iter()
+            .any(|candidate| candidate == module)
+    }) && official.requirements().iter().all(|requirement| {
+        catalog
+            .requirements()
+            .iter()
+            .any(|candidate| candidate == requirement)
+    })
+}
+
+pub(crate) fn official_module(name: &str) -> Option<Module> {
+    Some(match name {
+        "std" => Module::source("std", "{}").build(),
+        "std/bytes" => bytes(),
+        "std/float" => float(),
+        "std/integer" => integer(),
+        "std/iter" => iter(),
+        "std/number" => number(),
+        "std/string" => string(),
+        "std/utf8" => utf8(),
+        "std/utf16" => utf16(),
+        _ => return None,
+    })
+}
 use crate::native::{
     bytes_concat, bytes_from_list, bytes_get, bytes_length, bytes_slice, bytes_to_list,
     float_decode, float_encode, integer_decode, integer_encode, io_eprint, io_eprintln, io_print,
