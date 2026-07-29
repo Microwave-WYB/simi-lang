@@ -4,6 +4,21 @@ impl Context<'_> {
     pub(super) fn constrain(&mut self, expected: &Type, actual: &Type, at: Span) {
         let expected = self.resolve_type(expected.clone());
         let actual = self.resolve_type(actual.clone());
+        if let Type::Union(items) = &expected {
+            let expanded = items
+                .iter()
+                .map(|item| match item {
+                    Type::Named(name) => {
+                        self.unfold_named_type(name).unwrap_or_else(|| item.clone())
+                    }
+                    _ => item.clone(),
+                })
+                .collect::<Vec<_>>();
+            if expanded != *items {
+                self.constrain(&union(expanded), &actual, at);
+                return;
+            }
+        }
         if let Type::Named(name) = &expected
             && !matches!(&actual, Type::Named(actual_name) if actual_name == name)
             && let Some(unfolded) = self.unfold_named_type(name)
