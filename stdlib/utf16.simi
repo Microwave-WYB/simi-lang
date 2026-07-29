@@ -1,0 +1,20 @@
+---- UTF-16 little-endian and big-endian encoding and strict decoding.
+
+--- Encode a string into little-endian UTF-16 bytes.
+let encode_le: fn(text: string) -> bytes ! never = host.encode_le
+
+--- Encode a string into big-endian UTF-16 bytes.
+let encode_be: fn(text: string) -> bytes ! never = host.encode_be
+
+--- Strictly decode little-endian UTF-16 bytes into a string, or nil when malformed.
+let decode_le: fn(data: bytes) -> string | nil ! never = host.decode_le
+
+--- Strictly decode big-endian UTF-16 bytes into a string, or nil when malformed.
+let decode_be: fn(data: bytes) -> string | nil ! never = host.decode_be
+
+{
+    encode_le = encode_le,
+    encode_be = encode_be,
+    decode_le = decode_le,
+    decode_be = decode_be,
+}

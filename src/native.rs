@@ -6,6 +6,8 @@ mod map;
 mod number;
 mod stdio;
 mod string;
+mod utf16;
+mod utf8;
 
 pub use bytes::{
     bytes_concat, bytes_from_list, bytes_get, bytes_length, bytes_slice, bytes_to_list,
