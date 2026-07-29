@@ -3023,3 +3023,37 @@ let invalid: Expr = {kind = "unexpected", value = 1}
         inference.diagnostics
     );
 }
+
+#[test]
+fn named_recursive_map_types_reject_deleting_required_fields() {
+    let source = r#"
+type Environment = {values: {..}, parent: Environment | nil, ..}
+let env: Environment = {values = {}, parent = nil}
+env.values = nil
+let accepted: Environment = env
+"#;
+    let (inference, _) = inferred(source);
+    assert!(
+        inference.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == AnalysisDiagnosticCode::TypeMismatch
+                && diagnostic.detail == "Expected `{ .. }`, but found `nil`."
+        }),
+        "{:?}",
+        inference.diagnostics
+    );
+}
+
+#[test]
+fn named_recursive_map_types_allow_compatible_required_field_mutation() {
+    let source = r#"
+type Environment = {values: {..}, parent: Environment | nil, ..}
+let env: Environment = {values = {}, parent = nil}
+env.values = {count = 1}
+"#;
+    let (inference, _) = inferred(source);
+    assert!(
+        inference.diagnostics.is_empty(),
+        "{:?}",
+        inference.diagnostics
+    );
+}
