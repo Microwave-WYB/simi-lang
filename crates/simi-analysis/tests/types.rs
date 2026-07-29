@@ -1105,6 +1105,88 @@ let unchanged: [] = bridge([], fn(other)
 }
 
 #[test]
+fn open_record_contexts_widen_unsealed_empty_map_fields() {
+    let source = r#"
+fn return_value() -> {value: {..}}
+    {value = {}}
+
+fn environment(parent: string) -> {values: {..}, parent: string}
+    {values = {}, parent = parent}
+
+fn accept(value: {value: {..}}) -> {value: {..}}
+    value
+
+let exact = {}
+let assigned: {value: {..}} = {value = {}}
+let argument = accept({value = {}})
+let returned = return_value()
+let environment_value = environment("parent")
+"#;
+    let (inference, resolution) = inferred(source);
+    assert!(
+        inference.diagnostics.is_empty(),
+        "{:?}",
+        inference.diagnostics
+    );
+    assert_eq!(type_of(&inference, &resolution, "exact").display(), "{}");
+    assert_eq!(
+        type_of(&inference, &resolution, "assigned").display(),
+        "{ value: { .. } }"
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "argument").display(),
+        "{ value: { .. } }"
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "returned").display(),
+        "{ value: { .. } }"
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "environment_value").display(),
+        "{ values: { .. }, parent: string }"
+    );
+}
+
+#[test]
+fn maps_do_not_promise_required_any_fields_that_nil_deletion_can_remove() {
+    let source = r#"
+fn environment(parent: any) -> {values: {..}, parent: any}
+    {values = {}, parent = parent}
+"#;
+    let (inference, _) = inferred(source);
+    assert!(
+        inference.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == AnalysisDiagnosticCode::TypeMismatch
+                && diagnostic.detail.contains("{ values: {}, .. }")
+        }),
+        "{:?}",
+        inference.diagnostics
+    );
+}
+
+#[test]
+fn open_records_preserve_required_fields_through_direct_mutation_and_recursion() {
+    let source = r#"
+fn advance(state: {index: integer, ..}) -> {index: integer, ..} do
+    state.index = state.index + 1
+    if state.index < 2 then advance(state) else state end
+end
+
+let cursor = advance({index = 0})
+"#;
+    let (inference, resolution) = inferred(source);
+    assert!(
+        inference.diagnostics.is_empty(),
+        "{:?}",
+        inference.diagnostics
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "cursor").display(),
+        "{ index: integer, .. }"
+    );
+}
+
+#[test]
 fn contextual_empty_maps_refine_generic_callback_state() {
     let db = AnalysisDatabase::default();
     let modules = [
