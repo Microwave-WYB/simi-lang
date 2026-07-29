@@ -40,21 +40,23 @@ pub struct CatalogModule {
 }
 
 impl CatalogModule {
-    /// Construct a source module with explicit package provenance.
+    /// Construct a source module with validated package provenance and identity.
     pub fn new(
         name: impl Into<String>,
         source: impl Into<String>,
         package: impl Into<String>,
         source_path: impl Into<String>,
         visibility: CatalogModuleVisibility,
-    ) -> Self {
-        Self {
+    ) -> Result<Self, PackageCatalogError> {
+        let module = Self {
             name: name.into(),
             source: source.into(),
             package: package.into(),
             source_path: source_path.into(),
             visibility,
-        }
+        };
+        validate_catalog_module(&module)?;
+        Ok(module)
     }
 
     /// Module identity used by `require`.
@@ -131,6 +133,9 @@ impl PackageCatalog {
         requirements: impl IntoIterator<Item = CatalogRequirement>,
     ) -> Result<Self, PackageCatalogError> {
         let mut modules = modules.into_iter().collect::<Vec<_>>();
+        for module in &modules {
+            validate_catalog_module(module)?;
+        }
         modules.sort_by(|left, right| left.name.cmp(&right.name));
         for pair in modules.windows(2) {
             if pair[0].name == pair[1].name {
@@ -148,12 +153,15 @@ impl PackageCatalog {
         });
         requirements.dedup();
         for requirement in &requirements {
-            if !modules
-                .iter()
-                .any(|module| module.name == requirement.package)
-            {
+            validate_catalog_requirement(requirement)?;
+            if !modules.iter().any(|module| {
+                module.name == requirement.package
+                    && module.package == requirement.package
+                    && module.source_path == format!("{}.simi", requirement.package)
+                    && module.visibility == CatalogModuleVisibility::Public
+            }) {
                 return Err(PackageCatalogError::new(format!(
-                    "catalog requirement for package `{}` has no root module",
+                    "catalog requirement for package `{}` has no proven public root module",
                     requirement.package
                 )));
             }
@@ -207,6 +215,47 @@ impl PackageCatalog {
                     .any(|module| module.name == catalog_requirement.package)
         })
     }
+}
+
+fn validate_catalog_module(module: &CatalogModule) -> Result<(), PackageCatalogError> {
+    validate_package_name(&module.package)
+        .map_err(|error| PackageCatalogError::new(error.to_string()))?;
+    validate_relative_path(&module.source_path, "catalog module source path")
+        .map_err(|error| PackageCatalogError::new(error.to_string()))?;
+
+    match module.visibility {
+        CatalogModuleVisibility::Public => {
+            validate_module_name(&module.name, &module.package)
+                .map_err(|error| PackageCatalogError::new(error.to_string()))?;
+            let expected_path = format!("{}.simi", module.name);
+            if module.source_path != expected_path {
+                return Err(PackageCatalogError::new(format!(
+                    "public catalog module `{}` must use source path `{expected_path}`",
+                    module.name
+                )));
+            }
+        }
+        CatalogModuleVisibility::PackageLocal => {
+            let expected_name = format!(
+                "__simi_package_local__/{}/{}",
+                module.package, module.source_path
+            );
+            if module.name != expected_name {
+                return Err(PackageCatalogError::new(format!(
+                    "package-local catalog module identity `{}` must equal `{expected_name}`",
+                    module.name
+                )));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_catalog_requirement(
+    requirement: &CatalogRequirement,
+) -> Result<(), PackageCatalogError> {
+    validate_package_name(&requirement.package)
+        .map_err(|error| PackageCatalogError::new(error.to_string()))
 }
 
 /// An invalid resolved catalog supplied by a host.

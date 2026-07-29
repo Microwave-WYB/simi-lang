@@ -241,7 +241,8 @@ impl ResolveContext<'_> {
                     package.clone(),
                     module.module().source_path(),
                     CatalogModuleVisibility::Public,
-                );
+                )
+                .map_err(|error| error.to_string())?;
                 if let Some(existing) = self.modules.get(&name)
                     && existing.source() != module.source()
                 {
@@ -267,7 +268,8 @@ impl ResolveContext<'_> {
                     package.clone(),
                     source_path,
                     CatalogModuleVisibility::PackageLocal,
-                );
+                )
+                .map_err(|error| error.to_string())?;
                 if self.modules.insert(name.clone(), module).is_some() {
                     return Err(format!(
                         "package-local module identity `{name}` is supplied more than once"

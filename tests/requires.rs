@@ -13,7 +13,8 @@ fn catalog() -> PackageCatalog {
             "tools",
             "tools.simi",
             CatalogModuleVisibility::Public,
-        )],
+        )
+        .unwrap()],
         [CatalogRequirement::new(
             "tools",
             RequirementSource::Path {
@@ -75,7 +76,8 @@ fn missing_or_mismatched_catalogs_are_hard_errors() {
                     "tools",
                     "tools.simi",
                     CatalogModuleVisibility::Public,
-                )],
+                )
+                .unwrap()],
                 [CatalogRequirement::new(
                     "tools",
                     RequirementSource::Path {
@@ -106,14 +108,16 @@ fn catalog_construction_rejects_duplicate_modules_and_unresolved_module_requirem
                 "tools",
                 "tools.simi",
                 CatalogModuleVisibility::Public,
-            ),
+            )
+            .unwrap(),
             CatalogModule::new(
                 "tools",
                 "{}",
                 "tools",
-                "other.simi",
+                "tools.simi",
                 CatalogModuleVisibility::Public,
-            ),
+            )
+            .unwrap(),
         ],
         [],
     )
@@ -131,7 +135,8 @@ fn catalog_construction_rejects_duplicate_modules_and_unresolved_module_requirem
             "tools",
             "tools.simi",
             CatalogModuleVisibility::Public,
-        )],
+        )
+        .unwrap()],
         [],
     )
     .unwrap_err();
@@ -139,6 +144,69 @@ fn catalog_construction_rejects_duplicate_modules_and_unresolved_module_requirem
         unresolved
             .to_string()
             .contains("unresolved requirement `child`")
+    );
+}
+
+#[test]
+fn catalog_module_construction_rejects_forged_provenance_and_local_identities() {
+    for (name, package, source_path, visibility, expected) in [
+        (
+            "other",
+            "tools",
+            "other.simi",
+            CatalogModuleVisibility::Public,
+            "must equal package",
+        ),
+        (
+            "tools",
+            "tools",
+            "other.simi",
+            CatalogModuleVisibility::Public,
+            "must use source path `tools.simi`",
+        ),
+        (
+            "tools",
+            "tools",
+            "src/private.simi",
+            CatalogModuleVisibility::PackageLocal,
+            "must equal `__simi_package_local__/tools/src/private.simi`",
+        ),
+        (
+            "__simi_package_local__/tools/src/../private.simi",
+            "tools",
+            "src/../private.simi",
+            CatalogModuleVisibility::PackageLocal,
+            "package-root-relative",
+        ),
+    ] {
+        let error = CatalogModule::new(name, "{}", package, source_path, visibility).unwrap_err();
+        assert!(error.to_string().contains(expected), "{name}: {error}");
+    }
+}
+
+#[test]
+fn catalog_requirements_need_a_proven_public_package_root() {
+    let error = PackageCatalog::new(
+        [CatalogModule::new(
+            "tools/extra",
+            "{}",
+            "tools",
+            "tools/extra.simi",
+            CatalogModuleVisibility::Public,
+        )
+        .unwrap()],
+        [CatalogRequirement::new(
+            "tools",
+            RequirementSource::Path {
+                path: "deps/tools".to_owned(),
+            },
+        )],
+    )
+    .unwrap_err();
+    assert!(
+        error
+            .to_string()
+            .contains("has no proven public root module")
     );
 }
 

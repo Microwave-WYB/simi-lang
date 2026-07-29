@@ -46,7 +46,8 @@ fn current_public_paths_compile() {
             "example",
             "example.simi",
             CatalogModuleVisibility::Public,
-        )],
+        )
+        .unwrap()],
         [CatalogRequirement::new(
             "example",
             RequirementSource::Path {
