@@ -54,8 +54,9 @@ sources anywhere below its root, such as `src/schema.simi`, but they are not pub
 
 The package root is the source root. Public names and metadata paths use slash-separated relative
 paths. Absolute paths, backslashes, empty path segments, `.`, and `..` are rejected. The static
-`PackageTree` loader rejects a symlink root and any symlink component used by the manifest or a
-declared public module; it reads only those files, never discovers arbitrary private sources.
+`PackageTree` loader rejects a symlink root and any symlink component used by the manifest, a
+declared public module, or a reachable literal local source; it never discovers arbitrary private
+sources.
 
 ## Restricted metadata
 
@@ -67,10 +68,9 @@ The top-level map permits only:
 - `native`: optional `{manifest = "relative/path/Cargo.toml"}` metadata for later native runners.
 
 Functions, calls, bindings, variables, computed values, duplicate keys, and unrecognized fields
-are invalid. `PackageTree` exposes deterministic digest inputs consisting of the manifest followed
-by declared public modules sorted by canonical source path; unlisted private, generated, and native
-files are excluded at this static-layout stage. The later resolver extends those inputs with locked
-requirements and reachable package-local sources, but metadata itself never controls filesystem or
+are invalid. `PackageTree` exposes deterministic digest inputs consisting of the manifest, declared
+public modules, and every reachable package-local source sorted by canonical source path. Unlisted
+private, generated, and native files remain excluded. Metadata itself never controls filesystem or
 network authority.
 
 ## Requirements and documentation
@@ -118,20 +118,28 @@ they do not establish that a path or Git revision exists.
 
 ## Local source imports
 
-Package-local imports will use literal `require("./...")` paths relative to the importing source
-file and confined to the package root. That Git/path resolution and catalog preparation are
-resolver work still deferred; `parse_requires` only validates static dependency metadata and a bare
-`Engine` does not read source paths.
-
-For example, a future resolved `polars.simi` package may use:
+A package source unit may import a private source with a literal `require("./...")` path relative
+to the importing source file:
 
 ```simi
 let schema = require("./src/schema.simi")
 ```
 
-Local source imports remain deferred to issue #35. This ordinary `require` call therefore follows
-the existing registered-module behavior and raises `module_not_found` unless an embedder explicitly
-registers that exact name.
+The resolver discovers these imports while it prepares the locked package graph, before any package
+code evaluates. Paths must begin with `./`, be non-empty slash-separated paths, and contain no `.`,
+`..`, empty, or backslash components. This keeps every loaded source below the package root; a
+traversal attempt is rejected during resolution. A dynamic `require` is not a package-local import,
+and bare engines continue to treat all `require` calls only as registered-module lookups.
+
+Every reachable local source is read through the same non-symlink package-tree checks as public
+modules, added to the package tree digest, and registered under a deterministic package-scoped
+identity. If a local path names a declared public source, it uses that existing public module
+identity instead. Repeated local imports therefore share normal source-module cache identity, and
+cycles retain the normal `{ error = "circular_module_dependency", ... }` result. Plain catalog
+imports such as `require("std/string")` are unchanged.
+
+This is resolver work only: `Engine::eval` does not read package paths or gain filesystem, network,
+or lockfile authority.
 
 ## Locks and source resolution
 
@@ -164,8 +172,9 @@ order never affects a digest. Path requirements are relative to the declaring so
 root for a package source), and their package tree is also locked by digest.
 
 `run app.simi` resolves requirements and refreshes the lock before constructing an Engine. It registers
-only declared public package modules by their manifest names, so `require("polars")` and
-`require("polars/csv")` work without granting source code ambient filesystem access.
+declared public package modules by their manifest names plus resolver-discovered package-local
+sources by internal package-scoped identities, so `require("polars")` and `require("polars/csv")`
+work without granting source code ambient filesystem access.
 `run --locked app.simi` requires an existing canonical lock and validates source declarations,
 commits, and tree digests without fetching or rewriting. `run --offline app.simi` additionally
 requires the exact cached Git checkout and performs no network operation. `lock --offline app.simi`

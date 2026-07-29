@@ -8,7 +8,10 @@ use std::{
 use sha2::{Digest, Sha256};
 
 use super::lock::{LockFile, LockSource, LockedRequirement};
-use super::{PackageTree, Requirement, RequirementSource, Requires, parse_requires};
+use super::{
+    LocalImport, PackageTree, Requirement, RequirementSource, Requires, local_source_path,
+    parse_requires,
+};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ResolutionMode {
@@ -211,12 +214,33 @@ impl ResolveContext<'_> {
         let resolved = (|| {
             for module in tree.modules() {
                 let name = module.module().name().to_owned();
-                let source = module.source().to_owned();
+                let source = rewrite_local_imports(
+                    &tree,
+                    &package,
+                    module.module().source_path(),
+                    module.source(),
+                    module.local_imports(),
+                )?;
                 if let Some(existing) = self.modules.insert(name.clone(), source.clone())
                     && existing != source
                 {
                     return Err(format!(
                         "public module `{name}` is supplied by more than one package"
+                    ));
+                }
+            }
+            for source in tree.local_sources() {
+                let name = local_module_name(&package, source.source_path());
+                let source = rewrite_local_imports(
+                    &tree,
+                    &package,
+                    source.source_path(),
+                    source.source(),
+                    source.local_imports(),
+                )?;
+                if self.modules.insert(name.clone(), source).is_some() {
+                    return Err(format!(
+                        "package-local module identity `{name}` is supplied more than once"
                     ));
                 }
             }
@@ -271,17 +295,22 @@ impl ResolveContext<'_> {
     }
 
     fn resolve_tree_requirements(&mut self, tree: &PackageTree) -> Result<(), String> {
-        for module in tree.modules() {
-            let Some(requires) = parse_requires(module.source()).map_err(|error| {
-                format!(
-                    "invalid requirements in `{}`: {error}",
-                    module.module().source_path()
-                )
-            })?
+        for (source_path, source) in tree
+            .modules()
+            .iter()
+            .map(|module| (module.module().source_path(), module.source()))
+            .chain(
+                tree.local_sources()
+                    .iter()
+                    .map(|source| (source.source_path(), source.source())),
+            )
+        {
+            let Some(requires) = parse_requires(source)
+                .map_err(|error| format!("invalid requirements in `{source_path}`: {error}"))?
             else {
                 continue;
             };
-            let source_path = tree.root().join(module.module().source_path());
+            let source_path = tree.root().join(source_path);
             let base = source_path
                 .parent()
                 .expect("package module source has a parent");
@@ -557,6 +586,47 @@ pub(super) fn digest_one(path: &str, contents: &[u8]) -> String {
     digest_entries([(path, contents)])
 }
 
+fn rewrite_local_imports(
+    tree: &PackageTree,
+    package: &str,
+    source_path: &str,
+    source: &str,
+    imports: &[LocalImport],
+) -> Result<String, String> {
+    let mut rewritten = source.to_owned();
+    for import in imports.iter().rev() {
+        let target = local_source_path(source_path, &import.path).map_err(|message| {
+            format!(
+                "package-local import `{}` in `{source_path}` {message}",
+                import.path
+            )
+        })?;
+        let module = tree
+            .public_module_for_source_path(&target)
+            .map(str::to_owned)
+            .unwrap_or_else(|| local_module_name(package, &target));
+        let replacement = simi_string_literal(&module);
+        rewritten.replace_range(import.span.start..import.span.end, &replacement);
+    }
+    Ok(rewritten)
+}
+
+fn local_module_name(package: &str, source_path: &str) -> String {
+    format!("__simi_package_local__/{package}/{source_path}")
+}
+
+fn simi_string_literal(value: &str) -> String {
+    format!(
+        "\"{}\"",
+        value
+            .replace('\\', "\\\\")
+            .replace('"', "\\\"")
+            .replace('\n', "\\n")
+            .replace('\r', "\\r")
+            .replace('\t', "\\t")
+    )
+}
+
 fn digest_tree(tree: &PackageTree) -> String {
     digest_entries(
         tree.digest_inputs()
@@ -598,6 +668,8 @@ mod tests {
     use std::sync::atomic::{AtomicU64, Ordering};
 
     use super::*;
+    use crate::{Engine, Module};
+    use simi_analysis::{AnalysisDatabase, Type, infer_types, module_shape};
 
     static NEXT: AtomicU64 = AtomicU64::new(0);
 
@@ -987,6 +1059,253 @@ mod tests {
         let error = resolve_script_with_cache(&app, ResolutionMode::Update, &root.join("cache"))
             .unwrap_err();
         assert!(error.contains("cyclic package requirement"), "{error}");
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn package_local_imports_are_nested_cached_and_keep_catalog_imports() {
+        let root = temporary("local-imports");
+        let package_root = root.join("deps/tools");
+        fs::create_dir_all(package_root.join("src")).unwrap();
+        fs::write(
+            package_root.join("simi.package.simi"),
+            r#"{name = "tools", simi = "0.1", modules = ["tools"]}"#,
+        )
+        .unwrap();
+        fs::write(
+            package_root.join("tools.simi"),
+            r#"
+let left = require("./src/left.simi")
+let right = require("./src/right.simi")
+let string = require("std/string")
+{left = left, right = right, string = string}
+"#,
+        )
+        .unwrap();
+        fs::write(
+            package_root.join("src/left.simi"),
+            r#"let shared = require("./shared.simi") {state = shared.state}"#,
+        )
+        .unwrap();
+        fs::write(
+            package_root.join("src/right.simi"),
+            r#"let shared = require("./shared.simi") {state = shared.state}"#,
+        )
+        .unwrap();
+        fs::write(
+            package_root.join("src/shared.simi"),
+            "let state = [] {state = state}",
+        )
+        .unwrap();
+        let app = root.join("app.simi");
+        fs::write(
+            &app,
+            "requires {tools = {path = \"deps/tools\"}}\nlet tools = require(\"tools\")\nlist.append(tools.left.state, 7)\ntools.right.state[0]",
+        )
+        .unwrap();
+
+        let resolved =
+            resolve_script_with_cache(&app, ResolutionMode::Update, &root.join("cache")).unwrap();
+        assert!(
+            resolved
+                .modules
+                .iter()
+                .any(|(name, _)| name == "__simi_package_local__/tools/src/shared.simi")
+        );
+        let public_source = resolved
+            .modules
+            .iter()
+            .find_map(|(name, source)| (name == "tools").then_some(source))
+            .unwrap();
+        assert!(public_source.contains("require(\"std/string\")"));
+        assert!(!public_source.contains("require(\"./src/left.simi\")"));
+
+        let mut builder = Engine::builder().stdlib();
+        for (name, source) in resolved.modules {
+            builder = builder.module(Module::source(name, source).build());
+        }
+        assert_eq!(
+            builder
+                .build()
+                .eval(&fs::read_to_string(&app).unwrap())
+                .unwrap()
+                .unwrap()
+                .render(),
+            "7"
+        );
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn package_local_imports_retain_literal_module_types() {
+        let root = temporary("local-types");
+        let package_root = root.join("deps/tools");
+        fs::create_dir_all(package_root.join("src")).unwrap();
+        fs::write(
+            package_root.join("simi.package.simi"),
+            r#"{name = "tools", simi = "0.1", modules = ["tools"]}"#,
+        )
+        .unwrap();
+        fs::write(
+            package_root.join("tools.simi"),
+            "let value = require(\"./src/value.simi\")\nvalue.answer",
+        )
+        .unwrap();
+        fs::write(package_root.join("src/value.simi"), "{answer = 42}").unwrap();
+        let app = root.join("app.simi");
+        fs::write(&app, "requires {tools = {path = \"deps/tools\"}}\n42").unwrap();
+
+        let resolved =
+            resolve_script_with_cache(&app, ResolutionMode::Update, &root.join("cache")).unwrap();
+        let db = AnalysisDatabase::default();
+        let files = resolved
+            .modules
+            .iter()
+            .map(|(name, source)| (name.clone(), db.add_file(source)))
+            .collect::<BTreeMap<_, _>>();
+        let modules = files
+            .iter()
+            .map(|(name, file)| (name.clone(), module_shape(&db, *file)))
+            .collect::<std::collections::HashMap<_, _>>();
+        let inference = infer_types(&db, files["tools"], &modules);
+        assert_eq!(inference.result_type, Some(Type::Int));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn package_local_import_cycles_use_source_module_cycle_diagnostics() {
+        let root = temporary("local-cycle");
+        let package_root = root.join("deps/tools");
+        fs::create_dir_all(package_root.join("src")).unwrap();
+        fs::write(
+            package_root.join("simi.package.simi"),
+            r#"{name = "tools", simi = "0.1", modules = ["tools"]}"#,
+        )
+        .unwrap();
+        fs::write(package_root.join("tools.simi"), "require(\"./src/a.simi\")").unwrap();
+        fs::write(package_root.join("src/a.simi"), "require(\"./b.simi\")").unwrap();
+        fs::write(package_root.join("src/b.simi"), "require(\"./a.simi\")").unwrap();
+        let app = root.join("app.simi");
+        fs::write(
+            &app,
+            "requires {tools = {path = \"deps/tools\"}}\nrequire(\"tools\")",
+        )
+        .unwrap();
+
+        let resolved =
+            resolve_script_with_cache(&app, ResolutionMode::Update, &root.join("cache")).unwrap();
+        let mut builder = Engine::builder().stdlib();
+        for (name, source) in resolved.modules {
+            builder = builder.module(Module::source(name, source).build());
+        }
+        let result = builder
+            .build()
+            .eval(&fs::read_to_string(&app).unwrap())
+            .unwrap();
+        let Err(raised) = result else {
+            panic!("expected package-local import cycle to raise");
+        };
+        assert!(raised.value.render().contains("circular_module_dependency"));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn package_local_imports_reject_traversal_and_include_reachable_sources_in_locks() {
+        let root = temporary("local-traversal");
+        let package_root = root.join("deps/tools");
+        fs::create_dir_all(package_root.join("src")).unwrap();
+        fs::write(
+            package_root.join("simi.package.simi"),
+            r#"{name = "tools", simi = "0.1", modules = ["tools"]}"#,
+        )
+        .unwrap();
+        fs::write(
+            package_root.join("tools.simi"),
+            "require(\"./src/value.simi\")",
+        )
+        .unwrap();
+        fs::write(package_root.join("src/value.simi"), "42").unwrap();
+        let app = root.join("app.simi");
+        fs::write(&app, "requires {tools = {path = \"deps/tools\"}}\n42").unwrap();
+        let cache = root.join("cache");
+        let resolved = resolve_script_with_cache(&app, ResolutionMode::Update, &cache).unwrap();
+        fs::write(lock_path(&app), &resolved.lockfile).unwrap();
+        fs::write(package_root.join("src/value.simi"), "43").unwrap();
+        assert!(resolve_script_with_cache(&app, ResolutionMode::Locked, &cache).is_err());
+
+        fs::write(
+            package_root.join("tools.simi"),
+            "require(\"./../outside.simi\")",
+        )
+        .unwrap();
+        let error = resolve_script_with_cache(&app, ResolutionMode::Update, &cache).unwrap_err();
+        assert!(error.contains("without traversal"), "{error}");
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn shadowed_require_does_not_trigger_package_local_resolution() {
+        let root = temporary("shadowed-local-require");
+        let package_root = root.join("deps/tools");
+        fs::create_dir_all(&package_root).unwrap();
+        fs::write(
+            package_root.join("simi.package.simi"),
+            r#"{name = "tools", simi = "0.1", modules = ["tools"]}"#,
+        )
+        .unwrap();
+        fs::write(
+            package_root.join("tools.simi"),
+            "let require = fn(path) do 42 end\nrequire(\"./missing.simi\")",
+        )
+        .unwrap();
+        let app = root.join("app.simi");
+        fs::write(
+            &app,
+            "requires {tools = {path = \"deps/tools\"}}\nrequire(\"tools\")",
+        )
+        .unwrap();
+
+        let resolved =
+            resolve_script_with_cache(&app, ResolutionMode::Update, &root.join("cache")).unwrap();
+        assert_eq!(resolved.modules.len(), 1);
+        let mut builder = Engine::builder().stdlib();
+        for (name, source) in resolved.modules {
+            builder = builder.module(Module::source(name, source).build());
+        }
+        assert_eq!(
+            builder
+                .build()
+                .eval(&fs::read_to_string(&app).unwrap())
+                .unwrap()
+                .unwrap()
+                .render(),
+            "42"
+        );
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn local_source_parse_errors_name_the_source_unit() {
+        let root = temporary("local-diagnostic");
+        let package_root = root.join("deps/tools");
+        fs::create_dir_all(package_root.join("src")).unwrap();
+        fs::write(
+            package_root.join("simi.package.simi"),
+            r#"{name = "tools", simi = "0.1", modules = ["tools"]}"#,
+        )
+        .unwrap();
+        fs::write(
+            package_root.join("tools.simi"),
+            "require(\"./src/bad.simi\")",
+        )
+        .unwrap();
+        fs::write(package_root.join("src/bad.simi"), "let =").unwrap();
+        let app = root.join("app.simi");
+        fs::write(&app, "requires {tools = {path = \"deps/tools\"}}\n42").unwrap();
+
+        let error = resolve_script_with_cache(&app, ResolutionMode::Update, &root.join("cache"))
+            .unwrap_err();
+        assert!(error.contains("src/bad.simi"), "{error}");
         fs::remove_dir_all(root).unwrap();
     }
 
