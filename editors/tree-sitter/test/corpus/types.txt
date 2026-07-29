@@ -113,3 +113,51 @@ alias Literals = nil | true | false | "ready" | 42 | -7 | 1.0 | -0.0
           (float))
         (literal_type
           (float))))))
+
+==================
+Named recursive structural type
+==================
+
+type Expr =
+    | {kind: "integer", value: integer}
+    | {kind: "list", items: [..Expr]}
+
+---
+
+(program
+  (type_declaration
+    (identifier)
+    (identifier)
+    (callable_type
+      (union_type
+        (map_type
+          (map_type_entry
+            (identifier)
+            (callable_type
+              (union_type
+                (literal_type
+                  (string
+                    (string_content))))))
+          (map_type_entry
+            (identifier)
+            (callable_type
+              (union_type
+                (named_type
+                  (identifier))))))
+        (map_type
+          (map_type_entry
+            (identifier)
+            (callable_type
+              (union_type
+                (literal_type
+                  (string
+                    (string_content))))))
+          (map_type_entry
+            (identifier)
+            (callable_type
+              (union_type
+                (list_type
+                  (callable_type
+                    (union_type
+                      (named_type
+                        (identifier)))))))))))))

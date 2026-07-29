@@ -64,6 +64,10 @@
 (alias_declaration
   name: (identifier) @type.definition)
 
+(type_declaration
+  keyword: (identifier) @keyword
+  name: (identifier) @type.definition)
+
 (named_type
   name: (identifier) @type)
 

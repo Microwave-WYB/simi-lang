@@ -2974,3 +2974,37 @@ let invalid = [..1]
         inference.diagnostics
     );
 }
+
+#[test]
+fn named_recursive_types_keep_recursive_edges_collapsed_and_check_structure() {
+    let source = r#"
+type Expr =
+    | {kind: "integer", value: integer}
+    | {kind: "list", items: [..Expr]}
+let leaf: Expr = {kind = "integer", value = 1}
+let tree: Expr = {kind = "list", items = [leaf, {kind = "list", items = []}]}
+let invalid: Expr = {kind = "unexpected", value = 1}
+"#;
+    let (inference, resolution) = inferred(source);
+    assert_eq!(
+        type_of(&inference, &resolution, "leaf"),
+        Type::Named("Expr".to_owned())
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "tree"),
+        Type::Named("Expr".to_owned())
+    );
+    assert!(
+        inference.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == AnalysisDiagnosticCode::TypeMismatch
+                && diagnostic.detail.contains("Expr")
+        }),
+        "{:?}",
+        inference.diagnostics
+    );
+    assert!(
+        inference.diagnostics.len() < 5,
+        "{:?}",
+        inference.diagnostics
+    );
+}

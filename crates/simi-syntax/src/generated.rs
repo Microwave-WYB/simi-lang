@@ -23,6 +23,7 @@ pub enum SyntaxKind {
     ELSE_KW,
     LET_KW,
     ALIAS_KW,
+    TYPE_KW,
     REQUIRES_KW,
     TAP_KW,
     NIL_KW,
@@ -78,6 +79,7 @@ pub enum SyntaxKind {
     MAP_EXPR,
     FUNCTION_DECL,
     ALIAS_DECL,
+    TYPE_DECL,
     LET_STMT,
     EXPR_STMT,
     CALLABLE_TYPE_PARAM_LIST,
@@ -178,6 +180,7 @@ ast_node!(RequiresDecl, REQUIRES_DECL);
 ast_node!(MapExpr, MAP_EXPR);
 ast_node!(FunctionDecl, FUNCTION_DECL);
 ast_node!(AliasDecl, ALIAS_DECL);
+ast_node!(TypeDecl, TYPE_DECL);
 ast_node!(LetStmt, LET_STMT);
 ast_node!(ExprStmt, EXPR_STMT);
 ast_node!(CallableTypeParamList, CALLABLE_TYPE_PARAM_LIST);
@@ -250,6 +253,7 @@ ast_node!(Error, ERROR);
 pub enum Stmt {
     FunctionDecl(FunctionDecl),
     AliasDecl(AliasDecl),
+    TypeDecl(TypeDecl),
     LetStmt(LetStmt),
     ExprStmt(ExprStmt),
 }
@@ -259,6 +263,7 @@ impl AstNode for Stmt {
             kind,
             SyntaxKind::FUNCTION_DECL
                 | SyntaxKind::ALIAS_DECL
+                | SyntaxKind::TYPE_DECL
                 | SyntaxKind::LET_STMT
                 | SyntaxKind::EXPR_STMT
         )
@@ -267,6 +272,7 @@ impl AstNode for Stmt {
         Some(match syntax.kind() {
             SyntaxKind::FUNCTION_DECL => Self::FunctionDecl(FunctionDecl::cast(syntax)?),
             SyntaxKind::ALIAS_DECL => Self::AliasDecl(AliasDecl::cast(syntax)?),
+            SyntaxKind::TYPE_DECL => Self::TypeDecl(TypeDecl::cast(syntax)?),
             SyntaxKind::LET_STMT => Self::LetStmt(LetStmt::cast(syntax)?),
             SyntaxKind::EXPR_STMT => Self::ExprStmt(ExprStmt::cast(syntax)?),
             _ => return None,
@@ -276,6 +282,7 @@ impl AstNode for Stmt {
         match self {
             Self::FunctionDecl(node) => node.syntax(),
             Self::AliasDecl(node) => node.syntax(),
+            Self::TypeDecl(node) => node.syntax(),
             Self::LetStmt(node) => node.syntax(),
             Self::ExprStmt(node) => node.syntax(),
         }

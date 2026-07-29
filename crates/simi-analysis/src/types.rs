@@ -48,6 +48,11 @@ struct AliasDef {
     body: SyntaxNode,
 }
 
+#[derive(Clone)]
+struct NamedTypeDef {
+    body: SyntaxNode,
+}
+
 #[derive(Clone, Default)]
 struct VarState {
     binding: Option<Type>,
@@ -67,6 +72,7 @@ pub fn infer_types(
     let source = source_text(db, file);
     let root = parsed.syntax();
     let aliases = collect_aliases(&root);
+    let named_types = collect_named_types(&root);
     let trusted_builtin_symbols = resolution
         .hir
         .symbols
@@ -80,6 +86,7 @@ pub fn infer_types(
         modules,
         source: &source,
         aliases,
+        named_types,
         alias_stack: HashSet::new(),
         vars: Vec::new(),
         deferred_empty_list_infers: HashSet::new(),
@@ -254,6 +261,7 @@ struct Context<'a> {
     modules: &'a HashMap<String, ModuleShape>,
     source: &'a str,
     aliases: HashMap<String, AliasDef>,
+    named_types: HashMap<String, NamedTypeDef>,
     alias_stack: HashSet<String>,
     vars: Vec<VarState>,
     deferred_empty_list_infers: HashSet<u32>,
@@ -458,6 +466,28 @@ fn collect_aliases(root: &SyntaxNode) -> HashMap<String, AliasDef> {
                 .syntax()
                 .clone();
             Some((name, AliasDef { parameters, body }))
+        })
+        .collect()
+}
+
+fn collect_named_types(root: &SyntaxNode) -> HashMap<String, NamedTypeDef> {
+    let Some(root) = syntax::Root::cast(root.clone()) else {
+        return HashMap::new();
+    };
+    root.statements()
+        .filter_map(|statement| {
+            let syntax::Stmt::TypeDecl(declaration) = statement else {
+                return None;
+            };
+            let contextual = direct_token(declaration.syntax(), K::TYPE_KW).is_none();
+            let name = support::tokens(declaration.syntax(), K::IDENT)
+                .nth(usize::from(contextual))?
+                .text()
+                .to_owned();
+            let body = support::child::<syntax::TypeExpr>(declaration.syntax())?
+                .syntax()
+                .clone();
+            Some((name, NamedTypeDef { body }))
         })
         .collect()
 }

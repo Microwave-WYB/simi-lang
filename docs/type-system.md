@@ -14,6 +14,22 @@ alias and a runtime binding may therefore have the same lowercase name. Scripts
 without annotations remain complete Simi programs, and annotations must not
 change evaluation, mutation, errors, module behavior, or host result layering.
 
+`alias` is a transparent, non-recursive abbreviation. Use `type` for a named,
+recursive structural type. A named type remains erased at runtime, and recursive
+references stay named rather than expanding indefinitely:
+
+```simi
+type Expr =
+    | {kind: "integer", value: integer}
+    | {kind: "list", items: [..Expr]}
+
+let expression: Expr = {kind = "list", items = []}
+```
+
+ADT-style `type` definitions use closed map variants with literal discriminants;
+`{kind: string, ..}` is not an equivalent replacement because it admits arbitrary
+variant names. Hover displays the declaration and keeps recursive edges as `Expr`.
+
 Annotations are inline and optional:
 
 ```simi

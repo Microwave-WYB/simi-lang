@@ -43,3 +43,18 @@ fn annotations_do_not_turn_static_mismatches_into_runtime_checks() {
         .expect("no raise");
     assert_eq!(result.render(), "\"text\"");
 }
+
+#[test]
+fn named_recursive_types_are_erased_at_runtime() {
+    let source = r#"
+type Expr =
+    | {kind: "integer", value: integer}
+    | {kind: "list", items: [..Expr]}
+let value: Expr = {kind = "list", items = [{kind = "integer", value = 7}]}
+value.items[0].value
+"#;
+    let result = eval(source)
+        .expect("runtime parsing succeeds")
+        .expect("no raise");
+    assert_eq!(result.render(), "7");
+}

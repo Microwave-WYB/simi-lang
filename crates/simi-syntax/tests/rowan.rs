@@ -800,3 +800,20 @@ fn field_and_index_assignment_targets_remain_accepted() {
         );
     }
 }
+
+#[test]
+fn named_recursive_types_are_lossless_declarations() {
+    let source = r#"type Expr =
+    | {kind: "integer", value: integer}
+    | {kind: "list", items: [..Expr]}
+let value: Expr = {kind = "integer", value = 1}"#;
+    let parse = parse_source(source);
+    assert!(parse.diagnostics().is_empty(), "{:?}", parse.diagnostics());
+    assert_eq!(parse.syntax().to_string(), source);
+    assert!(
+        parse
+            .syntax()
+            .descendants()
+            .any(|node| node.kind() == SyntaxKind::TYPE_DECL)
+    );
+}

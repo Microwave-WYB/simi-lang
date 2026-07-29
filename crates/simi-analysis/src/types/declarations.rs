@@ -77,7 +77,7 @@ impl Context<'_> {
     }
     pub(super) fn statement(&mut self, statement: syntax::Stmt) -> Type {
         match statement {
-            syntax::Stmt::AliasDecl(_) => Type::Nil,
+            syntax::Stmt::AliasDecl(_) | syntax::Stmt::TypeDecl(_) => Type::Nil,
             syntax::Stmt::FunctionDecl(function) => {
                 self.infer_function_decl(function);
                 Type::Nil

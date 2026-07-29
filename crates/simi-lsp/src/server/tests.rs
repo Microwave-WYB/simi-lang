@@ -2757,3 +2757,36 @@ fn real_utf16_module_hover_uses_typed_facade() {
         "fn(data: bytes) -> string | nil ! never\n\nStrictly decode little-endian UTF-16 bytes into a string, or nil when malformed.",
     );
 }
+
+#[test]
+fn named_recursive_type_hover_keeps_recursive_edges_collapsed() {
+    let source = r#"type Expr =
+    | {kind: "integer", value: integer}
+    | {kind: "list", items: [..Expr]}
+let value: Expr = {kind = "integer", value = 1}"#;
+    let mut backend = Backend::new();
+    let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
+    assert!(diagnostics.diagnostics.is_empty(), "{diagnostics:?}");
+    let hover: Option<Hover> = serde_json::from_value(
+        request(
+            &mut backend,
+            HoverRequest::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": text_position(source, "Expr", 1),
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let HoverContents::Markup(markup) = hover.expect("named type hover").contents else {
+        panic!("expected markup")
+    };
+    assert!(markup.value.contains("type Expr ="), "{}", markup.value);
+    assert!(markup.value.contains("[..Expr]"), "{}", markup.value);
+    assert!(
+        markup.value.contains("erased at runtime"),
+        "{}",
+        markup.value
+    );
+}

@@ -68,7 +68,10 @@ test("TextMate grammar assigns semantic scopes to representative Simi syntax", a
   assert.ok(grammar, "source.simi grammar should load");
   const source = await readFile(fixtureUrl, "utf8");
   const lines = tokenize(grammar, source);
+  const namedType = tokenize(grammar, "type Expr = {kind: \"integer\", value: integer}");
 
+  assertScope(namedType, 1, "type", "keyword.declaration.type.simi");
+  assertScope(namedType, 1, "Expr", "entity.name.type.simi");
   assertScope(lines, 1, "Classify", "comment.line.double-dash.simi");
   assertScope(lines, 2, "classify", "entity.name.function.simi");
   assertScope(lines, 2, "value", "variable.parameter.simi");
