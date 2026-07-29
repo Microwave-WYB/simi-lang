@@ -139,12 +139,6 @@ fn parse_requirement(map: MapExpr) -> Result<LockedRequirement, String> {
         .map(|field| static_string(&field.value, "lockfile requirement field `commit`"))
         .transpose()?;
     match (&source, &commit) {
-        (RequirementSource::Official { .. }, None) => {}
-        (RequirementSource::Official { .. }, Some(_)) => {
-            return Err(
-                "an official stdlib lockfile requirement must not contain `commit`".to_owned(),
-            );
-        }
         (RequirementSource::Git { .. }, Some(_)) => {}
         (RequirementSource::Git { .. }, None) => {
             return Err("a Git lockfile requirement requires `commit`".to_owned());
@@ -164,24 +158,26 @@ fn parse_requirement(map: MapExpr) -> Result<LockedRequirement, String> {
 
 fn parse_requirement_source(map: MapExpr) -> Result<RequirementSource, String> {
     let fields = fields(map.syntax(), "lockfile requirement source")?;
+    if fields.iter().any(|field| field.name == "simi") {
+        return Err(
+            "lockfile pins the runtime-owned `std` catalog; remove the source `std` requirement and regenerate the lockfile"
+                .to_owned(),
+        );
+    }
     reject_unknown(
         &fields,
-        &["simi", "git", "rev", "path"],
+        &["git", "rev", "path"],
         "lockfile requirement source",
     )?;
-    let simi = optional_string(&fields, "simi", "lockfile requirement source")?;
     let git = optional_string(&fields, "git", "lockfile requirement source")?;
     let rev = optional_string(&fields, "rev", "lockfile requirement source")?;
     let path = optional_string(&fields, "path", "lockfile requirement source")?;
-    match (simi, git, rev, path) {
-        (Some(revision), None, None, None) if !revision.is_empty() => {
-            Ok(RequirementSource::Official { revision })
-        }
-        (None, Some(git), Some(rev), None) if !git.is_empty() && !rev.is_empty() => {
+    match (git, rev, path) {
+        (Some(git), Some(rev), None) if !git.is_empty() && !rev.is_empty() => {
             Ok(RequirementSource::Git { git, rev })
         }
-        (None, None, None, Some(path)) if valid_relative_path(&path) => Ok(RequirementSource::Path { path }),
-        _ => Err("lockfile requirement source must be `{simi = string}`, `{git = string, rev = string}`, or `{path = string}`".to_owned()),
+        (None, None, Some(path)) if valid_relative_path(&path) => Ok(RequirementSource::Path { path }),
+        _ => Err("lockfile requirement source must be `{git = string, rev = string}` or `{path = string}`".to_owned()),
     }
 }
 
@@ -314,11 +310,6 @@ fn decode_string(text: &str) -> Option<String> {
 
 fn render_requirement_source(output: &mut String, source: &RequirementSource) {
     match source {
-        RequirementSource::Official { revision } => {
-            output.push_str("{simi = ");
-            output.push_str(&string(revision));
-            output.push('}');
-        }
         RequirementSource::Git { git, rev } => {
             output.push_str("{git = ");
             output.push_str(&string(git));

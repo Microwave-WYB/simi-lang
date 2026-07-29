@@ -73,33 +73,11 @@ public modules, and every reachable package-local source sorted by canonical sou
 private, generated, and native files remain excluded. Metadata itself never controls filesystem or
 network authority.
 
-## Official standard-library catalog
+## Runtime-owned portable catalog
 
-The distribution supplies an offline, versioned source catalog for the non-prelude `std/*`
-facades. `list` and `map` remain runtime-core prelude modules; `std/iter`, `std/string`,
-`std/number`, `std/bytes`, numeric codecs, and future non-capability standard modules belong to
-the official catalog. A source requests the exact distribution revision with the reserved `std`
-requirement:
+The running Simi distribution owns the portable source catalog. `list`, `map`, `iter`, `number`, `string`, and `bytes` are shadowable prelude globals, and their canonical `std/*` module paths are available through `require` without source metadata or lockfile entries. This catalog is selected by the runtime and cannot be replaced by a package.
 
-```simi
-requires {std = {simi = "0.1.0-alpha.1"}}
-
-let iter = require("std/iter")
-```
-
-The `{simi = ...}` source is accepted only for the `std` alias and must match the running
-distribution exactly. It is resolved without filesystem, Git, Cargo, or network access; its lock
-entry records that exact revision and the catalog digest. `Engine::new()` provides only the
-bundled `list` and `map` prelude. `Engine::with_stdlib()` and root `simi::eval` attach the exact
-official catalog, so they satisfy a compatible `std` requirement before evaluation. A bare engine
-or a mismatched revision fails as a hard outer diagnostic before executable source runs.
-
-Standalone `simi run` similarly installs only `list` and `map` unless the locked graph declares
-this compatible official requirement. The `std/io` facade remains absent until both that
-requirement and the CLI's explicit text-IO authority are present; an official catalog never grants
-any capability, global, or arbitrary `std/` namespace override. Hosts may still register direct
-modules explicitly, but a resolved package catalog may not supply `std/` identities unless it is
-the exact distribution catalog.
+Package manifests retain their top-level `simi` field as a compatibility check against the running distribution. `std/io` remains separate capability authority: the CLI registers it, while `Engine::new()`, `Engine::with_stdlib()`, and root `eval` do not. The catalog never grants `std/io` or other capability authority.
 
 ## Requirements and documentation
 
@@ -130,8 +108,8 @@ for diagnostics, editor recovery, and module hover documentation.
 
 Each alias is a unique lowercase Simi identifier within its declaring source file. Aliases are
 lexical metadata only, so independent packages may reuse an alias for different dependencies. Its
-value is restricted to the reserved official `{simi = revision}` map for `std`, or one of these
-package-source maps:
+value is one of these package-source maps. The reserved `std` alias is invalid here because the
+runtime supplies the portable catalog:
 
 ```simi
 requires {

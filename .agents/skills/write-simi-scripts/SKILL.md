@@ -41,7 +41,7 @@ Read the relevant topic in the [language tour](../../../docs/language-tour.md) b
 - `number` and `string`: explicit conversions and scalar operations.
 - `std/io`: opt-in text IO available from the CLI and engines configured with stdio.
 
-The portable `list`, `map`, `iter`, `number`, and `string` values are globals; their canonical `std/*` paths remain available through `require`. `std/io` always requires an opt-in host capability. Immutable `bytes` values may be supplied by Rust hosts, but there is not yet a bytes literal, constructor, or standard module. Filesystem/package discovery, serialization, a formatter, a REPL, runtime tuples, and script-visible command-line arguments are not implemented.
+The portable `list`, `map`, `iter`, `number`, `string`, and `bytes` values are globals; their canonical `std/*` paths remain available through `require`. `std/io` always requires an opt-in host capability. Immutable bytes use `#[]` literals, and the `bytes` prelude supplies inspection, slicing, concatenation, and integer-list conversion. Filesystem/package discovery, serialization, a formatter, a REPL, runtime tuples, and script-visible command-line arguments are not implemented.
 
 ## Formatting and checks
 

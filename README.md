@@ -130,7 +130,7 @@ pub type ScriptResult = Result<Value, Raised>;
 pub fn eval(source: &str) -> Result<ScriptResult, SimiError>;
 ```
 
-`eval` uses a fresh portable engine. `Engine::new()` and `Engine::with_stdlib()` provide the same shadowable `list`, `map`, `iter`, `number`, and `string` prelude globals, together with `type`, `inspect`, and `require`; their canonical `std/*` paths remain available through `require` and share the same cached module values. The portable `std/bytes` module is require-only and intentionally has no global alias. For persistent module state or custom capabilities, construct an `Engine`:
+`eval` uses a fresh portable engine. `Engine::new()` and `Engine::with_stdlib()` provide the same shadowable `list`, `map`, `iter`, `number`, `string`, and `bytes` prelude globals, together with `type`, `inspect`, and `require`; their canonical `std/*` paths remain available through `require` and share the same cached module values. The portable `bytes` global shares cached identity with `require("std/bytes")`. For persistent module state or custom capabilities, construct an `Engine`:
 
 ```rust
 use simi::Engine;
@@ -151,8 +151,8 @@ Hosts can register direct value modules or use `host_value!` to generate a priva
 
 `Engine::new()` and `Engine::with_stdlib()` both provide the portable prelude:
 
-- `list`, `map`, `iter`, `number`, and `string` globals;
-- canonical `std/list`, `std/map`, `std/iter`, `std/number`, `std/string`, and require-only `std/bytes`, `std/float`, `std/integer`, `std/utf8`, and `std/utf16` paths for `require`.
+- `list`, `map`, `iter`, `number`, `string`, and `bytes` globals;
+- canonical `std/list`, `std/map`, `std/iter`, `std/number`, `std/string`, and `std/bytes`, `std/float`, `std/integer`, `std/utf8`, and `std/utf16` paths for `require`.
 
 `Engine::builder().build()` remains an explicit bare host configuration. Use `.stdlib()` to install this portable prelude, and add `.stdio()` only when text IO is required.
 
