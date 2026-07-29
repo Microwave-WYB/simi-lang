@@ -734,6 +734,31 @@ fn map_index_signatures_type_dynamic_reads_and_reject_wrong_keys() {
 }
 
 #[test]
+fn closed_recursive_records_keep_declared_fields_out_of_index_signatures() {
+    let source = r#"
+type Environment = {
+    values: {[string]: integer},
+    parent: Environment | nil,
+}
+
+fn environment(parent: Environment | nil) -> Environment
+    {values = {}, parent = parent}
+
+let root: Environment = environment(nil)
+"#;
+    let (inference, resolution) = inferred(source);
+    assert!(
+        inference.diagnostics.is_empty(),
+        "{:?}",
+        inference.diagnostics
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "root"),
+        Type::Named("Environment".to_owned())
+    );
+}
+
+#[test]
 fn empty_lists_start_with_an_exact_empty_shape() {
     let (inference, resolution) = inferred("let empty = []");
     assert!(inference.diagnostics.is_empty());

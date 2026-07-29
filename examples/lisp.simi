@@ -30,12 +30,25 @@ type Closure = {
     environment: Environment,
 }
 
-type Builtin = {kind: "builtin", name: Name}
+type Builtin = {
+    kind: "builtin",
+    name: Name,
+    operation:
+        | "add"
+        | "subtract"
+        | "multiply"
+        | "divide"
+        | "equals"
+        | "negate"
+        | "cons"
+        | "car"
+        | "cdr"
+        | "empty",
+}
 
 type Environment = {
     values: {[Name]: Value},
     parent: Environment | nil,
-    ..,
 }
 
 ---- AST constructors return only the closed Expr variants.
@@ -160,8 +173,10 @@ end
 
 ---- Evaluator
 
-fn environment(parent: Environment | nil) -> Environment
-    {values = {}, parent = parent}
+fn environment(parent: Environment | nil) -> Environment do
+    let env: Environment = {values = {}, parent = parent}
+    env
+end
 
 fn lookup(env: Environment, name: Name) -> Value
     case env.values[name] of
@@ -270,9 +285,6 @@ fn is_named(expression: Expr, name: Name) -> boolean
 fn closure(parameters: [..Name], body: Expr, captured: Environment) -> Closure
     {kind = "closure", parameters = parameters, body = body, environment = captured}
 
-fn builtin(name: Name) -> Builtin
-    {kind = "builtin", name = name}
-
 fn evaluate_list(items: [..Expr], env: Environment) -> Value
     if list.length(items) == 0 then
         raise {error = "lisp_empty_list", form = "application"}
@@ -363,7 +375,8 @@ fn bind(parameters: [..Name], arguments: [..Value], env: Environment, index: int
 
 fn apply(value: MaybeValue, arguments: [..Value]) -> Value
     case value of
-        {kind = "builtin", name = name} => apply_builtin(name, arguments)
+        {kind = "builtin", name = name, operation = operation} =>
+            apply_builtin({kind = "builtin", name = name, operation = operation}, arguments)
         {kind = "closure", parameters = parameters, body = body, environment = captured} => do
             expect_arity(arguments, list.length(parameters), "lambda")
             let child = environment(captured)
@@ -405,89 +418,112 @@ fn list_equal(left: [..Value], right: [..Value], index: integer) -> boolean
         false
     end
 
-fn apply_builtin(name: Name, arguments: [..Value]) -> Value
-    case name of
-        "+" => do
-        expect_arity(arguments, 2, name)
-        expect_integer(arguments[0], name) + expect_integer(arguments[1], name)
-    end
-        "-" => do
-        expect_arity(arguments, 2, name)
-        expect_integer(arguments[0], name) - expect_integer(arguments[1], name)
-    end
-        "*" => do
-        expect_arity(arguments, 2, name)
-        expect_integer(arguments[0], name) * expect_integer(arguments[1], name)
-    end
-        "/" => do
-        expect_arity(arguments, 2, name)
-        let divisor = expect_integer(arguments[1], name)
-        if divisor == 0 then raise {error = "lisp_division_by_zero"} else expect_integer(arguments[0], name) // divisor end
-    end
-        "=" => do
-        expect_arity(arguments, 2, name)
-        equal(arguments[0], arguments[1])
-    end
-        "not" => do
-        expect_arity(arguments, 1, name)
-        not expect_boolean(arguments[0], name)
-    end
-        "cons" => do
-        expect_arity(arguments, 2, name)
-        let values: [..Value] = [expect_value(arguments[0], name)]
-        list.extend(values, expect_list(arguments[1], name))
-        values
-    end
-        "car" => do
-        expect_arity(arguments, 1, name)
-        let values = expect_list(arguments[0], name)
-        if list.length(values) == 0 then raise {error = "lisp_empty_list", form = name} else values[0] end
-    end
-        "cdr" => do
-        expect_arity(arguments, 1, name)
-        let values = expect_list(arguments[0], name)
-        if list.length(values) == 0 then raise {error = "lisp_empty_list", form = name} else list.slice(values, 1, list.length(values)) end
-    end
-        "empty" => do
-        if list.length(arguments) == 0 then
-            let values: [..Value] = []
-            values
-        else
-            raise {
-                error = "lisp_arity_error",
-                form = name,
-                expected = 0,
-                actual = list.length(arguments),
-            }
-        end
-    end
-        _ => raise {error = "lisp_unknown_builtin", name = name}
+fn apply_builtin(builtin: Builtin, arguments: [..Value]) -> Value
+    case builtin of
+        {operation = "add", name = name, ..} => add(name, arguments)
+        {operation = "subtract", name = name, ..} => subtract(name, arguments)
+        {operation = "multiply", name = name, ..} => multiply(name, arguments)
+        {operation = "divide", name = name, ..} => divide(name, arguments)
+        {operation = "equals", name = name, ..} => equals(name, arguments)
+        {operation = "negate", name = name, ..} => negate(name, arguments)
+        {operation = "cons", name = name, ..} => cons(name, arguments)
+        {operation = "car", name = name, ..} => car(name, arguments)
+        {operation = "cdr", name = name, ..} => cdr(name, arguments)
+        {operation = "empty", name = name, ..} => empty(name, arguments)
     end
 
-fn expect_name(value: Name | nil) -> Name
-    if type(value) == "string" then
-        value
-    else
-        raise {error = "lisp_type_error", form = "builtin installation", expected = "string", actual = type(value)}
-    end
-
-fn install_builtin(env: Environment, name: Name) -> nil do
-    env.values[name] = builtin(name)
-    nil
+fn add(name: Name, arguments: [..Value]) -> Value do
+    expect_arity(arguments, 2, name)
+    expect_integer(arguments[0], name) + expect_integer(arguments[1], name)
 end
 
-fn install_builtins(env: Environment, names: [..Name], index: integer) -> nil
-    if index == list.length(names) then
+fn subtract(name: Name, arguments: [..Value]) -> Value do
+    expect_arity(arguments, 2, name)
+    expect_integer(arguments[0], name) - expect_integer(arguments[1], name)
+end
+
+fn multiply(name: Name, arguments: [..Value]) -> Value do
+    expect_arity(arguments, 2, name)
+    expect_integer(arguments[0], name) * expect_integer(arguments[1], name)
+end
+
+fn divide(name: Name, arguments: [..Value]) -> Value do
+    expect_arity(arguments, 2, name)
+    let divisor = expect_integer(arguments[1], name)
+    if divisor == 0 then
+        raise {error = "lisp_division_by_zero"}
+    else
+        expect_integer(arguments[0], name) // divisor
+    end
+end
+
+fn equals(name: Name, arguments: [..Value]) -> Value do
+    expect_arity(arguments, 2, name)
+    equal(arguments[0], arguments[1])
+end
+
+fn negate(name: Name, arguments: [..Value]) -> Value do
+    expect_arity(arguments, 1, name)
+    not expect_boolean(arguments[0], name)
+end
+
+fn cons(name: Name, arguments: [..Value]) -> Value do
+    expect_arity(arguments, 2, name)
+    let values: [..Value] = [expect_value(arguments[0], name)]
+    list.extend(values, expect_list(arguments[1], name))
+    values
+end
+
+fn car(name: Name, arguments: [..Value]) -> Value do
+    expect_arity(arguments, 1, name)
+    let values = expect_list(arguments[0], name)
+    if list.length(values) == 0 then
+        raise {error = "lisp_empty_list", form = name}
+    else
+        values[0]
+    end
+end
+
+fn cdr(name: Name, arguments: [..Value]) -> Value do
+    expect_arity(arguments, 1, name)
+    let values = expect_list(arguments[0], name)
+    if list.length(values) == 0 then
+        raise {error = "lisp_empty_list", form = name}
+    else
+        list.slice(values, 1, list.length(values))
+    end
+end
+
+fn empty(name: Name, arguments: [..Value]) -> Value do
+    expect_arity(arguments, 0, name)
+    let values: [..Value] = []
+    values
+end
+
+fn install_builtins(env: Environment, builtins: [..Builtin], index: integer) -> nil
+    if index == list.length(builtins) then
         nil
     else
-        install_builtin(env, expect_name(names[index]))
-        install_builtins(env, names, index + 1)
+        let builtin = builtins[index]
+        env.values[builtin.name] = builtin
+        install_builtins(env, builtins, index + 1)
     end
 
 fn global_environment() -> Environment do
     let env = environment(nil)
-    let names: [..Name] = ["+", "-", "*", "/", "=", "not", "cons", "car", "cdr", "empty"]
-    install_builtins(env, names, 0)
+    let builtins: [..Builtin] = [
+        {kind = "builtin", name = "+", operation = "add"},
+        {kind = "builtin", name = "-", operation = "subtract"},
+        {kind = "builtin", name = "*", operation = "multiply"},
+        {kind = "builtin", name = "/", operation = "divide"},
+        {kind = "builtin", name = "=", operation = "equals"},
+        {kind = "builtin", name = "not", operation = "negate"},
+        {kind = "builtin", name = "cons", operation = "cons"},
+        {kind = "builtin", name = "car", operation = "car"},
+        {kind = "builtin", name = "cdr", operation = "cdr"},
+        {kind = "builtin", name = "empty", operation = "empty"},
+    ]
+    install_builtins(env, builtins, 0)
     env
 end
 

@@ -535,6 +535,7 @@ pub(super) fn is_subtype(actual: &Type, expected: &Type) -> bool {
             let index_matches = expected_index.as_ref().is_none_or(|(key, value)| {
                 actual
                     .iter()
+                    .filter(|(name, _)| !expected.iter().any(|(field, _)| field == name))
                     .all(|(_, actual)| is_subtype(&Type::String, key) && is_subtype(actual, value))
                     && actual_index
                         .as_ref()
