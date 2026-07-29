@@ -145,10 +145,7 @@ pub fn integer_encode(args: &[Value], span: Span) -> NativeResult {
     if value < min || value > max {
         return Err(RuntimeError::new(
             span,
-            format!(
-                "std/integer.encode value {value} is out of range for {}",
-                format_str
-            ),
+            format!("std/integer.encode value {value} is out of range for {format_str}"),
         ));
     }
 
@@ -209,10 +206,7 @@ pub fn integer_decode(args: &[Value], span: Span) -> NativeResult {
             if raw > i64::MAX as u64 {
                 return Err(RuntimeError::new(
                     span,
-                    format!(
-                        "std/integer.decode decoded value {raw} exceeds i64 for {}",
-                        format_str
-                    ),
+                    format!("std/integer.decode decoded value {raw} exceeds i64 for {format_str}"),
                 ));
             }
             raw as i64
