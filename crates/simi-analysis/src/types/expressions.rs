@@ -78,7 +78,7 @@ impl Context<'_> {
                 let mut fields = Vec::new();
                 let mut keys = Vec::new();
                 let mut values = Vec::new();
-                let open = false;
+                let mut open = false;
                 for entry in support::children::<syntax::MapEntry>(node.syntax()) {
                     let mut expressions = expr_children(entry.syntax());
                     if let Some(name) = direct_token(entry.syntax(), K::IDENT) {
@@ -99,10 +99,18 @@ impl Context<'_> {
                             Type::Unknown
                         };
                         if value != Type::Nil {
-                            // A nil-capable known field is optional at runtime because map
-                            // assignment deletes nil values. Retain its union type so an
-                            // expected `field: T | nil` can model that absence precisely.
-                            fields.push((name.text().to_owned(), value));
+                            if type_has_explicit_nil(&value) {
+                                // An explicit `T | nil` record field is optional at runtime:
+                                // map insertion deletes nil, but the union records that
+                                // absence precisely without opening the whole map.
+                                fields.push((name.text().to_owned(), value));
+                            } else if type_may_be_nil(&value) {
+                                // `any` and unresolved values may be nil without declaring an
+                                // optional field. Preserve soundness by widening the literal.
+                                open = true;
+                            } else {
+                                fields.push((name.text().to_owned(), value));
+                            }
                         }
                     } else if let (Some(key), Some(value)) =
                         (expressions.next(), expressions.next())
