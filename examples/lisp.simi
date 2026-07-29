@@ -7,18 +7,17 @@ alias Name = string
 alias Token = string
 alias Tokens = [..Token]
 alias MaybeValue = Value | nil
-alias Symbol = {kind: "symbol", name: Name}
 
 type Expr =
     | {kind: "integer", value: integer}
     | {kind: "boolean", value: boolean}
-    | Symbol
+    | {kind: "symbol", name: Name}
     | {kind: "list", items: [..Expr]}
 
 type Value =
     | integer
     | boolean
-    | Symbol
+    | {kind: "symbol", name: Name}
     | [..Value]
     | Closure
     | Builtin
