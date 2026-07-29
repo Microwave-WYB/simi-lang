@@ -67,8 +67,8 @@ const KEYWORDS: &[KeywordHelp] = &[
     },
     KeywordHelp {
         word: "requires",
-        syntax: "requires {std = {simi = revision}}",
-        documentation: "Declares static package requirements before executable source items. Use `{simi = revision}` for the official standard-library catalog, `{git = url, rev = revision}` for Git packages, or `{path = path}` for development packages.",
+        syntax: "requires {name = {git = url, rev = revision}}",
+        documentation: "Declares static package requirements before executable source items. Use `{git = url, rev = revision}` for Git packages or `{path = path}` for development packages. The runtime supplies portable `std/*` modules; do not declare `std` here.",
         contextual: false,
     },
     KeywordHelp {

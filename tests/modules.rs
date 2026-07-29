@@ -216,6 +216,7 @@ fn portable_prelude_values_are_direct_shadowable_and_share_require_identity() {
                     iter.to_list(list.iter([4]))[0],
                     number.to_string(5),
                     string.upper("simi"),
+                    bytes.length(#[1, 2]),
                     require("std/iter").marker,
                     require("std/number").marker,
                 ]
@@ -225,7 +226,7 @@ fn portable_prelude_values_are_direct_shadowable_and_share_require_identity() {
         .expect("portable prelude calls should not raise");
     assert_eq!(
         value.render(),
-        "[3, 0, 4, \"5\", \"SIMI\", \"cached\", \"numeric\"]"
+        "[3, 0, 4, \"5\", \"SIMI\", 2, \"cached\", \"numeric\"]"
     );
 
     let value = engine
@@ -234,16 +235,18 @@ fn portable_prelude_values_are_direct_shadowable_and_share_require_identity() {
         .expect("cached prelude state should not raise");
     assert_eq!(value.render(), "\"cached\"");
 
-    let minimal = Engine::new()
-        .eval("[list.length([1]), map.length({})]")
-        .expect("minimum prelude should have no hard diagnostic")
-        .expect("minimum prelude should not raise");
-    assert_eq!(minimal.render(), "[1, 0]");
-    assert!(
+    let portable = Engine::new()
+        .eval("[list.length([1]), map.length({}), iter.to_list(list.iter([2]))[0], number.to_string(3), string.upper(\"simi\"), bytes.length(#[4])]")
+        .expect("portable prelude should have no hard diagnostic")
+        .expect("portable prelude should not raise");
+    assert_eq!(portable.render(), "[1, 0, 2, \"3\", \"SIMI\", 1]");
+    assert_eq!(
         Engine::new()
-            .eval("require(\"std/iter\")")
+            .eval("type(require(\"std/iter\"))")
             .unwrap()
-            .is_err()
+            .unwrap()
+            .render(),
+        "\"map\""
     );
 
     let value = eval("list.length([1])")
@@ -252,10 +255,10 @@ fn portable_prelude_values_are_direct_shadowable_and_share_require_identity() {
     assert_eq!(value.render(), "1");
 
     let value = Engine::new()
-        .eval("let list = 1 let map = 2 let iter = 3 let number = 4 let string = 5 [list, map, iter, number, string]")
+        .eval("let list = 1 let map = 2 let iter = 3 let number = 4 let string = 5 let bytes = 6 [list, map, iter, number, string, bytes]")
         .expect("shadowed prelude values should have no hard diagnostic")
         .expect("shadowed prelude values should not raise");
-    assert_eq!(value.render(), "[1, 2, 3, 4, 5]");
+    assert_eq!(value.render(), "[1, 2, 3, 4, 5, 6]");
 
     let value = Engine::new()
         .eval("let require = 42 require")

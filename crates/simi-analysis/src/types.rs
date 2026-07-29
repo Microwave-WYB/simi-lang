@@ -214,7 +214,7 @@ fn builtin_types(
             ))),
             "type" => callable_type(vec![Type::Any], Type::String),
             "inspect" => callable_type(vec![Type::Any], Type::String),
-            "list" | "map" | "iter" | "number" | "string" => modules
+            "list" | "map" | "iter" | "number" | "string" | "bytes" => modules
                 .get(&format!("std/{}", symbol.name))
                 .and_then(|shape| shape.ty.clone())
                 .unwrap_or(Type::Any),
@@ -471,7 +471,7 @@ fn known_module_argument_is_pure(module: &str, field: &str, index: usize) -> boo
             ) || (field != "fold" && index != 0)
         }
         "std/map" => index != 0 || field != "clear",
-        "std/iter" | "std/number" | "std/string" | "std/io" => true,
+        "std/iter" | "std/number" | "std/string" | "std/bytes" | "std/io" => true,
         _ => false,
     }
 }

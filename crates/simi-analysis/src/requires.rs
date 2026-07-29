@@ -32,8 +32,6 @@ pub struct Requirement {
 /// A static dependency source.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum RequirementSource {
-    /// The distribution-supplied official Simi standard-library catalog at an exact revision.
-    Official { revision: String },
     /// An immutable Git revision.
     Git { git: String, rev: String },
     /// A package-root-relative development path.
@@ -60,8 +58,8 @@ impl Error for PackageRequirementsError {}
 /// Extract and validate a leading `requires` declaration without evaluating source.
 ///
 /// `Ok(None)` means the source has no declaration. The source must otherwise be valid Simi
-/// syntax, and every requirement must be `{simi = string}` for the official standard library,
-/// `{git = string, rev = string}`, or `{path = string}`.
+/// syntax, and every requirement must be `{git = string, rev = string}` or `{path = string}`.
+/// The official standard library is supplied by the runtime and is not declared here.
 pub fn parse_requires(source: &str) -> Result<Option<Requires>, PackageRequirementsError> {
     let parse = parse_source(source);
     let root = Root::cast(parse.syntax().clone()).expect("parser produces a root node");
@@ -156,6 +154,13 @@ fn parse_requirement(field: Field) -> Result<Requirement, PackageRequirementsErr
         ));
     }
 
+    if field.name == "std" {
+        return Err(error(
+            field.name_span,
+            "the `std` catalog is supplied by the runtime; remove it from `requires`",
+        ));
+    }
+
     let SyntaxExpr::Map(map) = field.value else {
         return Err(error(
             field.name_span,
@@ -163,7 +168,6 @@ fn parse_requirement(field: Field) -> Result<Requirement, PackageRequirementsErr
         ));
     };
     let source_fields = fields(map.syntax(), &format!("requirement `{}`", field.name))?;
-    let mut simi = None;
     let mut git = None;
     let mut rev = None;
     let mut path = None;
@@ -174,7 +178,6 @@ fn parse_requirement(field: Field) -> Result<Requirement, PackageRequirementsErr
             &format!("requirement `{}` field `{}`", field.name, source_field.name),
         )?;
         match source_field.name.as_str() {
-            "simi" => simi = Some(value),
             "git" => git = Some(value),
             "rev" => rev = Some(value),
             "path" => path = Some((value, source_field.name_span)),
@@ -190,20 +193,11 @@ fn parse_requirement(field: Field) -> Result<Requirement, PackageRequirementsErr
         }
     }
 
-    let source = match (simi, git, rev, path) {
-        (Some(revision), None, None, None) if field.name == "std" && !revision.is_empty() => {
-            RequirementSource::Official { revision }
-        }
-        (Some(_), None, None, None) => {
-            return Err(error(
-                field.name_span,
-                "only requirement alias `std` may use the official `{simi = ...}` source",
-            ));
-        }
-        (None, Some(git), Some(rev), None) if !git.is_empty() && !rev.is_empty() => {
+    let source = match (git, rev, path) {
+        (Some(git), Some(rev), None) if !git.is_empty() && !rev.is_empty() => {
             RequirementSource::Git { git, rev }
         }
-        (None, None, None, Some((path, path_span))) => {
+        (None, None, Some((path, path_span))) => {
             validate_development_path(&path, path_span)?;
             RequirementSource::Path { path }
         }
@@ -211,7 +205,7 @@ fn parse_requirement(field: Field) -> Result<Requirement, PackageRequirementsErr
             return Err(error(
                 field.name_span,
                 format!(
-                    "requirement `{}` must declare exactly one of `{{simi = revision}}`, `{{git = url, rev = revision}}`, or `{{path = path}}`",
+                    "requirement `{}` must declare exactly one of `{{git = url, rev = revision}}` or `{{path = path}}`",
                     field.name
                 ),
             ));

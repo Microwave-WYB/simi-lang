@@ -1,16 +1,13 @@
-use crate::{
-    CatalogModule, CatalogModuleVisibility, CatalogRequirement, Module, PackageCatalog,
-    RequirementSource,
-};
+use crate::{CatalogModule, CatalogModuleVisibility, Module, PackageCatalog};
 
-/// Exact revision of the distribution-supplied official standard-library catalog.
-pub const OFFICIAL_REVISION: &str = env!("CARGO_PKG_VERSION");
+/// Exact revision of this Simi distribution, used by package manifest compatibility checks.
+pub const DISTRIBUTION_REVISION: &str = env!("CARGO_PKG_VERSION");
 
-/// Source-only manifest of the official non-prelude standard library.
+/// Source-only manifest of the runtime-owned portable catalog.
 ///
-/// The catalog deliberately excludes `std/list`, `std/map`, and capability modules such as
-/// `std/io`. Engine installation pairs these source facades with the core's fixed native hosts;
-/// loading the catalog alone grants neither globals nor capabilities.
+/// The catalog deliberately excludes the runtime-core `std/list` and `std/map` facades and
+/// capability modules such as `std/io`. Engine installation pairs its source facades with fixed
+/// native hosts; loading a catalog alone grants neither globals nor capabilities.
 pub fn official_catalog() -> PackageCatalog {
     PackageCatalog::new(
         [
@@ -24,12 +21,7 @@ pub fn official_catalog() -> PackageCatalog {
             catalog_module("std/utf8", include_str!("../stdlib/utf8.simi")),
             catalog_module("std/utf16", include_str!("../stdlib/utf16.simi")),
         ],
-        [CatalogRequirement::new(
-            "std",
-            RequirementSource::Official {
-                revision: OFFICIAL_REVISION.to_owned(),
-            },
-        )],
+        [],
     )
     .expect("the built-in official standard-library catalog is valid")
 }
@@ -49,8 +41,6 @@ pub(crate) fn is_official_catalog(catalog: &PackageCatalog) -> bool {
     let official = official_catalog();
     let is_std_module =
         |module: &CatalogModule| module.name() == "std" || module.name().starts_with("std/");
-    let is_std_requirement = |requirement: &CatalogRequirement| requirement.package() == "std";
-
     // A catalog can combine the official source package with unrelated packages, but its
     // reserved `std/*` entries and `std` revision must be an exact match. `EngineBuilder`
     // installs trusted native hosts for those entries, so additions or replacements must remain
@@ -64,15 +54,6 @@ pub(crate) fn is_official_catalog(catalog: &PackageCatalog) -> bool {
             .iter()
             .filter(|module| is_std_module(module))
             .all(|module| official.modules().contains(module))
-        && official
-            .requirements()
-            .iter()
-            .all(|requirement| catalog.requirements().contains(requirement))
-        && catalog
-            .requirements()
-            .iter()
-            .filter(|requirement| is_std_requirement(requirement))
-            .all(|requirement| official.requirements().contains(requirement))
 }
 
 pub(crate) fn official_module(name: &str) -> Option<Module> {

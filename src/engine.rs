@@ -204,13 +204,28 @@ impl EngineBuilder {
         }
     }
 
-    /// Install the bundled minimum prelude: mutable list and map operations.
+    /// Install the runtime-owned portable prelude.
     ///
-    /// The official non-prelude standard library remains unavailable until an exact official
-    /// catalog is installed through [`Self::stdlib`] or [`Self::catalog`].
+    /// The portable `list`, `map`, `iter`, `number`, `string`, and `bytes` modules are
+    /// available both as shadowable globals and through their canonical `std/*` paths. The
+    /// `std/io` capability remains absent until [`Self::stdio`] is selected explicitly.
     pub fn prelude(mut self) -> Self {
-        self.prelude_modules = vec![("list", "std/list"), ("map", "std/map")];
-        for module in [stdlib::list(), stdlib::map()] {
+        self.prelude_modules = vec![
+            ("list", "std/list"),
+            ("map", "std/map"),
+            ("iter", "std/iter"),
+            ("number", "std/number"),
+            ("string", "std/string"),
+            ("bytes", "std/bytes"),
+        ];
+        for module in [
+            stdlib::list(),
+            stdlib::map(),
+            stdlib::iter(),
+            stdlib::number(),
+            stdlib::string(),
+            stdlib::bytes(),
+        ] {
             if self.direct_modules.contains(module.name()) {
                 self.configuration_errors.push(format!(
                     "direct module `{}` conflicts with the bundled prelude module",
@@ -219,7 +234,7 @@ impl EngineBuilder {
             }
             self.modules.insert(module.name().to_owned(), module);
         }
-        self
+        self.catalog(stdlib::official_catalog())
     }
 
     pub fn module(mut self, module: Module) -> Self {
@@ -246,7 +261,9 @@ impl EngineBuilder {
     /// Catalog/declaration compatibility is checked as a hard error before each evaluation.
     pub fn catalog(mut self, catalog: PackageCatalog) -> Self {
         let catalog = if let Some(existing) = &self.catalog {
-            if stdlib::is_official_catalog(existing) && !stdlib::is_official_catalog(&catalog) {
+            let existing_is_official = stdlib::is_official_catalog(existing);
+            let new_is_official = stdlib::is_official_catalog(&catalog);
+            if existing_is_official != new_is_official {
                 match existing.merged_with(&catalog) {
                     Ok(merged) => merged,
                     Err(error) => {
@@ -297,26 +314,15 @@ impl EngineBuilder {
                 };
             self.modules.insert(entry.name().to_owned(), module);
         }
-        if official_stdlib
-            && !self.prelude_modules.is_empty()
-            && !self
-                .prelude_modules
-                .iter()
-                .any(|(alias, _)| *alias == "iter")
-        {
-            self.prelude_modules.extend([
-                ("iter", "std/iter"),
-                ("number", "std/number"),
-                ("string", "std/string"),
-            ]);
-        }
         self.catalog = Some(catalog);
         self
     }
 
-    /// Install the bundled prelude and the exact distribution official standard-library catalog.
+    /// Install the runtime-owned portable prelude.
+    ///
+    /// This remains as a compatibility spelling for [`Self::prelude`].
     pub fn stdlib(self) -> Self {
-        self.prelude().catalog(stdlib::official_catalog())
+        self.prelude()
     }
 
     pub fn stdio(self) -> Self {
