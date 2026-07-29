@@ -345,25 +345,25 @@ fn circular_source_portable_override_remains_a_language_raise() {
 }
 
 #[test]
-fn source_portable_overrides_use_explicit_dependencies_before_alias_installation() {
-    let implicit = Engine::builder()
+fn direct_source_modules_remain_available_outside_the_reserved_namespace() {
+    let direct = Engine::builder()
         .stdlib()
-        .module(Module::source("std/string", "list").build())
+        .module(Module::source("custom", "list").build())
         .build();
-    let error = match implicit.eval("nil") {
-        Err(error) => error,
-        Ok(_) => panic!("portable aliases must not be partially visible during installation"),
-    };
-    assert!(
-        error.to_string().contains("undefined name `list`"),
-        "unexpected implicit dependency error: {error}"
+    assert_eq!(
+        direct
+            .eval("type(require(\"custom\"))")
+            .unwrap()
+            .unwrap()
+            .render(),
+        "\"map\""
     );
 
     let explicit = Engine::builder()
         .stdlib()
         .module(
             Module::source(
-                "std/string",
+                "custom",
                 "let dependency = require(\"std/list\") {dependency = dependency}",
             )
             .build(),
@@ -373,7 +373,7 @@ fn source_portable_overrides_use_explicit_dependencies_before_alias_installation
         .eval(
             r#"
             list.marker = "shared"
-            string.dependency.marker
+            require("custom").dependency.marker
             "#,
         )
         .expect("explicit portable dependency should not hard fail")

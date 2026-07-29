@@ -142,18 +142,36 @@ fn official_catalog_rejects_extra_overridden_and_revision_mismatched_std_entries
         ));
     }
 
-    let Err(error) = Engine::builder()
-        .stdlib()
-        .module(simi::Module::source("std/iter", "{}").build())
-        .build()
-        .eval("42")
-    else {
-        panic!("direct module must not override an official catalog module");
-    };
-    assert!(
-        error
-            .to_string()
-            .contains("conflicts with a resolved package catalog module")
+    for engine in [
+        Engine::builder()
+            .stdlib()
+            .module(simi::Module::source("std/iter", "{}").build())
+            .build(),
+        Engine::builder()
+            .module(simi::Module::source("std/iter", "{}").build())
+            .stdlib()
+            .build(),
+    ] {
+        let Err(error) = engine.eval("42") else {
+            panic!("direct module must not override an official catalog module");
+        };
+        assert!(
+            error
+                .to_string()
+                .contains("conflicts with a resolved package catalog module")
+        );
+    }
+
+    assert_eq!(
+        Engine::builder()
+            .module(simi::Module::source("custom", "42").build())
+            .stdlib()
+            .build()
+            .eval("require(\"custom\")")
+            .unwrap()
+            .unwrap()
+            .render(),
+        "42"
     );
 }
 

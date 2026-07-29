@@ -1,5 +1,5 @@
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -187,6 +187,7 @@ impl Default for Engine {
 
 pub struct EngineBuilder {
     modules: HashMap<String, Module>,
+    direct_modules: HashSet<String>,
     catalog: Option<PackageCatalog>,
     configuration_errors: Vec<String>,
     prelude_modules: Vec<(&'static str, &'static str)>,
@@ -196,6 +197,7 @@ impl EngineBuilder {
     pub fn new() -> Self {
         Self {
             modules: HashMap::new(),
+            direct_modules: HashSet::new(),
             catalog: None,
             configuration_errors: Vec::new(),
             prelude_modules: Vec::new(),
@@ -209,6 +211,12 @@ impl EngineBuilder {
     pub fn prelude(mut self) -> Self {
         self.prelude_modules = vec![("list", "std/list"), ("map", "std/map")];
         for module in [stdlib::list(), stdlib::map()] {
+            if self.direct_modules.contains(module.name()) {
+                self.configuration_errors.push(format!(
+                    "direct module `{}` conflicts with the bundled prelude module",
+                    module.name()
+                ));
+            }
             self.modules.insert(module.name().to_owned(), module);
         }
         self
@@ -226,6 +234,7 @@ impl EngineBuilder {
                 module.name()
             ));
         }
+        self.direct_modules.insert(module.name().to_owned());
         self.modules.insert(module.name().to_owned(), module);
         self
     }
@@ -269,14 +278,14 @@ impl EngineBuilder {
             return self;
         }
         for entry in catalog.modules() {
-            if self.modules.contains_key(entry.name()) {
-                if official_stdlib && (entry.name() == "std" || entry.name().starts_with("std/")) {
-                    continue;
-                }
+            if self.direct_modules.contains(entry.name()) {
                 self.configuration_errors.push(format!(
-                    "resolved package catalog module `{}` conflicts with a direct module",
+                    "direct module `{}` conflicts with a resolved package catalog module",
                     entry.name()
                 ));
+                continue;
+            }
+            if self.modules.contains_key(entry.name()) {
                 continue;
             }
             let module =
