@@ -3024,6 +3024,7 @@ type Expr =
 let leaf: Expr = {kind = "integer", value = 1}
 let tree: Expr = {kind = "list", items = [leaf, {kind = "list", items = []}]}
 let invalid: Expr = {kind = "unexpected", value = 1}
+let invalid_nested: Expr = {kind = "list", items = ["wrong"]}
 "#;
     let (inference, resolution) = inferred(source);
     assert_eq!(

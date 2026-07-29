@@ -76,6 +76,22 @@ fn text_position(source: &str, needle: &str, occurrence: usize) -> Position {
 }
 
 #[test]
+fn typed_lisp_example_has_no_diagnostics_with_real_portable_module_shapes() {
+    let mut backend = Backend::with_module_sources([
+        ("std/list", include_str!("../../../../stdlib/list.simi")),
+        ("std/string", include_str!("../../../../stdlib/string.simi")),
+    ]);
+    let diagnostics = diagnostics_from(
+        open(&mut backend, include_str!("../../../../examples/lisp.simi")).remove(0),
+    );
+    assert!(
+        diagnostics.diagnostics.is_empty(),
+        "{:#?}",
+        diagnostics.diagnostics
+    );
+}
+
+#[test]
 fn advertises_incremental_utf16_and_all_supported_features() {
     let capabilities = Backend::capabilities();
     let Some(TextDocumentSyncCapability::Options(sync)) = capabilities.text_document_sync else {
