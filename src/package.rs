@@ -26,6 +26,211 @@ pub use simi_analysis::{
     PackageRequirementsError, Requirement, RequirementSource, Requires, parse_requires,
 };
 
+/// One source module in a previously resolved package catalog.
+///
+/// The module name is the identity passed to `require`. Package-local modules have deterministic
+/// private names and are included so normal source-module caching preserves their identity.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CatalogModule {
+    name: String,
+    source: String,
+    package: String,
+    source_path: String,
+    visibility: CatalogModuleVisibility,
+}
+
+impl CatalogModule {
+    /// Construct a source module with explicit package provenance.
+    pub fn new(
+        name: impl Into<String>,
+        source: impl Into<String>,
+        package: impl Into<String>,
+        source_path: impl Into<String>,
+        visibility: CatalogModuleVisibility,
+    ) -> Self {
+        Self {
+            name: name.into(),
+            source: source.into(),
+            package: package.into(),
+            source_path: source_path.into(),
+            visibility,
+        }
+    }
+
+    /// Module identity used by `require`.
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+    /// Rewritten Simi source evaluated lazily by the engine.
+    pub fn source(&self) -> &str {
+        &self.source
+    }
+    /// Manifest package identity that supplied this source.
+    pub fn package(&self) -> &str {
+        &self.package
+    }
+    /// Canonical package-root-relative source path.
+    pub fn source_path(&self) -> &str {
+        &self.source_path
+    }
+    /// Whether this module is manifest-public or package-local.
+    pub const fn visibility(&self) -> CatalogModuleVisibility {
+        self.visibility
+    }
+}
+
+/// Visibility of a resolved catalog module.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CatalogModuleVisibility {
+    /// A manifest-declared module whose name is part of the public package interface.
+    Public,
+    /// A resolver-discovered literal local source with a package-scoped private identity.
+    PackageLocal,
+}
+
+/// A locked package requirement represented by a resolved catalog.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CatalogRequirement {
+    package: String,
+    source: RequirementSource,
+}
+
+impl CatalogRequirement {
+    /// Construct the resolved identity for a declared requirement source.
+    pub fn new(package: impl Into<String>, source: RequirementSource) -> Self {
+        Self {
+            package: package.into(),
+            source,
+        }
+    }
+
+    /// Manifest package identity selected for this requirement.
+    pub fn package(&self) -> &str {
+        &self.package
+    }
+    /// Exact static source declaration accepted by this catalog.
+    pub fn source(&self) -> &RequirementSource {
+        &self.source
+    }
+}
+
+/// A deterministic, already-resolved collection of package source modules.
+///
+/// Constructing or installing a catalog does not read files, access Git, invoke Cargo, run build
+/// scripts, or grant native capabilities. Hosts normally obtain one from [`resolve_script`].
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PackageCatalog {
+    modules: Vec<CatalogModule>,
+    requirements: Vec<CatalogRequirement>,
+}
+
+impl PackageCatalog {
+    /// Build a catalog from already resolved source modules and locked requirements.
+    pub fn new(
+        modules: impl IntoIterator<Item = CatalogModule>,
+        requirements: impl IntoIterator<Item = CatalogRequirement>,
+    ) -> Result<Self, PackageCatalogError> {
+        let mut modules = modules.into_iter().collect::<Vec<_>>();
+        modules.sort_by(|left, right| left.name.cmp(&right.name));
+        for pair in modules.windows(2) {
+            if pair[0].name == pair[1].name {
+                return Err(PackageCatalogError::new(format!(
+                    "catalog supplies module `{}` more than once",
+                    pair[0].name
+                )));
+            }
+        }
+        let mut requirements = requirements.into_iter().collect::<Vec<_>>();
+        requirements.sort_by(|left, right| {
+            left.package
+                .cmp(&right.package)
+                .then_with(|| format!("{:?}", left.source).cmp(&format!("{:?}", right.source)))
+        });
+        requirements.dedup();
+        for requirement in &requirements {
+            if !modules
+                .iter()
+                .any(|module| module.name == requirement.package)
+            {
+                return Err(PackageCatalogError::new(format!(
+                    "catalog requirement for package `{}` has no root module",
+                    requirement.package
+                )));
+            }
+        }
+        for module in &modules {
+            if let Some(declared) = parse_requires(&module.source)
+                .map_err(|error| PackageCatalogError::new(error.to_string()))?
+            {
+                for requirement in declared.entries {
+                    if !requirements
+                        .iter()
+                        .any(|resolved| resolved.source == requirement.source)
+                    {
+                        return Err(PackageCatalogError::new(format!(
+                            "catalog module `{}` has an unresolved requirement `{}`",
+                            module.name, requirement.alias
+                        )));
+                    }
+                }
+            }
+        }
+        for module in &modules {
+            if has_local_import(&module.source)? {
+                return Err(PackageCatalogError::new(format!(
+                    "catalog module `{}` still contains a package-relative import",
+                    module.name
+                )));
+            }
+        }
+        Ok(Self {
+            modules,
+            requirements,
+        })
+    }
+
+    /// Modules in deterministic identity order.
+    pub fn modules(&self) -> &[CatalogModule] {
+        &self.modules
+    }
+    /// Locked requirement identities accepted by this catalog.
+    pub fn requirements(&self) -> &[CatalogRequirement] {
+        &self.requirements
+    }
+
+    pub(crate) fn satisfies(&self, requirement: &Requirement) -> bool {
+        self.requirements.iter().any(|catalog_requirement| {
+            catalog_requirement.source == requirement.source
+                && self
+                    .modules
+                    .iter()
+                    .any(|module| module.name == catalog_requirement.package)
+        })
+    }
+}
+
+/// An invalid resolved catalog supplied by a host.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PackageCatalogError {
+    message: String,
+}
+
+impl PackageCatalogError {
+    fn new(message: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+        }
+    }
+}
+
+impl fmt::Display for PackageCatalogError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(&self.message)
+    }
+}
+
+impl Error for PackageCatalogError {}
+
 /// A parsed `simi.package.simi` manifest.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PackageManifest {
@@ -437,6 +642,22 @@ fn load_local_sources(
         load_local_sources(root, &target, &child_imports, loaded_paths, sources)?;
     }
     Ok(())
+}
+
+pub(crate) fn source_has_package_relative_import(source: &str) -> Result<bool, String> {
+    has_local_import(source).map_err(|error| error.to_string())
+}
+
+fn has_local_import(source: &str) -> Result<bool, PackageCatalogError> {
+    // Avoid running the legacy package-source walker for ordinary source that cannot contain a
+    // literal local import. The walker remains necessary to distinguish the builtin `require`
+    // from a shadowed name when this syntactic prefix is present.
+    if !source.contains("require") || !source.contains("\"./") {
+        return Ok(false);
+    }
+    local_imports(source, "catalog source")
+        .map(|imports| !imports.is_empty())
+        .map_err(|error| PackageCatalogError::new(error.to_string()))
 }
 
 fn local_imports(source: &str, source_path: &str) -> Result<Vec<LocalImport>, PackageTreeError> {

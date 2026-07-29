@@ -221,7 +221,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-`Engine::new()` and `Engine::with_stdlib()` provide the same portable `list`, `map`, `iter`, `number`, and `string` prelude globals, alongside `type`, `inspect`, and `require`. Their canonical `std/*` paths remain require-able and return the same cached module values; `std/bytes` is portable but intentionally require-only. `Engine::builder().build()` remains a bare explicit-host constructor. Text IO is a separate capability:
+`Engine::new()` and `Engine::with_stdlib()` provide the same portable `list`, `map`, `iter`, `number`, and `string` prelude globals, alongside `type`, `inspect`, and `require`. Their canonical `std/*` paths remain require-able and return the same cached module values; `std/bytes` is portable but intentionally require-only. `Engine::builder().build()` remains a bare explicit-host constructor.
+
+Package resolution is also explicit at the embedding boundary. `Engine::eval` never reads package paths, accesses Git, downloads code, invokes Cargo, or runs build scripts. Source with a `requires` declaration must receive a previously locked `PackageCatalog` through `EngineBuilder::catalog`; otherwise evaluation returns a hard `SimiError` before source executes. The CLI resolver returns this catalog after it has performed its filesystem/Git work, and catalog installation preserves ordinary lazy module caching while giving each engine independent module state. Direct `Module` registrations remain separate and do not satisfy `requires` metadata.
+
+Text IO is a separate capability:
 
 ```rust
 use simi::Engine;

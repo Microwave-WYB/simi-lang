@@ -9,8 +9,8 @@ use sha2::{Digest, Sha256};
 
 use super::lock::{LockFile, LockSource, LockedRequirement};
 use super::{
-    LocalImport, PackageTree, Requirement, RequirementSource, Requires, local_source_path,
-    parse_requires,
+    CatalogModule, CatalogModuleVisibility, CatalogRequirement, LocalImport, PackageCatalog,
+    PackageTree, Requirement, RequirementSource, Requires, local_source_path, parse_requires,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -25,7 +25,9 @@ pub enum ResolutionMode {
 /// Fully resolved source modules and the canonical lockfile that describes them.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ResolvedScript {
-    pub modules: Vec<(String, String)>,
+    /// The deterministic, rewritten source catalog ready for explicit engine installation.
+    pub catalog: PackageCatalog,
+    /// Canonical lockfile content describing the resolved graph.
     pub lockfile: String,
 }
 
@@ -112,6 +114,16 @@ fn resolve_script_with_cache(
     if let Some(requires) = root_requires.as_ref() {
         context.resolve_requirements(requires, base)?;
     }
+    let catalog_requirements = context
+        .entries
+        .values()
+        .map(|node| {
+            CatalogRequirement::new(
+                node.requirement.package.clone(),
+                node.requirement.source.clone(),
+            )
+        })
+        .collect::<Vec<_>>();
     let lock = LockFile {
         source: LockSource {
             path: source_path,
@@ -131,8 +143,10 @@ fn resolve_script_with_cache(
             lock_path.display()
         ));
     }
+    let catalog = PackageCatalog::new(context.modules.into_values(), catalog_requirements)
+        .map_err(|error| format!("invalid resolved package catalog: {error}"))?;
     Ok(ResolvedScript {
-        modules: context.modules.into_iter().collect(),
+        catalog,
         lockfile: lock.render(),
     })
 }
@@ -158,7 +172,7 @@ struct ResolveContext<'a> {
     visiting: BTreeMap<String, ResolvedNode>,
     /// Fully resolved graph nodes keyed by manifest package identity.
     entries: BTreeMap<String, ResolvedNode>,
-    modules: BTreeMap<String, String>,
+    modules: BTreeMap<String, CatalogModule>,
 }
 
 impl ResolveContext<'_> {
@@ -221,24 +235,40 @@ impl ResolveContext<'_> {
                     module.source(),
                     module.local_imports(),
                 )?;
-                if let Some(existing) = self.modules.insert(name.clone(), source.clone())
-                    && existing != source
+                let module = CatalogModule::new(
+                    name.clone(),
+                    source,
+                    package.clone(),
+                    module.module().source_path(),
+                    CatalogModuleVisibility::Public,
+                );
+                if let Some(existing) = self.modules.get(&name)
+                    && existing.source() != module.source()
                 {
                     return Err(format!(
                         "public module `{name}` is supplied by more than one package"
                     ));
                 }
+                self.modules.insert(name, module);
             }
             for source in tree.local_sources() {
-                let name = local_module_name(&package, source.source_path());
+                let source_path = source.source_path().to_owned();
+                let name = local_module_name(&package, &source_path);
                 let source = rewrite_local_imports(
                     &tree,
                     &package,
-                    source.source_path(),
+                    &source_path,
                     source.source(),
                     source.local_imports(),
                 )?;
-                if self.modules.insert(name.clone(), source).is_some() {
+                let module = CatalogModule::new(
+                    name.clone(),
+                    source,
+                    package.clone(),
+                    source_path,
+                    CatalogModuleVisibility::PackageLocal,
+                );
+                if self.modules.insert(name.clone(), module).is_some() {
                     return Err(format!(
                         "package-local module identity `{name}` is supplied more than once"
                     ));
@@ -668,7 +698,7 @@ mod tests {
     use std::sync::atomic::{AtomicU64, Ordering};
 
     use super::*;
-    use crate::{Engine, Module};
+    use crate::Engine;
     use simi_analysis::{AnalysisDatabase, Type, infer_types, module_shape};
 
     static NEXT: AtomicU64 = AtomicU64::new(0);
@@ -706,7 +736,7 @@ mod tests {
         fs::write(&app, "requires {tools = {path = \"deps/tools\"}}\nlet tools = require(\"tools\")\ntools.value").unwrap();
         let resolved =
             resolve_script_with_cache(&app, ResolutionMode::Update, &root.join("cache")).unwrap();
-        assert_eq!(resolved.modules.len(), 1);
+        assert_eq!(resolved.catalog.modules().len(), 1);
         assert!(
             resolved
                 .lockfile
@@ -915,8 +945,13 @@ mod tests {
 
         let resolved = resolve_script_with_cache(&app, ResolutionMode::Locked, &cache).unwrap();
         assert_eq!(
-            resolved.modules,
-            vec![("tools".to_owned(), "\n{value = 42}".to_owned())]
+            resolved
+                .catalog
+                .modules()
+                .iter()
+                .map(|module| (module.name(), module.source()))
+                .collect::<Vec<_>>(),
+            vec![("tools", "\n{value = 42}")]
         );
         assert!(resolved.lockfile.contains("tree_digest"));
         fs::remove_dir_all(root).unwrap();
@@ -939,8 +974,13 @@ mod tests {
         let lock = LockFile::parse(&resolved.lockfile).unwrap();
         assert_eq!(lock.requirements["tool-box"].package, "tool-box");
         assert_eq!(
-            resolved.modules,
-            vec![("tool-box".to_owned(), "\n{value = 42}".to_owned())]
+            resolved
+                .catalog
+                .modules()
+                .iter()
+                .map(|module| (module.name(), module.source()))
+                .collect::<Vec<_>>(),
+            vec![("tool-box", "\n{value = 42}")]
         );
         fs::write(lock_path(&app), &resolved.lockfile).unwrap();
         assert!(resolve_script_with_cache(&app, ResolutionMode::Locked, &cache).is_ok());
@@ -1108,22 +1148,21 @@ let string = require("std/string")
             resolve_script_with_cache(&app, ResolutionMode::Update, &root.join("cache")).unwrap();
         assert!(
             resolved
-                .modules
+                .catalog
+                .modules()
                 .iter()
-                .any(|(name, _)| name == "__simi_package_local__/tools/src/shared.simi")
+                .any(|module| module.name() == "__simi_package_local__/tools/src/shared.simi")
         );
         let public_source = resolved
-            .modules
+            .catalog
+            .modules()
             .iter()
-            .find_map(|(name, source)| (name == "tools").then_some(source))
+            .find_map(|module| (module.name() == "tools").then_some(module.source()))
             .unwrap();
         assert!(public_source.contains("require(\"std/string\")"));
         assert!(!public_source.contains("require(\"./src/left.simi\")"));
 
-        let mut builder = Engine::builder().stdlib();
-        for (name, source) in resolved.modules {
-            builder = builder.module(Module::source(name, source).build());
-        }
+        let builder = Engine::builder().stdlib().catalog(resolved.catalog);
         assert_eq!(
             builder
                 .build()
@@ -1159,9 +1198,10 @@ let string = require("std/string")
             resolve_script_with_cache(&app, ResolutionMode::Update, &root.join("cache")).unwrap();
         let db = AnalysisDatabase::default();
         let files = resolved
-            .modules
+            .catalog
+            .modules()
             .iter()
-            .map(|(name, source)| (name.clone(), db.add_file(source)))
+            .map(|module| (module.name().to_owned(), db.add_file(module.source())))
             .collect::<BTreeMap<_, _>>();
         let modules = files
             .iter()
@@ -1194,10 +1234,7 @@ let string = require("std/string")
 
         let resolved =
             resolve_script_with_cache(&app, ResolutionMode::Update, &root.join("cache")).unwrap();
-        let mut builder = Engine::builder().stdlib();
-        for (name, source) in resolved.modules {
-            builder = builder.module(Module::source(name, source).build());
-        }
+        let builder = Engine::builder().stdlib().catalog(resolved.catalog);
         let result = builder
             .build()
             .eval(&fs::read_to_string(&app).unwrap())
@@ -1267,11 +1304,8 @@ let string = require("std/string")
 
         let resolved =
             resolve_script_with_cache(&app, ResolutionMode::Update, &root.join("cache")).unwrap();
-        assert_eq!(resolved.modules.len(), 1);
-        let mut builder = Engine::builder().stdlib();
-        for (name, source) in resolved.modules {
-            builder = builder.module(Module::source(name, source).build());
-        }
+        assert_eq!(resolved.catalog.modules().len(), 1);
+        let builder = Engine::builder().stdlib().catalog(resolved.catalog);
         assert_eq!(
             builder
                 .build()

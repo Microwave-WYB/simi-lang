@@ -9,7 +9,7 @@ use clap::{Parser, Subcommand};
 
 use crate::package::{ResolutionMode, lock_path, resolve_script};
 use crate::span::line_column;
-use crate::{Engine, Module, Raised, ScriptResult, SimiError};
+use crate::{Engine, Raised, ScriptResult, SimiError};
 
 #[derive(Debug, Parser)]
 #[command(name = "simi")]
@@ -64,11 +64,13 @@ pub fn run(file: &Path, mode: ResolutionMode) -> Result<ScriptResult, CliError> 
         let path = lock_path(file);
         fs::write(&path, &resolved.lockfile).map_err(|source| CliError::Io { path, source })?;
     }
-    let mut builder = Engine::builder().stdlib().stdio();
-    for (name, source) in resolved.modules {
-        builder = builder.module(Module::source(name, source).build());
-    }
-    builder.build().eval(&source).map_err(CliError::Simi)
+    Engine::builder()
+        .stdlib()
+        .stdio()
+        .catalog(resolved.catalog)
+        .build()
+        .eval(&source)
+        .map_err(CliError::Simi)
 }
 
 pub fn lock(file: &Path, offline: bool) -> Result<PathBuf, CliError> {

@@ -116,6 +116,35 @@ fields are invalid. Development paths are non-empty package-root-relative slash-
 absolute paths, backslashes, empty segments, `.`, and `..` are rejected. These checks are static;
 they do not establish that a path or Git revision exists.
 
+## Embedding a resolved catalog
+
+`Engine::eval` is intentionally not a package resolver. A source that declares `requires` must be
+evaluated with an explicit `PackageCatalog` produced by the resolver (or by a
+host that has already performed equivalent locked resolution). `Engine::new()`,
+`Engine::with_stdlib()`, and `simi::eval` reject unresolved requirements as hard outer
+`SimiError`s before executable source runs. Registering ordinary `Module` values remains separate
+and does not satisfy package metadata.
+
+```rust
+use simi::{Engine, package::{ResolutionMode, resolve_script}};
+
+let resolved = resolve_script(std::path::Path::new("app.simi"), ResolutionMode::Locked)?;
+let engine = Engine::builder()
+    .stdlib()
+    .catalog(resolved.catalog)
+    .build();
+let result = engine.eval(include_str!("app.simi"))?;
+# Ok::<(), Box<dyn std::error::Error>>(())
+```
+
+A catalog contains deterministic rewritten source-module identities and the locked requirement
+sources it satisfies. Installing it only copies already-resolved source into the engine: it never
+reads package paths, accesses Git or a network, invokes Cargo, runs build scripts, or grants
+native capabilities. Each engine receives fresh lazy source-module state, so a catalog can be
+reused without sharing package module state between engines. A catalog that conflicts with a
+directly registered module, lacks a declared requirement, or has an unresolved local import is
+rejected before evaluation.
+
 ## Local source imports
 
 A package source unit may import a private source with a literal `require("./...")` path relative

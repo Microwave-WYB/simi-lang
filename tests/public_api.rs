@@ -16,8 +16,9 @@ use simi::runtime::{
     UserFunction, Value,
 };
 use simi::{
-    Engine, EngineBuilder, Module, ModuleBuilder, NativeCallback, PackageManifest,
-    Raised as RootRaised, RequirementSource, ScriptResult as RootScriptResult, SourceModuleBuilder,
+    CatalogModule, CatalogModuleVisibility, CatalogRequirement, Engine, EngineBuilder, Module,
+    ModuleBuilder, NativeCallback, PackageCatalog, PackageManifest, Raised as RootRaised,
+    RequirementSource, ScriptResult as RootScriptResult, SourceModuleBuilder,
     TraceFrame as RootTraceFrame, Value as RootValue,
 };
 
@@ -38,6 +39,23 @@ fn current_public_paths_compile() {
     let _: PackageManifest =
         PackageManifest::parse(r#"{name = "example", simi = "0.1.0", modules = ["example"]}"#)
             .unwrap();
+    let catalog = PackageCatalog::new(
+        [CatalogModule::new(
+            "example",
+            "{}",
+            "example",
+            "example.simi",
+            CatalogModuleVisibility::Public,
+        )],
+        [CatalogRequirement::new(
+            "example",
+            RequirementSource::Path {
+                path: "dev/example".to_owned(),
+            },
+        )],
+    )
+    .unwrap();
+    let _ = Engine::builder().catalog(catalog);
     let requirements = simi::parse_requires(r#"requires {example = {path = "dev/example"}}"#)
         .unwrap()
         .expect("requires metadata");

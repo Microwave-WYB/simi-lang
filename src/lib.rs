@@ -19,8 +19,10 @@ pub use engine::{Engine, EngineBuilder};
 pub use error::SimiError;
 pub use module::{Module, ModuleBuilder, NativeCallback, SourceModuleBuilder};
 pub use package::{
-    NativePackage, PackageManifest, PackageManifestError, PackageModule, PackageRequirementsError,
-    Requirement, RequirementSource, Requires, parse_requires,
+    CatalogModule, CatalogModuleVisibility, CatalogRequirement, NativePackage, PackageCatalog,
+    PackageCatalogError, PackageManifest, PackageManifestError, PackageModule,
+    PackageRequirementsError, Requirement, RequirementSource, Requires, ResolvedScript,
+    parse_requires, resolve_script,
 };
 pub use runtime::{NativeResult, Raised, ScriptResult, TraceFrame, Value};
 
