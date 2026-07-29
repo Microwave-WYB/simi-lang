@@ -173,8 +173,8 @@ let operations = [
         value * 3,
 ]
 
-[operations[0](4), fn(value)
-    value * value(5)]
+[operations[0](4), (fn(value)
+    value * value)(5)]
 ```
 
 Anonymous functions are ordinary function values, just like named functions and host-provided native functions. The builtin `type` reports `"function"` for all of them:

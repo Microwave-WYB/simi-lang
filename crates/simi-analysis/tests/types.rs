@@ -1570,11 +1570,15 @@ fn boundaries(value: integer | nil) do
     let standalone = do value? 1 end
     let selected_if = if true then value? 1 else 2 end
     let selected_else = if false then 1 else value? 2 end
-    let selected_case = case 1 of 1 =>
-    value? 1 end
+    let selected_case = case 1 of 1 => do
+        value?
+        1
+    end end
     let protected = do value? 1 catch _ => 2 end
-    let caught = do raise "failure" catch _ =>
-    value? 1 end
+    let caught = do raise "failure" catch _ => do
+        value?
+        1
+    end end
     [standalone, selected_if, selected_else, selected_case, protected, caught]
     "continued"
 end
@@ -2040,16 +2044,11 @@ fn read_value(record)
 #[test]
 fn recursive_result_inference_is_occurs_safe_and_uses_returning_evidence() {
     let source = r#"
-fn forever()
-    forever()
-fn eventually(flag)
-    if flag then 1 else eventually(flag) end
-fn left()
-    right()
-fn right()
-    left()
-fn nested()
-    [nested()]
+fn forever() do forever() end
+fn eventually(flag) do if flag then 1 else eventually(flag) end end
+fn left() do right() end
+fn right() do left() end
+fn nested() do [nested()] end
 "#;
     let (inference, resolution) = inferred(source);
     assert!(

@@ -496,8 +496,7 @@ fn legacy_callable_types_are_rejected() {
 fn malformed_callable_effects_recover_before_following_bodies_and_declarations() {
     let cases = [
         (
-            "fn bad() -> nil !
-    nil\nlet after = 1",
+            "fn bad() -> nil ! do nil end\nlet after = 1",
             "expected a raised type after `!`",
         ),
         (

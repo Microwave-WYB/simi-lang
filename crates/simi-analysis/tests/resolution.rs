@@ -50,7 +50,7 @@ fn closures_resolve_and_expose_bindings_declared_later_in_captured_frames() {
             .iter()
             .any(|capture| capture.symbol == later)
     );
-    let visible = resolution.visible_symbols(source.find("later end").unwrap());
+    let visible = resolution.visible_symbols(source.find("later let").unwrap());
     assert!(visible.contains(&later));
 }
 
@@ -72,7 +72,7 @@ fn repeated_let_shadows_while_earlier_closures_keep_the_prior_symbol() {
     assert_eq!(resolution.references(laters[0]).len(), 1);
     assert_eq!(resolution.references(laters[1]).len(), 1);
     assert_eq!(
-        resolution.symbol_at(source.find("later end").unwrap()),
+        resolution.symbol_at(source.find("later let").unwrap()),
         Some(laters[0])
     );
     assert_eq!(
@@ -254,7 +254,7 @@ fn supports_symbol_lookup_hover_references_and_visible_symbols() {
     assert_eq!(resolution.definition_span(function), hover.declaration);
     assert_eq!(references(&db, file, function).len(), 1);
 
-    let parameter_offset = source.find("parameter end").unwrap();
+    let parameter_offset = source.rfind("parameter").unwrap();
     let visible = resolution.visible_symbols(parameter_offset);
     let names = visible
         .iter()
