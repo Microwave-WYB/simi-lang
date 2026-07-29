@@ -663,3 +663,67 @@ fn callable_post_state_syntax_is_rejected() {
         diagnostic.message.contains("found `=>`") || diagnostic.message.contains("expected `)`")
     }));
 }
+
+#[test]
+fn nested_named_function_declarations_are_rejected_at_the_fn_token() {
+    let source =
+        "fn outer() do\n    fn inner() do nil end\n    inner\nend\nfn later() do nil end\n";
+    let parse = parse_source(source);
+    assert_eq!(parse.syntax().to_string(), source);
+    assert_eq!(parse.diagnostics().len(), 1, "{:?}", parse.diagnostics());
+    let diagnostic = &parse.diagnostics()[0];
+    assert_eq!(diagnostic.kind, DiagnosticKind::Parse);
+    let start = source.find("fn inner").expect("nested declaration offset");
+    assert_eq!(diagnostic.span.start, start);
+    assert_eq!(diagnostic.span.end, start + "fn".len());
+    assert_eq!(
+        diagnostic.message,
+        "named function declarations are only allowed at the top level; \
+         use let name = fn(...) do ... end"
+    );
+    // Lossless recovery keeps the nested declaration node and still parses the
+    // later top-level declaration.
+    assert_eq!(
+        parse
+            .syntax()
+            .descendants()
+            .filter(|node| node.kind() == SyntaxKind::FUNCTION_DECL)
+            .count(),
+        3
+    );
+    let root = Root::cast(parse.syntax().clone()).expect("root");
+    assert!(root.statements().any(|statement| {
+        matches!(&statement, Stmt::FunctionDecl(declaration)
+        if declaration.syntax().children_with_tokens().any(|element| {
+            element.as_token().is_some_and(|token| {
+                token.kind() == SyntaxKind::IDENT && token.text() == "later"
+            })
+        }))
+    }));
+}
+
+#[test]
+fn named_function_declarations_in_do_and_conditional_blocks_are_rejected() {
+    for source in [
+        "do\n    fn helper() do nil end\nend\n",
+        "if ready then\n    fn helper() do nil end\nend\n",
+        "if ready then\n    nil\nelse\n    fn helper() do nil end\nend\n",
+    ] {
+        let parse = parse_source(source);
+        assert_eq!(parse.syntax().to_string(), source);
+        let diagnostic = parse
+            .diagnostics()
+            .iter()
+            .find(|diagnostic| diagnostic.message.contains("only allowed at the top level"))
+            .unwrap_or_else(|| panic!("missing diagnostic for {source:?}"));
+        let start = source.find("fn helper").expect("nested declaration offset");
+        assert_eq!(diagnostic.span.start, start, "{source}");
+        assert_eq!(diagnostic.span.end, start + "fn".len(), "{source}");
+    }
+}
+
+#[test]
+fn top_level_named_function_declarations_remain_accepted() {
+    let parse = parse_source("fn add(left, right) do left + right end\nadd(1, 2)\n");
+    assert!(parse.diagnostics().is_empty(), "{:?}", parse.diagnostics());
+}

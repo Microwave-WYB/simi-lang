@@ -545,3 +545,26 @@ fn static_requirement_metadata_is_reported_by_analysis() {
         diagnostics[0].detail
     );
 }
+
+#[test]
+fn nested_named_function_declarations_report_syntax_errors_and_recover() {
+    let source = "fn outer() do\n    fn inner() do nil end\nend\nfn later() do nil end";
+    let db = AnalysisDatabase::default();
+    let file = db.add_file(source);
+    let diagnostics = diagnostics(&db, file);
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, AnalysisDiagnosticCode::SyntaxError);
+    assert_eq!(
+        diagnostics[0].detail,
+        "Named function declarations are only allowed at the top level; \
+         use let name = fn(...) do ... end."
+    );
+    let start = source.find("fn inner").unwrap();
+    assert_eq!(diagnostics[0].span.start, start);
+    assert_eq!(diagnostics[0].span.end, start + 2);
+    assert!(
+        document_symbols(&db, file)
+            .iter()
+            .any(|symbol| symbol.name == "later")
+    );
+}

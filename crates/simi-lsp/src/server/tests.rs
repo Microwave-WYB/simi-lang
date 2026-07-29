@@ -262,6 +262,32 @@ fn syntax_diagnostics_use_structured_gleam_style_presentation() {
 }
 
 #[test]
+fn nested_named_function_declarations_publish_a_diagnostic_at_the_fn_token() {
+    let source = "fn outer() do\n    fn inner() do nil end\nend";
+    let mut backend = Backend::new();
+    let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
+    assert_eq!(diagnostics.diagnostics.len(), 1);
+    let diagnostic = &diagnostics.diagnostics[0];
+    assert_eq!(
+        diagnostic.code,
+        Some(lsp_types::NumberOrString::String("syntax_error".to_owned()))
+    );
+    assert_eq!(
+        diagnostic.message,
+        "Syntax error\n\nNamed function declarations are only allowed at the top level; \
+         use let name = fn(...) do ... end."
+    );
+    assert_eq!(diagnostic.range.start, text_position(source, "fn inner", 0));
+    assert_eq!(
+        diagnostic.range.end,
+        Position::new(
+            diagnostic.range.start.line,
+            diagnostic.range.start.character + 2
+        )
+    );
+}
+
+#[test]
 fn completion_suppresses_exact_visible_identifiers_during_recovery() {
     let source = "fn fib(n) do\n    case n\n    of\nend";
     let mut backend = Backend::new();

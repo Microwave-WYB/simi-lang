@@ -37,7 +37,7 @@ fn closures_update_captured_bindings_and_undefined_assignment_is_hard() {
         r#"
         fn counter() do
             let count = 0
-            fn next() do count = count + 1 end
+            let next = fn() do count = count + 1 end
             next
         end
         let next = counter()

@@ -257,3 +257,36 @@ let {name, source = renamed, ..rest} = record
       (rest_pattern
         (identifier)))
     (identifier)))
+
+==================
+Named function declarations are top-level only
+==================
+
+fn outer() do
+  fn inner() do nil end
+  nil
+end
+fn later() do nil end
+
+---
+
+(program
+  (function_declaration
+    (identifier)
+    (declared_parameters)
+    (block_expression
+      (ERROR)
+      (block
+        (call_expression
+          (identifier)
+          (arguments))
+        (block_expression
+          (block
+            (nil)))
+        (nil))))
+  (function_declaration
+    (identifier)
+    (declared_parameters)
+    (block_expression
+      (block
+        (nil)))))

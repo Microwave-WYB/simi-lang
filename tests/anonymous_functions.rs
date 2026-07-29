@@ -89,3 +89,39 @@ fn malformed_anonymous_functions_report_exact_parse_spans() {
         _ => panic!("expected missing end error"),
     }
 }
+
+#[test]
+fn local_recursion_uses_let_bound_anonymous_functions() {
+    let value = evaluate(
+        r#"
+            fn make_counter() do
+                let count = 0
+                let next = fn() do
+                    count = count + 1
+                    if count < 3 then next() else count end
+                end
+                next
+            end
+            make_counter()()
+        "#,
+    );
+
+    assert_eq!(value.render(), "3");
+}
+
+#[test]
+fn nested_named_function_declarations_are_parse_errors() {
+    let source = "fn outer() do\n    fn inner() do nil end\nend";
+    match eval(source) {
+        Err(SimiError::Parse(error)) => {
+            assert_eq!(
+                error.message,
+                "named function declarations are only allowed at the top level; \
+                 use let name = fn(...) do ... end"
+            );
+            let start = source.find("fn inner").expect("nested declaration offset");
+            assert_eq!((error.span.start, error.span.end), (start, start + 2));
+        }
+        _ => panic!("expected nested named function declaration parse error"),
+    }
+}

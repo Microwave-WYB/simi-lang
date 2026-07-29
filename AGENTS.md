@@ -42,7 +42,7 @@ The language is dynamically typed. Optional static typing may be explored later,
 
 ### Functions and expressions
 
-Functions use expression-valued bodies and capture lexical environments. Recursion and closures are supported. Named functions are declarations, while anonymous functions use `fn(parameters) do body end` anywhere an expression is accepted.
+Functions use expression-valued bodies and capture lexical environments. Recursion and closures are supported. Named `fn name(...) do ... end` declarations are allowed only as direct source-root items; a nested named declaration is a parse error. Anonymous functions use `fn(parameters) do body end` anywhere an expression is accepted, and a local function—including a recursive one—is written `let name = fn(...) do ... end`.
 
 ```simi
 fn add(left, right) do

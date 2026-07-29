@@ -66,6 +66,13 @@ pub(super) fn root(p: &mut Parser<'_>) {
 
 fn statement(p: &mut Parser<'_>) {
     if p.at(K::FN_KW) && p.nth(1) == K::IDENT {
+        if p.block_depth > 0 {
+            p.error(
+                "named function declarations are only allowed at the top level; \
+                 use let name = fn(...) do ... end"
+                    .to_owned(),
+            );
+        }
         function_decl(p);
     } else if p.at(K::ALIAS_KW)
         || (p.at(K::IDENT) && p.current_text() == Some("alias") && p.nth(1) == K::IDENT)

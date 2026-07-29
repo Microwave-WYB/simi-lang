@@ -172,10 +172,6 @@
         "named": true
       },
       {
-        "type": "function_declaration",
-        "named": true
-      },
-      {
         "type": "let_statement",
         "named": true
       }
@@ -2388,6 +2384,10 @@
       "types": [
         {
           "type": "_statement",
+          "named": true
+        },
+        {
+          "type": "function_declaration",
           "named": true
         },
         {

@@ -138,6 +138,23 @@ with_tax(50)
 
 Named function declarations support recursion. [Control flow and patterns](control-flow-and-patterns.md) combines recursion with conditional expressions, where a terminating branch can be shown without introducing control flow early.
 
+Named declarations are allowed only as direct source-root items. Inside a function body, block, or conditional branch, bind an anonymous function with `let` instead; the binding is visible to the function's own body, so local recursion works the same way:
+
+```simi
+fn make_countdown(start) do
+    let countdown = fn(value) do
+        if value <= 0 then
+            0
+        else
+            countdown(value - 1)
+        end
+    end
+    countdown(start)
+end
+
+make_countdown(3)
+```
+
 ## Anonymous functions
 
 An anonymous function is an expression and may appear anywhere an expression is accepted:

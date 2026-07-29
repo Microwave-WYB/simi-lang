@@ -46,7 +46,7 @@ module.exports = grammar({
   rules: {
     program: ($) => seq(
       optional($.requires_declaration),
-      repeat($._statement),
+      repeat($._top_level_statement),
     ),
 
     requires_declaration: ($) => seq(
@@ -54,8 +54,14 @@ module.exports = grammar({
       field("requirements", $.map),
     ),
 
-    _statement: ($) => choice(
+    // Named function declarations are allowed only as direct source-root
+    // items; blocks reuse `_statement`, which excludes them.
+    _top_level_statement: ($) => choice(
       $.function_declaration,
+      $._statement,
+    ),
+
+    _statement: ($) => choice(
       $.alias_declaration,
       $.let_statement,
       $._expression,
