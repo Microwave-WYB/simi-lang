@@ -122,7 +122,7 @@ const KEYWORDS: &[KeywordHelp] = &[
     KeywordHelp {
         word: "of",
         syntax: "of pattern when guard => expression",
-        documentation: "Introduces the arm list for a `case` or `catch`. Every arm uses `=>`, and an optional guard must evaluate to boolean.",
+        documentation: "Introduces arms for a `case` expression. Every arm uses `=>`, and an optional guard must evaluate to boolean.",
         contextual: false,
     },
     KeywordHelp {

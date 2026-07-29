@@ -68,7 +68,7 @@ end
 
 ## Catching raised values
 
-A protected `do` expression evaluates one or more protected items. One `of` introduces its `catch` arms, which use the same structural patterns and Boolean guards as `case`; every arm separates its header and result with `=>`:
+A protected `do` expression evaluates one or more protected items. Its `catch` arms use the same structural patterns and Boolean guards as `case`; every arm separates its header and result with `=>`:
 
 ```simi
 fn load(key) do

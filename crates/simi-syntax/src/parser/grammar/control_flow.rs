@@ -46,7 +46,7 @@ pub(super) fn catch_arms(p: &mut Parser<'_>) {
         }
         if !p.expect(K::FAT_ARROW, "`=>` after arm pattern and guard") {
             arm.complete(&mut p.events, K::CATCH_ARM);
-            if !p.at(K::END_KW) || p.at_end() {
+            if !p.at(K::END_KW) && !p.at_end() {
                 p.bump();
             }
             continue;
