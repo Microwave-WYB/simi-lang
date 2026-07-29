@@ -137,7 +137,9 @@ impl Context<'_> {
                         .cloned()
                         .collect(),
                 );
-                if !matches!(concrete, Type::Unknown) && is_subtype(&actual, &concrete) {
+                if !matches!(concrete, Type::Unknown)
+                    && self.is_subtype_with_named_edges(&actual, &concrete, &mut HashSet::new())
+                {
                     return;
                 }
                 if let Some(variable) = expected.iter().find(|item| {
@@ -332,7 +334,9 @@ impl Context<'_> {
             return;
         }
         let checked_actual = self.upper_bound_view(actual.clone());
-        if !is_subtype(&actual, &expected) && !is_subtype(&checked_actual, &expected) {
+        if !self.is_subtype_with_named_edges(&actual, &expected, &mut HashSet::new())
+            && !self.is_subtype_with_named_edges(&checked_actual, &expected, &mut HashSet::new())
+        {
             let displayed_expected = self.display_deferred_empty_lists(expected.clone());
             let displayed_actual = self.display_deferred_empty_lists(actual.clone());
             self.diagnostic(
@@ -345,6 +349,68 @@ impl Context<'_> {
                 ),
                 at,
             );
+        }
+    }
+    /// Compare structural types while recognizing a repeated named edge as the
+    /// recursive edge currently being checked. Named declarations are still
+    /// structurally transparent; this only prevents their finite expanded form
+    /// from being rejected inside a recursive container such as `[..Value]`.
+    fn is_subtype_with_named_edges(
+        &mut self,
+        actual: &Type,
+        expected: &Type,
+        active_named_edges: &mut HashSet<(String, Type)>,
+    ) -> bool {
+        let actual = self.resolve_type(actual.clone());
+        let expected = self.resolve_type(expected.clone());
+        if matches!(expected, Type::Any | Type::Unknown)
+            || matches!(actual, Type::Never | Type::Unknown | Type::Any)
+            || actual == expected
+        {
+            return true;
+        }
+
+        if let Type::Named(name) = &expected {
+            if matches!(&actual, Type::Named(actual_name) if actual_name == name) {
+                return true;
+            }
+            let edge = (name.clone(), actual.clone());
+            if !active_named_edges.insert(edge.clone()) {
+                return true;
+            }
+            let result = self.unfold_named_type(name).is_some_and(|unfolded| {
+                self.is_subtype_with_named_edges(&actual, &unfolded, active_named_edges)
+            });
+            active_named_edges.remove(&edge);
+            return result;
+        }
+        if let Type::Named(name) = &actual {
+            return self.unfold_named_type(name).is_some_and(|unfolded| {
+                self.is_subtype_with_named_edges(&unfolded, &expected, active_named_edges)
+            });
+        }
+
+        match (&actual, &expected) {
+            (Type::Union(items), expected) => items
+                .iter()
+                .all(|item| self.is_subtype_with_named_edges(item, expected, active_named_edges)),
+            (actual, Type::Union(items)) => items
+                .iter()
+                .any(|item| self.is_subtype_with_named_edges(actual, item, active_named_edges)),
+            (Type::ListExact(actual), Type::ListRest(expected)) => actual
+                .iter()
+                .all(|item| self.is_subtype_with_named_edges(item, expected, active_named_edges)),
+            (Type::ListRest(actual), Type::ListRest(expected)) => {
+                self.is_subtype_with_named_edges(actual, expected, active_named_edges)
+            }
+            (Type::ListExact(actual), Type::ListExact(expected))
+                if actual.len() == expected.len() =>
+            {
+                actual.iter().zip(expected).all(|(actual, expected)| {
+                    self.is_subtype_with_named_edges(actual, expected, active_named_edges)
+                })
+            }
+            _ => is_subtype(&actual, &expected),
         }
     }
     fn display_deferred_empty_lists(&self, ty: Type) -> Type {

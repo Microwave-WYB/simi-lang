@@ -7,18 +7,17 @@ alias Name = string
 alias Token = string
 alias Tokens = [..Token]
 alias MaybeValue = Value | nil
-alias Symbol = {kind: "symbol", name: Name}
 
 type Expr =
     | {kind: "integer", value: integer}
     | {kind: "boolean", value: boolean}
-    | Symbol
+    | {kind: "symbol", name: Name}
     | {kind: "list", items: [..Expr]}
 
 type Value =
     | integer
     | boolean
-    | Symbol
+    | {kind: "symbol", name: Name}
     | [..Value]
     | Closure
     | Builtin
@@ -200,10 +199,22 @@ fn expect_arity(values: [..Value], expected: integer, form: string) -> nil
         }
     end
 
+fn expect_expression(expression: Expr | nil, form: string) -> Expr
+    case expression of
+        nil => raise {error = "lisp_invalid_form", form = form, message = "expected an expression"}
+        expression => expression
+    end
+
 fn expect_symbol(expression: Expr, form: string) -> Name
     case expression of
         {kind = "symbol", name = name} => name
         _ => raise {error = "lisp_invalid_form", form = form, message = "expected a symbol"}
+    end
+
+fn expect_name(name: Name | nil, form: string) -> Name
+    case name of
+        nil => raise {error = "lisp_invalid_form", form = form, message = "expected a name"}
+        name => name
     end
 
 fn expect_value(value: MaybeValue, form: string) -> Value
@@ -250,7 +261,7 @@ fn datum_items(expressions: [..Expr], index: integer, values: [..Value]) -> [..V
     if index == list.length(expressions) then
         values
     else
-        list.append(values, datum(expressions[index]))
+        list.append(values, datum(expect_expression(expressions[index], "quote")))
         datum_items(expressions, index + 1, values)
     end
 
@@ -264,7 +275,7 @@ fn parameter_items(items: [..Expr], index: integer, names: [..Name]) -> [..Name]
     if index == list.length(items) then
         names
     else
-        list.append(names, expect_symbol(items[index], "lambda"))
+        list.append(names, expect_symbol(expect_expression(items[index], "lambda"), "lambda"))
         parameter_items(items, index + 1, names)
     end
 
@@ -288,40 +299,40 @@ fn closure(parameters: [..Name], body: Expr, captured: Environment) -> Closure
 fn evaluate_list(items: [..Expr], env: Environment) -> Value
     if list.length(items) == 0 then
         raise {error = "lisp_empty_list", form = "application"}
-    elseif is_named(items[0], "quote") then do
+    elseif is_named(expect_expression(items[0], "application"), "quote") then do
         expect_arity_expr(items, 2, "quote")
-        datum(items[1])
+        datum(expect_expression(items[1], "quote"))
     end
-    elseif is_named(items[0], "if") then do
+    elseif is_named(expect_expression(items[0], "application"), "if") then do
         expect_arity_expr(items, 4, "if")
-        if expect_boolean(evaluate(items[1], env), "if") then
-            evaluate(items[2], env)
+        if expect_boolean(evaluate(expect_expression(items[1], "if"), env), "if") then
+            evaluate(expect_expression(items[2], "if"), env)
         else
-            evaluate(items[3], env)
+            evaluate(expect_expression(items[3], "if"), env)
         end
     end
-    elseif is_named(items[0], "let") then do
+    elseif is_named(expect_expression(items[0], "application"), "let") then do
         expect_arity_expr(items, 4, "let")
-        let name = expect_symbol(items[1], "let")
-        let value = evaluate(items[2], env)
+        let name = expect_symbol(expect_expression(items[1], "let"), "let")
+        let value = evaluate(expect_expression(items[2], "let"), env)
         let child = environment(env)
         child.values[name] = value
-        evaluate(items[3], child)
+        evaluate(expect_expression(items[3], "let"), child)
     end
-    elseif is_named(items[0], "define") then do
+    elseif is_named(expect_expression(items[0], "application"), "define") then do
         expect_arity_expr(items, 3, "define")
-        env.values[expect_symbol(items[1], "define")] = evaluate(items[2], env)
+        env.values[expect_symbol(expect_expression(items[1], "define"), "define")] = evaluate(expect_expression(items[2], "define"), env)
     end
-    elseif is_named(items[0], "lambda") then do
+    elseif is_named(expect_expression(items[0], "application"), "lambda") then do
         expect_arity_expr(items, 3, "lambda")
-        closure(parameters(items[1]), items[2], env)
+        closure(parameters(expect_expression(items[1], "lambda")), expect_expression(items[2], "lambda"), env)
     end
-    elseif is_named(items[0], "and") then
+    elseif is_named(expect_expression(items[0], "application"), "and") then
         evaluate_and(items, 1, env)
-    elseif is_named(items[0], "or") then
+    elseif is_named(expect_expression(items[0], "application"), "or") then
         evaluate_or(items, 1, env)
     else
-        apply(evaluate(items[0], env), evaluate_arguments(items, 1, env))
+        apply(evaluate(expect_expression(items[0], "application"), env), evaluate_arguments(items, 1, env))
     end
 
 fn expect_arity_expr(values: [..Expr], expected: integer, form: string) -> nil
@@ -345,7 +356,7 @@ fn evaluate_argument_items(items: [..Expr], index: integer, env: Environment, va
     if index == list.length(items) then
         values
     else
-        list.append(values, evaluate(items[index], env))
+        list.append(values, evaluate(expect_expression(items[index], "application"), env))
         evaluate_argument_items(items, index + 1, env, values)
     end
 
@@ -353,7 +364,7 @@ fn evaluate_and(items: [..Expr], index: integer, env: Environment) -> boolean
     if index == list.length(items) then
         true
     else
-        let value = expect_boolean(evaluate(items[index], env), "and")
+        let value = expect_boolean(evaluate(expect_expression(items[index], "and"), env), "and")
         if value then evaluate_and(items, index + 1, env) else false end
     end
 
@@ -361,7 +372,7 @@ fn evaluate_or(items: [..Expr], index: integer, env: Environment) -> boolean
     if index == list.length(items) then
         false
     else
-        let value = expect_boolean(evaluate(items[index], env), "or")
+        let value = expect_boolean(evaluate(expect_expression(items[index], "or"), env), "or")
         if value then true else evaluate_or(items, index + 1, env) end
     end
 
@@ -369,7 +380,7 @@ fn bind(parameters: [..Name], arguments: [..Value], env: Environment, index: int
     if index == list.length(parameters) then
         nil
     else
-        env.values[parameters[index]] = expect_value(arguments[index], "lambda")
+        env.values[expect_name(parameters[index], "lambda")] = expect_value(arguments[index], "lambda")
         bind(parameters, arguments, env, index + 1)
     end
 
@@ -480,7 +491,7 @@ fn car(name: Name, arguments: [..Value]) -> Value do
     if list.length(values) == 0 then
         raise {error = "lisp_empty_list", form = name}
     else
-        values[0]
+        expect_value(values[0], name)
     end
 end
 
