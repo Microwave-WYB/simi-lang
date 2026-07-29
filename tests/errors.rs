@@ -23,7 +23,8 @@ fn every_value_category_can_be_raised_and_caught() {
     assert_eval(
         r#"
 
-            fn identity(value) do value end
+            fn identity(value)
+                value
             [
                 do raise nil catch nil => "nil" end,
                 do raise true catch true => "true" end,

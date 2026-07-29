@@ -71,9 +71,8 @@ end
 A protected `do` expression evaluates one or more protected items. Its `catch` arms use the same structural patterns and Boolean guards as `case`; every arm separates its header and result with `=>`:
 
 ```simi
-fn load(key) do
+fn load(key)
     raise {error = "not_found", key = key}
-end
 
 do
     load("profile")
@@ -124,9 +123,8 @@ alias lookup_error =
     | {error: "not_found", key: string, ..}
     | {error: "unavailable", message: string, ..}
 
-fn lookup(key: string) -> string ! lookup_error do
+fn lookup(key: string) -> string ! lookup_error
     raise {error = "not_found", key = key}
-end
 
 do
     lookup("profile")
@@ -250,9 +248,8 @@ A facade can attach erased type information to a native function without wrappin
 --- Double an integer using the native implementation.
 let double: fn(integer) -> integer = host.double
 
-fn quadruple(value: integer) -> integer do
+fn quadruple(value: integer) -> integer
     double(double(value))
-end
 
 {double = double, quadruple = quadruple}
 ```

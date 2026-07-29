@@ -194,13 +194,12 @@ Lists are different: they may store `nil` as an element.
 
 ## Functions are values
 
-Anonymous functions use `fn(parameters) do ... end`. Like other values, they can be stored in bindings, passed to other functions, and returned from functions:
+Anonymous functions put a single body expression directly after `fn(parameters)`; use `do ... end` for a zero- or multi-item lexical body, or when it is needed to delimit nested or postfix composition. Like other values, they can be stored in bindings, passed to other functions, and returned from functions:
 
 ```simi
 let multiplier = 2
-let double = fn(value) do
+let double = fn(value)
     value * multiplier
-end
 
 double(21)
 ```

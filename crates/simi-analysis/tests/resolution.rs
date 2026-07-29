@@ -14,7 +14,8 @@ fn symbol_named(resolution: &simi_analysis::Resolution, name: &str, kind: Symbol
 
 #[test]
 fn records_closure_captures_but_not_parameters() {
-    let source = "let outer = 1 let closure = fn(parameter) do outer + parameter end";
+    let source = "let outer = 1 let closure = fn(parameter)
+    outer + parameter";
     let db = AnalysisDatabase::default();
     let file = db.add_file(source);
     let resolution = resolve(&db, file);
@@ -36,7 +37,8 @@ fn records_closure_captures_but_not_parameters() {
 
 #[test]
 fn closures_resolve_and_expose_bindings_declared_later_in_captured_frames() {
-    let source = "let closure = fn() do later end let later = 1";
+    let source = "let closure = fn()
+    later let later = 1";
     let db = AnalysisDatabase::default();
     let file = db.add_file(source);
     let resolution = resolve(&db, file);
@@ -54,7 +56,8 @@ fn closures_resolve_and_expose_bindings_declared_later_in_captured_frames() {
 
 #[test]
 fn repeated_let_shadows_while_earlier_closures_keep_the_prior_symbol() {
-    let source = "let closure = fn() do later end let later = 1 let later = 2 later";
+    let source = "let closure = fn()
+    later let later = 1 let later = 2 later";
     let db = AnalysisDatabase::default();
     let file = db.add_file(source);
     let resolution = resolve(&db, file);
@@ -81,7 +84,9 @@ fn repeated_let_shadows_while_earlier_closures_keep_the_prior_symbol() {
 
 #[test]
 fn later_outer_bindings_hide_prelude_symbols_inside_closures() {
-    let source = "let closure = fn() do type(nil) end let type = fn(value) do value end";
+    let source = "let closure = fn()
+    type(nil) let type = fn(value)
+    value";
     let db = AnalysisDatabase::default();
     let file = db.add_file(source);
     let resolution = resolve(&db, file);
@@ -136,9 +141,11 @@ end
 #[test]
 fn shadow_versions_partition_initializer_closure_references_and_renames() {
     let source = r#"let value = 1
-let before = fn() do value end
+let before = fn()
+    value
 let value = value + 1
-let after_value = fn() do value end
+let after_value = fn()
+    value
 value"#;
     let db = AnalysisDatabase::default();
     let file = db.add_file(source);
@@ -215,7 +222,8 @@ fn unresolved_host_reads_are_not_diagnostics_or_rename_targets() {
 
 #[test]
 fn builtins_resolve_and_can_be_shadowed() {
-    let source = "type(value) do let type = fn(value) do value end type(value) end inspect(value)";
+    let source = "type(value) do let type = fn(value)
+    value type(value) end inspect(value)";
     let db = AnalysisDatabase::default();
     let file = db.add_file(source);
     let resolution = resolve(&db, file);
@@ -231,7 +239,8 @@ fn builtins_resolve_and_can_be_shadowed() {
 
 #[test]
 fn supports_symbol_lookup_hover_references_and_visible_symbols() {
-    let source = "let value = 1 fn use(parameter) do value + parameter end use(value)";
+    let source = "let value = 1 fn use(parameter)
+    value + parameter use(value)";
     let db = AnalysisDatabase::default();
     let file = db.add_file(source);
     let resolution = resolve(&db, file);
@@ -290,8 +299,8 @@ fn visible_symbols_respect_activation_and_do_not_hide_outer_symbols() {
 
 #[test]
 fn future_symbols_do_not_appear_or_hide_prelude_symbols() {
-    let source =
-        "do type(nil) future let type = fn(value) do value end let future = 1 type(nil) future end";
+    let source = "do type(nil) future let type = fn(value)
+    value let future = 1 type(nil) future end";
     let db = AnalysisDatabase::default();
     let file = db.add_file(source);
     let resolution = resolve(&db, file);
@@ -352,7 +361,8 @@ fn rename_rejects_capture_of_unresolved_and_shadowed_occurrences() {
     for source in [
         "let target = 1 do missing target end",
         "let target = 1 do let missing = 2 target end",
-        "let closure = fn() do missing end let target = 1 closure()",
+        "let closure = fn()
+    missing let target = 1 closure()",
     ] {
         let db = AnalysisDatabase::default();
         let file = db.add_file(source);
@@ -402,7 +412,8 @@ fn analysis_owns_symbol_and_rename_spans() {
 
 #[test]
 fn parser_diagnostics_and_later_symbols_survive_recovery() {
-    let source = "let broken = ) fn later() do nil end";
+    let source = "let broken = ) fn later()
+    nil";
     let db = AnalysisDatabase::default();
     let file = db.add_file(source);
     let diagnostics = diagnostics(&db, file);
@@ -496,7 +507,8 @@ fn static_requirement_metadata_is_reported_by_analysis() {
 
 #[test]
 fn nested_named_function_declarations_report_syntax_errors_and_recover() {
-    let source = "fn outer() do\n    fn inner() do nil end\nend\nfn later() do nil end";
+    let source = "fn outer() do\n    fn inner()
+    nil\nend\nfn later() do nil end";
     let db = AnalysisDatabase::default();
     let file = db.add_file(source);
     let diagnostics = diagnostics(&db, file);
@@ -505,7 +517,7 @@ fn nested_named_function_declarations_report_syntax_errors_and_recover() {
     assert_eq!(
         diagnostics[0].detail,
         "Named function declarations are only allowed at the top level; \
-         use let name = fn(...) do ... end."
+         use let name = fn(...) expression."
     );
     let start = source.find("fn inner").unwrap();
     assert_eq!(diagnostics[0].span.start, start);

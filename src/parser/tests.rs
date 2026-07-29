@@ -117,7 +117,8 @@ fn is_is_an_identifier_and_legacy_infix_syntax_fails_in_expression_contexts() {
 #[test]
 fn accepts_trailing_commas_in_all_comma_separated_constructs() {
     let program = parse_source(
-        "fn collect(first, second,) do [first, second,] end collect({a=1, [2]=3,}, 4,) |> collect(5,)",
+        "fn collect(first, second,)
+    [first, second,] collect({a=1, [2]=3,}, 4,) |> collect(5,)",
     )
     .unwrap();
 
@@ -143,7 +144,10 @@ fn accepts_trailing_commas_in_all_comma_separated_constructs() {
 
 #[test]
 fn parses_anonymous_functions_as_postfix_and_nested_expressions() {
-    let source = "fn(value) do fn(inner) do value + inner end end(2)";
+    let source = "fn(value) do
+    fn(inner)
+        value + inner
+end(2)";
     let program = parse_source(source).unwrap();
     let StmtKind::Expr(Expr {
         kind: ExprKind::Call { callee, args },
@@ -170,9 +174,11 @@ fn parses_anonymous_functions_as_postfix_and_nested_expressions() {
 #[test]
 fn callable_generics_constraints_labels_and_effects_are_erased_from_runtime_ast() {
     let source = concat!(
-        "fn identity<'a: | integer | string>(value: 'a) -> 'a ! never do value end\n",
+        "fn identity<'a: | integer | string>(value: 'a) -> 'a ! never
+    value\n",
         "let callback: fn<'a>(input: 'a) -> 'a ! string = ",
-        "fn<'a: any>(value: 'a) -> 'a ! string do value end\n",
+        "fn<'a: any>(value: 'a) -> 'a ! string
+    value\n",
         "identity(callback(42))",
     );
     let program = parse_source(source).unwrap();
@@ -196,7 +202,11 @@ fn callable_generics_constraints_labels_and_effects_are_erased_from_runtime_ast(
 
 #[test]
 fn anonymous_functions_compose_with_indexing_and_pipelines() {
-    let program = parse_source("[fn(value) do value end][0] |> apply(1)").unwrap();
+    let program = parse_source(
+        "[fn(value)
+    value][0] |> apply(1)",
+    )
+    .unwrap();
     let StmtKind::Expr(Expr {
         kind: ExprKind::Pipeline { input, .. },
         ..
@@ -310,7 +320,11 @@ fn parses_list_spread_elements() {
 
 #[test]
 fn rejects_duplicate_parameters_and_invalid_pipeline_stage() {
-    let duplicate = parse_source("fn f(value, value) do nil end").unwrap_err();
+    let duplicate = parse_source(
+        "fn f(value, value)
+    nil",
+    )
+    .unwrap_err();
     assert!(duplicate.message.contains("duplicate parameter `value`"));
 
     let invalid_stage = parse_source("value |> (f)(1)").unwrap_err();
@@ -324,7 +338,8 @@ fn rejects_duplicate_parameters_and_invalid_pipeline_stage() {
 
 #[test]
 fn reports_anonymous_function_parameter_and_delimiter_spans() {
-    let duplicate_source = "let f = fn(value, value) do value end";
+    let duplicate_source = "let f = fn(value, value)
+    value";
     let duplicate = parse_source(duplicate_source).unwrap_err();
     let duplicate_start = duplicate_source.find(", value").unwrap() + 2;
     assert_eq!(duplicate.message, "duplicate parameter `value`");
@@ -333,7 +348,8 @@ fn reports_anonymous_function_parameter_and_delimiter_spans() {
         Span::new(duplicate_start, duplicate_start + 5)
     );
 
-    let missing_open_source = "let f = fn value do value end";
+    let missing_open_source = "let f = fn value
+    value";
     let missing_open = parse_source(missing_open_source).unwrap_err();
     let value_start = missing_open_source.find("value").unwrap();
     assert_eq!(
@@ -430,7 +446,11 @@ fn legacy_loop_forms_are_rejected_while_iterator_control_members_parse() {
         assert!(parse_source(source).is_err(), "{source} should be rejected");
     }
     parse_source("let loop = 7 loop").unwrap();
-    parse_source("iter.loop(fn() do iter.break(1) end) iter.continue(nil)").unwrap();
+    parse_source(
+        "iter.loop(fn()
+    iter.break(1)) iter.continue(nil)",
+    )
+    .unwrap();
 }
 
 #[test]

@@ -31,9 +31,8 @@ An annotated script is still an ordinary Simi script. Removing its type syntax m
 ```simi
 let count: integer = 1
 
-fn display(value: number) -> string do
+fn display(value: number) -> string
     number.to_string(value)
-end
 
 display(count)
 ```
@@ -97,9 +96,8 @@ alias transform = fn(integer) -> integer
 alias predicate = fn(integer, string) -> boolean
 alias supplier = fn() -> integer
 
-let double: transform = fn(value: integer) -> integer do
+let double: transform = fn(value: integer) -> integer
     value * 2
-end
 
 double(21)
 ```
@@ -120,17 +118,14 @@ let entry: pair<integer, string> = [1, "one"]
 Free generic variables in function annotations are implicitly quantified:
 
 ```simi
-fn identity(value: 'a) -> 'a do
+fn identity(value: 'a) -> 'a
     value
-end
 
-fn transform(value: 'a, callback: fn('a) -> 'b) -> 'b do
+fn transform(value: 'a, callback: fn('a) -> 'b) -> 'b
     callback(value)
-end
 
-transform(identity(20), fn(value: integer) -> integer do
-    value + 22
-end)
+transform(identity(20), fn(value: integer) -> integer
+    value + 22)
 ```
 
 Callers do not supply explicit generic arguments. Syntax such as `identity<string>(value)` is outside the initial design. Aliases are transparent: expanding one creates neither a nominal type nor a new runtime value category.
@@ -140,9 +135,8 @@ Callers do not supply explicit generic arguments. Syntax such as `identity<strin
 An explicit callable header may bound generic variables with ordinary Simi types:
 
 ```simi
-fn negate<'a: integer | float>(value: 'a) -> 'a ! never do
+fn negate<'a: integer | float>(value: 'a) -> 'a ! never
     -value
-end
 
 negate(42)
 ```
@@ -153,9 +147,8 @@ Callable parameter labels improve signatures while calls remain positional:
 
 ```simi
 let compare: fn(left: integer, right: integer) -> boolean ! never =
-    fn(left: integer, right: integer) -> boolean ! never do
+    fn(left: integer, right: integer) -> boolean ! never
         left < right
-    end
 
 compare(1, 2)
 ```
@@ -163,17 +156,15 @@ compare(1, 2)
 A function's raised type is separate from its normal result:
 
 ```simi
-fn fail(value: 'e) -> never ! 'e do
+fn fail(value: 'e) -> never ! 'e
     raise value
-end
 
-fn recover() -> integer ! never do
+fn recover() -> integer ! never
     do
         fail("missing")
     catch "missing" =>
         0
     end
-end
 
 recover()
 ```
@@ -248,13 +239,12 @@ alias Step<'a> =
     | {done: true, ..}
     | {done: false, value: 'a, ..}
 
-fn step_value(step: Step<integer>) -> integer | nil do
+fn step_value(step: Step<integer>) -> integer | nil
     if step.done then
         nil
     else
         step.value
     end
-end
 
 step_value({done = false, value = 42})
 ```
@@ -274,13 +264,12 @@ Analysis narrows branch-local types through:
 - explicit comparisons with `nil`.
 
 ```simi
-fn describe(value: integer | string) -> string do
+fn describe(value: integer | string) -> string
     if type(value) == "integer" then
         number.to_string(value)
     else
         value
     end
-end
 
 describe(42)
 ```

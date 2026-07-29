@@ -10,7 +10,8 @@ fn value(source: &str) -> Value {
 fn type_comparisons_cover_every_stable_label_and_unify_functions() {
     let result = value(
         r#"
-        fn user_function() do nil end
+        fn user_function()
+            nil
         let native_function = type
         [
             type(nil) == "nil",
@@ -71,7 +72,8 @@ fn type_is_shadowable_and_labels_are_ordinary_values() {
         let label = "integer"
         let builtin_result = type(1) == label
         let unknown_label = type(1) == "number"
-        let type = fn(_) do "shadowed" end
+        let type = fn(_)
+            "shadowed"
         [builtin_result, unknown_label, type(1) == "shadowed", type(1) == label]
         "#,
     );

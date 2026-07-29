@@ -112,9 +112,8 @@ Operator contract violations—such as multiplying a string, applying `not` to a
 A call evaluates its callee and arguments, then produces the function's result. Arguments are evaluated once, from left to right:
 
 ```simi
-fn add(left, right) do
+fn add(left, right)
     left + right
-end
 
 let result = add(20, 22)
 result
@@ -123,11 +122,9 @@ result
 Calls compose with other postfix operations, so a returned function can be called immediately:
 
 ```simi
-fn make_greeter(greeting) do
-    fn(name) do
+fn make_greeter(greeting)
+    fn(name)
         greeting <> ", " <> name
-    end
-end
 
 make_greeter("Hello")("Ada")
 ```
@@ -148,9 +145,8 @@ let scores = [91, 95, 98]
 Missing map fields and nonnegative out-of-range list reads return `nil`. Postfix calls, fields, and indexing can be chained:
 
 ```simi
-fn load_team() do
+fn load_team()
     {members = [{name = "Ada"}, {name = "Grace"}]}
-end
 
 load_team().members[1].name
 ```
@@ -182,13 +178,11 @@ Assigning to an undefined name is a hard diagnostic. List writes replace existin
 `|>` passes its input as the first argument to a call stage:
 
 ```simi
-fn add(value, extra) do
+fn add(value, extra)
     value + extra
-end
 
-fn multiply(value, factor) do
+fn multiply(value, factor)
     value * factor
-end
 
 10
 |> add(5)
@@ -200,9 +194,8 @@ The first stage above is equivalent to `add(10, 5)`. A pipeline stage must visib
 The nil-aware `?>` behaves like `|>` for a non-`nil` input. For a `nil` input, it skips that stage's callee and all its arguments:
 
 ```simi
-fn increment(value) do
+fn increment(value)
     value + 1
-end
 
 let maybe_number = nil
 maybe_number
@@ -245,9 +238,8 @@ let values = [1, 2, 3]
 
 values
 |> list.iter()
-|> iter.map(fn(value) do
-    value * 2
-end)
+|> iter.map(fn(value)
+    value * 2)
 |> iter.to_list()
 ```
 

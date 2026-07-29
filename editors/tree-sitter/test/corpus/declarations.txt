@@ -35,12 +35,12 @@ Functions, anonymous functions, and destructuring let
 fn make_adder(base, factor,) do
   let [first, {name = name}, ..rest] = values
   let {enabled = true, missing = nil, ..settings} = config
-  fn(value) do
+  fn(value)
     (base + value) * factor
-  end
 end
 
-let add_one = fn(value) do value + 1 end
+let add_one = fn(value)
+  value + 1
 
 ---
 
@@ -50,8 +50,7 @@ let add_one = fn(value) do value + 1 end
     (identifier)
     (declared_parameters
       (declared_parameter
-        (identifier)
-      )
+        (identifier))
       (declared_parameter
         (identifier)))
     (block_expression
@@ -81,25 +80,21 @@ let add_one = fn(value) do value + 1 end
           (parameters
             (parameter
               (identifier)))
-          (block_expression
-            (block
+          (binary_expression
+            (parenthesized_expression
               (binary_expression
-                (parenthesized_expression
-                  (binary_expression
-                    (identifier)
-                    (identifier)))
-                (identifier))))))))
+                (identifier)
+                (identifier)))
+            (identifier))))))
   (let_statement
     (identifier)
     (function_expression
       (parameters
         (parameter
           (identifier)))
-      (block_expression
-        (block
-          (binary_expression
-            (identifier)
-            (integer)))))))
+      (binary_expression
+        (identifier)
+        (integer)))))
 
 ==================
 Collections, postfix expressions, strings, and numeric forms

@@ -88,11 +88,12 @@ let mismatch: number = "text"
 #[test]
 fn bytes_annotations_indexing_equality_and_narrowing_are_erased_static_facts() {
     let source = r#"
-fn first(value: bytes) do value[0] end
-fn equal(left: bytes, right: bytes) do left == right end
-fn narrow(value: bytes | string) do
+fn first(value: bytes)
+    value[0]
+fn equal(left: bytes, right: bytes)
+    left == right
+fn narrow(value: bytes | string)
     if type(value) == "bytes" then value[0] else value end
-end
 "#;
     let (inference, resolution) = inferred(source);
 
@@ -120,7 +121,8 @@ end
 fn bytes_literals_infer_bytes_and_reject_dynamic_text_segments() {
     let source = r#"
 let data = #[0, "PNG", 255]
-fn append(prefix: bytes) do #[0, "PNG", prefix] end
+fn append(prefix: bytes)
+    #[0, "PNG", prefix]
 "#;
     let (inference, resolution) = inferred(source);
     assert!(
@@ -182,10 +184,9 @@ let flag = false
 let exhausted = {done = true}
 let yielded = {done = false, value = 1}
 let either: EitherBoolean = true
-fn next<'a>(item: 'a, stop: boolean) -> Step<'a> do
+fn next<'a>(item: 'a, stop: boolean) -> Step<'a>
     if stop then {done = true} else {done = false, value = item} end
-end
-fn read(step: Step<integer>) -> integer | nil do
+fn read(step: Step<integer>) -> integer | nil
     if step.done then
         let exhausted_value = step.value
         exhausted_value
@@ -193,7 +194,6 @@ fn read(step: Step<integer>) -> integer | nil do
         let payload = step.value
         payload
     end
-end
 let nil_item: Step<integer | nil> = {done = false}
 "#;
     let (inference, resolution) = inferred(source);
@@ -235,8 +235,10 @@ let exact_hex: 0x2a = 42
 let exact_float: 1.0 = 1.0
 let exact_exponent: 1e3 = 1000.0
 let normalized_zero: 0.0 = -0.0
-fn accept(value: 42) -> integer do value end
-fn exact_result() -> 42 do 42 end
+fn accept(value: 42) -> integer
+    value
+fn exact_result() -> 42
+    42
 let accepted = accept(42)
 let returned = exact_result()
 let wrong_integer: 42 = 43
@@ -528,11 +530,16 @@ fn type_at(
 #[test]
 fn operators_annotations_generics_and_literals_infer_stable_types() {
     let source = r#"
-fn process(n) do n + 1 end
-fn increment(n: integer) do n + 1 end
-fn identity(value) do value end
-fn mixed_generics(explicit: 'a, inferred) do inferred end
-fn choose(flag, value) do if flag then value else nil end end
+fn process(n)
+    n + 1
+fn increment(n: integer)
+    n + 1
+fn identity(value)
+    value
+fn mixed_generics(explicit: 'a, inferred)
+    inferred
+fn choose(flag, value)
+    if flag then value else nil end
 let selected = identity("text")
 let integer = 1 + 2
 let mixed = 1 + 2.0
@@ -632,7 +639,8 @@ fn literal_require_calls_use_the_evaluated_module_result_type() {
 #[test]
 fn pipelines_and_trailing_arguments_use_call_inference() {
     let source = r#"
-fn combine(value: integer, suffix: string) -> string do suffix end
+fn combine(value: integer, suffix: string) -> string
+    suffix
 let piped = 1 |> combine("x")
 let trailing = combine(1) <| "x"
 "#;
@@ -656,9 +664,8 @@ let trailing = combine(1) <| "x"
 fn aliases_and_function_types_are_transparent_and_right_associative() {
     let source = r#"
 alias option<'a> = 'a | nil
-let callback: fn(integer) -> string | nil = fn(value: integer) -> string | nil do
+let callback: fn(integer) -> string | nil = fn(value: integer) -> string | nil
     if value == 0 then nil else "value" end
-end
 let result: option<string> = callback(1)
 "#;
     let (inference, resolution) = inferred(source);
@@ -712,8 +719,10 @@ fn empty_lists_start_with_an_exact_empty_shape() {
 #[test]
 fn known_list_append_refines_empty_lists_and_all_aliases() {
     let db = AnalysisDatabase::default();
-    let module_file =
-        db.add_file("fn append(xs: [..'a], x: 'a) -> nil do nil end { append = append }");
+    let module_file = db.add_file(
+        "fn append(xs: [..'a], x: 'a) -> nil
+    nil { append = append }",
+    );
     let modules = HashMap::from([(
         "std/list".to_owned(),
         simi_analysis::module_shape(&db, module_file),
@@ -739,9 +748,11 @@ fn known_list_append_refines_empty_lists_and_all_aliases() {
 #[test]
 fn shadow_versions_keep_distinct_symbol_and_closure_types() {
     let source = r#"let value = 1
-let before = fn() do value end
+let before = fn()
+    value
 let value = "new"
-let after_value = fn() do value end"#;
+let after_value = fn()
+    value"#;
     let (inference, resolution) = inferred(source);
     assert!(inference.diagnostics.is_empty());
     let mut values = resolution
@@ -824,8 +835,10 @@ fn annotated_generic_stdlib_calls_infer_through_nested_type_variables() {
     let file = db.add_file(concat!(
         "\n",
         "let iter = require(\"std/iter\")\n",
-        "let mapped = iter.to_list(iter.map(list.iter([1, 2]), fn(value) do value + 1 end))\n",
-        "let found = iter.find(list.iter([1, 2]), fn(value) do value > 1 end)\n",
+        "let mapped = iter.to_list(iter.map(list.iter([1, 2]), fn(value)
+    value + 1))\n",
+        "let found = iter.find(list.iter([1, 2]), fn(value)
+    value > 1)\n",
         "let enumerated = iter.to_list(iter.enumerate(iter.range(0, 2)))\n",
         "let zipped = iter.to_list(iter.zip(iter.repeat(1, 2), iter.once(\"x\")))\n",
         "let longest = iter.to_list(iter.zip_longest(iter.once(1), iter.take(iter.once(\"x\"), 0), nil))\n",
@@ -875,25 +888,32 @@ fn iterator_items_contextualize_callbacks_across_call_forms() {
     .collect::<HashMap<_, _>>();
     let source = r#"
 let iter = require("std/iter")
-let folded = iter.fold(list.iter([1, 2, 3]), 0, fn(acc, fold_item) do acc + fold_item end)
+let folded = iter.fold(list.iter([1, 2, 3]), 0, fn(acc, fold_item)
+    acc + fold_item)
 let piped =
     [1, 2, 3]
     |> list.iter()
-    |> iter.map(fn(pipeline_item) do pipeline_item + 1 end)
+    |> iter.map(fn(pipeline_item)
+        pipeline_item + 1)
     |> iter.to_list()
 let trailing_iterator =
-    iter.map(list.iter([1, 2, 3])) <| fn(trailing_item) do trailing_item + 1 end
+    iter.map(list.iter([1, 2, 3])) <| fn(trailing_item)
+        trailing_item + 1
 let trailing = iter.to_list(trailing_iterator)
-let mixed = iter.fold(list.iter([1, 2.0]), 0.0, fn(mixed_acc, mixed_item) do
-    mixed_acc + mixed_item
-end)
-let mapped = iter.to_list(iter.map(list.iter([1, 2]), fn(map_item) do map_item + 1 end))
-let filtered = iter.to_list(iter.filter(list.iter([1, 2]), fn(filter_item) do filter_item > 1 end))
-let found = iter.find(list.iter([1, 2]), fn(find_item) do find_item > 1 end)
-let nil_items = iter.to_list(iter.map(list.iter([1, nil, 3]), fn(nil_item) do nil_item end))
+let mixed = iter.fold(list.iter([1, 2.0]), 0.0, fn(mixed_acc, mixed_item)
+    mixed_acc + mixed_item)
+let mapped = iter.to_list(iter.map(list.iter([1, 2]), fn(map_item)
+    map_item + 1))
+let filtered = iter.to_list(iter.filter(list.iter([1, 2]), fn(filter_item)
+    filter_item > 1))
+let found = iter.find(list.iter([1, 2]), fn(find_item)
+    find_item > 1)
+let nil_items = iter.to_list(iter.map(list.iter([1, nil, 3]), fn(nil_item)
+    nil_item))
 let keys =
     map.iter({first = 1})
-    |> iter.map(fn(entry) do entry.key end)
+    |> iter.map(fn(entry)
+        entry.key)
     |> iter.to_list()
 let map_step = iter.next(map.iter({}))
 if map_step.done then
@@ -901,32 +921,27 @@ if map_step.done then
 else
     let live_entry = map_step.value
 end
-fn transform<'a, 'b, 'e>(value: 'a, callback: fn('a) -> 'b ! 'e) -> 'b ! 'e do
+fn transform<'a, 'b, 'e>(value: 'a, callback: fn('a) -> 'b ! 'e) -> 'b ! 'e
     callback(value)
-end
-let generic_result = transform(1, fn(generic_item) do generic_item + 1 end)
-let parenthesized = transform(1, (fn(parenthesized_item) do parenthesized_item + 1 end))
-fn raising_source() -> { done: true, .. } | { done: false, value: integer, .. } ! "source" do
+let generic_result = transform(1, fn(generic_item)
+    generic_item + 1)
+let parenthesized = transform(1, (fn(parenthesized_item)
+    parenthesized_item + 1))
+fn raising_source() -> { done: true, .. } | { done: false, value: integer, .. } ! "source"
     raise "source"
-end
-let effect_iterator = iter.map(raising_source, fn(effect_item) do
-    if effect_item > 0 then raise "callback" else effect_item end
-end)
-let while_result = iter.each_while(list.iter([1, 2]), fn(while_item) do
-    if while_item == 2 then iter.break(while_item) else iter.continue(nil) end
-end)
-let folded_while = iter.fold_while(list.iter([1, 2]), 0, fn(while_state, fold_while_item) do
+let effect_iterator = iter.map(raising_source, fn(effect_item)
+    if effect_item > 0 then raise "callback" else effect_item end)
+let while_result = iter.each_while(list.iter([1, 2]), fn(while_item)
+    if while_item == 2 then iter.break(while_item) else iter.continue(nil) end)
+let folded_while = iter.fold_while(list.iter([1, 2]), 0, fn(while_state, fold_while_item)
     if fold_while_item == 2 then iter.break("done")
     else iter.continue(while_state + fold_while_item)
-    end
-end)
+    end)
 let producer_flag: boolean = true
-let loop_result = iter.loop(fn() do
-    if producer_flag then iter.break("complete") else iter.continue(nil) end
-end)
-let repeated = iter.repeat_with(fn() do
-    if producer_flag then raise "producer" else 1 end
-end)
+let loop_result = iter.loop(fn()
+    if producer_flag then iter.break("complete") else iter.continue(nil) end)
+let repeated = iter.repeat_with(fn()
+    if producer_flag then raise "producer" else 1 end)
 "#;
     let file = db.add_file(source);
     let resolution = resolve(&db, file);
@@ -1028,14 +1043,13 @@ alias number = integer | float
 fn partition(ns: [..number], pivot: number)
     ns
     |> list.iter()
-    |> iter.fold({lower=[], higher=[]}) <| fn(acc, n) do
+    |> iter.fold({lower=[], higher=[]}) <| fn(acc, n)
         case acc of
             {lower, higher} when n < pivot =>
                 {lower=lower |> tap list.append(n), higher}
             {lower, higher} =>
                 {lower, higher=higher |> tap list.append(n)}
         end
-    end
 "#;
     let file = db.add_file(source);
     let resolution = resolve(&db, file);
@@ -1063,11 +1077,12 @@ fn partition(ns: [..number], pivot: number)
 
 #[test]
 fn generic_callback_without_element_evidence_preserves_exact_empty_list() {
-    let source = r#"fn bridge<'state>(initial: 'state, callback: fn('state) -> 'state) -> 'state do
+    let source = r#"fn bridge<'state>(initial: 'state, callback: fn('state) -> 'state) -> 'state
     callback(initial)
-end
-let inferred = bridge([], fn(xs) do xs end)
-let unchanged: [] = bridge([], fn(other) do other end)
+let inferred = bridge([], fn(xs)
+    xs)
+let unchanged: [] = bridge([], fn(other)
+    other)
 "#;
     let (inference, resolution) = inferred(source);
     assert!(
@@ -1111,10 +1126,10 @@ fn two_sum(values: [..integer], target: integer)
         end
     end
 
-fn bridge<'state>(initial: 'state, callback: fn('state) -> 'state) -> 'state do
+fn bridge<'state>(initial: 'state, callback: fn('state) -> 'state) -> 'state
     callback(initial)
-end
-let unchanged = bridge({}, fn(state) do state end)
+let unchanged = bridge({}, fn(state)
+    state)
 let integer_key: integer = 1
 let boolean_key: boolean = true
 let integer_value: integer = 1
@@ -1170,11 +1185,11 @@ end)
 
 #[test]
 fn contextual_empty_maps_reject_captured_and_explicitly_closed_writes() {
-    let source = r#"fn bridge<'state>(initial: 'state, callback: fn('state) -> 'state) -> 'state do
+    let source = r#"fn bridge<'state>(initial: 'state, callback: fn('state) -> 'state) -> 'state
     callback(initial)
-end
 let captured = {}
-let mutate_capture = fn(key) do captured[key] = 1 end
+let mutate_capture = fn(key)
+    captured[key] = 1
 let explicitly_closed: {} = bridge({}, fn(state) do
     state[1] = 2
     state
@@ -1201,11 +1216,11 @@ end)
 
 #[test]
 fn contextual_empty_maps_seal_captured_dynamic_writes_and_preserve_nil_deletes() {
-    let source = r#"fn bridge<'state>(initial: 'state, callback: fn('state) -> 'state) -> 'state do
+    let source = r#"fn bridge<'state>(initial: 'state, callback: fn('state) -> 'state) -> 'state
     callback(initial)
-end
 let captured = bridge({}, fn(state) do
-    let mutate = fn(key) do state[key] = 1 end
+    let mutate = fn(key)
+        state[key] = 1
     state
 end)
 let deleted = bridge({}, fn(state) do
@@ -1213,7 +1228,8 @@ let deleted = bridge({}, fn(state) do
     state[key] = nil
     state
 end)
-let unchanged = bridge({}, fn(state) do state end)
+let unchanged = bridge({}, fn(state)
+    state)
 "#;
     let (inference, resolution) = inferred(source);
     assert_eq!(
@@ -1250,12 +1266,10 @@ fn contextual_fold_accumulators_preserve_annotated_and_exact_list_failures() {
     .collect::<HashMap<_, _>>();
     let source = r#"let iter = require("std/iter")
 let sealed: {lower: [], higher: []} = {lower=[], higher=[]}
-let sealed_result = iter.fold(list.iter([1]), sealed, fn(acc, n) do
-    {lower=acc.lower |> tap list.append(n), higher=acc.higher}
-end)
-let partial = iter.fold(list.iter([1, 2.0]), {lower=[0], higher=[]}, fn(acc, n) do
-    {lower=acc.lower |> tap list.append(n), higher=acc.higher}
-end)
+let sealed_result = iter.fold(list.iter([1]), sealed, fn(acc, n)
+    {lower=acc.lower |> tap list.append(n), higher=acc.higher})
+let partial = iter.fold(list.iter([1, 2.0]), {lower=[0], higher=[]}, fn(acc, n)
+    {lower=acc.lower |> tap list.append(n), higher=acc.higher})
 "#;
     let file = db.add_file(source);
     let resolution = resolve(&db, file);
@@ -1318,12 +1332,14 @@ fn contextual_callbacks_still_check_explicit_annotations() {
     .collect::<HashMap<_, _>>();
     let source = r#"
 let iter = require("std/iter")
-let compatible = iter.to_list(iter.map(list.iter([1, 2]), fn(item: integer) -> integer ! never do
-    item + 1
-end))
-iter.fold(list.iter([1, 2]), 0, fn(acc: string, item: integer) do acc end)
-iter.map(list.iter([1, 2]), fn(item: integer) -> string do item + 1 end)
-iter.map(list.iter([1, 2]), fn(item: integer) -> any ! never do raise "nope" end)
+let compatible = iter.to_list(iter.map(list.iter([1, 2]), fn(item: integer) -> integer ! never
+    item + 1))
+iter.fold(list.iter([1, 2]), 0, fn(acc: string, item: integer)
+    acc)
+iter.map(list.iter([1, 2]), fn(item: integer) -> string
+    item + 1)
+iter.map(list.iter([1, 2]), fn(item: integer) -> any ! never
+    raise "nope")
 "#;
     let file = db.add_file(source);
     let resolution = resolve(&db, file);
@@ -1371,7 +1387,8 @@ fn definite_type_errors_have_stable_codes() {
 let declared: integer = "wrong"
 let bad_operator = "x" + true
 let not_callable = 1(2)
-fn one(value: integer) -> integer do value end
+fn one(value: integer) -> integer
+    value
 let bad_argument = one("x")
 one()
 "#;
@@ -1397,7 +1414,7 @@ one()
 fn conditions_narrow_builtin_categories_nil_literals_and_discriminants() {
     let source = r#"
 alias result = { kind: "ok", value: integer } | { kind: "error", error: string }
-fn classify(value: integer | string | nil) do
+fn classify(value: integer | string | nil)
     if type(value) == "integer" then
         value
     elseif value == nil then
@@ -1405,14 +1422,12 @@ fn classify(value: integer | string | nil) do
     else
         value
     end
-end
-fn read(item: result) do
+fn read(item: result)
     if item.kind == "ok" then
         item.value
     else
         item.error
     end
-end
 "#;
     let (inference, resolution) = inferred(source);
     assert!(
@@ -1441,13 +1456,12 @@ end
 #[test]
 fn short_circuit_guards_narrow_rhs() {
     let source = r#"
-fn choose(input: string | nil) do
+fn choose(input: string | nil)
     if nil != input and (input == "x" or input == "y") then
         input
     else
         "other"
     end
-end
 "#;
     let (inference, resolution) = inferred(source);
     assert!(
@@ -1468,10 +1482,10 @@ end
 #[test]
 fn shadowed_type_does_not_narrow_and_boolean_complements_are_local() {
     let source = r#"
-fn type(ignored) do "integer" end
-fn inspect(subject: integer | string) do
+fn type(ignored)
+    "integer"
+fn inspect(subject: integer | string)
     if not (type(subject) != "integer") then subject else subject end
-end
 "#;
     let (inference, resolution) = inferred(source);
     assert!(
@@ -1493,14 +1507,13 @@ end
 fn structural_mutation_invalidates_discriminant_facts() {
     let source = r#"
 alias outcome = { kind: "ok", value: integer } | { kind: "error", error: string }
-fn mutate(item: outcome) do
+fn mutate(item: outcome)
     if item.kind == "ok" then
         item.kind = "ok"
         item
     else
         item
     end
-end
 "#;
     let (inference, resolution) = inferred(source);
     assert!(
@@ -1518,14 +1531,13 @@ end
 fn case_patterns_narrow_structural_union_and_bind_payloads() {
     let source = r#"
 alias result = { kind: "ok", value: integer } | { kind: "error", error: string }
-fn unwrap(result: result) do
+fn unwrap(result: result)
     case result of
     { kind = "ok", value = payload } =>
         payload
     { kind = "error", error = message } =>
         message
     end
-end
 "#;
     let (inference, resolution) = inferred(source);
     assert!(
@@ -1558,9 +1570,11 @@ fn boundaries(value: integer | nil) do
     let standalone = do value? 1 end
     let selected_if = if true then value? 1 else 2 end
     let selected_else = if false then 1 else value? 2 end
-    let selected_case = case 1 of 1 => do value? 1 end end
+    let selected_case = case 1 of 1 =>
+    value? 1 end
     let protected = do value? 1 catch _ => 2 end
-    let caught = do raise "failure" catch _ => do value? 1 end end
+    let caught = do raise "failure" catch _ =>
+    value? 1 end
     [standalone, selected_if, selected_else, selected_case, protected, caught]
     "continued"
 end
@@ -1670,7 +1684,8 @@ fn analyzed_calls_preserve_arguments_while_unknown_calls_widen() {
     )]);
     let source = r#"
 
-fn opaque(value) do value end
+fn opaque(value)
+    value
 let first = [1, 2]
 opaque(first)
 first
@@ -1722,12 +1737,14 @@ fn unmodeled_calls_follow_any_alias_regions_and_analyzed_callbacks() {
     let source = r#"
 
 let iter = require("std/iter")
-fn mutate(value: any) do value end
+fn mutate(value: any)
+    value
 let values = [1, 2]
 let hidden: any = values
 mutate(hidden)
 values
-fn visit(value: integer) -> any do value end
+fn visit(value: integer) -> any
+    value
 let callback_values = [1, 2]
 iter.each(list.iter(callback_values), visit)
 callback_values
@@ -1928,30 +1945,27 @@ fn maybe(value: string | nil) do
         "absent"
     end
 end
-fn indexed(record: {[string]: integer}) do
+fn indexed(record: {[string]: integer})
     case record of
     {missing = value} =>
         "present"
     _ =>
         "absent"
     end
-end
-fn opened(record: {..}) do
+fn opened(record: {..})
     case record of
     {missing = value} =>
         "present"
     _ =>
         "absent"
     end
-end
-fn multiple(record: {first: "yes", second: "ok" | "no"}) do
+fn multiple(record: {first: "yes", second: "ok" | "no"})
     case record of
     {first = "yes", second = "ok"} =>
         "matched"
     _ =>
         "fallback"
     end
-end
 "#;
     let (inference, resolution) = inferred(source);
     assert!(
@@ -1994,20 +2008,18 @@ end
 #[test]
 fn unannotated_case_patterns_seed_body_stable_list_and_map_domains() {
     let source = r#"
-fn first_or_nil(values) do
+fn first_or_nil(values)
     case values of
     [value, ..rest] =>
         value
     [] =>
         nil
     end
-end
-fn read_value(record) do
+fn read_value(record)
     case record of
     {value} =>
         value
     end
-end
 "#;
     let (inference, resolution) = inferred(source);
     assert!(
@@ -2028,11 +2040,16 @@ end
 #[test]
 fn recursive_result_inference_is_occurs_safe_and_uses_returning_evidence() {
     let source = r#"
-fn forever() do forever() end
-fn eventually(flag) do if flag then 1 else eventually(flag) end end
-fn left() do right() end
-fn right() do left() end
-fn nested() do [nested()] end
+fn forever()
+    forever()
+fn eventually(flag)
+    if flag then 1 else eventually(flag) end
+fn left()
+    right()
+fn right()
+    left()
+fn nested()
+    [nested()]
 "#;
     let (inference, resolution) = inferred(source);
     assert!(
@@ -2159,9 +2176,8 @@ let short = false and ("bad" + true)
 #[test]
 fn bounded_callable_generics_validate_calls_and_support_bounded_operators() {
     let source = r#"
-fn negate<'a: integer | float>(value: 'a) -> 'a ! never do
+fn negate<'a: integer | float>(value: 'a) -> 'a ! never
     -value
-end
 let integer_result = negate(1)
 let float_result = negate(1.5)
 let invalid_result = negate("wrong")
@@ -2202,7 +2218,8 @@ fn use<'a: any>(
     callback(1)
     value
 end
-fn marker<'a>() -> integer ! never do 1 end
+fn marker<'a>() -> integer ! never
+    1
 "#;
     let (inference, resolution) = inferred(source);
     assert!(
@@ -2234,7 +2251,8 @@ end
 fn aliases_with_nested_callable_headers_do_not_capture_outer_generics() {
     let source = r#"
 alias handler<'value> = fn<'item>('value, 'item) -> 'item ! never
-fn hold<'a, 'b>(callback: handler<'a>, other: 'b) -> 'b ! never do other end
+fn hold<'a, 'b>(callback: handler<'a>, other: 'b) -> 'b ! never
+    other
 "#;
     let (inference, resolution) = inferred(source);
     assert!(
@@ -2251,9 +2269,8 @@ fn hold<'a, 'b>(callback: handler<'a>, other: 'b) -> 'b ! never do other end
 #[test]
 fn callable_labels_are_metadata_and_calls_remain_positional() {
     let source = r#"
-fn add(left: integer, right: integer) -> integer ! never do
+fn add(left: integer, right: integer) -> integer ! never
     left + right
-end
 let result = add(1, 2)
 "#;
     let (inference, resolution) = inferred(source);
@@ -2272,9 +2289,9 @@ let result = add(1, 2)
 #[test]
 fn callable_or_nil_display_parenthesizes_function() {
     let source = r#"
-fn nullable(flag: boolean) do
-    if flag then fn(value: integer) do value end end
-end
+fn nullable(flag: boolean)
+    if flag then fn(value: integer)
+        value end
 "#;
     let (inference, resolution) = inferred(source);
     let ty = type_of(&inference, &resolution, "nullable");
@@ -2297,9 +2314,9 @@ end
 #[test]
 fn callable_union_displays_roundtrippable_parenthesized_callable() {
     let source = r#"
-fn choose(flag: boolean, callback: fn(integer) -> integer) do
-    if flag then callback else fn(value: integer) do value end end
-end
+fn choose(flag: boolean, callback: fn(integer) -> integer)
+    if flag then callback else fn(value: integer)
+        value end
 "#;
     let (inference, resolution) = inferred(source);
     let ty = type_of(&inference, &resolution, "choose");
@@ -2313,7 +2330,8 @@ end
 #[test]
 fn require_and_raised_callbacks_propagate_effects_with_raised_path_mutation() {
     let source = r#"
-fn load(name: string) do require(name) end
+fn load(name: string)
+    require(name)
 let values = {}
 let callback = fn() do
     values.item = 1
@@ -2340,29 +2358,23 @@ end
 #[test]
 fn raised_effects_infer_propagate_and_are_removed_by_definite_catches() {
     let source = r#"
-fn fail(value: 'e) do
+fn fail(value: 'e)
     raise value
-end
-fn choose(flag: boolean) do
+fn choose(flag: boolean)
     if flag then raise "bad" else 1 end
-end
-fn invoke(callback: fn() -> integer ! 'e) do
+fn invoke(callback: fn() -> integer ! 'e)
     callback()
-end
-fn recovered() do
+fn recovered()
     do
         fail("bad")
     catch
         "bad" =>
             1
     end
-end
-fn pure() -> integer ! never do
+fn pure() -> integer ! never
     1
-end
-fn invalid() -> integer ! never do
+fn invalid() -> integer ! never
     raise "forbidden"
-end
 "#;
     let (inference, resolution) = inferred(source);
     assert_eq!(
@@ -2403,9 +2415,8 @@ fn values() -> [..integer] ! never [1, 2]
 fn nothing() -> nil ! never nil
 fn grouped() -> integer ! never (1 + 2)
 fn direct(xs: [..integer]) -> nil ! never host.append(xs)
-fn explicit(xs: [..integer]) -> nil ! never do
+fn explicit(xs: [..integer]) -> nil ! never
     host.append(xs)
-end
 fn unrelated() -> nil ! never raise "boom"
 "#;
     let (inference, resolution) = inferred(source);
@@ -2443,8 +2454,10 @@ fn append_if_present(values: [integer, integer] | nil) do
     values ?> tap list.append(3)
     values
 end
-fn ignored(value: any, extra: any) do value end
-fn kind(value: any) -> string do type(value) end
+fn ignored(value: any, extra: any)
+    value
+fn kind(value: any) -> string
+    type(value)
 let mixed = nil ?> ignored("x" + true) |> kind()
 "#;
     let file = db.add_file(source);
@@ -2468,8 +2481,10 @@ let mixed = nil ?> ignored("x" + true) |> kind()
 #[test]
 fn panic_and_todo_are_never_and_todo_warns_without_a_raised_effect() {
     let source = r#"
-fn panicked() -> never do panic end
-fn unfinished() -> never do todo "finish the decoder" end
+fn panicked() -> never
+    panic
+fn unfinished() -> never
+    todo "finish the decoder"
 "#;
     let (inference, resolution) = inferred(source);
     assert_eq!(
@@ -2682,7 +2697,8 @@ state.count = 1
 fn closure_capture_requires_a_stable_structural_contract() {
     let unannotated = r#"
 let state = {}
-let initialize = fn() do state.count = 1 end
+let initialize = fn()
+    state.count = 1
 "#;
     let (inference, _) = inferred(unannotated);
     assert!(
@@ -2694,7 +2710,8 @@ let initialize = fn() do state.count = 1 end
 
     let annotated = r#"
 let state: {count: integer | nil} = {}
-let initialize = fn() do state.count = 1 end
+let initialize = fn()
+    state.count = 1
 "#;
     let (inference, _) = inferred(annotated);
     assert!(
@@ -2708,10 +2725,12 @@ let initialize = fn() do state.count = 1 end
 fn captured_map_index_mutations_require_a_stable_structural_contract() {
     let source = r#"
 let literal_state = {}
-let set_literal = fn() do literal_state["count"] = 1 end
+let set_literal = fn()
+    literal_state["count"] = 1
 let dynamic_state = {}
 let key = "count"
-let set_dynamic = fn() do dynamic_state[key] = 1 end
+let set_dynamic = fn()
+    dynamic_state[key] = 1
 "#;
     let (inference, _) = inferred(source);
     assert_eq!(
@@ -2732,12 +2751,18 @@ fn portable_builtins_use_registered_module_shapes_for_global_type() {
     let modules = [
         (
             "std/list",
-            "fn append(xs, x) do nil end { append = append }",
+            "fn append(xs, x)
+    nil { append = append }",
         ),
-        ("std/map", "fn clear(entries) do nil end { clear = clear }"),
+        (
+            "std/map",
+            "fn clear(entries)
+    nil { clear = clear }",
+        ),
         (
             "std/number",
-            "fn to_string(value) do nil end { to_string = to_string }",
+            "fn to_string(value)
+    nil { to_string = to_string }",
         ),
     ]
     .into_iter()
@@ -2800,7 +2825,8 @@ fn literal_require_retains_precise_type_when_module_registered() {
 #[test]
 fn require_alias_retains_precise_type_when_module_registered() {
     let db = AnalysisDatabase::default();
-    let module_source = "fn append(xs, x) do nil end { append = append }";
+    let module_source = "fn append(xs, x)
+    nil { append = append }";
     let module_file = db.add_file(module_source);
     let modules = HashMap::from([("std/list".to_owned(), module_shape(&db, module_file))]);
 
@@ -2825,7 +2851,8 @@ fn require_alias_retains_precise_type_when_module_registered() {
 #[test]
 fn shadowed_builtin_uses_user_binding_not_module_shape() {
     let db = AnalysisDatabase::default();
-    let module_source = "fn append(xs, x) do nil end { append = append }";
+    let module_source = "fn append(xs, x)
+    nil { append = append }";
     let module_file = db.add_file(module_source);
     let modules = HashMap::from([("std/list".to_owned(), module_shape(&db, module_file))]);
 

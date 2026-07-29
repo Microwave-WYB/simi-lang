@@ -1,11 +1,10 @@
 let io = require("std/io")
 
-fn fibonacci(n: integer) -> integer do
-    iter.fold_while(iter.repeat_with(fn() do 1 end), [n, 0, 1], fn(state, _) do
+fn fibonacci(n: integer) -> integer
+    iter.fold_while(iter.repeat_with(fn()
+        1), [n, 0, 1], fn(state, _)
         if state[0] == 0 then iter.break(state[1])
-        else iter.continue([state[0] - 1, state[2], state[1] + state[2]]) end
-    end)
-end
+        else iter.continue([state[0] - 1, state[2], state[1] + state[2]]) end)
 
 let result = fibonacci(10)
 io.println("fib(10) = " <> number.to_string(result))

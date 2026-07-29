@@ -11,9 +11,8 @@ Simi is a small scripting language designed to be easy to run and embed.
 ```simi
 let io = require("std/io")
 
-fn greet(name) do
+fn greet(name)
     io.println("Hello, " <> name <> "!")
-end
 
 greet("Simi")
 ```
@@ -23,9 +22,8 @@ greet("Simi")
 ```simi
 let iter = require("std/iter")
 
-iter.fold_while(list.iter([1, 2, 3]), 0, fn(total, value) do
-    if value == 3 then iter.break(total) else iter.continue(total + value) end
-end)
+iter.fold_while(list.iter([1, 2, 3]), 0, fn(total, value)
+    if value == 3 then iter.break(total) else iter.continue(total + value) end)
 ```
 
 Save this as `two_sum.simi`, install Simi using one of the options below, and run:

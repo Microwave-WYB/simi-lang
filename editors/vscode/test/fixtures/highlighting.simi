@@ -19,9 +19,11 @@ end
 fn declared_effect(
     xs: [..integer],
     pair: [integer, string],
-) -> nil do nil end
+) -> nil
+    nil
 
-let mapper = fn(item) do item * 2 end
+let mapper = fn(item)
+    item * 2
 let spread_values = [0, ..[1, 2], 3]
 let iter = require("std/iter")
 let mapped = iter.map(list.iter([1, 2])) <| mapper
@@ -33,9 +35,9 @@ catch
         reason
 end
 let optional = do mapped? end
-let final = iter.fold_while(iter.repeat_with(fn() do 1 end), 0, fn(state, _) do
-    if state > 1 then iter.break(state) else iter.continue(state + 1) end
-end)
+let final = iter.fold_while(iter.repeat_with(fn()
+    1), 0, fn(state, _)
+    if state > 1 then iter.break(state) else iter.continue(state + 1) end)
 let ranged_pairs = iter.enumerate(iter.zip_longest(iter.range(0, 2), iter.once(final), nil))
 let sliced_pairs = iter.take(iter.drop(ranged_pairs, 0), 2)
 let bad_escape = "\q"
@@ -44,12 +46,15 @@ let integer_check = type(threshold) == "integer"
 let function_check = type(mapper) == "function"
 let is = integer_check
 let piped = mapped |> list.length()
-fn identity<'a: | integer | string>(value: 'a) -> 'a ! never do value end
+fn identity<'a: | integer | string>(value: 'a) -> 'a ! never
+    value
 let typed_mapper: fn<'a: any>(input: | integer | string) -> 'a ! string = nil
-let generic_lambda = fn<'a: any>(value: 'a) -> 'a ! string do value end
+let generic_lambda = fn<'a: any>(value: 'a) -> 'a ! string
+    value
 let raised = 1
 let no_raise = raised
-fn nested<'a: wrapper<integer>>(value: 'a) -> 'a ! never do value end
+fn nested<'a: wrapper<integer>>(value: 'a) -> 'a ! never
+    value
 let typed_no_raise: fn() -> nil ! never = nil
 let literal_raise: fn() -> nil ! "oops" = nil
 let parsed = string.to_number("42")

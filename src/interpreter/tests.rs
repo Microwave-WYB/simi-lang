@@ -41,10 +41,10 @@ fn expect_raised(source: &str) -> Raised {
 fn callable_generic_constraints_labels_and_effects_are_runtime_erased() {
     let value = evaluate(
         r#"
-fn apply<'a: | integer | string>(callback: fn(input: 'a) -> 'a ! string, value: 'a) -> 'a ! never do
+fn apply<'a: | integer | string>(callback: fn(input: 'a) -> 'a ! string, value: 'a) -> 'a ! never
     callback(value)
-end
-let identity = fn<'a: any>(value: 'a) -> 'a ! string do value end
+let identity = fn<'a: any>(value: 'a) -> 'a ! string
+    value
 apply(identity, 42)
 "#,
     )
@@ -101,7 +101,7 @@ fn expect_runtime_error(source: &str) -> RuntimeError {
 fn evaluates_recursion_and_elseif() {
     let value = evaluate(
         r#"
-                fn countdown(n) do
+                fn countdown(n)
                     if n == 0 then
                         "done"
                     elseif n > 0 then
@@ -109,7 +109,6 @@ fn evaluates_recursion_and_elseif() {
                     else
                         nil
                     end
-                end
                 countdown(4)
             "#,
     )
@@ -130,9 +129,8 @@ fn anonymous_functions_capture_lexical_environments_and_recurse_through_let() {
                 end
             end
             let counter = make_counter(10)
-            let factorial = fn(n) do
+            let factorial = fn(n)
                 if n == 0 then 1 else n * factorial(n - 1) end
-            end
             [counter(2), counter(3), factorial(5)]
         "#,
     )
@@ -144,9 +142,12 @@ fn anonymous_functions_capture_lexical_environments_and_recurse_through_let() {
 #[test]
 fn anonymous_function_names_are_used_for_rendering_arity_and_raise_frames() {
     assert_eq!(
-        evaluate("fn() do nil end")
-            .expect("anonymous function should evaluate")
-            .render(),
+        evaluate(
+            "fn()
+    nil"
+        )
+        .expect("anonymous function should evaluate")
+        .render(),
         "<fn <anonymous>>"
     );
 
@@ -183,7 +184,8 @@ fn missing_else_returns_nil_and_selected_branch_has_child_scope() {
 fn evaluates_field_and_call_chains() {
     let value = evaluate(
         r#"
-                fn identity(value) do value end
+                fn identity(value)
+                    value
                 identity({nested={answer=42}}).nested.answer
             "#,
     )
@@ -196,7 +198,8 @@ fn evaluates_field_and_call_chains() {
 fn pipeline_inserts_input_as_first_argument() {
     let value = evaluate(
         r#"
-                fn add(left, right) do left + right end
+                fn add(left, right)
+                    left + right
                 2 |> add(3)
             "#,
     )
@@ -331,7 +334,8 @@ fn handler_raises_escape_siblings_and_append_the_caught_chain() {
 
 #[test]
 fn handler_reraise_records_a_new_origin_and_freezes_caught_frames_in_its_cause() {
-    let source = r#"fn leaf() do raise "old" end
+    let source = r#"fn leaf()
+    raise "old"
 do leaf()
 catch error =>
     raise error
@@ -386,9 +390,11 @@ end"#;
 
 #[test]
 fn user_function_raises_collect_declared_names_and_call_spans() {
-    let source = r#"fn leaf() do raise "boom" end
+    let source = r#"fn leaf()
+    raise "boom"
 let alias = leaf
-fn middle() do alias() end
+fn middle()
+    alias()
 middle()"#;
     let raised = expect_raised(source);
     let alias_start = source.find("alias()").expect("aliased call should exist");
@@ -412,9 +418,8 @@ middle()"#;
 
 #[test]
 fn recursive_and_pipeline_calls_record_each_entered_invocation() {
-    let recursive = r#"fn recur(n) do
+    let recursive = r#"fn recur(n)
 if n == 0 then raise n else recur(n - 1) end
-end
 recur(2)"#;
     let raised = expect_raised(recursive);
     let recursive_start = recursive
@@ -438,7 +443,8 @@ recur(2)"#;
     );
     assert!(raised.frames.iter().all(|frame| frame.function == "recur"));
 
-    let pipeline = "fn fail(value) do raise value end\n1 |> fail()";
+    let pipeline = "fn fail(value)
+    raise value\n1 |> fail()";
     let raised = expect_raised(pipeline);
     let pipe_start = pipeline.find("|>").expect("pipeline stage should exist");
     assert_eq!(

@@ -69,7 +69,7 @@ fn statement(p: &mut Parser<'_>) {
         if p.block_depth > 0 {
             p.error(
                 "named function declarations are only allowed at the top level; \
-                 use let name = fn(...) do ... end"
+                 use let name = fn(...) expression"
                     .to_owned(),
             );
         }

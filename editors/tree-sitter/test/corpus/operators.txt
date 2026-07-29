@@ -83,9 +83,8 @@ Pipelines, nil-aware stages, tap, and right-associative trailing arguments
 ((pair(4))) <| 5
 values
 ?> tap list.append(0)
-|> iter.map() <| fn(value) do
+|> iter.map() <| fn(value)
   value * 2
-end
 
 pair(1) <| 2
 wrap() <| wrap() <| 3
@@ -124,11 +123,9 @@ end[0]
         (parameters
           (parameter
             (identifier)))
-        (block_expression
-          (block
-            (binary_expression
-              (identifier)
-              (integer)))))))
+        (binary_expression
+          (identifier)
+          (integer)))))
   (trailing_argument_expression
     (call_expression
       (identifier)

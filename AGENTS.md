@@ -42,16 +42,14 @@ The language is dynamically typed. Optional static typing may be explored later,
 
 ### Functions and expressions
 
-Functions use expression-valued bodies and capture lexical environments. Recursion and closures are supported. Named `fn name(...) do ... end` declarations are allowed only as direct source-root items; a nested named declaration is a parse error. Anonymous functions use `fn(parameters) do body end` anywhere an expression is accepted, and a local function—including a recursive one—is written `let name = fn(...) do ... end`.
+Functions use expression-valued bodies and capture lexical environments. Recursion and closures are supported. A function with one expression writes that expression directly after its signature; use `do ... end` only for a zero- or multi-item lexical body, or when it is needed to delimit a nested, protected, or postfix-composed expression. Named `fn name(...)` declarations are allowed only as direct source-root items; a nested named declaration is a parse error. Anonymous functions use `fn(parameters) expression` anywhere an expression is accepted, and a local function—including a recursive one—is written `let name = fn(...) expression`.
 
 ```simi
-fn add(left, right) do
+fn add(left, right)
     left + right
-end
 
-let add_one = fn(value) do
+let add_one = fn(value)
     value + 1
-end
 ```
 
 Blocks and control-flow constructs evaluate to values. `if` supports `elseif` and an optional `else`; a missing branch evaluates to `nil`.
@@ -185,9 +183,8 @@ Pass callbacks directly in the ordinary call form first:
 ```simi
 values
 |> list.iter()
-|> iter.map(fn(value) do
-    value * 2
-end)
+|> iter.map(fn(value)
+    value * 2)
 ```
 
 The right-associative trailing-argument operator `<|` is an optional alternative. It requires a call on its left, appends its right operand as exactly one final argument, and binds more tightly than pipelines. This lets a multiline callback end its own scope without a trailing closing parenthesis:
@@ -304,7 +301,7 @@ Canonical source examples use compact delimiters with spaces after commas and ar
 
 Empty forms remain `{}` and `[]`. Trailing commas are accepted in comma-separated constructs. Write single-line type unions without a leading `|`. For multiline type unions, put every member—including the first—on its own line beginning with `|`.
 
-When a function, case arm, or catch arm has an elided single-expression body, put that body on the following indented line. This is canonical formatting only: newlines and indentation never terminate syntax. Use an explicit `do ... end` body for zero or multiple items.
+When a function, case arm, or catch arm has an elided single-expression body, put that body on the following indented line. This is canonical formatting only: newlines and indentation never terminate syntax. Use an explicit `do ... end` body for zero or multiple items, or when a delimiter is needed to disambiguate nested or postfix composition.
 
 When a multiline pipeline is the right-hand side of a binding, break after `=` and indent the continuation:
 
@@ -312,9 +309,8 @@ When a multiline pipeline is the right-hand side of a binding, break after `=` a
 let doubled =
     values
     |> list.iter()
-    |> iter.map(fn(value) do
-        value * 2
-    end)
+    |> iter.map(fn(value)
+        value * 2)
     |> iter.to_list()
 ```
 

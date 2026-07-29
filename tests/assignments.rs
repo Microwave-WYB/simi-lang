@@ -35,9 +35,8 @@ fn closures_evolve_state_through_mutable_container_fields() {
         r#"
         fn counter() do
             let state = {count = 0}
-            let next = fn() do
+            let next = fn()
                 state.count = state.count + 1
-            end
             next
         end
         let next = counter()
@@ -174,7 +173,12 @@ fn negative_and_wrong_type_list_indices_remain_hard_errors() {
 
 #[test]
 fn invalid_assignment_targets_are_parse_errors() {
-    for source in ["1 = 2", "(1 + 2) = 3", "fn f() do 1 end f() = 2"] {
+    for source in [
+        "1 = 2",
+        "(1 + 2) = 3",
+        "fn f()
+    1 f() = 2",
+    ] {
         assert!(matches!(eval(source), Err(SimiError::Parse(_))));
     }
 }

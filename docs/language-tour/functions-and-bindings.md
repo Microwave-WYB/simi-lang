@@ -84,14 +84,12 @@ Closures make the distinction visible. A function created before the second `let
 
 ```simi
 let value = "first"
-let read_first = fn() do
+let read_first = fn()
     value
-end
 
 let value = "second"
-let read_second = fn() do
+let read_second = fn()
     value
-end
 
 [read_first(), read_second(), value]
 ```
@@ -100,8 +98,10 @@ Bindings remain immutable through closures. To evolve captured state explicitly,
 
 ```simi
 let state: {value: integer} = {value = 1}
-let read_first = fn() do state.value end
-let set_first = fn(next: integer) do state.value = next end
+let read_first = fn()
+    state.value
+let set_first = fn(next: integer)
+    state.value = next
 
 let state = {value = 2}
 state.value = 3
@@ -117,9 +117,8 @@ This precise shadowing rule makes captured state predictable even when a scope r
 A named function uses a declaration:
 
 ```simi
-fn area(width, height) do
+fn area(width, height)
     width * height
-end
 
 area(6, 7)
 ```
@@ -129,9 +128,8 @@ Parameters are fresh bindings for each call. A function captures bindings from i
 ```simi
 let tax_rate = 0.2
 
-fn with_tax(price) do
+fn with_tax(price)
     price + price * tax_rate
-end
 
 with_tax(50)
 ```
@@ -142,13 +140,12 @@ Named declarations are allowed only as direct source-root items. Inside a functi
 
 ```simi
 fn make_countdown(start) do
-    let countdown = fn(value) do
+    let countdown = fn(value)
         if value <= 0 then
             0
         else
             countdown(value - 1)
         end
-    end
     countdown(start)
 end
 
@@ -160,9 +157,8 @@ make_countdown(3)
 An anonymous function is an expression and may appear anywhere an expression is accepted:
 
 ```simi
-let double = fn(value) do
+let double = fn(value)
     value * 2
-end
 
 double(21)
 ```
@@ -171,18 +167,23 @@ It can be stored in a container or called immediately:
 
 ```simi
 let operations = [
-    fn(value) do value + 1 end,
-    fn(value) do value * 3 end,
+    fn(value)
+        value + 1,
+    fn(value)
+        value * 3,
 ]
 
-[operations[0](4), fn(value) do value * value end(5)]
+[operations[0](4), fn(value)
+    value * value(5)]
 ```
 
 Anonymous functions are ordinary function values, just like named functions and host-provided native functions. The builtin `type` reports `"function"` for all of them:
 
 ```simi
-fn named(value) do value end
-let anonymous = fn(value) do value end
+fn named(value)
+    value
+let anonymous = fn(value)
+    value
 [type(named), type(anonymous), type(inspect)]
 ```
 
@@ -191,11 +192,9 @@ let anonymous = fn(value) do value end
 A function may outlive the call that created it while retaining access to that call's lexical bindings. Such a function is a closure:
 
 ```simi
-fn make_adder(base) do
-    fn(value) do
+fn make_adder(base)
+    fn(value)
         base + value
-    end
-end
 
 let add_two = make_adder(2)
 let add_ten = make_adder(10)
@@ -207,9 +206,8 @@ Captured bindings remain immutable. Separate calls can still retain separate exp
 ```simi
 fn make_counter(start: integer) do
     let state: {count: integer} = {count = start}
-    fn() do
+    fn()
         state.count = state.count + 1
-    end
 end
 
 let first = make_counter(0)
@@ -224,13 +222,11 @@ The field assignment is also the body’s final expression, so each call returns
 Higher-order functions accept or return other functions. Callbacks are passed directly like any other value:
 
 ```simi
-fn apply_twice(callback, value) do
+fn apply_twice(callback, value)
     callback(callback(value))
-end
 
-fn increment(value) do
+fn increment(value)
     value + 1
-end
 
 apply_twice(increment, 40)
 ```
@@ -238,11 +234,9 @@ apply_twice(increment, 40)
 A function factory returns a closure selected by its captured arguments:
 
 ```simi
-fn make_multiplier(factor) do
-    fn(value) do
+fn make_multiplier(factor)
+    fn(value)
         value * factor
-    end
-end
 
 let triple = make_multiplier(3)
 triple(14)
@@ -258,9 +252,8 @@ Labels in a callable type are documentation metadata, not named call arguments:
 
 ```simi
 let subtract: fn(left: integer, right: integer) -> integer ! never =
-    fn(left: integer, right: integer) -> integer ! never do
+    fn(left: integer, right: integer) -> integer ! never
         left - right
-    end
 
 subtract(10, 3)
 ```

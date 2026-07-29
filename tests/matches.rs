@@ -210,14 +210,13 @@ fn list_rest_uses_independent_cow_views_while_preserving_alias_groups() {
 fn recursive_head_tail_matching_handles_longer_lists() {
     assert_eval(
         r#"
-        fn count(values) do
+        fn count(values)
             case values of
                 [] =>
                     0
                 [_, ..rest] =>
                     1 + count(rest)
             end
-        end
         count([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15])
         "#,
         "16",

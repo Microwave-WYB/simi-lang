@@ -264,7 +264,10 @@ fn portable_prelude_values_are_direct_shadowable_and_share_require_identity() {
     assert_eq!(value.render(), "42");
 
     let value = Engine::new()
-        .eval("fn identity(require) do require end identity(43)")
+        .eval(
+            "fn identity(require)
+    require identity(43)",
+        )
         .expect("parameter-shadowed require should have no hard diagnostic")
         .expect("parameter-shadowed require should not raise");
     assert_eq!(value.render(), "43");
@@ -422,7 +425,8 @@ fn remaining_standard_modules_are_requireable() {
 fn global_type_reports_every_runtime_value_category() {
     let value = eval(
         r#"
-        fn sample() do nil end
+        fn sample()
+            nil
         [
             type(1),
             type(1.5),
@@ -553,7 +557,8 @@ fn source_facades_evaluate_with_generated_functions_and_data_in_private_host() {
         r#"
             let add: fn(integer, integer) -> integer = host.add
             let answer: integer = host.answer
-            fn doubled_answer() do add(answer, answer) end
+            fn doubled_answer()
+                add(answer, answer)
             {add = add, answer = answer, doubled_answer = doubled_answer}
         "#,
     )
@@ -613,12 +618,16 @@ fn direct_native_aliases_avoid_facade_function_wrappers() {
 
 #[test]
 fn shadowed_host_names_remain_ordinary_simi_functions() {
-    let module = Module::source("shadowed-host", "fn invoke(host) do host.fail() end invoke")
-        .host(simi::host_value! {
-            name: "shadowed-host",
-            values: { "label" => Value::String("private".to_owned()) },
-        })
-        .build();
+    let module = Module::source(
+        "shadowed-host",
+        "fn invoke(host)
+    host.fail() invoke",
+    )
+    .host(simi::host_value! {
+        name: "shadowed-host",
+        values: { "label" => Value::String("private".to_owned()) },
+    })
+    .build();
     let engine = Engine::builder().module(module).build();
     assert_eq!(
         engine
@@ -630,7 +639,10 @@ fn shadowed_host_names_remain_ordinary_simi_functions() {
     );
 
     let raised = match engine
-        .eval("let invoke = require(\"shadowed-host\") invoke({fail = fn() do raise \"boom\" end})")
+        .eval(
+            "let invoke = require(\"shadowed-host\") invoke({fail = fn()
+    raise \"boom\"})",
+        )
         .unwrap()
     {
         Err(raised) => raised,
@@ -646,11 +658,15 @@ fn overridden_and_arbitrary_host_functions_keep_public_trace_boundaries() {
     for (name, source) in [
         (
             "shadowed-before",
-            "let host = {fail = fn() do raise \"boom\" end} fn invoke() do host.fail() end invoke",
+            "let host = {fail = fn()
+    raise \"boom\"} fn invoke()
+    host.fail() invoke",
         ),
         (
             "mutated-after",
-            "fn invoke() do host.fail() end host.fail = fn() do raise \"boom\" end invoke",
+            "fn invoke()
+    host.fail() host.fail = fn()
+    raise \"boom\" invoke",
         ),
     ] {
         let engine = Engine::builder()
@@ -682,7 +698,10 @@ fn overridden_and_arbitrary_host_functions_keep_public_trace_boundaries() {
 
     let producer = Engine::new();
     let user_function = producer
-        .eval("fn fail() do raise \"host boom\" end fail")
+        .eval(
+            "fn fail()
+    raise \"host boom\" fail",
+        )
         .unwrap()
         .unwrap();
     let direct_user_function = user_function.clone();
@@ -699,7 +718,9 @@ fn overridden_and_arbitrary_host_functions_keep_public_trace_boundaries() {
         .module(
             Module::source(
                 "arbitrary-functions",
-                "fn invoke() do host.fail() end fn load() do host.load(\"absent\") end {invoke = invoke, load = load}",
+                "fn invoke()
+    host.fail() fn load()
+    host.load(\"absent\") {invoke = invoke, load = load}",
             )
             .host(simi::host_value! {
                 name: "arbitrary-functions",
@@ -753,7 +774,9 @@ fn nested_source_module_frames_collapse_to_the_public_boundary() {
         .module(
             Module::source(
                 "nested-frames",
-                "fn inner() do raise \"boom\" end fn outer() do inner() end outer",
+                "fn inner()
+    raise \"boom\" fn outer()
+    inner() outer",
             )
             .build(),
         )
@@ -869,7 +892,8 @@ fn source_modules_reject_missing_host_values_and_raise_for_cycles() {
     let missing = Module::source(
         "missing-host",
         r#"
-        fn call() do host.missing() end
+        fn call()
+            host.missing()
         {call = call}
         "#,
     )
@@ -1089,8 +1113,10 @@ fn source_module_failures_are_attributed_to_the_public_boundary() {
             Module::source(
                 "failing",
                 r#"
-                fn raised() do raise "module raise" end
-                fn hard() do nil + 1 end
+                fn raised()
+                    raise "module raise"
+                fn hard()
+                    nil + 1
                 { raised = raised, hard = hard }
                 "#,
             )

@@ -2,10 +2,12 @@
 Callable generics, constraints, labels, effects, and leading unions
 ==================
 
-fn identity<'a: | integer | string>(value: 'a) -> 'a ! never do value end
+fn identity<'a: | integer | string>(value: 'a) -> 'a ! never
+  value
 let mapper: fn<'a, 'error: { error: string, .. }>(value: 'a) -> 'a ! 'error = nil
 let callback: fn(input: | integer | string, state: [..integer]) -> nil = nil
-let anonymous = fn<'a: any>(value: 'a) -> 'a ! string do value end
+let anonymous = fn<'a: any>(value: 'a) -> 'a ! string
+  value
 
 ---
 
@@ -37,9 +39,7 @@ let anonymous = fn<'a: any>(value: 'a) -> 'a ! string do value end
         (union_type
           (named_type
             (identifier)))))
-    (block_expression
-      (block
-        (identifier))))
+    (identifier))
   (let_statement
     (identifier)
     (type_annotation
@@ -125,9 +125,7 @@ let anonymous = fn<'a: any>(value: 'a) -> 'a ! string do value end
           (union_type
             (named_type
               (identifier)))))
-      (block_expression
-        (block
-          (identifier))))))
+      (identifier))))
 
 ==================
 Effect tail binds to nearest arrow

@@ -9,22 +9,23 @@ alias pair<'a, 'b> = ['a, 'b]
 let typed_value: option<string> = nil
 let typed_record: { name: string, .. } = { name = "Simi" }
 
-fn typed_identity<'a: | integer | string>(value: 'a) -> 'a ! never do
+fn typed_identity<'a: | integer | string>(value: 'a) -> 'a ! never
     value
-end
 
 let typed_callback: fn<'a: any>(input: | integer | string) -> 'a ! string = nil
-let typed_lambda = fn<'a: any>(value: 'a) -> 'a ! string do value end
+let typed_lambda = fn<'a: any>(value: 'a) -> 'a ! string
+    value
 
 fn declared_effect(
     xs: [..integer],
     pair: [integer, string],
-) -> nil do nil end
+) -> nil
+    nil
 
 
 let iter = require("std/iter")
 
-fn classify(value) do
+fn classify(value)
     case value of
         [first, ..rest] when first >= 1 =>
             { kind = "positive\n", value = first, rest = rest }
@@ -38,9 +39,8 @@ fn classify(value) do
         _ =>
             nil
     end
-end
 
-let transform = fn(value) do
+let transform = fn(value)
     if value == 0 then
         false
     elseif value != 1 and not false then
@@ -48,7 +48,6 @@ let transform = fn(value) do
     else
         value * 2 + 1 // 2 % 3
     end
-end
 
 let values = [1, 2.5e1, 0x_ff, 0b_1010, 1_000.25, 3]
 let spread_values = [0, ..values, 4]
@@ -57,10 +56,10 @@ let optional = do result? end
 let concatenated = "Simi" <> " language"
 let has_runtime_label = type(result) == "list"
 let is = has_runtime_label
-let final = iter.fold_while(iter.repeat_with(fn() do 1 end), 0, fn(state, _) do
+let final = iter.fold_while(iter.repeat_with(fn()
+    1), 0, fn(state, _)
     if state < 2 or state <= -1 then iter.continue(state + 1)
-    else iter.break(state) end
-end)
+    else iter.break(state) end)
 let ranged_pairs = iter.zip_longest(iter.range(0, 2), iter.once(final), nil)
 let indexed_pairs = iter.enumerate(iter.take(iter.drop(ranged_pairs, 0), 2))
 

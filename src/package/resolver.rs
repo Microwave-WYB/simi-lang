@@ -1343,7 +1343,8 @@ let string = require("std/string")
         .unwrap();
         fs::write(
             package_root.join("tools.simi"),
-            "let require = fn(path) do 42 end\nrequire(\"./missing.simi\")",
+            "let require = fn(path)
+    42\nrequire(\"./missing.simi\")",
         )
         .unwrap();
         let app = root.join("app.simi");

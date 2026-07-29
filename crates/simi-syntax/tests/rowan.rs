@@ -77,7 +77,8 @@ fn bytes_patterns_are_lossless_typed_patterns_and_recover() {
         4
     );
 
-    let source = "case value of #[rest:bytes, later] => nil end fn later() do nil end";
+    let source = "case value of #[rest:bytes, later] => nil end fn later()
+    nil";
     let parse = parse_source(source);
     assert!(
         parse
@@ -251,7 +252,11 @@ fn malformed_list_spreads_recover_before_later_declarations() {
 
 #[test]
 fn malformed_bytes_literals_recover_before_later_declarations() {
-    for source in ["#\nfn later() do nil end", "#[1 fn later() do nil end"] {
+    for source in [
+        "#\nfn later() do nil end",
+        "#[1 fn later()
+    nil",
+    ] {
         let parse = parse_source(source);
         assert!(
             parse
@@ -353,7 +358,8 @@ fn erased_type_surface_is_lossless_and_alias_is_contextual() {
         "let alias = 1\n",
         "alias option<'a> = 'a | nil\n",
         "let value: option<string> = nil\n",
-        "fn apply(values: [integer, string], output: [..string]) -> nil do nil end\n",
+        "fn apply(values: [integer, string], output: [..string]) -> nil
+    nil\n",
         "let record: { name: string, [string | integer]: boolean, .. } = {}\n",
     );
     let parse = parse_source(source);
@@ -384,10 +390,12 @@ fn erased_type_surface_is_lossless_and_alias_is_contextual() {
 #[test]
 fn callable_generics_labels_effects_and_leading_unions_are_lossless() {
     let source = concat!(
-        "fn identity<'a: | integer | string>(value: 'a) -> 'a ! never do value end\n",
+        "fn identity<'a: | integer | string>(value: 'a) -> 'a ! never
+    value\n",
         "let mapper: fn<'a, 'error: { error: string, .. }>(value: 'a) -> 'a ! 'error = nil\n",
         "let callback: fn(input: | integer | string, state: [..integer]) -> nil = nil\n",
-        "let anonymous = fn<'a: any>(value: 'a) -> 'a ! string do value end\n",
+        "let anonymous = fn<'a: any>(value: 'a) -> 'a ! string
+    value\n",
     );
     let parse = parse_source(source);
     assert!(parse.diagnostics().is_empty(), "{:?}", parse.diagnostics());
@@ -455,8 +463,10 @@ fn legacy_callable_types_are_rejected() {
     }
 
     for source in [
-        "fn old() -> nil noraise do nil end",
-        "fn old() -> nil raises string do nil end",
+        "fn old() -> nil noraise
+    nil",
+        "fn old() -> nil raises string
+    nil",
     ] {
         let parse = parse_source(source);
         assert!(!parse.diagnostics().is_empty(), "{source}");
@@ -471,7 +481,10 @@ fn legacy_callable_types_are_rejected() {
         );
     }
 
-    let effect = parse_source("fn bad() ! string do nil end");
+    let effect = parse_source(
+        "fn bad() ! string
+    nil",
+    );
     assert!(effect.diagnostics().iter().any(|diagnostic| {
         diagnostic
             .message
@@ -483,11 +496,13 @@ fn legacy_callable_types_are_rejected() {
 fn malformed_callable_effects_recover_before_following_bodies_and_declarations() {
     let cases = [
         (
-            "fn bad() -> nil ! do nil end\nlet after = 1",
+            "fn bad() -> nil !
+    nil\nlet after = 1",
             "expected a raised type after `!`",
         ),
         (
-            "fn bad() -> nil ! [..] do nil end\nlet after = 1",
+            "fn bad() -> nil ! [..]
+    nil\nlet after = 1",
             "expected type, found `]`",
         ),
         (
@@ -658,7 +673,10 @@ fn map_pattern_binding_shorthand_is_accepted() {
 
 #[test]
 fn callable_post_state_syntax_is_rejected() {
-    let parse = parse_source("fn append(xs: [..integer] => [..integer]) -> nil do nil end\n");
+    let parse = parse_source(
+        "fn append(xs: [..integer] => [..integer]) -> nil
+    nil\n",
+    );
     assert!(parse.diagnostics().iter().any(|diagnostic| {
         diagnostic.message.contains("found `=>`") || diagnostic.message.contains("expected `)`")
     }));
@@ -666,8 +684,8 @@ fn callable_post_state_syntax_is_rejected() {
 
 #[test]
 fn nested_named_function_declarations_are_rejected_at_the_fn_token() {
-    let source =
-        "fn outer() do\n    fn inner() do nil end\n    inner\nend\nfn later() do nil end\n";
+    let source = "fn outer() do\n    fn inner()
+    nil\n    inner\nend\nfn later() do nil end\n";
     let parse = parse_source(source);
     assert_eq!(parse.syntax().to_string(), source);
     assert_eq!(parse.diagnostics().len(), 1, "{:?}", parse.diagnostics());
@@ -679,7 +697,7 @@ fn nested_named_function_declarations_are_rejected_at_the_fn_token() {
     assert_eq!(
         diagnostic.message,
         "named function declarations are only allowed at the top level; \
-         use let name = fn(...) do ... end"
+         use let name = fn(...) expression"
     );
     // Lossless recovery keeps the nested declaration node and still parses the
     // later top-level declaration.
@@ -705,9 +723,12 @@ fn nested_named_function_declarations_are_rejected_at_the_fn_token() {
 #[test]
 fn named_function_declarations_in_do_and_conditional_blocks_are_rejected() {
     for source in [
-        "do\n    fn helper() do nil end\nend\n",
-        "if ready then\n    fn helper() do nil end\nend\n",
-        "if ready then\n    nil\nelse\n    fn helper() do nil end\nend\n",
+        "do\n    fn helper()
+    nil\nend\n",
+        "if ready then\n    fn helper()
+    nil\nend\n",
+        "if ready then\n    nil\nelse\n    fn helper()
+    nil\nend\n",
     ] {
         let parse = parse_source(source);
         assert_eq!(parse.syntax().to_string(), source);
@@ -724,7 +745,10 @@ fn named_function_declarations_in_do_and_conditional_blocks_are_rejected() {
 
 #[test]
 fn top_level_named_function_declarations_remain_accepted() {
-    let parse = parse_source("fn add(left, right) do left + right end\nadd(1, 2)\n");
+    let parse = parse_source(
+        "fn add(left, right)
+    left + right\nadd(1, 2)\n",
+    );
     assert!(parse.diagnostics().is_empty(), "{:?}", parse.diagnostics());
 }
 

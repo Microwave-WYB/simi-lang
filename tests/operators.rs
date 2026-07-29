@@ -129,7 +129,8 @@ fn every_zero_divisor_raises_the_same_structural_value() {
 
 #[test]
 fn division_by_zero_preserves_origin_and_function_frames() {
-    let source = "fn divide() do 1 / 0 end divide()";
+    let source = "fn divide()
+    1 / 0 divide()";
     let raised = match eval(source).expect("source should have no hard diagnostic") {
         Err(raised) => raised,
         Ok(value) => panic!("division should raise, got {}", value.render()),
@@ -151,8 +152,10 @@ fn numeric_type_overflow_and_non_finite_failures_remain_hard() {
 fn trailing_argument_appends_to_calls_and_composes_with_pipelines() {
     let result = value(
         r#"
-        fn pair(left, right) do [left, right] end
-        fn wrap(value) do [value] end
+        fn pair(left, right)
+            [left, right]
+        fn wrap(value)
+            [value]
         let assigned = pair(6) <| 7
         [
             pair(1) <| 2,
@@ -167,7 +170,11 @@ fn trailing_argument_appends_to_calls_and_composes_with_pipelines() {
 
 #[test]
 fn trailing_argument_is_right_associative_and_requires_call_left_operands() {
-    for source in ["1 <| 2", "fn f(a, b) do a end f() <| 1 <| 2"] {
+    for source in [
+        "1 <| 2",
+        "fn f(a, b)
+    a f() <| 1 <| 2",
+    ] {
         let error = match eval(source) {
             Err(error) => error,
             Ok(_) => panic!("invalid trailing argument should fail to parse"),
@@ -198,7 +205,8 @@ fn trailing_argument_preserves_callee_then_argument_evaluation_order() {
         end
         fn choose() do
             mark(0)
-            fn(first, second) do [first, second] end
+            fn(first, second)
+                [first, second]
         end
         let result = choose()(mark(1)) <| mark(2)
         [events, result]

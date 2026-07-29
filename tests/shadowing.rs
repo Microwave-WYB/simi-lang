@@ -5,9 +5,11 @@ fn repeated_let_creates_a_new_binding_while_closures_keep_the_old_one() {
     let value = eval(
         r#"
 let value = 1
-let before = fn() do value end
+let before = fn()
+    value
 let value = value + 1
-let read_after = fn() do value end
+let read_after = fn()
+    value
 [before(), read_after(), value]
 "#,
     )
@@ -22,8 +24,10 @@ fn container_mutation_updates_the_binding_version_selected_by_each_lexical_view(
     let value = eval(
         r#"
 let value = {n = 1}
-let get_before = fn() do value.n end
-let set_before = fn(next) do value.n = next end
+let get_before = fn()
+    value.n
+let set_before = fn(next)
+    value.n = next
 let value = {n = 2}
 value.n = 3
 set_before(4)
@@ -40,7 +44,8 @@ set_before(4)
 fn forward_capture_survives_an_intervening_same_scope_shadow() {
     let value = eval(
         r#"
-let read_later = fn() do later end
+let read_later = fn()
+    later
 let value = 1
 let value = 2
 let later = 3
@@ -57,7 +62,8 @@ read_later()
 fn mixed_destructuring_shadow_backfills_fresh_siblings() {
     let value = eval(
         r#"
-let read_fresh = fn() do fresh end
+let read_fresh = fn()
+    fresh
 let old = 1
 let [old, fresh] = [2, 3]
 [old, read_fresh()]

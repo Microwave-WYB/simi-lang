@@ -112,12 +112,11 @@ fn pair_adapters_do_not_pull_sources_when_constructed() {
     assert_eval(
         r#"
         let state = {calls = 0}
-        fn source() do
+        fn source()
             iter.repeat_with(fn() do
                 state.calls = state.calls + 1
                 state.calls
             end)
-        end
         let enumerated = iter.enumerate(source())
         let zipped = iter.zip(source(), iter.once(1))
         let longest = iter.zip_longest(iter.empty(), source(), nil)
@@ -140,7 +139,8 @@ fn source_raises_propagate_through_new_adapters() {
     ] {
         let source = format!(
             r#"
-            let source = iter.from(fn() do raise {{ error = "source_failed" }} end)
+            let source = iter.from(fn()
+    raise {{ error = "source_failed" }})
             {expression}
             "#
         );

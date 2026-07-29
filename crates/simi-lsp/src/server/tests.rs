@@ -263,7 +263,8 @@ fn syntax_diagnostics_use_structured_gleam_style_presentation() {
 
 #[test]
 fn nested_named_function_declarations_publish_a_diagnostic_at_the_fn_token() {
-    let source = "fn outer() do\n    fn inner() do nil end\nend";
+    let source = "fn outer() do\n    fn inner()
+    nil\nend";
     let mut backend = Backend::new();
     let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
     assert_eq!(diagnostics.diagnostics.len(), 1);
@@ -275,7 +276,7 @@ fn nested_named_function_declarations_publish_a_diagnostic_at_the_fn_token() {
     assert_eq!(
         diagnostic.message,
         "Syntax error\n\nNamed function declarations are only allowed at the top level; \
-         use let name = fn(...) do ... end."
+         use let name = fn(...) expression."
     );
     assert_eq!(diagnostic.range.start, text_position(source, "fn inner", 0));
     assert_eq!(
@@ -429,7 +430,8 @@ fn requires_keyword_has_completion_and_hover_help() {
 
 #[test]
 fn same_scope_shadows_are_diagnostic_free_and_navigate_by_binding_version() {
-    let source = "let closure = fn() do later end let later = 1 let later = 2 later";
+    let source = "let closure = fn()
+    later let later = 1 let later = 2 later";
     let mut backend = Backend::new();
     let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
     assert!(diagnostics.diagnostics.is_empty());
@@ -705,7 +707,8 @@ fn list_spread_hover_reports_the_flattened_exact_shape() {
 fn module_members_show_source_signatures_and_plain_text_docs() {
     let module = r#"
 --- Append one value.
-fn append(xs, x) do nil end
+fn append(xs, x)
+    nil
 { append = append }
 "#;
     let mut backend = Backend::with_module_sources([("std/list", module)]);
@@ -764,7 +767,8 @@ fn module_documentation_appears_on_require_literals_and_module_bindings() {
 ---- Standard output operations.
 ---- Values are flushed automatically.
 
-fn println(value) do nil end
+fn println(value)
+    nil
 { println = println }
 "#;
     let source = "let stdout = require(\"std/io\") stdout";
@@ -805,10 +809,12 @@ fn println(value) do nil end
 fn direct_module_fields_and_aliases_keep_signatures_and_docs() {
     let module = r#"
 --- Print one value.
-fn println(value) do nil end
+fn println(value)
+    nil
 --- Inspect text through a native alias.
 let inspect: fn(string) -> string ! never = host.inspect
-{ println = println, identity = fn(value) do value end, inspect = inspect }
+{ println = println, identity = fn(value)
+    value, inspect = inspect }
 "#;
 
     for (source, needle, occurrence, expected) in [
@@ -891,7 +897,8 @@ let inspect: fn(string) -> string ! never = host.inspect
 
     let typed_source = concat!(
         "let inspect = require(\"std/io\").inspect\n",
-        "let callback: fn(integer) -> integer = fn(value) do value end\n",
+        "let callback: fn(integer) -> integer = fn(value)
+    value\n",
     );
     let mut backend = Backend::with_module_sources([("std/io", module)]);
     open(&mut backend, typed_source);
@@ -957,7 +964,8 @@ let inspect: fn(string) -> string ! never = host.inspect
 fn nested_module_hover_and_utf16_member_completion_use_catalog_without_diagnostics() {
     let module = r#"
 --- Run a nested operation.
-fn run(value) do value end
+fn run(value)
+    value
 { nested = { run = run } }
 "#;
     let complete = "let emoji = \"😀\"\nlet module = require(\"nested\")\nmodule.nested.run";
@@ -1155,12 +1163,10 @@ fn real_iterator_facades_publish_no_diagnostics() {
 
 #[test]
 fn bytes_annotations_and_type_narrowing_hover_as_the_primitive_type() {
-    let source = r#"fn first(value: bytes) do
+    let source = r#"fn first(value: bytes)
     value[0]
-end
-fn classify(value: bytes | string) do
+fn classify(value: bytes | string)
     if type(value) == "bytes" then value[0] else value end
-end
 "#;
     let mut backend = Backend::new();
     let published = diagnostics_from(open(&mut backend, source).remove(0));
@@ -1448,20 +1454,24 @@ let io = require("std/io")
 let total =
     [1, 2, 3]
     |> list.iter()
-    |> iter.fold(0, fn(acc, item) do acc + item end)
+    |> iter.fold(0, fn(acc, item)
+        acc + item)
 let rendered = total |> number.to_string()
 let mapped =
     [1, 2, 3]
     |> list.iter()
-    |> iter.map(fn(mapped_item) do mapped_item + 1 end)
+    |> iter.map(fn(mapped_item)
+        mapped_item + 1)
     |> iter.to_list()
 let keys =
     map.iter({first = 1})
-    |> iter.map(fn(entry) do entry.key end)
+    |> iter.map(fn(entry)
+        entry.key)
     |> iter.to_list()
 [1, 2, 3, 4, 5]
 |> list.iter()
-|> iter.fold(0, fn(acc, n) do acc + n end)
+|> iter.fold(0, fn(acc, n)
+    acc + n)
 |> number.to_string()
 |> io.println()
 "#;
@@ -1514,11 +1524,12 @@ let keys =
 
 #[test]
 fn generic_callback_without_element_evidence_has_exact_empty_list_hovers() {
-    let source = r#"fn bridge<'state>(initial: 'state, callback: fn('state) -> 'state) -> 'state do
+    let source = r#"fn bridge<'state>(initial: 'state, callback: fn('state) -> 'state) -> 'state
     callback(initial)
-end
-let inferred = bridge([], fn(xs) do xs end)
-let unchanged: [] = bridge([], fn(other) do other end)
+let inferred = bridge([], fn(xs)
+    xs)
+let unchanged: [] = bridge([], fn(other)
+    other)
 "#;
     let mut backend = Backend::new();
     let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
@@ -1608,11 +1619,11 @@ fn two_sum(values: [..integer], target: integer)
 
 #[test]
 fn contextual_empty_map_capture_and_nil_delete_hovers_remain_exact() {
-    let source = r#"fn bridge<'state>(initial: 'state, callback: fn('state) -> 'state) -> 'state do
+    let source = r#"fn bridge<'state>(initial: 'state, callback: fn('state) -> 'state) -> 'state
     callback(initial)
-end
 let captured = bridge({}, fn(state) do
-    let mutate = fn(key) do state[key] = 1 end
+    let mutate = fn(key)
+        state[key] = 1
     state
 end)
 let deleted = bridge({}, fn(state) do
@@ -1620,7 +1631,8 @@ let deleted = bridge({}, fn(state) do
     state[key] = nil
     state
 end)
-let unchanged = bridge({}, fn(state) do state end)
+let unchanged = bridge({}, fn(state)
+    state)
 "#;
     let mut backend = Backend::new();
     let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
@@ -1660,14 +1672,13 @@ alias number = integer | float
 fn partition(ns: [..number], pivot: number)
     ns
     |> list.iter()
-    |> iter.fold({lower=[], higher=[]}) <| fn(acc, n) do
+    |> iter.fold({lower=[], higher=[]}) <| fn(acc, n)
         case acc of
             {lower, higher} when n < pivot =>
                 {lower=lower |> tap list.append(n), higher}
             {lower, higher} =>
                 {lower, higher=higher |> tap list.append(n)}
         end
-    end
 "#;
     let mut backend = Backend::with_module_sources([
         ("std/list", include_str!("../../../../stdlib/list.simi")),
@@ -1824,9 +1835,8 @@ fn literal_require_call_hover_uses_the_evaluated_module_type() {
 
 #[test]
 fn hover_reports_branch_narrowed_symbol_types() {
-    let source = r#"fn classify(value: integer | string) do
-    if type(value) == "integer" then value else value end
-end"#;
+    let source = r#"fn classify(value: integer | string)
+    if type(value) == "integer" then value else value end"#;
     let mut backend = Backend::default();
     let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
     assert!(diagnostics.diagnostics.is_empty());
@@ -1923,9 +1933,12 @@ value"#;
 #[test]
 fn typed_hover_uses_type_only_simi_code_blocks() {
     let source = r#"
-fn process(n) do n + 1 end
-fn increment(n: integer) do n + 1 end
-fn identity(value) do value end
+fn process(n)
+    n + 1
+fn increment(n: integer)
+    n + 1
+fn identity(value)
+    value
 let selected = identity("text")
 let values = [1, "two"]
 let indexed: { [string]: integer } = { answer = 42 }
@@ -1998,9 +2011,9 @@ fn raised_contract_diagnostics_and_hover_use_protocol_types() {
 #[test]
 fn callable_or_nil_hover_roundtrips_through_annotation() {
     let source = r#"
-fn nullable(flag: boolean) do
-    if flag then fn(value: integer) do value end end
-end
+fn nullable(flag: boolean)
+    if flag then fn(value: integer)
+        value end
 "#;
     let mut backend = Backend::new();
     let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
@@ -2089,7 +2102,8 @@ fn type_errors_are_published_and_clear_after_incremental_repair() {
         "let declared: integer = \"wrong\"\n",
         "let bad_operator = \"x\" + 1\n",
         "let not_callable = 1(2)\n",
-        "fn one(value: integer) -> integer do value end\n",
+        "fn one(value: integer) -> integer
+    value\n",
         "one()\n",
     );
     let mut backend = Backend::new();
@@ -2414,7 +2428,8 @@ fn destructuring_let_certainty_diagnostics_publish_warnings_and_errors() {
 
 #[test]
 fn registered_portable_builtins_hover_with_module_shape_type() {
-    let module = "fn append(xs, x) do nil end { append = append }";
+    let module = "fn append(xs, x)
+    nil { append = append }";
     let source = "list";
     let mut backend = Backend::with_module_sources([("std/list", module)]);
     open(&mut backend, source);
@@ -2465,7 +2480,8 @@ fn bare_portable_builtins_hover_as_any_when_not_registered() {
 
 #[test]
 fn portable_builtin_member_completion_when_registered() {
-    let module = "fn append(xs, x) do nil end { append = append }";
+    let module = "fn append(xs, x)
+    nil { append = append }";
     let source = "list.";
     let mut backend = Backend::with_module_sources([("std/list", module)]);
     open(&mut backend, source);
@@ -2490,7 +2506,8 @@ fn portable_builtin_member_completion_when_registered() {
 
 #[test]
 fn shadowed_builtin_does_not_export_module_members() {
-    let module = "fn append(xs, x) do nil end { append = append }";
+    let module = "fn append(xs, x)
+    nil { append = append }";
     let source = "let list = 42\nlist.";
     let mut backend = Backend::with_module_sources([("std/list", module)]);
     open(&mut backend, source);
@@ -2516,7 +2533,8 @@ fn shadowed_builtin_does_not_export_module_members() {
 fn require_alias_retains_precise_member_metadata_with_registered_shape() {
     let module = r#"
 --- Append one value.
-fn append(xs, x) do nil end
+fn append(xs, x)
+    nil
 { append = append }
 "#;
     let source = "let list = require(\"std/list\") list.append";

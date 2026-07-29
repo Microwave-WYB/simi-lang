@@ -12,9 +12,9 @@ fn evaluate(source: &str) -> Value {
 fn anonymous_functions_support_closures_immediate_calls_and_nesting() {
     let value = evaluate(
         r#"
-            let make_adder = fn(base) do
-                fn(value) do base + value end
-            end
+            let make_adder = fn(base)
+                fn(value)
+                    base + value
             let add_two = make_adder(2)
             [add_two(5), fn(value) do value * 2 end(6)]
         "#,
@@ -27,10 +27,10 @@ fn anonymous_functions_support_closures_immediate_calls_and_nesting() {
 fn anonymous_functions_recurse_through_let_and_compose_as_primary_expressions() {
     let value = evaluate(
         r#"
-            let factorial = fn(n) do
+            let factorial = fn(n)
                 if n == 0 then 1 else n * factorial(n - 1) end
-            end
-            fn apply(callable, value) do callable(value) end
+            fn apply(callable, value)
+                callable(value)
             let piped = fn(value) do value + 1 end |> apply(4)
             let indexed = [fn(value) do value * 3 end][0](5)
             [factorial(6), piped, indexed]
@@ -42,7 +42,14 @@ fn anonymous_functions_recurse_through_let_and_compose_as_primary_expressions() 
 
 #[test]
 fn anonymous_function_rendering_and_diagnostics_use_the_anonymous_name() {
-    assert_eq!(evaluate("fn() do nil end").render(), "<fn <anonymous>>");
+    assert_eq!(
+        evaluate(
+            "fn()
+    nil"
+        )
+        .render(),
+        "<fn <anonymous>>"
+    );
 
     match eval("fn(value) do value end()") {
         Err(SimiError::Runtime(error)) => assert_eq!(
@@ -65,7 +72,8 @@ fn anonymous_function_rendering_and_diagnostics_use_the_anonymous_name() {
 
 #[test]
 fn malformed_anonymous_functions_report_exact_parse_spans() {
-    let source = "let f = fn(value, value) do value end";
+    let source = "let f = fn(value, value)
+    value";
     match eval(source) {
         Err(SimiError::Parse(error)) => {
             assert_eq!(error.message, "duplicate parameter `value`");
@@ -111,13 +119,14 @@ fn local_recursion_uses_let_bound_anonymous_functions() {
 
 #[test]
 fn nested_named_function_declarations_are_parse_errors() {
-    let source = "fn outer() do\n    fn inner() do nil end\nend";
+    let source = "fn outer() do\n    fn inner()
+    nil\nend";
     match eval(source) {
         Err(SimiError::Parse(error)) => {
             assert_eq!(
                 error.message,
                 "named function declarations are only allowed at the top level; \
-                 use let name = fn(...) do ... end"
+                 use let name = fn(...) expression"
             );
             let start = source.find("fn inner").expect("nested declaration offset");
             assert_eq!((error.span.start, error.span.end), (start, start + 2));

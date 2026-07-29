@@ -29,7 +29,7 @@ fn direct_function_and_case_bodies_are_whitespace_independent() {
 #[test]
 fn protected_do_and_direct_catch_body_preserve_raise_semantics() {
     assert_eval(
-        "fn recover() do raise \"x\" catch _ => 1 end recover()",
+        "fn recover()\n    do raise \"x\" catch _ => 1 end\nrecover()",
         "1",
     );
     assert_eval("case 1 of _ => do raise \"x\" catch _ => 2 end end", "2");

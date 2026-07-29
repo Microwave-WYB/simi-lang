@@ -46,7 +46,8 @@ fn iterator_loop_propagates_raises_and_rejects_malformed_controls() {
     let raised = match eval(
         r#"
         let iter = require("std/iter")
-        iter.loop(fn() do raise { error = "loop_failed" } end)
+        iter.loop(fn()
+            raise { error = "loop_failed" })
         "#,
     )
     .expect("raise should not be a hard diagnostic")
@@ -57,7 +58,10 @@ fn iterator_loop_propagates_raises_and_rejects_malformed_controls() {
     assert_eq!(raised.value.render(), "{error=\"loop_failed\"}");
 
     for control in ["1", "{}", "{ control = 1 }", "{ control = \"stop\" }"] {
-        let source = format!("let iter = require(\"std/iter\") iter.loop(fn() do {control} end)");
+        let source = format!(
+            "let iter = require(\"std/iter\") iter.loop(fn()
+    {control})"
+        );
         assert!(matches!(
             Engine::with_stdlib().eval(&source),
             Err(SimiError::Runtime(_))

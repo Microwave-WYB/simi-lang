@@ -19,9 +19,8 @@ Annotations are inline and optional:
 ```simi
 let count: integer = 1
 
-fn display(value: number) -> string do
+fn display(value: number) -> string
     number.to_string(value)
-end
 
 let callback: fn(integer, integer) -> integer = add
 ```
@@ -80,20 +79,17 @@ let name: option<string> = nil
 Free generic variables in a function annotation are implicitly quantified. A callable may also declare an explicit generic header, with optional ordinary-type upper bounds:
 
 ```simi
-fn identity(value: 'a) -> 'a ! never do
+fn identity(value: 'a) -> 'a ! never
     value
-end
 
-fn negate<'a: integer | float>(value: 'a) -> 'a ! never do
+fn negate<'a: integer | float>(value: 'a) -> 'a ! never
     -value
-end
 
 fn transform<'e>(
     value: 'a,
     callback: fn(input: 'a) -> 'b ! 'e,
-) -> 'b ! 'e do
+) -> 'b ! 'e
     callback(value)
-end
 ```
 
 Bounds are erased Simi types, not traits or protocols. Nested explicit headers introduce their own binders and may shadow an outer generic name. Unbounded entries are retained as callable metadata, though free variables remain implicitly quantified.

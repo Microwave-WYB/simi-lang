@@ -18,8 +18,10 @@ fn outer_error(source: &str) -> SimiError {
 fn nil_aware_pipelines_are_lazy_left_associative_and_stage_local() {
     let result = value(
         r#"
-        fn add(value, amount) do value + amount end
-        fn classify(value) do type(value) end
+        fn add(value, amount)
+            value + amount
+        fn classify(value)
+            type(value)
         [
             1 + 1 ?> add(2) ?> add(3),
             nil ?> missing_callee(missing_argument),
@@ -43,7 +45,8 @@ fn nil_aware_pipelines_evaluate_input_and_active_stage_parts_once() {
             state.calls = state.calls + 1
             nil
         end
-        fn add(value, amount) do value + amount end
+        fn add(value, amount)
+            value + amount
         let piped = next() ?> add(next())
         let skipped = none() ?> missing(next())
         [piped, skipped, state.calls]
@@ -58,7 +61,8 @@ fn nil_aware_tap_preserves_nonnil_input_and_skips_nil_stages() {
         r#"
 
         let events = []
-        fn record(value) do list.append(events, value) end
+        fn record(value)
+            list.append(events, value)
         let kept = 4 ?> tap record()
         let skipped = nil ?> tap missing(events)
         [kept, skipped, events]
@@ -75,7 +79,8 @@ fn standalone_blocks_are_scoped_expression_values_and_compose_postfix() {
         let empty = do end
         let called = do
             let outer = "inner"
-            fn(value) do [outer, value] end
+            fn(value)
+                [outer, value]
         end(3)
         let indexed = do [10, 20] end[1]
         let piped = do 2 end ?> type()
@@ -170,9 +175,20 @@ fn nil_propagation_requires_an_enclosing_block() {
     assert!(matches!(error, SimiError::Parse(_)));
     assert!(error.to_string().contains("outside of a block"));
 
-    assert_eq!(value("fn named() do nil? end named()").render(), "nil");
     assert_eq!(
-        value("let anonymous = fn() do nil? end anonymous()").render(),
+        value(
+            "fn named()
+    nil? named()"
+        )
+        .render(),
+        "nil"
+    );
+    assert_eq!(
+        value(
+            "let anonymous = fn()
+    nil? anonymous()"
+        )
+        .render(),
         "nil"
     );
 }
@@ -299,7 +315,8 @@ fn protected_expression_requires_items_arms_and_complete_delimiters() {
             "expected pattern after `catch`, found no catch arms",
         ),
         (
-            "do 1 catch _ => do nil end",
+            "do 1 catch _ =>
+    nil",
             "expected `end` after protected expression",
         ),
     ] {

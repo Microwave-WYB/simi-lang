@@ -547,7 +547,8 @@ mod tests {
     #[test]
     fn locally_bound_host_values_are_not_trusted_wrappers() {
         for source in [
-            "let host = replacement fn mutate(xs: [..integer]) -> nil do host.mutate(xs) end",
+            "let host = replacement fn mutate(xs: [..integer]) -> nil
+    host.mutate(xs)",
             "let host = replacement fn mutate(xs: [..integer]) -> nil host.mutate(xs)",
         ] {
             let db = AnalysisDatabase::default();
