@@ -15,5 +15,5 @@ brackets = [
 # These patterns are recovery-only while a construct is incomplete; sibling arm
 # alignment is owned by the grammar-backed regions in indents.scm. Line regexes
 # cannot model sibling arm alignment.
-increase_indent_pattern = "^(?!\\s*--)(?:.*\\b(do|then|else)\\s*|\\s*(?:case\\b.*\\bof|catch\\s+of|fn\\b(?!.*\\bend\\s*(?:--.*)?$).*|(?!.*--.*=>).*=>)\\s*)(--.*)?$"
+increase_indent_pattern = "^(?!\\s*--)(?:.*\\b(do|then|else)\\s*|\\s*(?:case\\b.*\\bof|catch\\b|fn\\b(?!.*\\bend\\s*(?:--.*)?$).*|(?!.*--.*=>).*=>)\\s*)(--.*)?$"
 decrease_indent_pattern = "^\\s*(elseif|else|catch|end)\\b"

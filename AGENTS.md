@@ -250,7 +250,7 @@ raise { error = "invalid_input", value = input }
 do
     prepare()
     operation()
-catch of
+catch
     { error = "invalid_input", value = value } =>
         recover(value)
     error =>
@@ -258,7 +258,7 @@ catch of
 end
 ```
 
-A protected `do` expression requires one or more protected items followed by `catch of` and one or more `pattern [when guard] => expression` arms, then one final `end`. Direct catch results are written on the following indented line; whitespace is not syntactically significant. Use `pattern => do ... end` for a zero- or multi-item lexical handler result. The protected items evaluate in a fresh child scope. Only a raise from that protected body is matched by the catches: nil propagation and hard diagnostics bypass them, while raises from catch guards or handler bodies escape rather than being considered by later catches.
+A protected `do` expression requires one or more protected items followed by `catch` and one or more `pattern [when guard] => expression` arms, then one final `end`. Direct catch results are written on the following indented line; whitespace is not syntactically significant. Use `pattern => do ... end` for a zero- or multi-item lexical handler result. The protected items evaluate in a fresh child scope. Only a raise from that protected body is matched by the catches: nil propagation and hard diagnostics bypass them, while raises from catch guards or handler bodies escape rather than being considered by later catches.
 
 Generated structural errors use an `error` discriminator and may gain additional fields over time. Preserve stable discriminator strings.
 

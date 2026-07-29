@@ -127,6 +127,29 @@ fn delimiters_belong_to_their_typed_nodes() {
 }
 
 #[test]
+fn legacy_catch_of_reports_migration_diagnostic() {
+    let source = "do 1 catch of _ => 2 end";
+    let parse = parse_source(source);
+    assert_eq!(
+        parse
+            .diagnostics()
+            .iter()
+            .map(|diagnostic| diagnostic.message.as_str())
+            .collect::<Vec<_>>(),
+        ["`catch of` was removed; write `catch pattern => \u{2026}` instead"],
+        "{:?}",
+        parse.diagnostics()
+    );
+    assert_eq!(parse.syntax().to_string(), source);
+    assert!(
+        parse
+            .syntax()
+            .descendants()
+            .any(|node| node.kind() == SyntaxKind::PROTECTED_EXPR)
+    );
+}
+
+#[test]
 fn bang_never_functions_accept_varied_direct_expression_bodies() {
     let source = concat!(
         "fn identity(value: integer) -> integer ! never value\n",
