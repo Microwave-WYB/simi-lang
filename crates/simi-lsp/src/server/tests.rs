@@ -1117,11 +1117,11 @@ fn iterator_pair_adapter_hover_preserves_item_and_source_effect_types() {
 
 #[test]
 fn portable_prelude_members_have_the_same_lsp_metadata_as_require() {
-    let source = "number.to_string";
-    let mut backend = Backend::with_module_sources([(
-        "std/number",
-        include_str!("../../../../stdlib/number.simi"),
-    )]);
+    let source = "number.to_string\nbytes.length";
+    let mut backend = Backend::with_module_sources([
+        ("std/number", include_str!("../../../../stdlib/number.simi")),
+        ("std/bytes", include_str!("../../../../stdlib/bytes.simi")),
+    ]);
     open(&mut backend, source);
     let hover: Option<Hover> = serde_json::from_value(
         request(
@@ -1141,6 +1141,56 @@ fn portable_prelude_members_have_the_same_lsp_metadata_as_require() {
     assert_simi_hover(
         &markup,
         "fn(value: integer | float) -> string ! never\n\nRender a number using canonical Simi notation.",
+    );
+
+    let hover: Option<Hover> = serde_json::from_value(
+        request(
+            &mut backend,
+            HoverRequest::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": text_position(source, "length", 0),
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let HoverContents::Markup(markup) = hover.expect("bytes prelude hover").contents else {
+        panic!("expected markup")
+    };
+    assert_simi_hover(
+        &markup,
+        "fn(data: bytes) -> integer ! never\n\nReturn the number of octets in bytes.",
+    );
+
+    let incomplete = "bytes.";
+    let mut backend = Backend::with_module_sources([(
+        "std/bytes",
+        include_str!("../../../../stdlib/bytes.simi"),
+    )]);
+    open(&mut backend, incomplete);
+    let completion: Option<CompletionResponse> = serde_json::from_value(
+        request(
+            &mut backend,
+            Completion::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": position::position(incomplete, incomplete.len()).unwrap(),
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let CompletionResponse::Array(items) = completion.expect("bytes member completions") else {
+        panic!("expected completion array")
+    };
+    let length = items
+        .iter()
+        .find(|item| item.label == "length")
+        .expect("bytes.length completion");
+    assert_eq!(
+        length.detail.as_deref(),
+        Some("length : fn(data: bytes) -> integer ! never")
     );
 }
 

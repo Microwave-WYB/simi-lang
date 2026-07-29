@@ -354,6 +354,7 @@ fn prelude_module(name: &str) -> Option<&'static str> {
         "iter" => Some("std/iter"),
         "number" => Some("std/number"),
         "string" => Some("std/string"),
+        "bytes" => Some("std/bytes"),
         _ => None,
     }
 }

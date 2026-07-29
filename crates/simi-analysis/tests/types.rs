@@ -2838,6 +2838,11 @@ fn portable_builtins_use_registered_module_shapes_for_global_type() {
             "fn to_string(value)
     nil { to_string = to_string }",
         ),
+        (
+            "std/bytes",
+            "fn length(data: bytes) -> integer
+    0 { length = length }",
+        ),
     ]
     .into_iter()
     .map(|(name, source)| {
@@ -2846,7 +2851,7 @@ fn portable_builtins_use_registered_module_shapes_for_global_type() {
     })
     .collect::<HashMap<_, _>>();
 
-    let source = "list map number";
+    let source = "list map number bytes";
     let (inference, resolution) = inferred_with_modules(source, &modules);
     assert!(
         inference.diagnostics.is_empty(),
@@ -2854,7 +2859,7 @@ fn portable_builtins_use_registered_module_shapes_for_global_type() {
         inference.diagnostics
     );
 
-    for name in ["list", "map", "number"] {
+    for name in ["list", "map", "number", "bytes"] {
         let ty = type_of_any(&inference, &resolution, name, 0);
         assert!(
             !ty.display().contains("any"),
@@ -2865,9 +2870,9 @@ fn portable_builtins_use_registered_module_shapes_for_global_type() {
 
 #[test]
 fn portable_builtins_fallback_to_any_when_shapes_absent() {
-    let source = "list map iter number string";
+    let source = "list map iter number string bytes";
     let (inference, resolution) = inferred(source);
-    for name in ["list", "map", "iter", "number", "string"] {
+    for name in ["list", "map", "iter", "number", "string", "bytes"] {
         assert_eq!(
             type_of_any(&inference, &resolution, name, 0).display(),
             "any",
