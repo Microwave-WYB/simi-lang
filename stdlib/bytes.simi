@@ -1,0 +1,28 @@
+---- Immutable byte-sequence operations and conversions.
+
+--- Return the number of octets in bytes.
+let length: fn(data: bytes) -> integer ! never = host.length
+
+--- Return the octet at an index, or nil when it is out of range.
+let get: fn(data: bytes, index: integer) -> integer | nil ! never = host.get
+
+--- Return an immutable byte view over a clamped range.
+let slice: fn(data: bytes, start: integer, stop: integer) -> bytes ! never = host.slice
+
+--- Return new bytes containing both inputs in order.
+let concat: fn(left: bytes, right: bytes) -> bytes ! never = host.concat
+
+--- Convert a list of octets from 0 through 255 into bytes.
+let from_list: fn(values: [..integer]) -> bytes ! never = host.from_list
+
+--- Return a new list containing every octet as an integer.
+let to_list: fn(data: bytes) -> [..integer] ! never = host.to_list
+
+{
+    length = length,
+    get = get,
+    slice = slice,
+    concat = concat,
+    from_list = from_list,
+    to_list = to_list,
+}

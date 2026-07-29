@@ -36,6 +36,22 @@ impl Context<'_> {
             .clone()
             .map(|child| self.expression(child))
             .unwrap_or(Type::Unknown);
+        if let Type::Map {
+            fields,
+            index: Some((key_hole, value_hole)),
+            ..
+        } = &object
+        {
+            if let Type::LiteralString(name) = &key
+                && let Some((_, value)) = fields.iter().find(|(field, _)| field == name)
+            {
+                return value.clone();
+            }
+            if self.is_deferred_empty_map_index(key_hole, value_hole) {
+                self.bind_infer((**key_hole).clone(), key.clone());
+                return union(vec![self.resolve_type((**value_hole).clone()), Type::Nil]);
+            }
+        }
         match self.resolve_type(object) {
             Type::ListExact(items) => {
                 self.require_subtype(&key, &Type::Int, span(node.syntax()));
@@ -50,6 +66,10 @@ impl Context<'_> {
             Type::ListRest(item) => {
                 self.require_subtype(&key, &Type::Int, span(node.syntax()));
                 union(vec![*item, Type::Nil])
+            }
+            Type::Bytes => {
+                self.require_subtype(&key, &Type::Int, span(node.syntax()));
+                union(vec![Type::Int, Type::Nil])
             }
             Type::Map {
                 fields,
@@ -146,15 +166,26 @@ impl Context<'_> {
                 }
             }
             Some(target) => {
-                let expected = self.expression(target.clone());
+                let sealed = mutation_owner_symbol(&target, self.resolution)
+                    .is_some_and(|symbol| self.annotated_symbols.contains(&symbol));
+                let unbound_deferred_empty_map_target = match &target {
+                    syntax::Expr::Index(index) => child_expr(index.syntax(), 0)
+                        .and_then(|owner| expression_symbol(&owner, self.resolution))
+                        .and_then(|symbol| self.symbol_types.get(&symbol))
+                        .is_some_and(|ty| self.is_unbound_deferred_empty_map(ty)),
+                    _ => false,
+                };
+                let expected = if sealed || !unbound_deferred_empty_map_target {
+                    self.expression(target.clone())
+                } else {
+                    Type::Unknown
+                };
                 let resolved_expected = self.resolve_type(expected.clone());
                 let checked_value = value_node
                     .as_ref()
                     .and_then(direct_literal_type)
                     .filter(|literal| type_contains_exact(&resolved_expected, literal))
                     .unwrap_or_else(|| value.clone());
-                let sealed = mutation_owner_symbol(&target, self.resolution)
-                    .is_some_and(|symbol| self.annotated_symbols.contains(&symbol));
                 if sealed {
                     self.constrain(&expected, &checked_value, span(node.syntax()));
                 }
@@ -201,18 +232,31 @@ impl Context<'_> {
             .symbol_bounds
             .get(&symbol)
             .cloned()
-            .map(|ty| self.resolve_type(ty))
             .unwrap_or(Type::Unknown);
-        if is_subtype(updated, &bound) {
-            return true;
+        if self.is_unbound_deferred_empty_map(&bound)
+            || !is_subtype(updated, &self.resolve_type(bound))
+        {
+            self.diagnostic(
+                AnalysisDiagnosticCode::TypeMismatch,
+                "Captured mutation exceeds declared type",
+                "Structural widening is inferred only in a binding's defining scope; annotate the captured binding with a type that admits this mutation.".to_owned(),
+                at,
+            );
+            return false;
         }
-        self.diagnostic(
-            AnalysisDiagnosticCode::TypeMismatch,
-            "Captured mutation exceeds declared type",
-            "Structural widening is inferred only in a binding's defining scope; annotate the captured binding with a type that admits this mutation.".to_owned(),
-            at,
-        );
-        false
+        true
+    }
+    fn is_unbound_deferred_empty_map(&self, ty: &Type) -> bool {
+        let Type::Map {
+            index: Some((key, value)),
+            ..
+        } = ty
+        else {
+            return false;
+        };
+        self.is_deferred_empty_map_index(key, value)
+            && matches!(self.resolve_type((**key).clone()), Type::Infer(_))
+            && matches!(self.resolve_type((**value).clone()), Type::Infer(_))
     }
     pub(super) fn apply_field_assignment(&mut self, field: &syntax::FieldExpr, value: &Type) {
         let Some(owner) = child_expr(field.syntax(), 0) else {
@@ -252,6 +296,20 @@ impl Context<'_> {
             return;
         };
         let key = children.next();
+        let key_type = key
+            .as_ref()
+            .and_then(|key| {
+                self.expression_types
+                    .iter()
+                    .rev()
+                    .find(|(at, _)| *at == span(key.syntax()))
+                    .map(|(_, ty)| ty.clone())
+            })
+            .unwrap_or_else(|| {
+                key.clone()
+                    .map(|key| self.expression(key))
+                    .unwrap_or(Type::Unknown)
+            });
         let Some(symbol) = expression_symbol(&object, self.resolution) else {
             self.invalidate_mutated_owner(&object);
             return;
@@ -268,47 +326,80 @@ impl Context<'_> {
             .symbol_types
             .get(&symbol)
             .cloned()
-            .map(|ty| self.resolve_type(ty))
             .unwrap_or(Type::Unknown);
-        let updated = match current {
-            Type::ListExact(mut items) => {
-                let literal_index = key.as_ref().and_then(|key| {
-                    let syntax::Expr::Literal(literal) = key else {
-                        return None;
-                    };
-                    direct_token(literal.syntax(), K::INT)?
-                        .text()
-                        .parse::<usize>()
-                        .ok()
-                });
-                if let Some(index) = literal_index {
-                    if let Some(item) = items.get_mut(index) {
-                        *item = value.clone();
+        let deferred_empty_map_index = match &current {
+            Type::Map {
+                index: Some((key, value)),
+                ..
+            } if self.is_deferred_empty_map_index(key, value) => Some((key.clone(), value.clone())),
+            _ => None,
+        };
+        let updated = if let Some((key_hole, value_hole)) = deferred_empty_map_index {
+            let holes_are_unbound =
+                matches!(self.resolve_type((*key_hole).clone()), Type::Infer(_))
+                    && matches!(self.resolve_type((*value_hole).clone()), Type::Infer(_));
+            if *value == Type::Nil && holes_are_unbound {
+                return;
+            }
+            let Type::Map { fields, open, .. } = &current else {
+                unreachable!("deferred empty map indexes belong to maps")
+            };
+            let updated = Type::Map {
+                fields: fields.clone(),
+                index: Some((Box::new(key_type.clone()), Box::new(value.clone()))),
+                open: *open,
+            };
+            if !self.capture_mutation_is_compatible(symbol, &updated, span(index.syntax())) {
+                return;
+            }
+            self.bind_infer(*key_hole, key_type);
+            self.bind_infer(*value_hole, value.clone());
+            current
+        } else {
+            match self.resolve_type(current) {
+                Type::ListExact(mut items) => {
+                    let literal_index = key.as_ref().and_then(|key| {
+                        let syntax::Expr::Literal(literal) = key else {
+                            return None;
+                        };
+                        direct_token(literal.syntax(), K::INT)?
+                            .text()
+                            .parse::<usize>()
+                            .ok()
+                    });
+                    if let Some(index) = literal_index {
+                        if let Some(item) = items.get_mut(index) {
+                            *item = value.clone();
+                        }
+                    } else {
+                        for item in &mut items {
+                            *item = union(vec![item.clone(), value.clone()]);
+                        }
                     }
-                } else {
-                    for item in &mut items {
-                        *item = union(vec![item.clone(), value.clone()]);
+                    Type::ListExact(items)
+                }
+                Type::ListRest(item) => Type::ListRest(Box::new(union(vec![*item, value.clone()]))),
+                map @ Type::Map { .. } => {
+                    if let Some(syntax::Expr::Literal(literal)) = key.as_ref()
+                        && let Some(token) = direct_token(literal.syntax(), K::STRING)
+                    {
+                        update_map_field(map, &unquote(token.text()), value.clone())
+                    } else {
+                        widen_mutable_type(map)
                     }
                 }
-                Type::ListExact(items)
+                _ => return,
             }
-            Type::ListRest(item) => Type::ListRest(Box::new(union(vec![*item, value.clone()]))),
-            map @ Type::Map { .. } => {
-                if let Some(syntax::Expr::Literal(literal)) = key.as_ref()
-                    && let Some(token) = direct_token(literal.syntax(), K::STRING)
-                {
-                    update_map_field(map, &unquote(token.text()), value.clone())
-                } else {
-                    widen_mutable_type(map)
-                }
-            }
-            _ => return,
         };
         if !self.capture_mutation_is_compatible(symbol, &updated, span(index.syntax())) {
             return;
         }
         self.record_mutation(symbol);
         self.update_region_or_symbol(symbol, updated);
+    }
+    fn is_deferred_empty_map_index(&self, key: &Type, value: &Type) -> bool {
+        matches!(key, Type::Infer(id) if self.deferred_empty_map_infers.contains(id))
+            && matches!(value, Type::Infer(id) if self.deferred_empty_map_infers.contains(id))
     }
     pub(super) fn invalidate_mutated_owner(&mut self, owner: &syntax::Expr) {
         let Some(symbol) = mutation_root_symbol(owner, self.resolution) else {

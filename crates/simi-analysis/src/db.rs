@@ -101,6 +101,16 @@ pub fn diagnostics(db: &dyn salsa::Database, file: FileId) -> Arc<Vec<AnalysisDi
         })
         .collect::<Vec<_>>();
     if parsed.diagnostics.is_empty() {
+        if let Err(error) = crate::parse_requires(file.text(db)) {
+            diagnostics.push(AnalysisDiagnostic {
+                span: error.span,
+                code: AnalysisDiagnosticCode::InvalidPackageRequirements,
+                title: "Invalid package requirements".to_owned(),
+                detail: sentence(&error.message),
+                severity: AnalysisDiagnosticSeverity::Error,
+                related: Vec::new(),
+            });
+        }
         diagnostics.extend(type_inference(db, file).diagnostics.iter().cloned());
         diagnostics.sort_by_key(|diagnostic| (diagnostic.span.start, diagnostic.span.end));
     }

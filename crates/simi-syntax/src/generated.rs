@@ -23,6 +23,7 @@ pub enum SyntaxKind {
     ELSE_KW,
     LET_KW,
     ALIAS_KW,
+    REQUIRES_KW,
     TAP_KW,
     NIL_KW,
     TRUE_KW,
@@ -56,6 +57,7 @@ pub enum SyntaxKind {
     EQ_EQ,
     BANG,
     BANG_EQ,
+    HASH,
     PLUS,
     MINUS,
     STAR,
@@ -72,6 +74,8 @@ pub enum SyntaxKind {
     PIPE_GREATER,
     LESS_PIPE,
     ROOT,
+    REQUIRES_DECL,
+    MAP_EXPR,
     FUNCTION_DECL,
     ALIAS_DECL,
     LET_STMT,
@@ -108,7 +112,7 @@ pub enum SyntaxKind {
     PROTECTED_EXPR,
     PAREN_EXPR,
     LIST_EXPR,
-    MAP_EXPR,
+    BYTES_EXPR,
     CALL_EXPR,
     FIELD_EXPR,
     INDEX_EXPR,
@@ -124,6 +128,7 @@ pub enum SyntaxKind {
     CASE_EXPR,
     IF_EXPR,
     CATCH_ARM,
+    LIST_ELEMENT,
     MAP_ENTRY,
     ARG_LIST,
     PIPELINE_STAGE,
@@ -134,8 +139,10 @@ pub enum SyntaxKind {
     WILDCARD_PATTERN,
     LITERAL_PATTERN,
     LIST_PATTERN,
+    BYTES_PATTERN,
     MAP_PATTERN,
     REST_PATTERN,
+    BYTES_PATTERN_SEGMENT,
     MAP_PATTERN_FIELD,
     ERROR,
 }
@@ -167,6 +174,8 @@ macro_rules! ast_node {
 }
 
 ast_node!(Root, ROOT);
+ast_node!(RequiresDecl, REQUIRES_DECL);
+ast_node!(MapExpr, MAP_EXPR);
 ast_node!(FunctionDecl, FUNCTION_DECL);
 ast_node!(AliasDecl, ALIAS_DECL);
 ast_node!(LetStmt, LET_STMT);
@@ -203,7 +212,7 @@ ast_node!(BlockExpr, BLOCK_EXPR);
 ast_node!(ProtectedExpr, PROTECTED_EXPR);
 ast_node!(ParenExpr, PAREN_EXPR);
 ast_node!(ListExpr, LIST_EXPR);
-ast_node!(MapExpr, MAP_EXPR);
+ast_node!(BytesExpr, BYTES_EXPR);
 ast_node!(CallExpr, CALL_EXPR);
 ast_node!(FieldExpr, FIELD_EXPR);
 ast_node!(IndexExpr, INDEX_EXPR);
@@ -219,6 +228,7 @@ ast_node!(TodoExpr, TODO_EXPR);
 ast_node!(CaseExpr, CASE_EXPR);
 ast_node!(IfExpr, IF_EXPR);
 ast_node!(CatchArm, CATCH_ARM);
+ast_node!(ListElement, LIST_ELEMENT);
 ast_node!(MapEntry, MAP_ENTRY);
 ast_node!(ArgList, ARG_LIST);
 ast_node!(PipelineStage, PIPELINE_STAGE);
@@ -229,8 +239,10 @@ ast_node!(BindingPattern, BINDING_PATTERN);
 ast_node!(WildcardPattern, WILDCARD_PATTERN);
 ast_node!(LiteralPattern, LITERAL_PATTERN);
 ast_node!(ListPattern, LIST_PATTERN);
+ast_node!(BytesPattern, BYTES_PATTERN);
 ast_node!(MapPattern, MAP_PATTERN);
 ast_node!(RestPattern, REST_PATTERN);
+ast_node!(BytesPatternSegment, BYTES_PATTERN_SEGMENT);
 ast_node!(MapPatternField, MAP_PATTERN_FIELD);
 ast_node!(Error, ERROR);
 
@@ -279,6 +291,7 @@ pub enum Expr {
     Protected(ProtectedExpr),
     Paren(ParenExpr),
     List(ListExpr),
+    Bytes(BytesExpr),
     Map(MapExpr),
     Call(CallExpr),
     Field(FieldExpr),
@@ -308,6 +321,7 @@ impl AstNode for Expr {
             SyntaxKind::PROTECTED_EXPR => Self::Protected(ProtectedExpr::cast(syntax)?),
             SyntaxKind::PAREN_EXPR => Self::Paren(ParenExpr::cast(syntax)?),
             SyntaxKind::LIST_EXPR => Self::List(ListExpr::cast(syntax)?),
+            SyntaxKind::BYTES_EXPR => Self::Bytes(BytesExpr::cast(syntax)?),
             SyntaxKind::MAP_EXPR => Self::Map(MapExpr::cast(syntax)?),
             SyntaxKind::CALL_EXPR => Self::Call(CallExpr::cast(syntax)?),
             SyntaxKind::FIELD_EXPR => Self::Field(FieldExpr::cast(syntax)?),
@@ -337,6 +351,7 @@ impl AstNode for Expr {
             Self::Protected(node) => node.syntax(),
             Self::Paren(node) => node.syntax(),
             Self::List(node) => node.syntax(),
+            Self::Bytes(node) => node.syntax(),
             Self::Map(node) => node.syntax(),
             Self::Call(node) => node.syntax(),
             Self::Field(node) => node.syntax(),
@@ -362,6 +377,7 @@ pub enum Pattern {
     Wildcard(WildcardPattern),
     Literal(LiteralPattern),
     List(ListPattern),
+    Bytes(BytesPattern),
     Map(MapPattern),
 }
 impl AstNode for Pattern {
@@ -374,6 +390,7 @@ impl AstNode for Pattern {
             SyntaxKind::WILDCARD_PATTERN => Self::Wildcard(WildcardPattern::cast(syntax)?),
             SyntaxKind::LITERAL_PATTERN => Self::Literal(LiteralPattern::cast(syntax)?),
             SyntaxKind::LIST_PATTERN => Self::List(ListPattern::cast(syntax)?),
+            SyntaxKind::BYTES_PATTERN => Self::Bytes(BytesPattern::cast(syntax)?),
             SyntaxKind::MAP_PATTERN => Self::Map(MapPattern::cast(syntax)?),
             _ => return None,
         })
@@ -384,6 +401,7 @@ impl AstNode for Pattern {
             Self::Wildcard(node) => node.syntax(),
             Self::Literal(node) => node.syntax(),
             Self::List(node) => node.syntax(),
+            Self::Bytes(node) => node.syntax(),
             Self::Map(node) => node.syntax(),
         }
     }

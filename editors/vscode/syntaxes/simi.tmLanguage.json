@@ -252,7 +252,7 @@
         },
         {
           "name": "keyword.declaration.simi",
-          "match": "\\b(?:let|alias)\\b"
+          "match": "\\b(?:let|alias|requires)\\b"
         },
         {
           "name": "storage.type.function.simi",
@@ -351,6 +351,10 @@
         {
           "name": "punctuation.section.parens.simi",
           "match": "[()]"
+        },
+        {
+          "name": "punctuation.section.bytes.simi",
+          "match": "#(?=\\[)"
         },
         {
           "name": "punctuation.section.brackets.simi",

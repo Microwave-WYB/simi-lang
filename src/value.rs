@@ -1,9 +1,13 @@
+mod bytes;
 mod list;
 mod map;
 mod raised;
 mod render;
+mod resource;
 
+pub use bytes::Bytes;
 pub use list::List;
+pub use resource::NativeResource;
 
 use std::sync::Arc;
 
@@ -69,12 +73,14 @@ pub enum Value {
     Int(i64),
     Float(f64),
     String(String),
+    Bytes(Bytes),
     Bool(bool),
     Nil,
     List(SharedList),
     Map(SharedMap),
     Function(SharedFunction),
     NativeFunction(NativeFunction),
+    NativeResource(NativeResource),
 }
 
 impl Finalize for Value {}
@@ -88,9 +94,13 @@ unsafe impl Trace for Value {
             Self::Int(_)
             | Self::Float(_)
             | Self::String(_)
+            | Self::Bytes(_)
             | Self::Bool(_)
             | Self::Nil
-            | Self::NativeFunction(_) => {}
+            | Self::NativeFunction(_)
+            // NativeResource payloads are Send + Sync + 'static, so safe payloads cannot hold
+            // Simi's non-Send managed values outside this traced Value graph.
+            | Self::NativeResource(_) => {}
         }
     });
 }
@@ -161,6 +171,7 @@ pub(crate) enum IteratorIntrinsic {
     Count,
     EachWhile,
     FoldWhile,
+    Loop,
     RepeatNext,
 }
 

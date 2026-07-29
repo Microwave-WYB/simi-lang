@@ -84,6 +84,23 @@ fn primitive_values_have_deterministic_rendering() {
     assert_eq!(Value::Bool(true).render(), "true");
     assert_eq!(Value::Bool(false).render(), "false");
     assert_eq!(Value::Int(-12).render(), "-12");
+    assert_eq!(
+        Value::Bytes(Bytes::new(vec![0, 15, 255])).render(),
+        "bytes[00 0f ff]"
+    );
+}
+
+#[test]
+fn bytes_have_content_equality_and_a_stable_runtime_label() {
+    let first = Value::Bytes(Bytes::new(vec![1, 2]));
+    let same = Value::Bytes(Bytes::new(vec![1, 2]));
+    let different = Value::Bytes(Bytes::new(vec![1, 3]));
+
+    assert_eq!(first.type_name(), "bytes");
+    assert_eq!(first.reflective_type_name(), "bytes");
+    assert_eq!(first.render(), "bytes[01 02]");
+    assert_eq!(first.render(), same.render());
+    assert_ne!(first.render(), different.render());
 }
 
 #[test]

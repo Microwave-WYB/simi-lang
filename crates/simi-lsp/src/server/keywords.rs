@@ -66,6 +66,12 @@ const KEYWORDS: &[KeywordHelp] = &[
         contextual: false,
     },
     KeywordHelp {
+        word: "requires",
+        syntax: "requires {std = {simi = revision}}",
+        documentation: "Declares static package requirements before executable source items. Use `{simi = revision}` for the official standard-library catalog, `{git = url, rev = revision}` for Git packages, or `{path = path}` for development packages.",
+        contextual: false,
+    },
+    KeywordHelp {
         word: "tap",
         syntax: "value |> tap call()",
         documentation: "Runs a pipeline stage for its effects, discards the call result, and preserves the incoming value.",
@@ -116,7 +122,7 @@ const KEYWORDS: &[KeywordHelp] = &[
     KeywordHelp {
         word: "of",
         syntax: "of pattern when guard => expression",
-        documentation: "Introduces the arm list for a `case` or `catch`. Every arm uses `=>`, and an optional guard must evaluate to boolean.",
+        documentation: "Introduces arms for a `case` expression. Every arm uses `=>`, and an optional guard must evaluate to boolean.",
         contextual: false,
     },
     KeywordHelp {
@@ -145,8 +151,8 @@ const KEYWORDS: &[KeywordHelp] = &[
     },
     KeywordHelp {
         word: "catch",
-        syntax: "do … catch of pattern => expression … end",
-        documentation: "Begins the catch section for values raised by the protected `do` body. One `of` introduces its pattern-result arms.",
+        syntax: "do … catch pattern => expression … end",
+        documentation: "Begins the catch section for values raised by the protected `do` body. Patterns and result arms follow directly without `of`.",
         contextual: false,
     },
     KeywordHelp {
@@ -254,7 +260,7 @@ mod tests {
         let expected = [
             "alias", "and", "any", "boolean", "case", "catch", "do", "else", "elseif", "end",
             "false", "float", "fn", "if", "integer", "let", "nil", "not", "of", "or", "panic",
-            "raise", "string", "tap", "then", "todo", "true", "when", "never",
+            "raise", "requires", "string", "tap", "then", "todo", "true", "when", "never",
         ]
         .into_iter()
         .collect::<BTreeSet<_>>();

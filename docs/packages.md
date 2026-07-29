@@ -53,8 +53,10 @@ This intentionally has no `facade.simi` convention. A package may contain privat
 sources anywhere below its root, such as `src/schema.simi`, but they are not public catalog modules.
 
 The package root is the source root. Public names and metadata paths use slash-separated relative
-paths. Absolute paths, backslashes, empty path segments, `.`, and `..` are rejected. A resolver
-must additionally reject package-root symlink escapes when it reads a checkout.
+paths. Absolute paths, backslashes, empty path segments, `.`, and `..` are rejected. The static
+`PackageTree` loader rejects a symlink root and any symlink component used by the manifest, a
+declared public module, or a reachable literal local source; it never discovers arbitrary private
+sources.
 
 ## Restricted metadata
 
@@ -66,14 +68,46 @@ The top-level map permits only:
 - `native`: optional `{manifest = "relative/path/Cargo.toml"}` metadata for later native runners.
 
 Functions, calls, bindings, variables, computed values, duplicate keys, and unrecognized fields
-are invalid. The resolver computes a source-tree digest from the declared package tree using this
-canonical layout; generated files and symlink policy are resolver concerns, not executable
-metadata.
+are invalid. `PackageTree` exposes deterministic digest inputs consisting of the manifest, declared
+public modules, and every reachable package-local source sorted by canonical source path. Unlisted
+private, generated, and native files remain excluded. Metadata itself never controls filesystem or
+network authority.
+
+## Official standard-library catalog
+
+The distribution supplies an offline, versioned source catalog for the non-prelude `std/*`
+facades. `list` and `map` remain runtime-core prelude modules; `std/iter`, `std/string`,
+`std/number`, `std/bytes`, numeric codecs, and future non-capability standard modules belong to
+the official catalog. A source requests the exact distribution revision with the reserved `std`
+requirement:
+
+```simi
+requires {std = {simi = "0.1.0-alpha.1"}}
+
+let iter = require("std/iter")
+```
+
+The `{simi = ...}` source is accepted only for the `std` alias and must match the running
+distribution exactly. It is resolved without filesystem, Git, Cargo, or network access; its lock
+entry records that exact revision and the catalog digest. `Engine::new()` provides only the
+bundled `list` and `map` prelude. `Engine::with_stdlib()` and root `simi::eval` attach the exact
+official catalog, so they satisfy a compatible `std` requirement before evaluation. A bare engine
+or a mismatched revision fails as a hard outer diagnostic before executable source runs.
+
+Standalone `simi run` similarly installs only `list` and `map` unless the locked graph declares
+this compatible official requirement. The `std/io` facade remains absent until both that
+requirement and the CLI's explicit text-IO authority are present; an official catalog never grants
+any capability, global, or arbitrary `std/` namespace override. Hosts may still register direct
+modules explicitly, but a resolved package catalog may not supply `std/` identities unless it is
+the exact distribution catalog.
 
 ## Requirements and documentation
 
 Requirements belong to a leading static `requires` declaration in source files, not to executable
-package code. The package resolver reads those declarations transitively before evaluation.
+package code. The shared `parse_requires` API parses and validates this header without evaluating
+any Simi expression. CLI package resolution consumes that metadata transitively before evaluation;
+`Engine::eval` itself never reads paths, accesses Git or the network, creates lockfiles, or receives
+any package-resolution authority.
 
 A module-level `----` documentation block comes first, followed by the `requires` declaration:
 
@@ -94,16 +128,116 @@ immediately precede `requires`; no declaration or expression may separate them. 
 documentation, `requires` is the first non-comment source form. The parser preserves this ordering
 for diagnostics, editor recovery, and module hover documentation.
 
+Each alias is a unique lowercase Simi identifier within its declaring source file. Aliases are
+lexical metadata only, so independent packages may reuse an alias for different dependencies. Its
+value is restricted to the reserved official `{simi = revision}` map for `std`, or one of these
+package-source maps:
+
+```simi
+requires {
+    remote = {git = "https://example.invalid/remote.git", rev = "v1.2.3"},
+    development = {path = "dev/development"},
+}
+```
+
+`git`, `rev`, and `path` values must be string literals. Unknown, duplicate, mixed, and missing
+fields are invalid. Development paths are non-empty package-root-relative slash-separated paths:
+absolute paths, backslashes, empty segments, `.`, and `..` are rejected. These checks are static;
+they do not establish that a path or Git revision exists.
+
+## Embedding a resolved catalog
+
+`Engine::eval` is intentionally not a package resolver. A source that declares `requires` must be
+evaluated with an explicit `PackageCatalog` produced by the resolver (or by a
+host that has already performed equivalent locked resolution). `Engine::new()`,
+`Engine::with_stdlib()`, and `simi::eval` reject unresolved requirements as hard outer
+`SimiError`s before executable source runs. Registering ordinary `Module` values remains separate
+and does not satisfy package metadata.
+
+```rust
+use simi::{Engine, package::{ResolutionMode, resolve_script}};
+
+let resolved = resolve_script(std::path::Path::new("app.simi"), ResolutionMode::Locked)?;
+let engine = Engine::builder()
+    .stdlib()
+    .catalog(resolved.catalog)
+    .build();
+let result = engine.eval(include_str!("app.simi"))?;
+# Ok::<(), Box<dyn std::error::Error>>(())
+```
+
+A catalog contains deterministic rewritten source-module identities and the locked requirement
+sources it satisfies. Installing it only copies already-resolved source into the engine: it never
+reads package paths, accesses Git or a network, invokes Cargo, runs build scripts, or grants
+native capabilities. Each engine receives fresh lazy source-module state, so a catalog can be
+reused without sharing package module state between engines. A catalog that conflicts with a
+directly registered module, lacks a declared requirement, or has an unresolved local import is
+rejected before evaluation.
+
 ## Local source imports
 
-Package-local imports are literal `require("./...")` paths. They resolve relative to the importing
-source file, are confined to the package root, and are prepared as catalog modules before
-execution. They are not ambient filesystem access.
-
-For example, `polars.simi` may use:
+A package source unit may import a private source with a literal `require("./...")` path relative
+to the importing source file:
 
 ```simi
 let schema = require("./src/schema.simi")
 ```
 
-A bare engine without an explicitly resolved catalog rejects such imports before evaluation.
+The resolver discovers these imports while it prepares the locked package graph, before any package
+code evaluates. Paths must begin with `./`, be non-empty slash-separated paths, and contain no `.`,
+`..`, empty, or backslash components. This keeps every loaded source below the package root; a
+traversal attempt is rejected during resolution. A dynamic `require` is not a package-local import,
+and bare engines continue to treat all `require` calls only as registered-module lookups.
+
+Every reachable local source is read through the same non-symlink package-tree checks as public
+modules, added to the package tree digest, and registered under a deterministic package-scoped
+identity. If a local path names a declared public source, it uses that existing public module
+identity instead. Repeated local imports therefore share normal source-module cache identity, and
+cycles retain the normal `{ error = "circular_module_dependency", ... }` result. Plain catalog
+imports such as `require("std/string")` are unchanged.
+
+This is resolver work only: `Engine::eval` does not read package paths or gain filesystem, network,
+or lockfile authority.
+
+## Locks and source resolution
+
+For `app.simi`, `simi lock app.simi` writes `app.lock.simi`. The lock is canonical restricted Simi
+data, parsed but never evaluated:
+
+```simi
+{
+    format = 2,
+    source = {path = "app.simi", digest = "sha256:..."},
+    requirements = {
+        polars = {
+            source = {git = "https://example.invalid/simi-polars.git", rev = "v0.1.0"},
+            package = "polars",
+            commit = "...",
+            tree_digest = "sha256:...",
+        },
+    },
+}
+```
+
+Requirement keys are resolved manifest package identities and are sorted, as are all complete
+transitive entries. The resolver rejects a graph that resolves one package identity from
+conflicting declared sources; aliases never identify lock entries or registered modules. Package
+identities that are not Simi identifiers (for example, `tool-box`) use a quoted computed map key
+in the canonical lockfile.
+A Git revision is resolved to an exact commit. Tree digests use SHA-256 over sorted `PackageTree`
+inputs, framing every path and content byte sequence with its UTF-8 byte length; filesystem iteration
+order never affects a digest. Path requirements are relative to the declaring source file (or package
+root for a package source), and their package tree is also locked by digest.
+
+`run app.simi` resolves requirements and refreshes the lock before constructing an Engine. It registers
+declared public package modules by their manifest names plus resolver-discovered package-local
+sources by internal package-scoped identities, so `require("polars")` and `require("polars/csv")`
+work without granting source code ambient filesystem access.
+`run --locked app.simi` requires an existing canonical lock and validates source declarations,
+commits, and tree digests without fetching or rewriting. `run --offline app.simi` additionally
+requires the exact cached Git checkout and performs no network operation. `lock --offline app.simi`
+may write only from Git objects already in the cache.
+
+Git caches are bare repositories under `$XDG_CACHE_HOME/simi/git`, or `$HOME/.cache/simi/git` when
+`XDG_CACHE_HOME` is unset. Git is invoked noninteractively with terminal prompts disabled; Simi does
+not configure authentication, run hooks, invoke Cargo, or run package build scripts.

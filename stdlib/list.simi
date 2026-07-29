@@ -51,15 +51,14 @@ let reverse: fn(xs: [..'a]) -> nil ! never = host.reverse
 fn iter<'a>(xs: [..'a]) -> Iterator<'a> ! never do
     let snapshot = host.iter(xs)
     let length = host.length(snapshot)
-    let index = 0
-    fn() do
-        if index >= length then {done = true}
+    let state: {index: integer} = {index = 0}
+    fn()
+        if state.index >= length then {done = true}
         else
-            let value = snapshot[index]
-            index = index + 1
+            let value = snapshot[state.index]
+            state.index = state.index + 1
             {done = false, value = value}
         end
-    end
 end
 
 {

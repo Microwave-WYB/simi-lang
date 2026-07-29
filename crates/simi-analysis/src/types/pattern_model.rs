@@ -60,6 +60,7 @@ pub(super) fn matcher_relation(ty: &Type, matcher: &TypeMatcher) -> Option<bool>
             "integer" => matches!(ty, Type::Int | Type::LiteralInt(_)),
             "float" => matches!(ty, Type::Float | Type::LiteralFloat(_)),
             "string" => matches!(ty, Type::String | Type::LiteralString(_)),
+            "bytes" => matches!(ty, Type::Bytes),
             "list" => matches!(ty, Type::ListExact(_) | Type::ListRest(_)),
             "map" => matches!(ty, Type::Map { .. }),
             "function" => matches!(ty, Type::Function(_)),
@@ -259,9 +260,35 @@ pub(super) fn pattern_partition(source: Type, pattern: &syntax::Pattern) -> (Typ
             )
         }
         syntax::Pattern::List(node) => partition_list_pattern(source, node),
+        syntax::Pattern::Bytes(node) => partition_bytes_pattern(source, node),
         syntax::Pattern::Map(node) => partition_map_pattern(source, node),
     }
 }
+
+fn partition_bytes_pattern(source: Type, pattern: &syntax::BytesPattern) -> (Type, Type) {
+    if let Type::Union(items) = source {
+        let (matched, unmatched): (Vec<_>, Vec<_>) = items
+            .into_iter()
+            .map(|item| partition_bytes_pattern(item, pattern))
+            .unzip();
+        return (union(matched), union(unmatched));
+    }
+    match source {
+        Type::Bytes if bytes_pattern_matches_all(pattern) => (Type::Bytes, Type::Never),
+        Type::Bytes => (Type::Bytes, Type::Bytes),
+        unresolved @ (Type::Infer(_) | Type::Unknown | Type::Any) => (Type::Bytes, unresolved),
+        other => (Type::Never, other),
+    }
+}
+
+fn bytes_pattern_matches_all(pattern: &syntax::BytesPattern) -> bool {
+    let segments =
+        support::children::<syntax::BytesPatternSegment>(pattern.syntax()).collect::<Vec<_>>();
+    segments.len() == 1
+        && direct_token(segments[0].syntax(), K::COLON).is_some()
+        && direct_token(segments[0].syntax(), K::INT).is_none()
+}
+
 pub(super) fn unresolved_pattern_shape(pattern: &syntax::Pattern) -> Type {
     match pattern {
         syntax::Pattern::Binding(_) | syntax::Pattern::Wildcard(_) => Type::Unknown,
@@ -276,6 +303,7 @@ pub(super) fn unresolved_pattern_shape(pattern: &syntax::Pattern) -> Type {
                 Type::ListExact(items)
             }
         }
+        syntax::Pattern::Bytes(_) => Type::Bytes,
         syntax::Pattern::Map(map) => Type::Map {
             fields: support::children::<syntax::MapPatternField>(map.syntax())
                 .filter_map(|field| {

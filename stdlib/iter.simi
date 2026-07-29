@@ -14,137 +14,129 @@ alias Control<'next, 'result> =
     | Break<'result>
 
 fn from<'a, 'e>(next_fn: Iterator<'a, 'e>) -> Iterator<'a, 'e> ! never do
-    let exhausted = false
-    fn() do
-        if exhausted then { done = true }
+    let state: {exhausted: boolean} = {exhausted = false}
+    fn()
+        if state.exhausted then { done = true }
         else
             let step = next_fn()
             if step.done then
-                exhausted = true
+                state.exhausted = true
                 { done = true }
             else
                 { done = false, value = step.value }
             end
         end
-    end
 end
 
-fn next<'a, 'e>(iterator: Iterator<'a, 'e>) -> Step<'a> ! 'e do iterator() end
+fn next<'a, 'e>(iterator: Iterator<'a, 'e>) -> Step<'a> ! 'e
+    iterator()
 
 --- Return an iterator that is immediately exhausted.
-fn empty<'a>() -> Iterator<'a, never> ! never do
-    from(fn() -> Step<'a> ! never do { done = true } end)
-end
+fn empty<'a>() -> Iterator<'a, never> ! never
+    from(fn() -> Step<'a> ! never
+        { done = true })
 
 --- Return an iterator that yields one value.
 fn once<'a>(value: 'a) -> Iterator<'a, never> ! never do
-    let emitted = false
-    from(fn() -> Step<'a> ! never do
-        if emitted then { done = true }
+    let state: {emitted: boolean} = {emitted = false}
+    from(fn() -> Step<'a> ! never
+        if state.emitted then { done = true }
         else
-            emitted = true
+            state.emitted = true
             { done = false, value = value }
-        end
-    end)
+        end)
 end
 
 --- Repeat one value a finite number of times.
 fn repeat<'a>(value: 'a, count: integer) -> Iterator<'a, never> ! never do
     host.validate_count(count)
-    let emitted = 0
-    from(fn() -> Step<'a> ! never do
-        if emitted >= count then { done = true }
+    let state: {emitted: integer} = {emitted = 0}
+    from(fn() -> Step<'a> ! never
+        if state.emitted >= count then { done = true }
         else
-            emitted = emitted + 1
+            state.emitted = state.emitted + 1
             { done = false, value = value }
-        end
-    end)
+        end)
 end
 
 --- Yield ascending integers from start up to, but excluding, end.
 fn range(start: integer, stop: integer) -> Iterator<integer, never> ! never do
     host.validate_range(start, stop)
-    let current = start
-    from(fn() -> Step<integer> ! never do
-        if current >= stop then { done = true }
+    let state: {current: integer} = {current = start}
+    from(fn() -> Step<integer> ! never
+        if state.current >= stop then { done = true }
         else
-            let value = current
-            current = current + 1
+            let value = state.current
+            state.current = state.current + 1
             { done = false, value = value }
-        end
-    end)
+        end)
 end
 
 fn map<'a, 'b, 'e, 'f>(
     iterator: Iterator<'a, 'e>,
     transform: fn('a) -> 'b ! 'f,
-) -> Iterator<'b, 'e | 'f> ! never do
+) -> Iterator<'b, 'e | 'f> ! never
     fn() do
         let step = iterator()
         if step.done then step else { done = false, value = transform(step.value) } end
     end
-end
 
 fn filter<'a, 'e, 'f>(
     iterator: Iterator<'a, 'e>,
     predicate: fn('a) -> boolean ! 'f,
-) -> Iterator<'a, 'e | 'f> ! never do
-    fn() -> Step<'a> ! 'e | 'f do host.filter_next(iterator, predicate) end
-end
+) -> Iterator<'a, 'e | 'f> ! never
+    fn() -> Step<'a> ! 'e | 'f
+        host.filter_next(iterator, predicate)
 
 fn enumerate_next<'a, 'e>(
     iterator: Iterator<'a, 'e>, index: integer,
-) -> Step<[integer, 'a]> ! 'e do
+) -> Step<[integer, 'a]> ! 'e
     host.enumerate_next(iterator, index)
-end
 
 fn zip_next<'a, 'b, 'e, 'f>(
     left: Iterator<'a, 'e>, right: Iterator<'b, 'f>,
-) -> Step<['a, 'b]> ! 'e | 'f do
+) -> Step<['a, 'b]> ! 'e | 'f
     host.zip_next(left, right)
-end
 
 fn zip_longest_next<'a, 'b, 'fill, 'e, 'f>(
     left: Iterator<'a, 'e>, right: Iterator<'b, 'f>, fill: 'fill,
     left_done: boolean, right_done: boolean,
-) -> LongestStep<['a | 'fill, 'b | 'fill]> ! 'e | 'f do
+) -> LongestStep<['a | 'fill, 'b | 'fill]> ! 'e | 'f
     host.zip_longest_next(left, right, fill, left_done, right_done)
-end
 
 --- Yield at most count values without consuming any later source value.
 fn take<'a, 'e>(iterator: Iterator<'a, 'e>, count: integer) -> Iterator<'a, 'e> ! never do
     host.validate_count(count)
-    let remaining = count
-    from(fn() -> Step<'a> ! 'e do
-        if remaining == 0 then { done = true }
+    let state: {remaining: integer} = {remaining = count}
+    from(fn() -> Step<'a> ! 'e
+        if state.remaining == 0 then { done = true }
         else
             let step = iterator()
             if step.done then step
             else
-                remaining = remaining - 1
+                state.remaining = state.remaining - 1
                 { done = false, value = step.value }
             end
-        end
-    end)
+        end)
 end
 
 --- Lazily discard count values, then yield the remaining source values.
 fn drop<'a, 'e>(iterator: Iterator<'a, 'e>, count: integer) -> Iterator<'a, 'e> ! never do
     host.validate_count(count)
-    let remaining = count
+    let state: {remaining: integer} = {remaining = count}
     from(fn() -> Step<'a> ! 'e do
-        let step = host.drop_next(iterator, remaining)
-        remaining = 0
+        let step = host.drop_next(iterator, state.remaining)
+        state.remaining = 0
         step
     end)
 end
 
 --- Pair every value with its zero-based integer index.
 fn enumerate<'a, 'e>(iterator: Iterator<'a, 'e>) -> Iterator<[integer, 'a], 'e> ! never do
-    let index = 0
+    let state: {index: integer} = {index = 0}
     host.typed_iterator(fn() do
-        let step = enumerate_next(iterator, index)
-        if not step.done then index = index + 1 end
+        let step = enumerate_next(iterator, state.index)
+        if not step.done then state.index = state.index + 1 end
         step
     end)
 end
@@ -153,9 +145,9 @@ end
 fn zip<'a, 'b, 'e, 'f>(
     left: Iterator<'a, 'e>,
     right: Iterator<'b, 'f>,
-) -> Iterator<['a, 'b], 'e | 'f> ! never do
-    from(fn() -> Step<['a, 'b]> ! 'e | 'f do zip_next(left, right) end)
-end
+) -> Iterator<['a, 'b], 'e | 'f> ! never
+    from(fn() -> Step<['a, 'b]> ! 'e | 'f
+        zip_next(left, right))
 
 --- Pair values until both inputs exhaust, substituting fill for a missing side.
 fn zip_longest<'a, 'b, 'fill, 'e, 'f>(
@@ -163,104 +155,94 @@ fn zip_longest<'a, 'b, 'fill, 'e, 'f>(
     right: Iterator<'b, 'f>,
     fill: 'fill,
 ) -> Iterator<['a | 'fill, 'b | 'fill], 'e | 'f> ! never do
-    let left_done: boolean = false
-    let right_done: boolean = false
+    let state: {left_done: boolean, right_done: boolean} = {left_done = false, right_done = false}
     host.typed_iterator(fn() do
-        let step = zip_longest_next(left, right, fill, left_done, right_done)
-        left_done = step.left_done
-        right_done = step.right_done
+        let step = zip_longest_next(left, right, fill, state.left_done, state.right_done)
+        state.left_done = step.left_done
+        state.right_done = step.right_done
         if step.done then { done = true }
         else { done = false, value = step.value }
         end
     end)
 end
 
-fn to_list<'a, 'e>(iterator: Iterator<'a, 'e>) -> [..'a] ! 'e do
+fn to_list<'a, 'e>(iterator: Iterator<'a, 'e>) -> [..'a] ! 'e
     host.to_list(iterator)
-end
 
 fn fold<'state, 'a, 'e, 'f>(
     iterator: Iterator<'a, 'e>,
     initial: 'state,
     reducer: fn('state, 'a) -> 'state ! 'f,
-) -> 'state ! 'e | 'f do
+) -> 'state ! 'e | 'f
     host.fold(iterator, initial, reducer)
-end
 
 fn find<'a, 'e, 'f>(
     iterator: Iterator<'a, 'e>,
     predicate: fn('a) -> boolean ! 'f,
-) -> 'a | nil ! 'e | 'f do
+) -> 'a | nil ! 'e | 'f
     host.find(iterator, predicate)
-end
 
 fn find_index<'a, 'e, 'f>(
     iterator: Iterator<'a, 'e>,
     predicate: fn('a) -> boolean ! 'f,
-) -> integer | nil ! 'e | 'f do
+) -> integer | nil ! 'e | 'f
     host.find_index(iterator, predicate)
-end
 
-fn contains<'a, 'e>(iterator: Iterator<'a, 'e>, needle: 'a) -> boolean ! 'e do
+fn contains<'a, 'e>(iterator: Iterator<'a, 'e>, needle: 'a) -> boolean ! 'e
     host.contains(iterator, needle)
-end
 
 fn any<'a, 'e, 'f>(
     iterator: Iterator<'a, 'e>,
     predicate: fn('a) -> boolean ! 'f,
-) -> boolean ! 'e | 'f do
+) -> boolean ! 'e | 'f
     host.any(iterator, predicate)
-end
 
 fn all<'a, 'e, 'f>(
     iterator: Iterator<'a, 'e>,
     predicate: fn('a) -> boolean ! 'f,
-) -> boolean ! 'e | 'f do
+) -> boolean ! 'e | 'f
     host.all(iterator, predicate)
-end
 
 fn each<'a, 'e, 'f>(
     iterator: Iterator<'a, 'e>,
     callback: fn('a) -> any ! 'f,
-) -> nil ! 'e | 'f do
+) -> nil ! 'e | 'f
     host.each(iterator, callback)
-end
 
 fn count<'a, 'e, 'f>(
     iterator: Iterator<'a, 'e>,
     predicate: fn('a) -> boolean ! 'f,
-) -> integer ! 'e | 'f do
+) -> integer ! 'e | 'f
     host.count(iterator, predicate)
-end
 
-fn break_control<'result>(value: 'result) -> Break<'result> ! never do
+fn break_control<'result>(value: 'result) -> Break<'result> ! never
     { control = "break", value = value }
-end
 
-fn continue_control<'next>(value: 'next) -> Continue<'next> ! never do
+fn continue_control<'next>(value: 'next) -> Continue<'next> ! never
     { control = "continue", value = value }
-end
 
 fn each_while<'a, 'ignored, 'result, 'e, 'f>(
     iterator: Iterator<'a, 'e>,
     callback: fn('a) -> Control<'ignored, 'result> ! 'f,
-) -> 'result | nil ! 'e | 'f do
+) -> 'result | nil ! 'e | 'f
     host.each_while(iterator, callback)
-end
 
 fn fold_while<'state, 'a, 'result, 'e, 'f>(
     iterator: Iterator<'a, 'e>,
     initial: 'state,
     step: fn('state, 'a) -> Control<'state, 'result> ! 'f,
-) -> 'state | 'result ! 'e | 'f do
+) -> 'state | 'result ! 'e | 'f
     host.fold_while(iterator, initial, step)
-end
 
-fn repeat_with<'a, 'e>(producer: fn() -> 'a ! 'e) -> Iterator<'a, 'e> ! never do
-    fn() -> Step<'a> ! 'e do
+--- Repeatedly run body until it returns an explicit break control.
+fn loop<'ignored, 'result, 'e>(
+    body: fn() -> Control<'ignored, 'result> ! 'e,
+) -> 'result ! 'e
+    host.loop(body)
+
+fn repeat_with<'a, 'e>(producer: fn() -> 'a ! 'e) -> Iterator<'a, 'e> ! never
+    fn() -> Step<'a> ! 'e
         { done = false, value = host.repeat_next(producer) }
-    end
-end
 
 {
     from = from, next = next,
@@ -270,5 +252,5 @@ end
     to_list = to_list, fold = fold, find = find, find_index = find_index,
     contains = contains, any = any, all = all, each = each, count = count,
     ["break"] = break_control, ["continue"] = continue_control,
-    each_while = each_while, fold_while = fold_while, repeat_with = repeat_with,
+    each_while = each_while, fold_while = fold_while, loop = loop, repeat_with = repeat_with,
 }

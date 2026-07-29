@@ -2,12 +2,16 @@ mod db;
 mod lower;
 mod model;
 mod modules;
+mod requires;
 mod resolver;
 mod types;
 
 pub use db::{
     AnalysisDatabase, FileId, ParsedFile, diagnostics, document_symbols, hir, parse, references,
     resolve, source_text, type_inference,
+};
+pub use requires::{
+    PackageRequirementsError, Requirement, RequirementSource, Requires, parse_requires,
 };
 pub use simi_syntax::span::Span;
 

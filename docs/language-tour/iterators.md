@@ -78,9 +78,8 @@ let transformed =
         list.append(calls, value)
         value >= 0
     end)
-    |> iter.map(fn(value) do
-        value * 2
-    end)
+    |> iter.map(fn(value)
+        value * 2)
 
 let calls_before_consuming = list.length(calls)
 let result = iter.to_list(transformed)
@@ -128,19 +127,33 @@ not lexical control flow.
 ```simi
 let iter = require("std/iter")
 
-let sum = iter.fold_while(list.iter([1, 2, 3, 4]), 0, fn(total, value) do
+let sum = iter.fold_while(list.iter([1, 2, 3, 4]), 0, fn(total, value)
     if value == 4 then iter.break(total)
-    else iter.continue(total + value) end
-end)
+    else iter.continue(total + value) end)
 
 sum
 ```
 
 `each_while` returns its break payload, or `nil` when its source is exhausted.
-`fold_while` returns its current state at exhaustion. `iter.repeat_with` creates
-a lazy infinite iterator: its producer runs once per requested item and may
-produce `nil`. Malformed callback control maps are hard diagnostics, while
-raises from a source or callback propagate unchanged.
+`fold_while` returns its current state at exhaustion. `iter.loop` repeatedly
+runs a no-argument body until it returns `iter.break(value)`; a continue
+payload is ignored. It is useful for an unbounded stateful operation that does
+not produce iterator items.
+
+```simi
+let iter = require("std/iter")
+let state = {attempts = 0}
+
+iter.loop(fn() do
+    state.attempts = state.attempts + 1
+    if state.attempts == 3 then iter.break(state.attempts)
+    else iter.continue(nil) end
+end)
+```
+
+`iter.repeat_with` creates a lazy infinite iterator: its producer runs once per
+requested item and may produce `nil`. Malformed callback control maps are hard
+diagnostics, while raises from a source or callback propagate unchanged.
 
 ## Consumers
 
@@ -167,13 +180,11 @@ let values = [1, 2, 3, 4]
 let total =
     values
     |> list.iter()
-    |> iter.fold(0) <| fn(sum, value) do
+    |> iter.fold(0) <| fn(sum, value)
         sum + value
-    end
 
-let even_count = iter.count(list.iter(values), fn(value: integer) -> boolean ! never do
-    value % 2 == 0
-end)
+let even_count = iter.count(list.iter(values), fn(value: integer) -> boolean ! never
+    value % 2 == 0)
 
 [total, even_count]
 ```
@@ -183,9 +194,8 @@ The initial accumulator supplies the stable state type for `fold`. A mixed integ
 ```simi
 
 
-iter.fold(list.iter([1, 2.5]), 0.0, fn(total, value) do
-    total + value
-end)
+iter.fold(list.iter([1, 2.5]), 0.0, fn(total, value)
+    total + value)
 ```
 
 Predicates passed to `find`, `find_index`, `any`, `all`, and predicate-based `count` must return booleans. Searches and boolean queries short-circuit, leaving later values unconsumed.
@@ -194,9 +204,8 @@ Predicates passed to `find`, `find_index`, `any`, `all`, and predicate-based `co
 
 let source = list.iter([1, 2, 3, 4])
 
-let found = iter.find(source, fn(value) do
-    value == 2
-end)
+let found = iter.find(source, fn(value)
+    value == 2)
 
 [found, iter.to_list(source)]
 ```
@@ -246,17 +255,16 @@ A custom producer is a zero-argument function returning these step maps. Wrap it
 ```simi
 
 fn countdown(start) do
-    let current = start
+    let state = {current = start}
 
-    iter.from(fn() do
-        if current <= 0 then
+    iter.from(fn()
+        if state.current <= 0 then
             {done = true}
         else
-            let value = current
-            current = current - 1
+            let value = state.current
+            state.current = state.current - 1
             {done = false, value = value}
-        end
-    end)
+        end)
 end
 
 iter.to_list(countdown(3))

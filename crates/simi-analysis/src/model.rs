@@ -95,6 +95,7 @@ pub struct Resolution {
 pub enum AnalysisDiagnosticCode {
     InvalidSyntax,
     SyntaxError,
+    InvalidPackageRequirements,
     TypeMismatch,
     InvalidOperator,
     NotCallable,
@@ -113,6 +114,7 @@ impl AnalysisDiagnosticCode {
         match self {
             Self::InvalidSyntax => "invalid_syntax",
             Self::SyntaxError => "syntax_error",
+            Self::InvalidPackageRequirements => "invalid_package_requirements",
             Self::TypeMismatch => "type_mismatch",
             Self::InvalidOperator => "invalid_operator",
             Self::NotCallable => "not_callable",
@@ -300,6 +302,7 @@ pub enum Type {
     Int,
     Float,
     String,
+    Bytes,
     LiteralInt(i64),
     LiteralFloat(LiteralFloat),
     LiteralString(String),
@@ -353,6 +356,7 @@ fn display_type(ty: &Type, nested: bool) -> String {
         Type::Int => "integer".to_owned(),
         Type::Float => "float".to_owned(),
         Type::String => "string".to_owned(),
+        Type::Bytes => "bytes".to_owned(),
         Type::LiteralInt(value) => value.to_string(),
         Type::LiteralFloat(value) => display_float_literal(value.value()),
         Type::LiteralString(value) => format!("{value:?}"),

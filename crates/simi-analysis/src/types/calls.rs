@@ -138,13 +138,14 @@ impl Context<'_> {
         parameter_offset: usize,
     ) -> Vec<Type> {
         let mut deferred_empty_lists = Vec::new();
+        let mut deferred_empty_maps = Vec::new();
         let inferred = arguments
             .iter()
             .enumerate()
             .map(|(index, argument)| {
                 let parameter_index = parameter_offset + index;
                 let expected = self.call_parameter_type(callee, parameter_index);
-                let defer_empty_lists = expected.as_ref().is_some_and(|expected| {
+                let defer_empty_literals = expected.as_ref().is_some_and(|expected| {
                     self.call_parameter_threads_inference_through_callback(
                         callee,
                         parameter_index,
@@ -154,8 +155,9 @@ impl Context<'_> {
                 let actual = self.infer_call_argument(
                     argument.clone(),
                     expected.as_ref(),
-                    defer_empty_lists,
+                    defer_empty_literals,
                     &mut deferred_empty_lists,
+                    &mut deferred_empty_maps,
                 );
                 self.constrain_call_argument(
                     callee,
@@ -167,6 +169,7 @@ impl Context<'_> {
             })
             .collect();
         self.finalize_deferred_empty_lists(deferred_empty_lists);
+        self.finalize_deferred_empty_maps(deferred_empty_maps);
         inferred
     }
 
@@ -174,8 +177,9 @@ impl Context<'_> {
         &mut self,
         argument: syntax::Expr,
         expected: Option<&Type>,
-        defer_empty_lists: bool,
+        defer_empty_literals: bool,
         deferred_empty_lists: &mut Vec<u32>,
+        deferred_empty_maps: &mut Vec<(u32, u32)>,
     ) -> Type {
         match (argument, expected) {
             (syntax::Expr::Function(function), Some(Type::Function(callable))) => {
@@ -183,7 +187,13 @@ impl Context<'_> {
             }
             (syntax::Expr::Paren(paren), Some(expected @ Type::Function(_))) => {
                 child_expr(paren.syntax(), 0).map_or(Type::Unknown, |inner| {
-                    self.infer_call_argument(inner, Some(expected), false, deferred_empty_lists)
+                    self.infer_call_argument(
+                        inner,
+                        Some(expected),
+                        false,
+                        deferred_empty_lists,
+                        deferred_empty_maps,
+                    )
                 })
             }
             (argument, Some(expected)) if type_contains_singleton(expected) => {
@@ -191,8 +201,13 @@ impl Context<'_> {
             }
             (argument, _) => {
                 let inferred = self.expression(argument.clone());
-                if defer_empty_lists {
-                    self.defer_empty_list_literals(&argument, inferred, deferred_empty_lists)
+                if defer_empty_literals {
+                    self.defer_empty_container_literals(
+                        &argument,
+                        inferred,
+                        deferred_empty_lists,
+                        deferred_empty_maps,
+                    )
                 } else {
                     inferred
                 }
@@ -232,32 +247,46 @@ impl Context<'_> {
         })
     }
 
-    fn defer_empty_list_literals(
+    fn defer_empty_container_literals(
         &mut self,
         expression: &syntax::Expr,
         inferred: Type,
         deferred_empty_lists: &mut Vec<u32>,
+        deferred_empty_maps: &mut Vec<(u32, u32)>,
     ) -> Type {
         let deferred = match (expression, inferred) {
             (syntax::Expr::List(list), Type::ListExact(items)) => {
-                let children = expr_children(list.syntax()).collect::<Vec<_>>();
-                if children.is_empty() {
+                let elements =
+                    support::children::<syntax::ListElement>(list.syntax()).collect::<Vec<_>>();
+                if elements.is_empty() {
                     let Type::Infer(variable) = self.fresh() else {
                         unreachable!("fresh types are inference variables")
                     };
                     deferred_empty_lists.push(variable);
                     self.deferred_empty_list_infers.insert(variable);
                     Type::ListRest(Box::new(Type::Infer(variable)))
-                } else {
+                } else if elements
+                    .iter()
+                    .all(|element| direct_token(element.syntax(), K::DOT_DOT).is_none())
+                    && elements.len() == items.len()
+                {
                     Type::ListExact(
-                        children
+                        elements
                             .iter()
+                            .filter_map(|element| child_expr(element.syntax(), 0))
                             .zip(items)
                             .map(|(child, item)| {
-                                self.defer_empty_list_literals(child, item, deferred_empty_lists)
+                                self.defer_empty_container_literals(
+                                    &child,
+                                    item,
+                                    deferred_empty_lists,
+                                    deferred_empty_maps,
+                                )
                             })
                             .collect(),
                     )
+                } else {
+                    Type::ListExact(items)
                 }
             }
             (
@@ -268,30 +297,55 @@ impl Context<'_> {
                     open,
                 },
             ) => {
-                for entry in support::children::<syntax::MapEntry>(map.syntax()) {
-                    let Some(name) = direct_token(entry.syntax(), K::IDENT) else {
-                        continue;
+                if fields.is_empty() && index.is_none() && !open {
+                    let Type::Infer(key) = self.fresh() else {
+                        unreachable!("fresh types are inference variables")
                     };
-                    let Some(value) = expr_children(entry.syntax()).next() else {
-                        continue;
+                    let Type::Infer(value) = self.fresh() else {
+                        unreachable!("fresh types are inference variables")
                     };
-                    let Some((_, field)) =
-                        fields.iter_mut().find(|(field, _)| field == name.text())
-                    else {
-                        continue;
-                    };
-                    *field =
-                        self.defer_empty_list_literals(&value, field.clone(), deferred_empty_lists);
-                }
-                Type::Map {
-                    fields,
-                    index,
-                    open,
+                    deferred_empty_maps.push((key, value));
+                    self.deferred_empty_map_infers.extend([key, value]);
+                    Type::Map {
+                        fields,
+                        index: Some((Box::new(Type::Infer(key)), Box::new(Type::Infer(value)))),
+                        open,
+                    }
+                } else {
+                    for entry in support::children::<syntax::MapEntry>(map.syntax()) {
+                        let Some(name) = direct_token(entry.syntax(), K::IDENT) else {
+                            continue;
+                        };
+                        let Some(value) = expr_children(entry.syntax()).next() else {
+                            continue;
+                        };
+                        let Some((_, field)) =
+                            fields.iter_mut().find(|(field, _)| field == name.text())
+                        else {
+                            continue;
+                        };
+                        *field = self.defer_empty_container_literals(
+                            &value,
+                            field.clone(),
+                            deferred_empty_lists,
+                            deferred_empty_maps,
+                        );
+                    }
+                    Type::Map {
+                        fields,
+                        index,
+                        open,
+                    }
                 }
             }
             (syntax::Expr::Paren(paren), inferred) => child_expr(paren.syntax(), 0)
                 .map(|inner| {
-                    self.defer_empty_list_literals(&inner, inferred.clone(), deferred_empty_lists)
+                    self.defer_empty_container_literals(
+                        &inner,
+                        inferred.clone(),
+                        deferred_empty_lists,
+                        deferred_empty_maps,
+                    )
                 })
                 .unwrap_or(inferred),
             (_, inferred) => inferred,

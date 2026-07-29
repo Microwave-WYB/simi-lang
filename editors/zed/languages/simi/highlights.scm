@@ -14,6 +14,7 @@
   "end"
   "let"
   "alias"
+  "requires"
   "if"
   "then"
   "elseif"
@@ -99,5 +100,11 @@
 (map_pattern_field
   name: (identifier) @property)
 
-["(" ")" "[" "]" "{" "}"] @punctuation.bracket
+(bytes_pattern_fixed_capture
+  name: (identifier) @variable)
+
+(bytes_pattern_remainder
+  name: (identifier) @variable)
+
+["#" "(" ")" "[" "]" "{" "}"] @punctuation.bracket
 ["," "."] @punctuation.delimiter

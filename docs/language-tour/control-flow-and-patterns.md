@@ -11,6 +11,7 @@
 - Control flow and patterns
   - [Conditionals are expressions](#conditionals-are-expressions)
   - [Structural pattern matching](#structural-pattern-matching)
+    - [Bytes patterns](#bytes-patterns)
     - [Destructuring with `let`](#destructuring-with-let)
   - [Postfix nil propagation](#postfix-nil-propagation)
     - [Protected catch boundaries](#protected-catch-boundaries)
@@ -79,7 +80,7 @@ Patterns include:
 - literals such as `42`, `"ok"`, `true`, and `nil`;
 - binding names;
 - the `_` wildcard;
-- nested list and map patterns;
+- nested list, bytes, and map patterns;
 - list and map rest captures.
 
 ```simi
@@ -113,6 +114,23 @@ case settings of
         "has a nickname"
 end
 ```
+
+### Bytes patterns
+
+Bytes patterns use `#[]`. String segments match their exact UTF-8 byte prefixes, a bare binding captures one byte as an integer, and `name:bytes(n)` captures exactly `n` bytes. A final `name:bytes` capture receives the entire remaining suffix; it must be final.
+
+```simi
+let packet = #["PNG", 1, 0, 2, 255]
+
+case packet of
+    #["PNG", version, length:bytes(2), payload:bytes] =>
+        [version, inspect(length), inspect(payload)]
+    _ =>
+        nil
+end
+```
+
+Bytes patterns work anywhere structural patterns do, including `let` and `catch`. A pattern with no final remainder must consume the whole bytes value. As with other refutable `let` patterns, a mismatch is a hard diagnostic; use `case` when failure is expected.
 
 ### Destructuring with `let`
 
@@ -189,13 +207,13 @@ result
 
 ### Protected catch boundaries
 
-A protected `do` has a protected block, followed by `catch of` and `pattern [when guard] => expression` arms. `catch` matches raised values; it does **not** catch postfix nil propagation. If `?` sees `nil` in the protected block, that block simply evaluates to `nil` and catch selection never begins:
+A protected `do` has a protected block, followed by `catch` and `pattern [when guard] => expression` arms. `catch` matches raised values; it does **not** catch postfix nil propagation. If `?` sees `nil` in the protected block, that block simply evaluates to `nil` and catch selection never begins:
 
 ```simi
 let selected = do
     nil?
     "unreachable"
-catch of
+catch
     _ =>
         "not caught"
 end
@@ -208,7 +226,7 @@ Likewise, `?` inside a selected catch arm stops that arm as `nil`; later arms ar
 ```simi
 let selected = do
     raise "missing"
-catch of
+catch
     "missing" => do
         nil?
         "unreachable"

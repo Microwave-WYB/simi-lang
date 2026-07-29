@@ -162,7 +162,7 @@ fn missing_modules_raise_exact_values_at_the_call_span_and_are_catchable() {
         .eval(
             r#"
             do require("missing")
-                catch of {error="module_not_found", module=module, ..} =>
+                catch {error="module_not_found", module=module, ..} =>
                     module
             end
             "#,
@@ -204,10 +204,10 @@ fn require_type_errors_and_qualified_native_arity_errors_are_hard() {
 
 #[test]
 fn portable_prelude_values_are_direct_shadowable_and_share_require_identity() {
-    for engine in [Engine::new(), Engine::with_stdlib()] {
-        let value = engine
-            .eval(
-                r#"
+    let engine = Engine::with_stdlib();
+    let value = engine
+        .eval(
+            r#"
                 iter.marker = "cached"
                 number.marker = "numeric"
                 [
@@ -220,20 +220,31 @@ fn portable_prelude_values_are_direct_shadowable_and_share_require_identity() {
                     require("std/number").marker,
                 ]
                 "#,
-            )
-            .expect("portable prelude calls should have no hard diagnostic")
-            .expect("portable prelude calls should not raise");
-        assert_eq!(
-            value.render(),
-            "[3, 0, 4, \"5\", \"SIMI\", \"cached\", \"numeric\"]"
-        );
+        )
+        .expect("portable prelude calls should have no hard diagnostic")
+        .expect("portable prelude calls should not raise");
+    assert_eq!(
+        value.render(),
+        "[3, 0, 4, \"5\", \"SIMI\", \"cached\", \"numeric\"]"
+    );
 
-        let value = engine
-            .eval("require(\"std/iter\").marker")
-            .expect("cached prelude state should have no hard diagnostic")
-            .expect("cached prelude state should not raise");
-        assert_eq!(value.render(), "\"cached\"");
-    }
+    let value = engine
+        .eval("require(\"std/iter\").marker")
+        .expect("cached prelude state should have no hard diagnostic")
+        .expect("cached prelude state should not raise");
+    assert_eq!(value.render(), "\"cached\"");
+
+    let minimal = Engine::new()
+        .eval("[list.length([1]), map.length({})]")
+        .expect("minimum prelude should have no hard diagnostic")
+        .expect("minimum prelude should not raise");
+    assert_eq!(minimal.render(), "[1, 0]");
+    assert!(
+        Engine::new()
+            .eval("require(\"std/iter\")")
+            .unwrap()
+            .is_err()
+    );
 
     let value = eval("list.length([1])")
         .expect("root eval should provide the portable prelude")
@@ -253,7 +264,10 @@ fn portable_prelude_values_are_direct_shadowable_and_share_require_identity() {
     assert_eq!(value.render(), "42");
 
     let value = Engine::new()
-        .eval("fn identity(require) do require end identity(43)")
+        .eval(
+            "fn identity(require)
+    require identity(43)",
+        )
         .expect("parameter-shadowed require should have no hard diagnostic")
         .expect("parameter-shadowed require should not raise");
     assert_eq!(value.render(), "43");
@@ -334,25 +348,25 @@ fn circular_source_portable_override_remains_a_language_raise() {
 }
 
 #[test]
-fn source_portable_overrides_use_explicit_dependencies_before_alias_installation() {
-    let implicit = Engine::builder()
+fn direct_source_modules_remain_available_outside_the_reserved_namespace() {
+    let direct = Engine::builder()
         .stdlib()
-        .module(Module::source("std/string", "list").build())
+        .module(Module::source("custom", "list").build())
         .build();
-    let error = match implicit.eval("nil") {
-        Err(error) => error,
-        Ok(_) => panic!("portable aliases must not be partially visible during installation"),
-    };
-    assert!(
-        error.to_string().contains("undefined name `list`"),
-        "unexpected implicit dependency error: {error}"
+    assert_eq!(
+        direct
+            .eval("type(require(\"custom\"))")
+            .unwrap()
+            .unwrap()
+            .render(),
+        "\"map\""
     );
 
     let explicit = Engine::builder()
         .stdlib()
         .module(
             Module::source(
-                "std/string",
+                "custom",
                 "let dependency = require(\"std/list\") {dependency = dependency}",
             )
             .build(),
@@ -362,7 +376,7 @@ fn source_portable_overrides_use_explicit_dependencies_before_alias_installation
         .eval(
             r#"
             list.marker = "shared"
-            string.dependency.marker
+            require("custom").dependency.marker
             "#,
         )
         .expect("explicit portable dependency should not hard fail")
@@ -411,7 +425,8 @@ fn remaining_standard_modules_are_requireable() {
 fn global_type_reports_every_runtime_value_category() {
     let value = eval(
         r#"
-        fn sample() do nil end
+        fn sample()
+            nil
         [
             type(1),
             type(1.5),
@@ -542,7 +557,8 @@ fn source_facades_evaluate_with_generated_functions_and_data_in_private_host() {
         r#"
             let add: fn(integer, integer) -> integer = host.add
             let answer: integer = host.answer
-            fn doubled_answer() do add(answer, answer) end
+            fn doubled_answer()
+                add(answer, answer)
             {add = add, answer = answer, doubled_answer = doubled_answer}
         "#,
     )
@@ -602,12 +618,16 @@ fn direct_native_aliases_avoid_facade_function_wrappers() {
 
 #[test]
 fn shadowed_host_names_remain_ordinary_simi_functions() {
-    let module = Module::source("shadowed-host", "fn invoke(host) do host.fail() end invoke")
-        .host(simi::host_value! {
-            name: "shadowed-host",
-            values: { "label" => Value::String("private".to_owned()) },
-        })
-        .build();
+    let module = Module::source(
+        "shadowed-host",
+        "fn invoke(host)
+    host.fail() invoke",
+    )
+    .host(simi::host_value! {
+        name: "shadowed-host",
+        values: { "label" => Value::String("private".to_owned()) },
+    })
+    .build();
     let engine = Engine::builder().module(module).build();
     assert_eq!(
         engine
@@ -619,7 +639,10 @@ fn shadowed_host_names_remain_ordinary_simi_functions() {
     );
 
     let raised = match engine
-        .eval("let invoke = require(\"shadowed-host\") invoke({fail = fn() do raise \"boom\" end})")
+        .eval(
+            "let invoke = require(\"shadowed-host\") invoke({fail = fn()
+    raise \"boom\"})",
+        )
         .unwrap()
     {
         Err(raised) => raised,
@@ -631,15 +654,19 @@ fn shadowed_host_names_remain_ordinary_simi_functions() {
 }
 
 #[test]
-fn reassigned_and_arbitrary_host_functions_keep_public_trace_boundaries() {
+fn overridden_and_arbitrary_host_functions_keep_public_trace_boundaries() {
     for (name, source) in [
         (
-            "assigned-before",
-            "let replacement = {fail = fn() do raise \"boom\" end} host = replacement fn invoke() do host.fail() end invoke",
+            "shadowed-before",
+            "let host = {fail = fn()
+    raise \"boom\"} fn invoke()
+    host.fail() invoke",
         ),
         (
-            "assigned-after",
-            "fn invoke() do host.fail() end let replacement = {fail = fn() do raise \"boom\" end} host = replacement invoke",
+            "mutated-after",
+            "fn invoke()
+    host.fail() host.fail = fn()
+    raise \"boom\" invoke",
         ),
     ] {
         let engine = Engine::builder()
@@ -671,7 +698,10 @@ fn reassigned_and_arbitrary_host_functions_keep_public_trace_boundaries() {
 
     let producer = Engine::new();
     let user_function = producer
-        .eval("fn fail() do raise \"host boom\" end fail")
+        .eval(
+            "fn fail()
+    raise \"host boom\" fail",
+        )
         .unwrap()
         .unwrap();
     let direct_user_function = user_function.clone();
@@ -688,7 +718,9 @@ fn reassigned_and_arbitrary_host_functions_keep_public_trace_boundaries() {
         .module(
             Module::source(
                 "arbitrary-functions",
-                "fn invoke() do host.fail() end fn load() do host.load(\"absent\") end {invoke = invoke, load = load}",
+                "fn invoke()
+    host.fail() fn load()
+    host.load(\"absent\") {invoke = invoke, load = load}",
             )
             .host(simi::host_value! {
                 name: "arbitrary-functions",
@@ -742,7 +774,9 @@ fn nested_source_module_frames_collapse_to_the_public_boundary() {
         .module(
             Module::source(
                 "nested-frames",
-                "fn inner() do raise \"boom\" end fn outer() do inner() end outer",
+                "fn inner()
+    raise \"boom\" fn outer()
+    inner() outer",
             )
             .build(),
         )
@@ -858,7 +892,8 @@ fn source_modules_reject_missing_host_values_and_raise_for_cycles() {
     let missing = Module::source(
         "missing-host",
         r#"
-        fn call() do host.missing() end
+        fn call()
+            host.missing()
         {call = call}
         "#,
     )
@@ -1017,12 +1052,17 @@ fn source_module_nested_loads_retry_failures_and_isolate_cached_mutation() {
 #[test]
 fn engine_lsp_catalog_includes_bundled_prelude_facades() {
     for module in [
+        simi::stdlib::bytes(),
+        simi::stdlib::float(),
+        simi::stdlib::integer(),
         simi::stdlib::list(),
         simi::stdlib::map(),
         simi::stdlib::iter(),
         simi::stdlib::number(),
         simi::stdlib::string(),
         simi::stdlib::io(),
+        simi::stdlib::utf8(),
+        simi::stdlib::utf16(),
     ] {
         assert!(
             module.is_source_backed(),
@@ -1036,12 +1076,18 @@ fn engine_lsp_catalog_includes_bundled_prelude_facades() {
     assert_eq!(
         sources.iter().map(|(name, _)| name).collect::<Vec<_>>(),
         [
+            "std",
+            "std/bytes",
+            "std/float",
+            "std/integer",
             "std/io",
             "std/iter",
             "std/list",
             "std/map",
             "std/number",
             "std/string",
+            "std/utf16",
+            "std/utf8",
         ]
     );
     assert_eq!(
@@ -1067,8 +1113,10 @@ fn source_module_failures_are_attributed_to_the_public_boundary() {
             Module::source(
                 "failing",
                 r#"
-                fn raised() do raise "module raise" end
-                fn hard() do nil + 1 end
+                fn raised()
+                    raise "module raise"
+                fn hard()
+                    nil + 1
                 { raised = raised, hard = hard }
                 "#,
             )

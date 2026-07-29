@@ -143,7 +143,7 @@ fn conversion_argument_errors_are_qualified_hard_diagnostics() {
 
 #[test]
 fn conversion_modules_are_portable_available_and_isolated_per_engine() {
-    let first = Engine::new();
+    let first = Engine::with_stdlib();
     first
         .eval("let number = require(\"std/number\") number.marker = 1")
         .unwrap()

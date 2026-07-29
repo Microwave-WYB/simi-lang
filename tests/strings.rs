@@ -54,8 +54,8 @@ fn slice_bounds_and_split_semantics_are_publicly_observable() {
 }
 
 #[test]
-fn string_prelude_and_canonical_path_are_portable() {
-    let value = Engine::new()
+fn string_prelude_and_canonical_path_share_standard_library_identity() {
+    let value = Engine::with_stdlib()
         .eval(
             r#"
             string.marker = "shared"
@@ -71,23 +71,23 @@ fn string_prelude_and_canonical_path_are_portable() {
 fn wrong_types_and_indices_remain_uncatchable_hard_diagnostics() {
     for (source, qualified_name) in [
         (
-            "let string = require(\"std/string\") do string.length(1) catch of _ => nil end",
+            "let string = require(\"std/string\") do string.length(1) catch _ => nil end",
             "std/string.length",
         ),
         (
-            "let string = require(\"std/string\") do string.slice(\"abc\", 0 - 1, 2) catch of _ => nil end",
+            "let string = require(\"std/string\") do string.slice(\"abc\", 0 - 1, 2) catch _ => nil end",
             "std/string.slice",
         ),
         (
-            "let string = require(\"std/string\") do string.slice(\"abc\", 0, 2.0) catch of _ => nil end",
+            "let string = require(\"std/string\") do string.slice(\"abc\", 0, 2.0) catch _ => nil end",
             "std/string.slice",
         ),
         (
-            "let string = require(\"std/string\") do string.contains(\"abc\", 1) catch of _ => nil end",
+            "let string = require(\"std/string\") do string.contains(\"abc\", 1) catch _ => nil end",
             "std/string.contains",
         ),
         (
-            "let string = require(\"std/string\") do string.concat(\"abc\", 1) catch of _ => nil end",
+            "let string = require(\"std/string\") do string.concat(\"abc\", 1) catch _ => nil end",
             "std/string.concat",
         ),
     ] {

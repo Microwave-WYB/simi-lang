@@ -20,6 +20,10 @@
         "named": true
       },
       {
+        "type": "bytes",
+        "named": true
+      },
+      {
         "type": "call_expression",
         "named": true
       },
@@ -118,6 +122,10 @@
         "named": true
       },
       {
+        "type": "bytes_pattern",
+        "named": true
+      },
+      {
         "type": "float",
         "named": true
       },
@@ -161,10 +169,6 @@
       },
       {
         "type": "alias_declaration",
-        "named": true
-      },
-      {
-        "type": "function_declaration",
         "named": true
       },
       {
@@ -305,6 +309,10 @@
           },
           {
             "type": "boolean",
+            "named": true
+          },
+          {
+            "type": "bytes",
             "named": true
           },
           {
@@ -472,6 +480,10 @@
             "named": true
           },
           {
+            "type": "bytes",
+            "named": true
+          },
+          {
             "type": "call_expression",
             "named": true
           },
@@ -592,6 +604,109 @@
     "fields": {}
   },
   {
+    "type": "bytes",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "_expression",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "bytes_pattern",
+    "named": true,
+    "fields": {
+      "name": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          },
+          {
+            "type": "wildcard_pattern",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "bytes_pattern_fixed_capture",
+          "named": true
+        },
+        {
+          "type": "bytes_pattern_remainder",
+          "named": true
+        },
+        {
+          "type": "string",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "bytes_pattern_fixed_capture",
+    "named": true,
+    "fields": {
+      "length": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "integer",
+            "named": true
+          }
+        ]
+      },
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          },
+          {
+            "type": "wildcard_pattern",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "bytes_pattern_remainder",
+    "named": true,
+    "fields": {
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          },
+          {
+            "type": "wildcard_pattern",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
     "type": "call_expression",
     "named": true,
     "fields": {
@@ -615,6 +730,10 @@
           },
           {
             "type": "boolean",
+            "named": true
+          },
+          {
+            "type": "bytes",
             "named": true
           },
           {
@@ -1033,6 +1152,10 @@
             "named": true
           },
           {
+            "type": "bytes",
+            "named": true
+          },
+          {
             "type": "call_expression",
             "named": true
           },
@@ -1301,6 +1424,10 @@
             "named": true
           },
           {
+            "type": "bytes",
+            "named": true
+          },
+          {
             "type": "call_expression",
             "named": true
           },
@@ -1390,6 +1517,10 @@
         "types": [
           {
             "type": "boolean",
+            "named": true
+          },
+          {
+            "type": "bytes_pattern",
             "named": true
           },
           {
@@ -1769,6 +1900,10 @@
             "named": true
           },
           {
+            "type": "bytes",
+            "named": true
+          },
+          {
             "type": "call_expression",
             "named": true
           },
@@ -2005,6 +2140,10 @@
             "named": true
           },
           {
+            "type": "bytes",
+            "named": true
+          },
+          {
             "type": "call_expression",
             "named": true
           },
@@ -2143,6 +2282,10 @@
             "named": true
           },
           {
+            "type": "bytes",
+            "named": true
+          },
+          {
             "type": "call_expression",
             "named": true
           },
@@ -2242,6 +2385,14 @@
         {
           "type": "_statement",
           "named": true
+        },
+        {
+          "type": "function_declaration",
+          "named": true
+        },
+        {
+          "type": "requires_declaration",
+          "named": true
         }
       ]
     }
@@ -2282,6 +2433,22 @@
         "types": [
           {
             "type": "_expression",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "requires_declaration",
+    "named": true,
+    "fields": {
+      "requirements": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "map",
             "named": true
           }
         ]
@@ -2376,6 +2543,10 @@
           },
           {
             "type": "boolean",
+            "named": true
+          },
+          {
+            "type": "bytes",
             "named": true
           },
           {
@@ -2568,6 +2739,10 @@
             "named": true
           },
           {
+            "type": "bytes",
+            "named": true
+          },
+          {
             "type": "call_expression",
             "named": true
           },
@@ -2713,6 +2888,10 @@
     "named": false
   },
   {
+    "type": "#",
+    "named": false
+  },
+  {
     "type": "%",
     "named": false
   },
@@ -2825,6 +3004,10 @@
     "named": false
   },
   {
+    "type": "bytes",
+    "named": false
+  },
+  {
     "type": "case",
     "named": false
   },
@@ -2907,6 +3090,10 @@
   },
   {
     "type": "raise",
+    "named": false
+  },
+  {
+    "type": "requires",
     "named": false
   },
   {

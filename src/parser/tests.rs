@@ -117,7 +117,8 @@ fn is_is_an_identifier_and_legacy_infix_syntax_fails_in_expression_contexts() {
 #[test]
 fn accepts_trailing_commas_in_all_comma_separated_constructs() {
     let program = parse_source(
-        "fn collect(first, second,) do [first, second,] end collect({a=1, [2]=3,}, 4,) |> collect(5,)",
+        "fn collect(first, second,)
+    [first, second,] collect({a=1, [2]=3,}, 4,) |> collect(5,)",
     )
     .unwrap();
 
@@ -143,7 +144,10 @@ fn accepts_trailing_commas_in_all_comma_separated_constructs() {
 
 #[test]
 fn parses_anonymous_functions_as_postfix_and_nested_expressions() {
-    let source = "fn(value) do fn(inner) do value + inner end end(2)";
+    let source = "fn(value) do
+    fn(inner)
+        value + inner
+end(2)";
     let program = parse_source(source).unwrap();
     let StmtKind::Expr(Expr {
         kind: ExprKind::Call { callee, args },
@@ -170,9 +174,11 @@ fn parses_anonymous_functions_as_postfix_and_nested_expressions() {
 #[test]
 fn callable_generics_constraints_labels_and_effects_are_erased_from_runtime_ast() {
     let source = concat!(
-        "fn identity<'a: | integer | string>(value: 'a) -> 'a ! never do value end\n",
+        "fn identity<'a: | integer | string>(value: 'a) -> 'a ! never
+    value\n",
         "let callback: fn<'a>(input: 'a) -> 'a ! string = ",
-        "fn<'a: any>(value: 'a) -> 'a ! string do value end\n",
+        "fn<'a: any>(value: 'a) -> 'a ! string
+    value\n",
         "identity(callback(42))",
     );
     let program = parse_source(source).unwrap();
@@ -196,7 +202,11 @@ fn callable_generics_constraints_labels_and_effects_are_erased_from_runtime_ast(
 
 #[test]
 fn anonymous_functions_compose_with_indexing_and_pipelines() {
-    let program = parse_source("[fn(value) do value end][0] |> apply(1)").unwrap();
+    let program = parse_source(
+        "[fn(value)
+    value][0] |> apply(1)",
+    )
+    .unwrap();
     let StmtKind::Expr(Expr {
         kind: ExprKind::Pipeline { input, .. },
         ..
@@ -278,16 +288,43 @@ fn parses_list_and_map_indexing() {
     else {
         panic!("expected list");
     };
-    assert!(
-        elements
-            .iter()
-            .all(|element| matches!(element.kind, ExprKind::Index { .. }))
-    );
+    assert!(elements.iter().all(|element| matches!(
+        element,
+        ListElement::Value(Expr {
+            kind: ExprKind::Index { .. },
+            ..
+        })
+    )));
+}
+
+#[test]
+fn parses_list_spread_elements() {
+    let program = parse_source("[1, ..[2, 3], 4]").unwrap();
+    let StmtKind::Expr(Expr {
+        kind: ExprKind::List(elements),
+        ..
+    }) = &program.items[0].kind
+    else {
+        panic!("expected list");
+    };
+    assert!(matches!(elements[0], ListElement::Value(_)));
+    assert!(matches!(
+        elements[1],
+        ListElement::Spread(Expr {
+            kind: ExprKind::List(_),
+            ..
+        })
+    ));
+    assert!(matches!(elements[2], ListElement::Value(_)));
 }
 
 #[test]
 fn rejects_duplicate_parameters_and_invalid_pipeline_stage() {
-    let duplicate = parse_source("fn f(value, value) do nil end").unwrap_err();
+    let duplicate = parse_source(
+        "fn f(value, value)
+    nil",
+    )
+    .unwrap_err();
     assert!(duplicate.message.contains("duplicate parameter `value`"));
 
     let invalid_stage = parse_source("value |> (f)(1)").unwrap_err();
@@ -301,7 +338,8 @@ fn rejects_duplicate_parameters_and_invalid_pipeline_stage() {
 
 #[test]
 fn reports_anonymous_function_parameter_and_delimiter_spans() {
-    let duplicate_source = "let f = fn(value, value) do value end";
+    let duplicate_source = "let f = fn(value, value)
+    value";
     let duplicate = parse_source(duplicate_source).unwrap_err();
     let duplicate_start = duplicate_source.find(", value").unwrap() + 2;
     assert_eq!(duplicate.message, "duplicate parameter `value`");
@@ -310,7 +348,8 @@ fn reports_anonymous_function_parameter_and_delimiter_spans() {
         Span::new(duplicate_start, duplicate_start + 5)
     );
 
-    let missing_open_source = "let f = fn value do value end";
+    let missing_open_source = "let f = fn value
+    value";
     let missing_open = parse_source(missing_open_source).unwrap_err();
     let value_start = missing_open_source.find("value").unwrap();
     assert_eq!(
@@ -406,7 +445,12 @@ fn legacy_loop_forms_are_rejected_while_iterator_control_members_parse() {
     for source in ["loop break 1 end", "break 1", "continue"] {
         assert!(parse_source(source).is_err(), "{source} should be rejected");
     }
-    parse_source("iter.break(1) iter.continue(nil)").unwrap();
+    parse_source("let loop = 7 loop").unwrap();
+    parse_source(
+        "iter.loop(fn()
+    iter.break(1)) iter.continue(nil)",
+    )
+    .unwrap();
 }
 
 #[test]
@@ -565,7 +609,7 @@ fn parses_raise_with_a_full_expression_operand_and_contract_span() {
 fn parses_protected_catch_arms_with_guards_empty_bodies_and_postfix_syntax() {
     let source = concat!(
         "do raise [1, 2] ",
-        "catch of [head, ..tail] when head == 1 => tail ",
+        "catch [head, ..tail] when head == 1 => tail ",
         "_ => do end ",
         "end[0]"
     );
@@ -621,9 +665,9 @@ fn parses_protected_catch_arms_with_guards_empty_bodies_and_postfix_syntax() {
 fn preserves_nested_protected_case_and_if_body_ownership() {
     let source = concat!(
         "do if true then ",
-        "case 1 of x => do x catch of _ => nil end end ",
+        "case 1 of x => do x catch _ => nil end end ",
         "else nil end ",
-        "catch of error when true => if false then error end ",
+        "catch error when true => if false then error end ",
         "_ => nil end"
     );
     let program = parse_source(source).unwrap();
@@ -655,21 +699,21 @@ fn preserves_nested_protected_case_and_if_body_ownership() {
 fn reports_required_protected_expression_delimiters_and_stray_catch() {
     for (source, expected_message) in [
         ("raise", "expected expression, found `end of file`"),
-        ("do 1 catch end", "expected `of` after `catch`, found `end`"),
+        (
+            "do 1 catch end",
+            "expected pattern after `catch`, found no catch arms",
+        ),
         (
             "do 1 catch _ nil end",
-            "expected `of` after `catch`, found `identifier`",
-        ),
-        (
-            "do 1 catch of _ when end",
-            "expected expression, found `end`",
-        ),
-        (
-            "do 1 catch of _ nil end",
             "expected `=>` after arm pattern and guard, found `nil`",
         ),
+        ("do 1 catch _ when end", "expected expression, found `end`"),
         (
-            "do 1 catch of _ => do nil",
+            "do 1 catch _ when do nil end end",
+            "expected `=>` after arm pattern and guard, found `end`",
+        ),
+        (
+            "do 1 catch _ => do nil",
             "expected `end` after standalone block, found `end of file`",
         ),
         ("catch", "unexpected `catch` outside of a block"),
@@ -681,7 +725,7 @@ fn reports_required_protected_expression_delimiters_and_stray_catch() {
 
 #[test]
 fn reports_empty_protected_body_at_the_catch_keyword() {
-    let source = "do catch of _ => nil end";
+    let source = "do catch _ => nil end";
     let error = parse_source(source).unwrap_err();
     assert_eq!(error.message, "expected at least one protected block item");
     assert_eq!(error.span, Span::new(3, 8));
@@ -689,7 +733,7 @@ fn reports_empty_protected_body_at_the_catch_keyword() {
 
 #[test]
 fn catch_clauses_reuse_existing_pattern_validation() {
-    let source = "do 0 catch of [value, ..value] => nil end";
+    let source = "do 0 catch [value, ..value] => nil end";
     let error = parse_source(source).unwrap_err();
     assert_eq!(error.message, "duplicate binding `value` in pattern");
     let start = source.rfind("value").unwrap();
@@ -782,7 +826,10 @@ fn parses_float_unary_and_operator_precedence() {
 
 #[test]
 fn assignment_rhs_preserves_pipeline_and_equality_precedence() {
-    for (source, expected) in [("a = b |> f()", "pipeline"), ("a = b == c", "equality")] {
+    for (source, expected) in [
+        ("a.field = b |> f()", "pipeline"),
+        ("a.field = b == c", "equality"),
+    ] {
         let program = parse_source(source).unwrap();
         let StmtKind::Expr(expression) = &program.items[0].kind else {
             panic!("expected expression statement");
@@ -1002,6 +1049,20 @@ fn synthetic_overlapping_spans_follow_the_old_endpoint_merge_contract() {
     assert_eq!(left.span, Span::new(10, 20));
     assert_eq!(right.span, Span::new(8, 9));
     assert_eq!(expression.span, Span::new(8, 20));
+}
+
+#[test]
+fn rejects_variable_assignment_targets_as_immutable_bindings() {
+    for (source, start, end) in [("value = 2", 0, 5), ("outer.field = inner = 2", 14, 19)] {
+        let error = parse_source(source).unwrap_err();
+        assert_eq!(
+            error.message,
+            "bindings are immutable and cannot be reassigned; \
+             declare a new binding with let or mutate a list or map field",
+            "{source}"
+        );
+        assert_eq!(error.span, Span::new(start, end), "{source}");
+    }
 }
 
 #[test]

@@ -68,16 +68,15 @@ end
 
 ## Catching raised values
 
-A protected `do` expression evaluates one or more protected items. One `of` introduces its `catch` arms, which use the same structural patterns and Boolean guards as `case`; every arm separates its header and result with `=>`:
+A protected `do` expression evaluates one or more protected items. Its `catch` arms use the same structural patterns and Boolean guards as `case`; every arm separates its header and result with `=>`:
 
 ```simi
-fn load(key) do
+fn load(key)
     raise {error = "not_found", key = key}
-end
 
 do
     load("profile")
-catch of
+catch
     {error = "not_found", key = key} =>
         "missing: " <> key
     error =>
@@ -93,11 +92,11 @@ A raise from a catch guard or handler body escapes the current protected express
 do
     do
         raise "original"
-    catch of
+    catch
         error =>
             raise {error = "replacement", cause = error}
     end
-catch of
+catch
     {error = "replacement", cause = cause} =>
         cause
 end
@@ -109,7 +108,7 @@ A protected `do` catches neither postfix nil propagation nor hard diagnostics. T
 -- Expected type and runtime diagnostics: catch handles raises, not hard diagnostics.
 do
     1 + "two"
-catch of
+catch
     _ =>
         "not reached"
 end
@@ -124,13 +123,12 @@ alias lookup_error =
     | {error: "not_found", key: string, ..}
     | {error: "unavailable", message: string, ..}
 
-fn lookup(key: string) -> string ! lookup_error do
+fn lookup(key: string) -> string ! lookup_error
     raise {error = "not_found", key = key}
-end
 
 do
     lookup("profile")
-catch of {error = "not_found", key = key} =>
+catch {error = "not_found", key = key} =>
     "missing: " <> key
 end
 ```
@@ -221,7 +219,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-`Engine::new()` and `Engine::with_stdlib()` provide the same portable `list`, `map`, `iter`, `number`, and `string` prelude globals, alongside `type`, `inspect`, and `require`. Their canonical `std/*` paths remain require-able and return the same cached module values. `Engine::builder().build()` remains a bare explicit-host constructor. Text IO is a separate capability:
+`Engine::new()` and `Engine::with_stdlib()` provide the same portable `list`, `map`, `iter`, `number`, and `string` prelude globals, alongside `type`, `inspect`, and `require`. Their canonical `std/*` paths remain require-able and return the same cached module values; `std/bytes` is portable but intentionally require-only. `Engine::builder().build()` remains a bare explicit-host constructor.
+
+Package resolution is also explicit at the embedding boundary. `Engine::eval` never reads package paths, accesses Git, downloads code, invokes Cargo, or runs build scripts. Source with a `requires` declaration must receive a previously locked `PackageCatalog` through `EngineBuilder::catalog`; otherwise evaluation returns a hard `SimiError` before source executes. The CLI resolver returns this catalog after it has performed its filesystem/Git work, and catalog installation preserves ordinary lazy module caching while giving each engine independent module state. Direct `Module` registrations remain separate and do not satisfy `requires` metadata.
+
+Text IO is a separate capability:
 
 ```rust
 use simi::Engine;
@@ -246,9 +248,8 @@ A facade can attach erased type information to a native function without wrappin
 --- Double an integer using the native implementation.
 let double: fn(integer) -> integer = host.double
 
-fn quadruple(value: integer) -> integer do
+fn quadruple(value: integer) -> integer
     double(double(value))
-end
 
 {double = double, quadruple = quadruple}
 ```
@@ -277,6 +278,21 @@ The macro's `name` prefixes rendered native-function names and their diagnostics
 
 Native callbacks may capture Rust state, but they must be `Send + Sync + 'static`. Managed Simi values must not be hidden in untraced Rust containers or captured as untraced edges. Missing host fields read as `nil`; attempting to call one is a hard runtime diagnostic.
 
+For host-owned objects that should remain opaque to Simi, use `NativeResource`. Its payload is an `Arc<dyn Any + Send + Sync>` and may be recovered only by native code with `downcast_ref`; Simi can transport it through bindings, lists, maps, closures, raises, and module exports, but has no resource methods, equality, serialization, or raw-pointer access. The script-visible category is always `"resource"`, while `inspect` renders the host-selected stable label:
+
+```rust
+use simi::{Module, NativeResource, Value};
+
+struct Counter(u64);
+
+let counter = NativeResource::new("acme.counter", Counter(0));
+let module = Module::builder("acme/counter")
+    .value("value", Value::NativeResource(counter))
+    .build();
+```
+
+Do not place managed Simi values inside a resource payload. The `Send + Sync + 'static` bound prevents that in safe Rust, preserving tracing; the payload is released when the final host or Simi reference disappears.
+
 The low-level `Interpreter::with_globals` constructor treats its supplied environment as complete. Unlike normal/default interpreters and `Engine` evaluation, it does not add the `require`, `type`, and `inspect` prelude.
 
 ## Runtime and embedding invariants
@@ -298,7 +314,7 @@ The current implementation intentionally does not include:
 
 - filesystem or package module discovery;
 - script-visible command-line arguments;
-- a bytes type or raw stream IO;
+- raw stream IO;
 - serialization;
 - a formatter or REPL;
 - runtime tuples or multiple returns;

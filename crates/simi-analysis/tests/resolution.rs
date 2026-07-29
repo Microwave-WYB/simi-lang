@@ -1,6 +1,6 @@
 use simi_analysis::{
-    AnalysisDatabase, AnalysisDiagnosticCode, OccurrenceKind, RenameError, SymbolId, SymbolKind,
-    diagnostics, document_symbols, parse, references, resolve, source_text,
+    AnalysisDatabase, AnalysisDiagnosticCode, RenameError, SymbolId, SymbolKind, diagnostics,
+    document_symbols, parse, references, resolve, source_text,
 };
 
 fn symbol_named(resolution: &simi_analysis::Resolution, name: &str, kind: SymbolKind) -> SymbolId {
@@ -13,59 +13,9 @@ fn symbol_named(resolution: &simi_analysis::Resolution, name: &str, kind: Symbol
 }
 
 #[test]
-fn resolves_shadowing_and_nearest_assignment() {
-    let source = "let value = 0 do let value = 1 value = 2 end value = 3";
-    let db = AnalysisDatabase::default();
-    let file = db.add_file(source);
-    let resolution = resolve(&db, file);
-    let values = resolution
-        .hir
-        .symbols
-        .iter()
-        .filter_map(|(id, symbol)| (symbol.name == "value").then_some(id))
-        .collect::<Vec<_>>();
-    assert_eq!(values.len(), 2);
-
-    let assignments = resolution
-        .hir
-        .occurrences
-        .iter()
-        .zip(&resolution.occurrence_symbols)
-        .filter(|(occurrence, _)| occurrence.kind == OccurrenceKind::Assignment)
-        .collect::<Vec<_>>();
-    assert_eq!(assignments.len(), 2);
-    assert_ne!(assignments[0].1, assignments[1].1);
-    assert_eq!(assignments[0].1, &Some(values[1]));
-    assert_eq!(assignments[1].1, &Some(values[0]));
-}
-
-#[test]
-fn assignment_before_a_later_inner_binding_uses_the_outer_binding() {
-    let source = "let value = 0 do value = 1 let value = 2 end";
-    let db = AnalysisDatabase::default();
-    let file = db.add_file(source);
-    let resolution = resolve(&db, file);
-    let outer = resolution
-        .hir
-        .symbols
-        .iter()
-        .find_map(|(id, symbol)| {
-            (symbol.name == "value" && symbol.scope == resolution.hir.root_scope).then_some(id)
-        })
-        .expect("outer binding");
-    let assignment = resolution
-        .hir
-        .occurrences
-        .iter()
-        .zip(&resolution.occurrence_symbols)
-        .find(|(occurrence, _)| occurrence.kind == OccurrenceKind::Assignment)
-        .expect("assignment");
-    assert_eq!(*assignment.1, Some(outer));
-}
-
-#[test]
 fn records_closure_captures_but_not_parameters() {
-    let source = "let outer = 1 let closure = fn(parameter) do outer + parameter end";
+    let source = "let outer = 1 let closure = fn(parameter)
+    outer + parameter";
     let db = AnalysisDatabase::default();
     let file = db.add_file(source);
     let resolution = resolve(&db, file);
@@ -87,7 +37,8 @@ fn records_closure_captures_but_not_parameters() {
 
 #[test]
 fn closures_resolve_and_expose_bindings_declared_later_in_captured_frames() {
-    let source = "let closure = fn() do later end let later = 1";
+    let source = "let closure = fn()
+    later let later = 1";
     let db = AnalysisDatabase::default();
     let file = db.add_file(source);
     let resolution = resolve(&db, file);
@@ -99,13 +50,14 @@ fn closures_resolve_and_expose_bindings_declared_later_in_captured_frames() {
             .iter()
             .any(|capture| capture.symbol == later)
     );
-    let visible = resolution.visible_symbols(source.find("later end").unwrap());
+    let visible = resolution.visible_symbols(source.find("later let").unwrap());
     assert!(visible.contains(&later));
 }
 
 #[test]
 fn repeated_let_shadows_while_earlier_closures_keep_the_prior_symbol() {
-    let source = "let closure = fn() do later end let later = 1 let later = 2 later";
+    let source = "let closure = fn()
+    later let later = 1 let later = 2 later";
     let db = AnalysisDatabase::default();
     let file = db.add_file(source);
     let resolution = resolve(&db, file);
@@ -120,7 +72,7 @@ fn repeated_let_shadows_while_earlier_closures_keep_the_prior_symbol() {
     assert_eq!(resolution.references(laters[0]).len(), 1);
     assert_eq!(resolution.references(laters[1]).len(), 1);
     assert_eq!(
-        resolution.symbol_at(source.find("later end").unwrap()),
+        resolution.symbol_at(source.find("later let").unwrap()),
         Some(laters[0])
     );
     assert_eq!(
@@ -132,7 +84,9 @@ fn repeated_let_shadows_while_earlier_closures_keep_the_prior_symbol() {
 
 #[test]
 fn later_outer_bindings_hide_prelude_symbols_inside_closures() {
-    let source = "let closure = fn() do type(nil) end let type = fn(value) do value end";
+    let source = "let closure = fn()
+    type(nil) let type = fn(value)
+    value";
     let db = AnalysisDatabase::default();
     let file = db.add_file(source);
     let resolution = resolve(&db, file);
@@ -158,7 +112,7 @@ case candidate of
 end
 do
     raise candidate
-catch of
+catch
     error when error != nil =>
         error
 end
@@ -187,9 +141,11 @@ end
 #[test]
 fn shadow_versions_partition_initializer_closure_references_and_renames() {
     let source = r#"let value = 1
-let before = fn() do value end
+let before = fn()
+    value
 let value = value + 1
-let after_value = fn() do value end
+let after_value = fn()
+    value
 value"#;
     let db = AnalysisDatabase::default();
     let file = db.add_file(source);
@@ -247,17 +203,16 @@ fn repeated_bindings_create_distinct_symbols_and_later_reads_use_the_latest() {
 }
 
 #[test]
-fn unresolved_host_reads_and_assignments_are_not_diagnostics_or_rename_targets() {
-    let source = "host_value host_value = other_host";
+fn unresolved_host_reads_are_not_diagnostics_or_rename_targets() {
+    let source = "host_value other_host";
     let db = AnalysisDatabase::default();
     let file = db.add_file(source);
     assert!(diagnostics(&db, file).is_empty());
     let resolution = resolve(&db, file);
-    assert_eq!(resolution.hir.occurrences.len(), 3);
+    assert_eq!(resolution.hir.occurrences.len(), 2);
     assert!(resolution.occurrence_symbols.iter().all(Option::is_none));
     for offset in [
         source.find("host_value").unwrap(),
-        source.rfind("host_value").unwrap(),
         source.find("other_host").unwrap(),
     ] {
         assert_eq!(resolution.symbol_at(offset), None);
@@ -267,7 +222,8 @@ fn unresolved_host_reads_and_assignments_are_not_diagnostics_or_rename_targets()
 
 #[test]
 fn builtins_resolve_and_can_be_shadowed() {
-    let source = "type(value) do let type = fn(value) do value end type(value) end inspect(value)";
+    let source = "type(value) do let type = fn(value)
+    value type(value) end inspect(value)";
     let db = AnalysisDatabase::default();
     let file = db.add_file(source);
     let resolution = resolve(&db, file);
@@ -283,7 +239,8 @@ fn builtins_resolve_and_can_be_shadowed() {
 
 #[test]
 fn supports_symbol_lookup_hover_references_and_visible_symbols() {
-    let source = "let value = 1 fn use(parameter) do value + parameter end use(value)";
+    let source = "let value = 1 fn use(parameter)
+    value + parameter use(value)";
     let db = AnalysisDatabase::default();
     let file = db.add_file(source);
     let resolution = resolve(&db, file);
@@ -297,7 +254,7 @@ fn supports_symbol_lookup_hover_references_and_visible_symbols() {
     assert_eq!(resolution.definition_span(function), hover.declaration);
     assert_eq!(references(&db, file, function).len(), 1);
 
-    let parameter_offset = source.find("parameter end").unwrap();
+    let parameter_offset = source.rfind("parameter").unwrap();
     let visible = resolution.visible_symbols(parameter_offset);
     let names = visible
         .iter()
@@ -342,8 +299,8 @@ fn visible_symbols_respect_activation_and_do_not_hide_outer_symbols() {
 
 #[test]
 fn future_symbols_do_not_appear_or_hide_prelude_symbols() {
-    let source =
-        "do type(nil) future let type = fn(value) do value end let future = 1 type(nil) future end";
+    let source = "do type(nil) future let type = fn(value)
+    value let future = 1 type(nil) future end";
     let db = AnalysisDatabase::default();
     let file = db.add_file(source);
     let resolution = resolve(&db, file);
@@ -404,7 +361,8 @@ fn rename_rejects_capture_of_unresolved_and_shadowed_occurrences() {
     for source in [
         "let target = 1 do missing target end",
         "let target = 1 do let missing = 2 target end",
-        "let closure = fn() do missing end let target = 1 closure()",
+        "let closure = fn()
+    missing let target = 1 closure()",
     ] {
         let db = AnalysisDatabase::default();
         let file = db.add_file(source);
@@ -454,7 +412,8 @@ fn analysis_owns_symbol_and_rename_spans() {
 
 #[test]
 fn parser_diagnostics_and_later_symbols_survive_recovery() {
-    let source = "let broken = ) fn later() do nil end";
+    let source = "let broken = ) fn later()
+    nil";
     let db = AnalysisDatabase::default();
     let file = db.add_file(source);
     let diagnostics = diagnostics(&db, file);
@@ -524,4 +483,71 @@ fn map_local_binding_shorthand_resolves_as_a_read() {
     let references = references(&db, file, first);
     assert_eq!(references.len(), 1);
     assert_eq!(&source[references[0].start..references[0].end], "first");
+}
+
+#[test]
+fn static_requirement_metadata_is_reported_by_analysis() {
+    let source = "requires {tools = {path = \"../tools\"}}";
+    let db = AnalysisDatabase::default();
+    let file = db.add_file(source);
+    let diagnostics = diagnostics(&db, file);
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(
+        diagnostics[0].code,
+        AnalysisDiagnosticCode::InvalidPackageRequirements
+    );
+    assert!(
+        diagnostics[0]
+            .detail
+            .contains("Development path must be a non-escaping"),
+        "{}",
+        diagnostics[0].detail
+    );
+}
+
+#[test]
+fn nested_named_function_declarations_report_syntax_errors_and_recover() {
+    let source = "fn outer() do\n    fn inner()
+    nil\nend\nfn later() do nil end";
+    let db = AnalysisDatabase::default();
+    let file = db.add_file(source);
+    let diagnostics = diagnostics(&db, file);
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, AnalysisDiagnosticCode::SyntaxError);
+    assert_eq!(
+        diagnostics[0].detail,
+        "Named function declarations are only allowed at the top level; \
+         use let name = fn(...) expression."
+    );
+    let start = source.find("fn inner").unwrap();
+    assert_eq!(diagnostics[0].span.start, start);
+    assert_eq!(diagnostics[0].span.end, start + 2);
+    assert!(
+        document_symbols(&db, file)
+            .iter()
+            .any(|symbol| symbol.name == "later")
+    );
+}
+
+#[test]
+fn binding_reassignment_reports_a_syntax_error_and_recovers() {
+    let source = "let value = 1\nvalue = 2\nlet doubled = value * 2\ndoubled";
+    let db = AnalysisDatabase::default();
+    let file = db.add_file(source);
+    let diagnostics = diagnostics(&db, file);
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, AnalysisDiagnosticCode::SyntaxError);
+    assert_eq!(
+        diagnostics[0].detail,
+        "Bindings are immutable and cannot be reassigned; \
+         declare a new binding with let or mutate a list or map field."
+    );
+    let start = source.find("value = 2").unwrap();
+    assert_eq!(diagnostics[0].span.start, start);
+    assert_eq!(diagnostics[0].span.end, start + "value".len());
+    assert!(
+        document_symbols(&db, file)
+            .iter()
+            .any(|symbol| symbol.name == "doubled")
+    );
 }

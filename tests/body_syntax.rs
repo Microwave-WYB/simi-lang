@@ -29,16 +29,16 @@ fn direct_function_and_case_bodies_are_whitespace_independent() {
 #[test]
 fn protected_do_and_direct_catch_body_preserve_raise_semantics() {
     assert_eval(
-        "fn recover() do raise \"x\" catch of _ => 1 end recover()",
+        "fn recover()\n    do raise \"x\" catch _ => 1 end\nrecover()",
         "1",
     );
-    assert_eval("case 1 of _ => do raise \"x\" catch of _ => 2 end end", "2");
+    assert_eval("case 1 of _ => do raise \"x\" catch _ => 2 end end", "2");
     assert_eval("case 1 of 1 => do let value = 2 value end _ => 0 end", "2");
     assert_eval(
         r#"
             do
                 raise "missing"
-            catch of
+            catch
                 "missing" =>
                     "recovered"
             end
@@ -86,6 +86,6 @@ fn legacy_try_and_catch_arm_spelling_report_migration_diagnostics() {
     assert!(
         catch_error
             .to_string()
-            .contains("expected `of` after `catch`")
+            .contains("`=>` after arm pattern and guard")
     );
 }

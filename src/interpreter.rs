@@ -102,8 +102,9 @@ impl Interpreter {
     pub(crate) fn evaluate_with_prelude(
         &mut self,
         program: &Program,
+        modules: &[(&str, &str)],
     ) -> RuntimeResult<ScriptResult> {
-        match self.install_prelude_modules() {
+        match self.install_prelude_modules(modules) {
             Ok(()) => self.evaluate(program),
             Err(EvaluationError::Raised(raised)) => Ok(Err(raised)),
             Err(error) => Err(error.into_runtime_error()),

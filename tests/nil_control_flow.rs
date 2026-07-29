@@ -18,8 +18,10 @@ fn outer_error(source: &str) -> SimiError {
 fn nil_aware_pipelines_are_lazy_left_associative_and_stage_local() {
     let result = value(
         r#"
-        fn add(value, amount) do value + amount end
-        fn classify(value) do type(value) end
+        fn add(value, amount)
+            value + amount
+        fn classify(value)
+            type(value)
         [
             1 + 1 ?> add(2) ?> add(3),
             nil ?> missing_callee(missing_argument),
@@ -34,19 +36,20 @@ fn nil_aware_pipelines_are_lazy_left_associative_and_stage_local() {
 fn nil_aware_pipelines_evaluate_input_and_active_stage_parts_once() {
     let result = value(
         r#"
-        let calls = 0
+        let state = {calls = 0}
         fn next() do
-            calls = calls + 1
-            calls
+            state.calls = state.calls + 1
+            state.calls
         end
         fn none() do
-            calls = calls + 1
+            state.calls = state.calls + 1
             nil
         end
-        fn add(value, amount) do value + amount end
+        fn add(value, amount)
+            value + amount
         let piped = next() ?> add(next())
         let skipped = none() ?> missing(next())
-        [piped, skipped, calls]
+        [piped, skipped, state.calls]
         "#,
     );
     assert_eq!(result.render(), "[3, nil, 3]");
@@ -58,7 +61,8 @@ fn nil_aware_tap_preserves_nonnil_input_and_skips_nil_stages() {
         r#"
 
         let events = []
-        fn record(value) do list.append(events, value) end
+        fn record(value)
+            list.append(events, value)
         let kept = 4 ?> tap record()
         let skipped = nil ?> tap missing(events)
         [kept, skipped, events]
@@ -75,7 +79,8 @@ fn standalone_blocks_are_scoped_expression_values_and_compose_postfix() {
         let empty = do end
         let called = do
             let outer = "inner"
-            fn(value) do [outer, value] end
+            fn(value)
+                [outer, value]
         end(3)
         let indexed = do [10, 20] end[1]
         let piped = do 2 end ?> type()
@@ -139,7 +144,7 @@ fn nil_propagation_evaluates_each_kind_of_current_block_as_nil() {
         let from_protected = do
             let selected = do
                 nil?
-            catch of _ =>
+            catch _ =>
                 "must not catch"
             end
             [selected, "outer continued"]
@@ -147,7 +152,7 @@ fn nil_propagation_evaluates_each_kind_of_current_block_as_nil() {
         let from_catch = do
             let selected = do
                 raise "failure"
-            catch of
+            catch
             "failure" =>
                 nil?
             _ =>
@@ -170,9 +175,20 @@ fn nil_propagation_requires_an_enclosing_block() {
     assert!(matches!(error, SimiError::Parse(_)));
     assert!(error.to_string().contains("outside of a block"));
 
-    assert_eq!(value("fn named() do nil? end named()").render(), "nil");
     assert_eq!(
-        value("let anonymous = fn() do nil? end anonymous()").render(),
+        value(
+            "fn named()
+    nil? named()"
+        )
+        .render(),
+        "nil"
+    );
+    assert_eq!(
+        value(
+            "let anonymous = fn()
+    nil? anonymous()"
+        )
+        .render(),
         "nil"
     );
 }
@@ -186,14 +202,14 @@ fn multi_item_protected_body_returns_last_value_and_uses_a_fresh_scope() {
             let local = "protected"
             local
             42
-        catch of _ =>
+        catch _ =>
             "wrong"
         end
         let raised = do
             let hidden = "protected"
             raise hidden
             "unreachable"
-        catch of
+        catch
         value =>
             value
         end
@@ -214,7 +230,7 @@ fn protected_expression_does_not_catch_hard_diagnostics_or_nil_propagation() {
         do
             let selected = do
                 nil?
-            catch of _ =>
+            catch _ =>
                 "caught"
             end
             [selected, "enclosing block continued"]
@@ -224,7 +240,7 @@ fn protected_expression_does_not_catch_hard_diagnostics_or_nil_propagation() {
     assert_eq!(propagated.render(), "[nil, \"enclosing block continued\"]");
 
     assert!(matches!(
-        eval("do let local = 1 missing catch of _ => nil end"),
+        eval("do let local = 1 missing catch _ => nil end"),
         Err(SimiError::Runtime(_))
     ));
 }
@@ -259,7 +275,7 @@ fn direct_and_explicit_case_and_catch_arms_preserve_body_ownership() {
         let handled = do
             let first = "protected"
             raise 2
-        catch of 1 =>
+        catch 1 =>
             "one"
         n when n == 2 =>
             [n, selected]
@@ -277,8 +293,8 @@ fn missing_explicit_body_ends_and_unmarked_siblings_are_rejected() {
     for source in [
         "case 1 of 1 do nil of _ nil end",
         "case 1 of 1 nil _ nil end",
-        "do raise 1 catch of 1 do nil of _ nil end",
-        "do raise 1 catch of 1 nil _ nil end",
+        "do raise 1 catch 1 do nil of _ nil end",
+        "do raise 1 catch 1 nil _ nil end",
     ] {
         assert!(
             matches!(outer_error(source), SimiError::Parse(_)),
@@ -291,12 +307,16 @@ fn missing_explicit_body_ends_and_unmarked_siblings_are_rejected() {
 fn protected_expression_requires_items_arms_and_complete_delimiters() {
     for (source, message) in [
         (
-            "do catch of _ => nil end",
+            "do catch _ => nil end",
             "expected at least one protected block item",
         ),
-        ("do 1 catch end", "expected `of` after `catch`"),
         (
-            "do 1 catch of _ => do nil end",
+            "do 1 catch end",
+            "expected pattern after `catch`, found no catch arms",
+        ),
+        (
+            "do 1 catch _ =>
+    nil",
             "expected `end` after protected expression",
         ),
     ] {

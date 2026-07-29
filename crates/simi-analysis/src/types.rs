@@ -84,6 +84,8 @@ pub fn infer_types(
         vars: Vec::new(),
         deferred_empty_list_infers: HashSet::new(),
         exact_empty_list_infers: HashSet::new(),
+        deferred_empty_map_infers: HashSet::new(),
+        exact_empty_map_infers: HashSet::new(),
         symbol_types: builtin_types(&resolution, modules),
         symbol_bounds: builtin_types(&resolution, modules),
         symbol_regions: HashMap::new(),
@@ -256,6 +258,8 @@ struct Context<'a> {
     vars: Vec<VarState>,
     deferred_empty_list_infers: HashSet<u32>,
     exact_empty_list_infers: HashSet<u32>,
+    deferred_empty_map_infers: HashSet<u32>,
+    exact_empty_map_infers: HashSet<u32>,
     symbol_types: HashMap<SymbolId, Type>,
     symbol_bounds: HashMap<SymbolId, Type>,
     symbol_regions: HashMap<SymbolId, u32>,
@@ -541,12 +545,11 @@ mod tests {
     use crate::db::AnalysisDatabase;
 
     #[test]
-    fn assigned_private_host_bindings_are_not_trusted_wrappers() {
+    fn locally_bound_host_values_are_not_trusted_wrappers() {
         for source in [
-            "host = replacement fn mutate(xs: [..integer]) -> nil do host.mutate(xs) end",
-            "fn mutate(xs: [..integer]) -> nil do host.mutate(xs) end host = replacement",
-            "host = replacement fn mutate(xs: [..integer]) -> nil host.mutate(xs)",
-            "fn mutate(xs: [..integer]) -> nil host.mutate(xs) host = replacement",
+            "let host = replacement fn mutate(xs: [..integer]) -> nil
+    host.mutate(xs)",
+            "let host = replacement fn mutate(xs: [..integer]) -> nil host.mutate(xs)",
         ] {
             let db = AnalysisDatabase::default();
             let file = db.add_file(source);

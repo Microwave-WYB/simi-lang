@@ -44,10 +44,24 @@ module.exports = grammar({
   ],
 
   rules: {
-    program: ($) => repeat($._statement),
+    program: ($) => seq(
+      optional($.requires_declaration),
+      repeat($._top_level_statement),
+    ),
+
+    requires_declaration: ($) => seq(
+      "requires",
+      field("requirements", $.map),
+    ),
+
+    // Named function declarations are allowed only as direct source-root
+    // items; blocks reuse `_statement`, which excludes them.
+    _top_level_statement: ($) => choice(
+      $.function_declaration,
+      $._statement,
+    ),
 
     _statement: ($) => choice(
-      $.function_declaration,
       $.alias_declaration,
       $.let_statement,
       $._expression,
@@ -91,6 +105,7 @@ module.exports = grammar({
       $.boolean,
       $.nil,
       $.list_pattern,
+      $.bytes_pattern,
       $.map_pattern,
     ),
 
@@ -396,6 +411,7 @@ module.exports = grammar({
       $.nil,
       $.parenthesized_expression,
       $.list,
+      $.bytes,
       $.map,
       $.function_expression,
       $.block_expression,
@@ -410,6 +426,19 @@ module.exports = grammar({
     parenthesized_expression: ($) => seq("(", $._expression, ")"),
 
     list: ($) => seq(
+      "[",
+      optional(commaSep1($._list_element)),
+      optional(","),
+      "]",
+    ),
+
+    _list_element: ($) => seq(
+      optional(".."),
+      $._expression,
+    ),
+
+    bytes: ($) => seq(
+      "#",
       "[",
       optional(commaSep1($._expression)),
       optional(","),
@@ -503,7 +532,6 @@ module.exports = grammar({
       "do",
       field("protected", $.block),
       "catch",
-      "of",
       repeat1($.catch_arm),
       "end",
     ),
@@ -533,6 +561,7 @@ module.exports = grammar({
       $.boolean,
       $.nil,
       $.list_pattern,
+      $.bytes_pattern,
       $.map_pattern,
     ),
 
@@ -549,6 +578,41 @@ module.exports = grammar({
         seq($.rest_pattern, optional(",")),
       )),
       "]",
+    ),
+
+    bytes_pattern: ($) => seq(
+      "#",
+      "[",
+      optional(choice(
+        seq(
+          commaSep1($._bytes_pattern_sized_segment),
+          optional(seq(",", $.bytes_pattern_remainder)),
+          optional(","),
+        ),
+        seq($.bytes_pattern_remainder, optional(",")),
+      )),
+      "]",
+    ),
+
+    _bytes_pattern_sized_segment: ($) => choice(
+      $.string,
+      field("name", choice($.wildcard_pattern, $.identifier)),
+      $.bytes_pattern_fixed_capture,
+    ),
+
+    bytes_pattern_fixed_capture: ($) => seq(
+      field("name", choice($.wildcard_pattern, $.identifier)),
+      ":",
+      "bytes",
+      "(",
+      field("length", $.integer),
+      ")",
+    ),
+
+    bytes_pattern_remainder: ($) => seq(
+      field("name", choice($.wildcard_pattern, $.identifier)),
+      ":",
+      "bytes",
     ),
 
     map_pattern: ($) => seq(

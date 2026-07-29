@@ -2,8 +2,8 @@
 Operator precedence and right-associative assignment
 ==================
 
-((outer)) = 7
-outer = other = not false or 1 + 2 * -3 <= 4 and 5 != 6
+((map.answer)) = 7
+outer.value = other.value = not false or 1 + 2 * -3 <= 4 and 5 != 6
 map.answer = values[0] = 42
 
 ---
@@ -15,14 +15,20 @@ map.answer = values[0] = 42
         (assignment_target
           (parenthesized_assignment_target
             (assignment_target
-              (identifier))))))
+              (field_expression
+                (identifier)
+                (identifier)))))))
     (integer))
   (assignment_expression
     (assignment_target
-      (identifier))
+      (field_expression
+        (identifier)
+        (identifier)))
     (assignment_expression
       (assignment_target
-        (identifier))
+        (field_expression
+          (identifier)
+          (identifier)))
       (binary_expression
         (unary_expression
           (boolean))
@@ -77,9 +83,8 @@ Pipelines, nil-aware stages, tap, and right-associative trailing arguments
 ((pair(4))) <| 5
 values
 ?> tap list.append(0)
-|> iter.map() <| fn(value) do
+|> iter.map() <| fn(value)
   value * 2
-end
 
 pair(1) <| 2
 wrap() <| wrap() <| 3
@@ -118,11 +123,9 @@ end[0]
         (parameters
           (parameter
             (identifier)))
-        (block_expression
-          (block
-            (binary_expression
-              (identifier)
-              (integer)))))))
+        (binary_expression
+          (identifier)
+          (integer)))))
   (trailing_argument_expression
     (call_expression
       (identifier)

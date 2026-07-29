@@ -55,6 +55,23 @@ impl Context<'_> {
                     self.symbol_bounds.insert(symbol, rest_ty);
                 }
             }
+            syntax::Pattern::Bytes(node) => {
+                for segment in support::children::<syntax::BytesPatternSegment>(node.syntax()) {
+                    let Some(name) = direct_token(segment.syntax(), K::IDENT) else {
+                        continue;
+                    };
+                    let Some(symbol) = self.resolution.symbol_at(token_span(&name).start) else {
+                        continue;
+                    };
+                    let capture_ty = if direct_token(segment.syntax(), K::COLON).is_some() {
+                        Type::Bytes
+                    } else {
+                        Type::Int
+                    };
+                    self.symbol_types.insert(symbol, capture_ty.clone());
+                    self.symbol_bounds.insert(symbol, capture_ty);
+                }
+            }
             syntax::Pattern::Map(node) => {
                 let resolved = self.resolve_type(ty);
                 let (fields, index, open, is_map) = match &resolved {
@@ -264,6 +281,7 @@ impl Context<'_> {
                     "integer" => Type::Int,
                     "float" => Type::Float,
                     "string" => Type::String,
+                    "bytes" => Type::Bytes,
                     "any" => Type::Any,
                     _ => self.expand_alias(&name, arguments, generics, span(node)),
                 }

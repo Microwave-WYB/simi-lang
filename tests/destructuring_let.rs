@@ -83,15 +83,15 @@ fn map_destructuring_let_defaults_do_not_relax_structural_patterns() {
         "1"
     );
     assert_eq!(
-        evaluate("do raise {} catch of {missing = value} => 1 _ => 2 end").render(),
+        evaluate("do raise {} catch {missing = value} => 1 _ => 2 end").render(),
         "2"
     );
     assert_eq!(
-        evaluate("do raise {} catch of {missing} => 1 _ => 2 end").render(),
+        evaluate("do raise {} catch {missing} => 1 _ => 2 end").render(),
         "2"
     );
     assert_eq!(
-        evaluate("do raise {value = 1} catch of {value} => value end").render(),
+        evaluate("do raise {value = 1} catch {value} => value end").render(),
         "1"
     );
 }
@@ -156,7 +156,7 @@ fn mismatch_is_a_hard_runtime_error_at_the_pattern_span() {
             x + y
         end
         do unpack([1])
-            catch of _ =>
+            catch _ =>
                 0
         end
     "#;

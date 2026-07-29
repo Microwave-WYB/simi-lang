@@ -1,4 +1,19 @@
 ==================
+Bytes construction
+==================
+
+#[0, "PNG", payload]
+
+---
+
+(program
+  (bytes
+    (integer)
+    (string
+      (string_content))
+    (identifier)))
+
+==================
 Trailing arguments require a call on the left
 ==================
 

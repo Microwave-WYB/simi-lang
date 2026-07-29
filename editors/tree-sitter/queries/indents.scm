@@ -10,6 +10,7 @@
   (list)
   (map)
   (list_pattern)
+  (bytes_pattern)
   (map_pattern)
   (arguments)
   (parameters)

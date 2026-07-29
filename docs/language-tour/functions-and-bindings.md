@@ -34,12 +34,12 @@ let status = "unreleased"
 language <> " " <> status
 ```
 
-The right-hand expression is evaluated before the new binding is installed. Assignment is different: it updates the nearest existing binding and never creates one implicitly.
+The right-hand expression is evaluated before the new binding is installed. As a source-breaking alpha.2 rule, a binding cannot be reassigned. Introduce a new binding for a new value, pass state through recursive parameters or `iter.fold`, or keep evolving state in an explicitly mutable container field.
 
 ```simi
-let visits = 1
-visits = visits + 1
-visits
+let visits = {count = 1}
+visits.count = visits.count + 1
+visits.count
 ```
 
 Bindings may hold any value, including mutable containers and functions. Structural binding patterns are introduced in [Control flow and patterns](control-flow-and-patterns.md).
@@ -84,30 +84,30 @@ Closures make the distinction visible. A function created before the second `let
 
 ```simi
 let value = "first"
-let read_first = fn() do
+let read_first = fn()
     value
-end
 
 let value = "second"
-let read_second = fn() do
+let read_second = fn()
     value
-end
 
 [read_first(), read_second(), value]
 ```
 
-Assignment follows each closure's lexical view. Here `set_first` updates the first binding, while the top-level assignment updates the later binding:
+Bindings remain immutable through closures. To evolve captured state explicitly, capture a mutable container instead:
 
 ```simi
-let value = 1
-let read_first = fn() do value end
-let set_first = fn(next) do value = next end
+let state: {value: integer} = {value = 1}
+let read_first = fn()
+    state.value
+let set_first = fn(next: integer)
+    state.value = next
 
-let value = 2
-value = 3
+let state = {value = 2}
+state.value = 3
 set_first(4)
 
-[read_first(), value]
+[read_first(), state.value]
 ```
 
 This precise shadowing rule makes captured state predictable even when a scope reuses a convenient name.
@@ -117,9 +117,8 @@ This precise shadowing rule makes captured state predictable even when a scope r
 A named function uses a declaration:
 
 ```simi
-fn area(width, height) do
+fn area(width, height)
     width * height
-end
 
 area(6, 7)
 ```
@@ -129,23 +128,37 @@ Parameters are fresh bindings for each call. A function captures bindings from i
 ```simi
 let tax_rate = 0.2
 
-fn with_tax(price) do
+fn with_tax(price)
     price + price * tax_rate
-end
 
 with_tax(50)
 ```
 
 Named function declarations support recursion. [Control flow and patterns](control-flow-and-patterns.md) combines recursion with conditional expressions, where a terminating branch can be shown without introducing control flow early.
 
+Named declarations are allowed only as direct source-root items. Inside a function body, block, or conditional branch, bind an anonymous function with `let` instead; the binding is visible to the function's own body, so local recursion works the same way:
+
+```simi
+fn make_countdown(start) do
+    let countdown = fn(value)
+        if value <= 0 then
+            0
+        else
+            countdown(value - 1)
+        end
+    countdown(start)
+end
+
+make_countdown(3)
+```
+
 ## Anonymous functions
 
 An anonymous function is an expression and may appear anywhere an expression is accepted:
 
 ```simi
-let double = fn(value) do
+let double = fn(value)
     value * 2
-end
 
 double(21)
 ```
@@ -154,18 +167,23 @@ It can be stored in a container or called immediately:
 
 ```simi
 let operations = [
-    fn(value) do value + 1 end,
-    fn(value) do value * 3 end,
+    fn(value)
+        value + 1,
+    fn(value)
+        value * 3,
 ]
 
-[operations[0](4), fn(value) do value * value end(5)]
+[operations[0](4), (fn(value)
+    value * value)(5)]
 ```
 
 Anonymous functions are ordinary function values, just like named functions and host-provided native functions. The builtin `type` reports `"function"` for all of them:
 
 ```simi
-fn named(value) do value end
-let anonymous = fn(value) do value end
+fn named(value)
+    value
+let anonymous = fn(value)
+    value
 [type(named), type(anonymous), type(inspect)]
 ```
 
@@ -174,25 +192,22 @@ let anonymous = fn(value) do value end
 A function may outlive the call that created it while retaining access to that call's lexical bindings. Such a function is a closure:
 
 ```simi
-fn make_adder(base) do
-    fn(value) do
+fn make_adder(base)
+    fn(value)
         base + value
-    end
-end
 
 let add_two = make_adder(2)
 let add_ten = make_adder(10)
 [add_two(5), add_ten(5)]
 ```
 
-Captured bindings remain assignable. Separate calls create separate captured state:
+Captured bindings remain immutable. Separate calls can still retain separate explicit mutable state:
 
 ```simi
-fn make_counter(start) do
-    let count = start
-    fn() do
-        count = count + 1
-    end
+fn make_counter(start: integer) do
+    let state: {count: integer} = {count = start}
+    fn()
+        state.count = state.count + 1
 end
 
 let first = make_counter(0)
@@ -200,20 +215,18 @@ let second = make_counter(10)
 [first(), first(), second(), first()]
 ```
 
-The assignment is also the body’s final expression, so each call returns the new count.
+The field assignment is also the body’s final expression, so each call returns the new count.
 
 ## Functions as arguments and results
 
 Higher-order functions accept or return other functions. Callbacks are passed directly like any other value:
 
 ```simi
-fn apply_twice(callback, value) do
+fn apply_twice(callback, value)
     callback(callback(value))
-end
 
-fn increment(value) do
+fn increment(value)
     value + 1
-end
 
 apply_twice(increment, 40)
 ```
@@ -221,11 +234,9 @@ apply_twice(increment, 40)
 A function factory returns a closure selected by its captured arguments:
 
 ```simi
-fn make_multiplier(factor) do
-    fn(value) do
+fn make_multiplier(factor)
+    fn(value)
         value * factor
-    end
-end
 
 let triple = make_multiplier(3)
 triple(14)
@@ -241,9 +252,8 @@ Labels in a callable type are documentation metadata, not named call arguments:
 
 ```simi
 let subtract: fn(left: integer, right: integer) -> integer ! never =
-    fn(left: integer, right: integer) -> integer ! never do
+    fn(left: integer, right: integer) -> integer ! never
         left - right
-    end
 
 subtract(10, 3)
 ```

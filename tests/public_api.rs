@@ -11,13 +11,14 @@ use simi::native::{
 };
 use simi::parser::{ParseError, Parser, parse};
 use simi::runtime::{
-    Environment, FloatKey, List, MapKey, NativeFn, NativeFunction, NativeResult, Raised,
+    Bytes, Environment, FloatKey, List, MapKey, NativeFn, NativeFunction, NativeResult, Raised,
     RuntimeError, RuntimeResult, ScriptResult, SharedFunction, SharedList, SharedMap, TraceFrame,
     UserFunction, Value,
 };
 use simi::{
-    Engine, EngineBuilder, Module, ModuleBuilder, NativeCallback, PackageManifest,
-    Raised as RootRaised, ScriptResult as RootScriptResult, SourceModuleBuilder,
+    CatalogModule, CatalogModuleVisibility, CatalogRequirement, Engine, EngineBuilder, Module,
+    ModuleBuilder, NativeCallback, NativeResource, PackageCatalog, PackageManifest,
+    Raised as RootRaised, RequirementSource, ScriptResult as RootScriptResult, SourceModuleBuilder,
     TraceFrame as RootTraceFrame, Value as RootValue,
 };
 
@@ -38,6 +39,32 @@ fn current_public_paths_compile() {
     let _: PackageManifest =
         PackageManifest::parse(r#"{name = "example", simi = "0.1.0", modules = ["example"]}"#)
             .unwrap();
+    let catalog = PackageCatalog::new(
+        [CatalogModule::new(
+            "example",
+            "{}",
+            "example",
+            "example.simi",
+            CatalogModuleVisibility::Public,
+        )
+        .unwrap()],
+        [CatalogRequirement::new(
+            "example",
+            RequirementSource::Path {
+                path: "dev/example".to_owned(),
+            },
+        )],
+    )
+    .unwrap();
+    let _ = Engine::builder().catalog(catalog);
+    let requirements = simi::parse_requires(r#"requires {example = {path = "dev/example"}}"#)
+        .unwrap()
+        .expect("requires metadata");
+    assert_eq!(requirements.entries[0].alias, "example");
+    assert!(matches!(
+        requirements.entries[0].source,
+        RequirementSource::Path { .. }
+    ));
     let _: Value = simi::host_value! {
         name: "macro-module",
         functions: {
@@ -73,6 +100,14 @@ fn current_public_paths_compile() {
     let _: Option<TokenKind> = None;
     let _: Option<Environment> = None;
     let _: Option<FloatKey> = None;
+    let bytes = Bytes::new(vec![0, 255]);
+    assert_eq!(bytes.as_slice(), [0, 255]);
+    assert_eq!(bytes.slice(1, 2).unwrap().get(0), Some(255));
+    let _: Value = Value::Bytes(bytes);
+    let resource = NativeResource::new("example.resource", 42_u64);
+    assert_eq!(resource.type_label(), "example.resource");
+    assert_eq!(resource.downcast_ref::<u64>(), Some(&42));
+    let _: Value = Value::NativeResource(resource);
     let _: List = List::new(Vec::new());
     let _: SharedList = List::shared(Vec::new());
     let _: SharedMap = Gc::new(GcCell::new(Vec::new()));

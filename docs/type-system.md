@@ -19,9 +19,8 @@ Annotations are inline and optional:
 ```simi
 let count: integer = 1
 
-fn display(value: number) -> string do
+fn display(value: number) -> string
     number.to_string(value)
-end
 
 let callback: fn(integer, integer) -> integer = add
 ```
@@ -35,12 +34,13 @@ boolean
 integer
 float
 string
+bytes
 any
 ```
 
-`number` is a built-in erased alias for `integer | float`; it is not a distinct runtime category. Numeric APIs may use either spelling. `never` is the bottom type. An empty list literal has the exact shape `[]`; `never` still appears when an expression has no normal return path or as the bottom member removed while unions are normalized. `any` is the explicit dynamic escape hatch: operations involving it remain valid but lose static precision. Insufficient evidence is tracked as an internal unknown type and presented publicly as `any`.
+`number` is a built-in erased alias for `integer | float`; it is not a distinct runtime category. Numeric APIs may use either spelling. `bytes` describes immutable packed byte values, including values constructed by `#[]`. `never` is the bottom type. An empty list literal has the exact shape `[]`; `never` still appears when an expression has no normal return path or as the bottom member removed while unions are normalized. `any` is the explicit dynamic escape hatch: operations involving it remain valid but lose static precision. Insufficient evidence is tracked as an internal unknown type and presented publicly as `any`.
 
-Destructuring `let` patterns are checked against their inferred right-hand type. A pattern that is guaranteed to match has no diagnostic; a pattern that may fail produces an advisory warning recommending `case`; and a pattern that cannot match produces an analysis error. Direct map bindings in `let` receive `nil` when a field is absent, so their inferred type is `T | nil` when map presence is not proven. These classifications are erased and never weaken or replace the runtime's atomic hard diagnostic for a failed `let` match.
+Destructuring `let` patterns are checked against their inferred right-hand type. A pattern that is guaranteed to match has no diagnostic; a pattern that may fail produces an advisory warning recommending `case`; and a pattern that cannot match produces an analysis error. Direct map bindings in `let` receive `nil` when a field is absent, so their inferred type is `T | nil` when map presence is not proven. In a `#[]` bytes pattern, a bare binding is `integer`, while `name:bytes(n)` and a final `name:bytes` capture are `bytes`. These classifications are erased and never weaken or replace the runtime's atomic hard diagnostic for a failed `let` match.
 
 The static integer spelling is `integer`. Runtime reflection deliberately remains
 unchanged for compatibility:
@@ -79,20 +79,17 @@ let name: option<string> = nil
 Free generic variables in a function annotation are implicitly quantified. A callable may also declare an explicit generic header, with optional ordinary-type upper bounds:
 
 ```simi
-fn identity(value: 'a) -> 'a ! never do
+fn identity(value: 'a) -> 'a ! never
     value
-end
 
-fn negate<'a: integer | float>(value: 'a) -> 'a ! never do
+fn negate<'a: integer | float>(value: 'a) -> 'a ! never
     -value
-end
 
 fn transform<'e>(
     value: 'a,
     callback: fn(input: 'a) -> 'b ! 'e,
-) -> 'b ! 'e do
+) -> 'b ! 'e
     callback(value)
-end
 ```
 
 Bounds are erased Simi types, not traits or protocols. Nested explicit headers introduce their own binders and may shadow an outer generic name. Unbounded entries are retained as callable metadata, though free variables remain implicitly quantified.

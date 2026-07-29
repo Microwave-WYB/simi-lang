@@ -44,6 +44,7 @@ pub(super) fn rebase_pattern(pattern: &mut ast::Pattern, origins: &simi_syntax::
                 rebase_pattern(field, origins);
             }
         }
+        ast::PatternKind::Bytes(_) => {}
         ast::PatternKind::Wildcard
         | ast::PatternKind::Binding(_)
         | ast::PatternKind::Int(_)
@@ -72,7 +73,18 @@ pub(super) fn rebase_expr(expression: &mut ast::Expr, origins: &simi_syntax::Tok
     match &mut expression.kind {
         ast::ExprKind::List(elements) => {
             for element in elements {
-                rebase_expr(element, origins);
+                match element {
+                    ast::ListElement::Value(value) | ast::ListElement::Spread(value) => {
+                        rebase_expr(value, origins);
+                    }
+                }
+            }
+        }
+        ast::ExprKind::Bytes(segments) => {
+            for segment in segments {
+                if let ast::BytesSegment::Value(expression) = segment {
+                    rebase_expr(expression, origins);
+                }
             }
         }
         ast::ExprKind::Map(entries) => {

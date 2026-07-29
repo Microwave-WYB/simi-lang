@@ -35,9 +35,8 @@ Former control words remain identifiers outside expressions
 let loop = 1
 let break = 2
 let continue = 3
-fn loop(break, continue) do
+fn loop(break, continue)
   {loop = 1, break = 2, continue = 3}
-end
 
 ---
 
@@ -58,21 +57,19 @@ end
         (identifier))
       (declared_parameter
         (identifier)))
-    (block_expression
-      (block
-        (map
-          (map_entry
-            (map_field
-              (identifier)
-              (integer)))
-          (map_entry
-            (map_field
-              (identifier)
-              (integer)))
-          (map_entry
-            (map_field
-              (identifier)
-              (integer))))))))
+    (map
+      (map_entry
+        (map_field
+          (identifier)
+          (integer)))
+      (map_entry
+        (map_field
+          (identifier)
+          (integer)))
+      (map_entry
+        (map_field
+          (identifier)
+          (integer))))))
 
 ==================
 Removed loop syntax is rejected
@@ -135,13 +132,11 @@ fn classify(value)
 fn recover()
   do
     raise "failure"
-  catch of
+  catch
     "failure" =>
       "recovered"
     _ =>
-      do
-        "fallback"
-      end
+      "fallback"
   end
 
 ---
@@ -188,7 +183,5 @@ fn recover()
           (string_content)))
       (catch_arm
         (wildcard_pattern)
-        (block_expression
-          (block
-            (string
-              (string_content))))))))
+        (string
+          (string_content))))))

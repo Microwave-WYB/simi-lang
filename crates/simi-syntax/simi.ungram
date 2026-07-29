@@ -1,4 +1,5 @@
-Root = Stmt*
+Root = RequiresDecl? Stmt*
+RequiresDecl = 'requires' MapExpr
 Stmt = FunctionDecl | AliasDecl | LetStmt | ExprStmt
 FunctionDecl = 'fn' 'ident' CallableTypeParamList? ParamList (ReturnAnnotation EffectAnnotation?)? Body
 AliasDecl = 'alias' 'ident' TypeParamList? '=' TypeExpr
@@ -28,15 +29,17 @@ TypeMap = '{' (TypeMapEntry (',' TypeMapEntry)* (',' TypeMapRest)? ','? | TypeMa
 TypeMapEntry = ('ident' ':' TypeExpr) | ('[' TypeExpr ']' ':' TypeExpr)
 TypeMapRest = '..'
 Block = Stmt*
-Expr = LiteralExpr | NameExpr | FunctionExpr | BlockExpr | ProtectedExpr | ParenExpr | ListExpr | MapExpr | CallExpr | FieldExpr | IndexExpr | NilPropagateExpr | UnaryExpr | BinaryExpr | AssignExpr | PipelineExpr | TrailingArgumentExpr | RaiseExpr | PanicExpr | TodoExpr | CaseExpr | IfExpr
+Expr = LiteralExpr | NameExpr | FunctionExpr | BlockExpr | ProtectedExpr | ParenExpr | ListExpr | BytesExpr | MapExpr | CallExpr | FieldExpr | IndexExpr | NilPropagateExpr | UnaryExpr | BinaryExpr | AssignExpr | PipelineExpr | TrailingArgumentExpr | RaiseExpr | PanicExpr | TodoExpr | CaseExpr | IfExpr
 LiteralExpr = ('int' | 'float' | 'string' | 'nil' | 'true' | 'false')
 NameExpr = 'ident'
 FunctionExpr = 'fn' CallableTypeParamList? ParamList (ReturnAnnotation EffectAnnotation?)? Body
 Body = Block | Expr
 BlockExpr = 'do' Block 'end'
-ProtectedExpr = 'do' Block 'catch' 'of' CatchArm CatchArm* 'end'
+ProtectedExpr = 'do' Block 'catch' CatchArm CatchArm* 'end'
 ParenExpr = '(' Expr ')'
-ListExpr = '[' (Expr (',' Expr)* ','?)? ']'
+ListExpr = '[' (ListElement (',' ListElement)* ','?)? ']'
+ListElement = '..'? Expr
+BytesExpr = '#' '[' (Expr (',' Expr)* ','?)? ']'
 MapExpr = '{' (MapEntry (',' MapEntry)* ','?)? '}'
 MapEntry = ('ident' ('=' Expr)? | '[' Expr ']' '=' Expr)
 CallExpr = Expr ArgList
@@ -59,11 +62,13 @@ CaseClause = Pattern ('when' Expr)? '=>' Body
 IfExpr = 'if' IfBranch ('elseif' IfBranch)* ElseBranch? 'end'
 IfBranch = Expr 'then' Block
 ElseBranch = 'else' Block
-Pattern = BindingPattern | WildcardPattern | LiteralPattern | ListPattern | MapPattern
+Pattern = BindingPattern | WildcardPattern | LiteralPattern | ListPattern | BytesPattern | MapPattern
 BindingPattern = 'ident'
 WildcardPattern = 'ident'
 LiteralPattern = 'int' | 'float' | 'string' | 'nil' | 'true' | 'false'
 ListPattern = '[' (Pattern (',' Pattern)* (',' RestPattern)? ','? | RestPattern ','?)? ']'
+BytesPattern = '#' '[' (BytesPatternSegment (',' BytesPatternSegment)* ','?)? ']'
+BytesPatternSegment = 'string' | 'ident' (':' 'ident' ('(' 'int' ')')?)?
 MapPattern = '{' (MapPatternField (',' MapPatternField)* (',' RestPattern)? ','? | RestPattern ','?)? '}'
 MapPatternField = 'ident' ('=' Pattern)?
 RestPattern = '..' 'ident'?

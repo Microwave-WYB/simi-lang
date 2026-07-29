@@ -22,7 +22,7 @@ Read the relevant topic in the [language tour](../../../docs/language-tour.md) b
 ## Core contracts
 
 - Runtime typing is dynamic. Optional annotations and aliases are erased and must not change runtime behavior.
-- `if`, `case`, protected `do ... catch of ... end`, standalone `do`, and function bodies are value-producing lexical blocks.
+- `if`, `case`, protected `do ... catch ... end`, standalone `do`, and function bodies are value-producing lexical blocks.
 - Postfix `?` passes non-`nil` values through; `nil` evaluates the nearest lexical block as `nil`.
 - Booleans are strict; there is no truthiness. Use `type(value) == "integer"` for runtime category checks.
 - Lists are zero-based and mutable. Maps are insertion-ordered, normalize numeric keys, and delete entries assigned `nil`.
@@ -41,7 +41,7 @@ Read the relevant topic in the [language tour](../../../docs/language-tour.md) b
 - `number` and `string`: explicit conversions and scalar operations.
 - `std/io`: opt-in text IO available from the CLI and engines configured with stdio.
 
-The portable `list`, `map`, `iter`, `number`, and `string` values are globals; their canonical `std/*` paths remain available through `require`. `std/io` always requires an opt-in host capability. Filesystem/package discovery, serialization, bytes, a formatter, a REPL, runtime tuples, and script-visible command-line arguments are not implemented.
+The portable `list`, `map`, `iter`, `number`, and `string` values are globals; their canonical `std/*` paths remain available through `require`. `std/io` always requires an opt-in host capability. Immutable `bytes` values may be supplied by Rust hosts, but there is not yet a bytes literal, constructor, or standard module. Filesystem/package discovery, serialization, a formatter, a REPL, runtime tuples, and script-visible command-line arguments are not implemented.
 
 ## Formatting and checks
 

@@ -29,7 +29,14 @@ pub(super) fn assignment(p: &mut Parser<'_>) -> Parsed {
     }
     let marker = left.marker.precede(&mut p.events);
     let target_span = node_span_hint(p, left.marker);
-    if !matches!(left.flavor, Flavor::Name | Flavor::Field | Flavor::Index) {
+    if matches!(left.flavor, Flavor::Name) {
+        p.error_at(
+            target_span,
+            "bindings are immutable and cannot be reassigned; \
+             declare a new binding with let or mutate a list or map field"
+                .to_owned(),
+        );
+    } else if !matches!(left.flavor, Flavor::Field | Flavor::Index) {
         p.error_at(target_span, "invalid assignment target".to_owned());
     }
     p.bump();
@@ -236,7 +243,7 @@ pub(super) fn primary(p: &mut Parser<'_>) -> Parsed {
         K::INT | K::FLOAT | K::STRING | K::NIL_KW | K::TRUE_KW | K::FALSE_KW => {
             simple_expr(p, K::LITERAL_EXPR, Flavor::Other)
         }
-        K::IDENT if matches!(p.current_text(), Some("loop" | "break" | "continue")) => {
+        K::IDENT if matches!(p.current_text(), Some("break" | "continue")) => {
             legacy_control_expr(p)
         }
         K::IDENT => simple_expr(p, K::NAME_EXPR, Flavor::Name),
@@ -244,6 +251,7 @@ pub(super) fn primary(p: &mut Parser<'_>) -> Parsed {
         K::DO_KW => block_expr(p),
         K::L_PAREN => paren_expr(p),
         K::L_BRACKET => list_expr(p),
+        K::HASH => bytes_expr(p),
         K::L_BRACE => map_expr(p),
         K::RAISE_KW => raise_expr(p),
         K::PANIC_KW => terminal_expr(p, K::PANIC_EXPR),
@@ -342,7 +350,16 @@ pub(super) fn block_expr(p: &mut Parser<'_>) -> Parsed {
                 "expected at least one protected block item".to_owned(),
             );
         }
-        pattern_arms(p, K::CATCH_ARM, "`of` after `catch`");
+        // Legacy migration: accept and diagnose `catch of` but drop the `of`.
+        if p.at(K::OF_KW) {
+            let of_span = p.current_span();
+            p.error_at(
+                of_span,
+                "`catch of` was removed; write `catch pattern => …` instead".to_owned(),
+            );
+            p.bump();
+        }
+        catch_arms(p);
         p.expect(K::END_KW, "`end` after protected expression");
         return Parsed {
             marker: marker.complete(&mut p.events, K::PROTECTED_EXPR),
@@ -370,7 +387,10 @@ pub(super) fn list_expr(p: &mut Parser<'_>) -> Parsed {
     p.bump();
     if !p.at(K::R_BRACKET) && !p.at_end() {
         loop {
+            let element = p.start();
+            p.bump_if(K::DOT_DOT);
             expression(p);
+            element.complete(&mut p.events, K::LIST_ELEMENT);
             if !p.bump_if(K::COMMA) || p.at(K::R_BRACKET) {
                 break;
             }
@@ -379,6 +399,29 @@ pub(super) fn list_expr(p: &mut Parser<'_>) -> Parsed {
     p.expect(K::R_BRACKET, "`]` after list elements");
     Parsed {
         marker: marker.complete(&mut p.events, K::LIST_EXPR),
+        flavor: Flavor::Other,
+    }
+}
+pub(super) fn bytes_expr(p: &mut Parser<'_>) -> Parsed {
+    let marker = p.start();
+    p.bump();
+    if !p.expect(K::L_BRACKET, "`[` after `#`") {
+        return Parsed {
+            marker: marker.complete(&mut p.events, K::BYTES_EXPR),
+            flavor: Flavor::Other,
+        };
+    }
+    if !p.at(K::R_BRACKET) && !p.at_end() {
+        loop {
+            expression(p);
+            if !p.bump_if(K::COMMA) || p.at(K::R_BRACKET) {
+                break;
+            }
+        }
+    }
+    p.expect(K::R_BRACKET, "`]` after bytes segments");
+    Parsed {
+        marker: marker.complete(&mut p.events, K::BYTES_EXPR),
         flavor: Flavor::Other,
     }
 }

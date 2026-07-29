@@ -103,6 +103,68 @@ fn nested_exact_and_rest_list_patterns_match_structurally() {
 }
 
 #[test]
+fn bytes_patterns_match_utf8_prefixes_and_capture_bytes() {
+    assert_eval(
+        r#"
+            let packet = #["猫", 7, 8, 9, "ok"]
+            let direct = case [packet] of
+                [#["猫", version, header:bytes(2), payload:bytes]] =>
+                    [version, inspect(header), inspect(payload)]
+            end
+            let exact_mismatch = case packet of
+                #["猫", version] =>
+                    false
+                _ =>
+                    true
+            end
+            [direct, exact_mismatch]
+        "#,
+        "[[7, \"bytes[08 09]\", \"bytes[6f 6b]\"], true]",
+    );
+}
+
+#[test]
+fn bytes_patterns_work_in_catch_and_refutable_let_bindings() {
+    assert_eval(
+        r#"
+            let #[first, middle:bytes(2), tail:bytes] = #[1, 2, 3, 4]
+            let caught = do
+                raise #[9, 8, 7]
+            catch
+                #[code, detail:bytes] =>
+                    [code, inspect(detail)]
+            end
+            [first, inspect(middle), inspect(tail), caught]
+        "#,
+        "[1, \"bytes[02 03]\", \"bytes[04]\", [9, \"bytes[08 07]\"]]",
+    );
+    assert_runtime_error(
+        "let #[head, tail:bytes(2)] = #[1]\nnil",
+        (4, 26),
+        "let pattern did not match",
+    );
+}
+
+#[test]
+fn invalid_bytes_pattern_remainders_and_duplicate_bindings_are_rejected() {
+    let source = "case #[1] of #[rest:bytes, next] => nil end";
+    let comma = source.find(", next").expect("source contains comma");
+    assert_parse_error(
+        source,
+        (comma, comma + 1),
+        "unsized bytes capture must be final",
+    );
+
+    let source = "case #[1] of #[value, value:bytes] => nil end";
+    let second = source.rfind("value").expect("source contains duplicate");
+    assert_parse_error(
+        source,
+        (second, second + "value".len()),
+        "duplicate binding `value` in pattern",
+    );
+}
+
+#[test]
 fn list_rest_is_a_new_container_with_existing_element_aliases() {
     assert_eval(
         r#"
@@ -148,14 +210,13 @@ fn list_rest_uses_independent_cow_views_while_preserving_alias_groups() {
 fn recursive_head_tail_matching_handles_longer_lists() {
     assert_eval(
         r#"
-        fn count(values) do
+        fn count(values)
             case values of
                 [] =>
                     0
                 [_, ..rest] =>
                     1 + count(rest)
             end
-        end
         count([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15])
         "#,
         "16",

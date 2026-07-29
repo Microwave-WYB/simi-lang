@@ -25,13 +25,41 @@ pub(super) fn terminal_expr(p: &mut Parser<'_>, kind: K) -> Parsed {
 }
 pub(super) fn legacy_try_expr(p: &mut Parser<'_>) -> Parsed {
     let marker = p.start();
-    p.error("`try` was removed; use `do … catch of … end`".to_owned());
+    p.error("`try` was removed; use `do … catch … end`".to_owned());
     p.bump();
     Parsed {
         marker: marker.complete(&mut p.events, K::ERROR),
         flavor: Flavor::Other,
     }
 }
+pub(super) fn catch_arms(p: &mut Parser<'_>) {
+    if p.at(K::END_KW) || p.at_end() {
+        p.error("expected pattern after `catch`, found no catch arms".to_owned());
+        return;
+    }
+    while !p.at(K::END_KW) && !p.at_end() {
+        let arm = p.start();
+        let mut bindings = HashSet::new();
+        pattern(p, &mut bindings);
+        if p.bump_if(K::WHEN_KW) {
+            expression(p);
+        }
+        if !p.expect(K::FAT_ARROW, "`=>` after arm pattern and guard") {
+            arm.complete(&mut p.events, K::CATCH_ARM);
+            if !p.at(K::END_KW) && !p.at_end() {
+                p.bump();
+            }
+            continue;
+        }
+        let body = p.start();
+        p.block_depth += 1;
+        expression(p);
+        p.block_depth -= 1;
+        body.complete(&mut p.events, K::BODY);
+        arm.complete(&mut p.events, K::CATCH_ARM);
+    }
+}
+
 pub(super) fn case_expr(p: &mut Parser<'_>) -> Parsed {
     let marker = p.start();
     p.bump();

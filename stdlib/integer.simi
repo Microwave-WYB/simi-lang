@@ -1,0 +1,22 @@
+---- Fixed-width twos-complement and unsigned integer encoding.
+
+--- Encode an integer as bytes in an explicit endian format.
+---
+--- Accepted formats: i8le, i8be, u8le, u8be, i16le, i16be, u16le, u16be,
+--- i32le, i32be, u32le, u32be, i64le, i64be, u64le, u64be.
+---
+--- A value outside the selected range — including any negative value for an
+--- unsigned format — is a hard runtime diagnostic.
+let encode: fn(value: integer, format: string) -> bytes ! never = host.encode
+
+--- Decode bytes into an integer using an explicit endian format.
+---
+--- Returns nil when the byte length does not match the format width.
+---
+--- A decoded u64 value that exceeds the i64 range is a hard diagnostic.
+let decode: fn(data: bytes, format: string) -> integer | nil ! never = host.decode
+
+{
+    encode = encode,
+    decode = decode,
+}
