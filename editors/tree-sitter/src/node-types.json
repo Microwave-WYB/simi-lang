@@ -646,7 +646,7 @@
           "named": true
         },
         {
-          "type": "bytes_pattern_remainder",
+          "type": "rest_pattern",
           "named": true
         },
         {
@@ -670,26 +670,6 @@
           }
         ]
       },
-      "name": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "identifier",
-            "named": true
-          },
-          {
-            "type": "wildcard_pattern",
-            "named": true
-          }
-        ]
-      }
-    }
-  },
-  {
-    "type": "bytes_pattern_remainder",
-    "named": true,
-    "fields": {
       "name": {
         "multiple": false,
         "required": true,
@@ -3001,10 +2981,6 @@
   },
   {
     "type": "and",
-    "named": false
-  },
-  {
-    "type": "bytes",
     "named": false
   },
   {

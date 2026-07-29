@@ -1239,7 +1239,7 @@ fn bytes_literals_hover_as_bytes_and_reject_dynamic_text_segments() {
 #[test]
 fn bytes_pattern_captures_hover_as_integer_and_bytes() {
     let source = r#"let result = case #[1, 2, 3] of
-    #[byte, fixed:bytes(1), rest:bytes] => [byte, fixed, rest]
+    #[byte, fixed:1, ..rest] => [byte, fixed, rest]
 end"#;
     let mut backend = Backend::new();
     let published = diagnostics_from(open(&mut backend, source).remove(0));
@@ -1268,6 +1268,24 @@ end"#;
         };
         assert_simi_hover(&markup, expected);
     }
+}
+
+#[test]
+fn legacy_bytes_pattern_capture_syntax_publishes_a_migration_diagnostic() {
+    let source = "case #[1] of #[field:bytes(1)] => nil end";
+    let mut backend = Backend::new();
+    let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
+    assert_eq!(diagnostics.diagnostics.len(), 1, "{diagnostics:?}");
+    let diagnostic = &diagnostics.diagnostics[0];
+    assert_eq!(
+        diagnostic.code,
+        Some(lsp_types::NumberOrString::String("syntax_error".to_owned()))
+    );
+    assert_eq!(
+        diagnostic.message,
+        "Syntax error\n\nLegacy `:bytes` byte capture syntax was removed; write `name:width` or `..name`."
+    );
+    assert_eq!(diagnostic.range.start, text_position(source, "bytes", 0));
 }
 
 #[test]
@@ -2343,7 +2361,7 @@ fn real_string_module_hover_wraps_export_map_at_presentation_width() {
 }
 
 #[test]
-fn closed_map_destructuring_over_unknown_keys_publishes_extra_key_warnings() {
+fn closed_map_destructuring_over_unknown_keys_remains_an_assertion() {
     let source = r#"fn indexed_closed(values: {[string]: integer}) do
     let {value} = values
     value
@@ -2362,19 +2380,11 @@ fn open_rest(values: {..}) do
 end"#;
     let mut backend = Backend::new();
     let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
-    assert_eq!(diagnostics.diagnostics.len(), 2, "{diagnostics:?}");
-    assert!(diagnostics.diagnostics.iter().all(|diagnostic| {
-        diagnostic.code
-            == Some(lsp_types::NumberOrString::String(
-                "destructuring_let_may_fail".to_owned(),
-            ))
-            && diagnostic.severity == Some(lsp_types::DiagnosticSeverity::WARNING)
-            && diagnostic.message.contains("Use `case`")
-    }));
+    assert!(diagnostics.diagnostics.is_empty(), "{diagnostics:?}");
 }
 
 #[test]
-fn destructuring_let_certainty_diagnostics_publish_warnings_and_errors() {
+fn destructuring_let_certainty_diagnostics_publish_only_impossible_matches() {
     let source = concat!(
         "fn first(values: any) do\n",
         "    let [first, ..rest] = values\n",
@@ -2384,29 +2394,18 @@ fn destructuring_let_certainty_diagnostics_publish_warnings_and_errors() {
     );
     let mut backend = Backend::new();
     let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
-    assert_eq!(diagnostics.diagnostics.len(), 2, "{diagnostics:?}");
+    assert_eq!(diagnostics.diagnostics.len(), 1, "{diagnostics:?}");
     assert_eq!(
         diagnostics.diagnostics[0].code,
-        Some(lsp_types::NumberOrString::String(
-            "destructuring_let_may_fail".to_owned()
-        ))
-    );
-    assert_eq!(
-        diagnostics.diagnostics[0].severity,
-        Some(lsp_types::DiagnosticSeverity::WARNING)
-    );
-    assert!(diagnostics.diagnostics[0].message.contains("Use `case`"));
-    assert_eq!(
-        diagnostics.diagnostics[1].code,
         Some(lsp_types::NumberOrString::String(
             "destructuring_let_never_matches".to_owned()
         ))
     );
     assert_eq!(
-        diagnostics.diagnostics[1].severity,
+        diagnostics.diagnostics[0].severity,
         Some(lsp_types::DiagnosticSeverity::ERROR)
     );
-    assert!(diagnostics.diagnostics[1].message.contains("incompatible"));
+    assert!(diagnostics.diagnostics[0].message.contains("incompatible"));
 
     let hover: Option<Hover> = serde_json::from_value(
         request(

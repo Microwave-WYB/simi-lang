@@ -117,20 +117,21 @@ end
 
 ### Bytes patterns
 
-Bytes patterns use `#[]`. String segments match their exact UTF-8 byte prefixes, a bare binding captures one byte as an integer, and `name:bytes(n)` captures exactly `n` bytes. A final `name:bytes` capture receives the entire remaining suffix; it must be final.
+Bytes patterns use `#[]`. String segments match their exact UTF-8 byte prefixes, a bare binding captures one byte as an integer, and `name:width` captures exactly `width` bytes. A final `..rest` capture receives the entire remaining suffix, while `.._` discards it; a remainder must be final. A width of `0` captures empty bytes.
 
 ```simi
+let integer = require("std/integer")
 let packet = #["PNG", 1, 0, 2, 255]
 
 case packet of
-    #["PNG", version, length:bytes(2), payload:bytes] =>
-        [version, inspect(length), inspect(payload)]
+    #["PNG", version, length:2, ..payload] =>
+        [version, integer.decode(length, "u16be"), inspect(payload)]
     _ =>
         nil
 end
 ```
 
-Bytes patterns work anywhere structural patterns do, including `let` and `catch`. A pattern with no final remainder must consume the whole bytes value. As with other refutable `let` patterns, a mismatch is a hard diagnostic; use `case` when failure is expected.
+Bytes patterns work anywhere structural patterns do, including `let` and `catch`. A pattern with no final remainder must consume the whole bytes value. Patterns only capture raw bytes; decode integers and floats in the selected arm with `std/integer` or `std/float`. A byte-pattern `let` is an assertion: a mismatch is a hard diagnostic, and unknown byte length or content does not produce a speculative warning. Use `case` when failure is expected.
 
 ### Destructuring with `let`
 

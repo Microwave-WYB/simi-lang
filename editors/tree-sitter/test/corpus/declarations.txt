@@ -202,9 +202,9 @@ let second = 2
 Bytes patterns
 ==================
 
-let #[tag, fixed:bytes(2), rest:bytes] = packet
+let #[tag, fixed:2, ..rest] = packet
 case packet of
-  #["PNG", version, header:bytes(2), payload:bytes] => payload
+  #["PNG", version, header:2, ..payload] => payload
 end
 
 ---
@@ -216,7 +216,7 @@ end
       (bytes_pattern_fixed_capture
         (identifier)
         (integer))
-      (bytes_pattern_remainder
+      (rest_pattern
         (identifier)))
     (identifier))
   (case_expression
@@ -229,7 +229,7 @@ end
         (bytes_pattern_fixed_capture
           (identifier)
           (integer))
-        (bytes_pattern_remainder
+        (rest_pattern
           (identifier)))
       (identifier))))
 

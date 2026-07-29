@@ -150,17 +150,14 @@ fn append(prefix: bytes)
 #[test]
 fn bytes_patterns_constrain_scrutinees_and_infer_capture_bindings() {
     let source = r#"
-let #[byte, fixed:bytes(2), remaining:bytes] = #[1, 2, 3, 4]
+let #[byte, fixed:2, ..remaining] = #[1, 2, 3, 4]
 let selected = case #["PNG", 1, 2] of
-    #["PNG", version, data:bytes] => [version, data]
+    #["PNG", version, ..data] => [version, data]
 end
 "#;
     let (inference, resolution) = inferred(source);
     assert!(
-        inference.diagnostics.iter().all(|diagnostic| {
-            diagnostic.code == AnalysisDiagnosticCode::DestructuringLetMayFail
-                && diagnostic.severity == AnalysisDiagnosticSeverity::Warning
-        }),
+        inference.diagnostics.is_empty(),
         "{:?}",
         inference.diagnostics
     );
@@ -170,6 +167,18 @@ end
     assert_eq!(
         type_of(&inference, &resolution, "selected").display(),
         "[integer, bytes]"
+    );
+}
+
+#[test]
+fn impossible_bytes_let_patterns_remain_analysis_errors() {
+    let (inference, _) = inferred("let #[byte] = \"not bytes\"");
+    assert!(
+        inference.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == AnalysisDiagnosticCode::DestructuringLetNeverMatches
+        }),
+        "{:?}",
+        inference.diagnostics
     );
 }
 
@@ -2524,7 +2533,7 @@ fn map_local_binding_shorthand_infers_the_referenced_value_type() {
 }
 
 #[test]
-fn destructuring_let_patterns_report_match_certainty_without_changing_bindings() {
+fn destructuring_let_patterns_report_only_impossible_matches_without_changing_bindings() {
     let source = r#"
 alias maybe_values = [..integer] | nil
 let [first, second] = [1, 2]
@@ -2571,23 +2580,11 @@ end
         2,
         "{reported:?}"
     );
-    assert_eq!(
-        codes
-            .iter()
-            .filter(|(code, _, _)| *code == AnalysisDiagnosticCode::DestructuringLetMayFail)
-            .count(),
-        4,
-        "{reported:?}"
-    );
     assert!(
-        codes.iter().all(|(code, severity, detail)| match code {
-            AnalysisDiagnosticCode::DestructuringLetNeverMatches => {
-                *severity == AnalysisDiagnosticSeverity::Error && detail.contains("incompatible")
-            }
-            AnalysisDiagnosticCode::DestructuringLetMayFail => {
-                *severity == AnalysisDiagnosticSeverity::Warning && detail.contains("Use `case`")
-            }
-            _ => true,
+        codes.iter().all(|(code, severity, detail)| {
+            *code == AnalysisDiagnosticCode::DestructuringLetNeverMatches
+                && *severity == AnalysisDiagnosticSeverity::Error
+                && detail.contains("incompatible")
         }),
         "{reported:?}"
     );
@@ -2636,7 +2633,7 @@ end
 }
 
 #[test]
-fn closed_map_destructuring_over_unknown_keys_retains_extra_key_failure() {
+fn closed_map_destructuring_over_unknown_keys_remains_an_assertion() {
     let closed_source = r#"
 fn indexed(values: {[string]: integer}) do
     let {value} = values
@@ -2650,11 +2647,7 @@ end
     let db = AnalysisDatabase::default();
     let file = db.add_file(closed_source);
     let reported = diagnostics(&db, file);
-    assert_eq!(reported.len(), 2, "{reported:?}");
-    assert!(reported.iter().all(|diagnostic| {
-        diagnostic.code == AnalysisDiagnosticCode::DestructuringLetMayFail
-            && diagnostic.severity == AnalysisDiagnosticSeverity::Warning
-    }));
+    assert!(reported.is_empty(), "{reported:?}");
 
     let rest_source = r#"
 fn indexed(values: {[string]: integer}) do

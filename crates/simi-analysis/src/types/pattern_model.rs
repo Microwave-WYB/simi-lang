@@ -284,9 +284,7 @@ fn partition_bytes_pattern(source: Type, pattern: &syntax::BytesPattern) -> (Typ
 fn bytes_pattern_matches_all(pattern: &syntax::BytesPattern) -> bool {
     let segments =
         support::children::<syntax::BytesPatternSegment>(pattern.syntax()).collect::<Vec<_>>();
-    segments.len() == 1
-        && direct_token(segments[0].syntax(), K::COLON).is_some()
-        && direct_token(segments[0].syntax(), K::INT).is_none()
+    segments.len() == 1 && support::child::<syntax::RestPattern>(segments[0].syntax()).is_some()
 }
 
 pub(super) fn unresolved_pattern_shape(pattern: &syntax::Pattern) -> Type {

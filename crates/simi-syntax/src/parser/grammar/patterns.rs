@@ -76,10 +76,13 @@ pub(super) fn bytes_pattern(p: &mut Parser<'_>, bindings: &mut HashSet<String>) 
         let segment = p.start();
         if p.at(K::STRING) {
             p.bump();
+        } else if p.at(K::DOT_DOT) {
+            rest_pattern(p, bindings);
+            saw_remainder = true;
         } else {
             let name = p.current_text().unwrap_or_default().to_owned();
             let span = p.current_span();
-            if !p.expect(K::IDENT, "bytes pattern string or binding") {
+            if !p.expect(K::IDENT, "bytes pattern string, binding, or `..` remainder") {
                 segment.complete(&mut p.events, K::BYTES_PATTERN_SEGMENT);
                 break;
             }
@@ -87,16 +90,15 @@ pub(super) fn bytes_pattern(p: &mut Parser<'_>, bindings: &mut HashSet<String>) 
                 p.error_at(span, format!("duplicate binding `{name}` in pattern"));
             }
             if p.bump_if(K::COLON) {
-                if p.current_text() != Some("bytes") {
-                    p.error("expected `bytes` after `:` in bytes pattern".to_owned());
-                } else {
+                if p.current_text() == Some("bytes") {
+                    p.error("legacy `:bytes` byte capture syntax was removed; write `name:width` or `..name`".to_owned());
                     p.bump();
-                }
-                if p.bump_if(K::L_PAREN) {
-                    p.expect(K::INT, "byte capture width");
-                    p.expect(K::R_PAREN, "`)` after byte capture width");
+                    if p.bump_if(K::L_PAREN) {
+                        p.bump_if(K::INT);
+                        p.expect(K::R_PAREN, "`)` after legacy byte capture width");
+                    }
                 } else {
-                    saw_remainder = true;
+                    p.expect(K::INT, "byte capture width after `:`");
                 }
             }
         }
@@ -108,7 +110,7 @@ pub(super) fn bytes_pattern(p: &mut Parser<'_>, bindings: &mut HashSet<String>) 
         if saw_remainder {
             p.error_at(
                 p.previous_nontrivia_span(),
-                "unsized bytes capture must be final".to_owned(),
+                "bytes pattern remainder must be final".to_owned(),
             );
             break;
         }

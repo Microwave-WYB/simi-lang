@@ -57,17 +57,23 @@ impl Context<'_> {
             }
             syntax::Pattern::Bytes(node) => {
                 for segment in support::children::<syntax::BytesPatternSegment>(node.syntax()) {
-                    let Some(name) = direct_token(segment.syntax(), K::IDENT) else {
+                    let rest = support::child::<syntax::RestPattern>(segment.syntax());
+                    let name = rest
+                        .as_ref()
+                        .and_then(|rest| direct_token(rest.syntax(), K::IDENT))
+                        .or_else(|| direct_token(segment.syntax(), K::IDENT));
+                    let Some(name) = name else {
                         continue;
                     };
                     let Some(symbol) = self.resolution.symbol_at(token_span(&name).start) else {
                         continue;
                     };
-                    let capture_ty = if direct_token(segment.syntax(), K::COLON).is_some() {
-                        Type::Bytes
-                    } else {
-                        Type::Int
-                    };
+                    let capture_ty =
+                        if rest.is_some() || direct_token(segment.syntax(), K::COLON).is_some() {
+                            Type::Bytes
+                        } else {
+                            Type::Int
+                        };
                     self.symbol_types.insert(symbol, capture_ty.clone());
                     self.symbol_bounds.insert(symbol, capture_ty);
                 }

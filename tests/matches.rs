@@ -108,7 +108,7 @@ fn bytes_patterns_match_utf8_prefixes_and_capture_bytes() {
         r#"
             let packet = #["猫", 7, 8, 9, "ok"]
             let direct = case [packet] of
-                [#["猫", version, header:bytes(2), payload:bytes]] =>
+                [#["猫", version, header:2, ..payload]] =>
                     [version, inspect(header), inspect(payload)]
             end
             let exact_mismatch = case packet of
@@ -124,14 +124,52 @@ fn bytes_patterns_match_utf8_prefixes_and_capture_bytes() {
 }
 
 #[test]
+fn bytes_patterns_support_zero_width_and_discarded_suffixes() {
+    assert_eval(
+        r#"
+            let result = case #[1, 2, 3] of
+                #[first, empty:0, .._] =>
+                    [first, inspect(empty)]
+            end
+            result
+        "#,
+        "[1, \"bytes[]\"]",
+    );
+}
+
+#[test]
+fn bytes_pattern_captures_are_decoded_in_selected_arms() {
+    assert_eval(
+        r#"
+            let integer = require("std/integer")
+            let float = require("std/float")
+            let integer_value = case #["I", 0x12, 0x34] of
+                #["I", raw:2] =>
+                    integer.decode(raw, "u16be")
+                _ =>
+                    nil
+            end
+            let float_value = case #["F", 0, 0, 128, 63] of
+                #["F", raw:4] =>
+                    float.decode(raw, "f32le")
+                _ =>
+                    nil
+            end
+            [integer_value, float_value]
+        "#,
+        "[4660, 1.0]",
+    );
+}
+
+#[test]
 fn bytes_patterns_work_in_catch_and_refutable_let_bindings() {
     assert_eval(
         r#"
-            let #[first, middle:bytes(2), tail:bytes] = #[1, 2, 3, 4]
+            let #[first, middle:2, ..tail] = #[1, 2, 3, 4]
             let caught = do
                 raise #[9, 8, 7]
             catch
-                #[code, detail:bytes] =>
+                #[code, ..detail] =>
                     [code, inspect(detail)]
             end
             [first, inspect(middle), inspect(tail), caught]
@@ -139,28 +177,39 @@ fn bytes_patterns_work_in_catch_and_refutable_let_bindings() {
         "[1, \"bytes[02 03]\", \"bytes[04]\", [9, \"bytes[08 07]\"]]",
     );
     assert_runtime_error(
-        "let #[head, tail:bytes(2)] = #[1]\nnil",
-        (4, 26),
+        "let #[head, tail:2] = #[1]\nnil",
+        (4, 19),
         "let pattern did not match",
     );
 }
 
 #[test]
-fn invalid_bytes_pattern_remainders_and_duplicate_bindings_are_rejected() {
-    let source = "case #[1] of #[rest:bytes, next] => nil end";
+fn invalid_bytes_pattern_segments_and_duplicate_bindings_are_rejected() {
+    let source = "case #[1] of #[..rest, next] => nil end";
     let comma = source.find(", next").expect("source contains comma");
     assert_parse_error(
         source,
         (comma, comma + 1),
-        "unsized bytes capture must be final",
+        "bytes pattern remainder must be final",
     );
 
-    let source = "case #[1] of #[value, value:bytes] => nil end";
+    let source = "case #[1] of #[value, ..value] => nil end";
     let second = source.rfind("value").expect("source contains duplicate");
     assert_parse_error(
         source,
         (second, second + "value".len()),
         "duplicate binding `value` in pattern",
+    );
+
+    assert_parse_error(
+        "case #[1] of #[field:bytes(1)] => nil end",
+        (21, 26),
+        "legacy `:bytes` byte capture syntax was removed; write `name:width` or `..name`",
+    );
+    assert_parse_error(
+        "case #[1] of #[field:] => nil end",
+        (21, 22),
+        "expected byte capture width after `:`, found `]`",
     );
 }
 

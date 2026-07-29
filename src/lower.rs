@@ -392,6 +392,12 @@ fn lower_bytes_pattern_segment(node: syntax::BytesPatternSegment) -> ast::BytesP
     if let Some(string) = direct_token(node.syntax(), K::STRING) {
         return ast::BytesPatternSegment::String(decode_string(string.text()));
     }
+    if let Some(rest) = support::child::<syntax::RestPattern>(node.syntax()) {
+        return ast::BytesPatternSegment::Remainder(match lower_rest(rest) {
+            ast::PatternRest::Discard => None,
+            ast::PatternRest::Binding(name) => Some(name),
+        });
+    }
 
     let name = direct_token(node.syntax(), K::IDENT)
         .map(|token| token.text().to_owned())
@@ -399,13 +405,12 @@ fn lower_bytes_pattern_segment(node: syntax::BytesPatternSegment) -> ast::BytesP
     if direct_token(node.syntax(), K::COLON).is_none() {
         return ast::BytesPatternSegment::Byte(name);
     }
-    if let Some(length) = direct_token(node.syntax(), K::INT) {
-        return ast::BytesPatternSegment::Fixed {
-            name,
-            length: parse_int_literal(length.text()) as usize,
-        };
+    let length =
+        direct_token(node.syntax(), K::INT).expect("valid fixed byte capture has an integer width");
+    ast::BytesPatternSegment::Fixed {
+        name,
+        length: parse_int_literal(length.text()) as usize,
     }
-    ast::BytesPatternSegment::Remainder(name)
 }
 
 fn lower_rest(node: syntax::RestPattern) -> ast::PatternRest {
