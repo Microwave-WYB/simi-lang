@@ -24,7 +24,7 @@ pub use package::{
     PackageRequirementsError, Requirement, RequirementSource, Requires, ResolvedScript,
     parse_requires, resolve_script,
 };
-pub use runtime::{NativeResult, Raised, ScriptResult, TraceFrame, Value};
+pub use runtime::{NativeResource, NativeResult, Raised, ScriptResult, TraceFrame, Value};
 
 pub fn eval(source: &str) -> Result<ScriptResult, SimiError> {
     Engine::with_stdlib().eval(source)

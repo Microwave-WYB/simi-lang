@@ -1,6 +1,9 @@
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
+
 use gc::{Gc, GcCell, force_collect, stats};
 
-use super::{List, MapKey, UserFunction, Value};
+use super::{List, MapKey, NativeResource, UserFunction, Value};
 use crate::ast::Block;
 use crate::environment::Environment;
 use crate::span::Span;
@@ -30,6 +33,30 @@ fn byte_values_are_self_contained_across_collection() {
     force_collect();
 
     assert_eq!(value.render(), "bytes[00 ff]");
+}
+
+struct DropProbe(Arc<AtomicUsize>);
+
+impl Drop for DropProbe {
+    fn drop(&mut self) {
+        self.0.fetch_add(1, Ordering::SeqCst);
+    }
+}
+
+#[test]
+fn resources_in_unreachable_managed_cycles_release_their_host_payloads() {
+    let drops = Arc::new(AtomicUsize::new(0));
+    let list = List::shared(Vec::new());
+    list.borrow_mut()
+        .push(Value::NativeResource(NativeResource::new(
+            "test.drop_probe",
+            DropProbe(drops.clone()),
+        )));
+    list.borrow_mut().push(Value::List(list.clone()));
+    drop(list);
+
+    force_collect();
+    assert_eq!(drops.load(Ordering::SeqCst), 1);
 }
 
 #[test]

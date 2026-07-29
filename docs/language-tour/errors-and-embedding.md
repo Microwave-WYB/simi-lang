@@ -278,6 +278,21 @@ The macro's `name` prefixes rendered native-function names and their diagnostics
 
 Native callbacks may capture Rust state, but they must be `Send + Sync + 'static`. Managed Simi values must not be hidden in untraced Rust containers or captured as untraced edges. Missing host fields read as `nil`; attempting to call one is a hard runtime diagnostic.
 
+For host-owned objects that should remain opaque to Simi, use `NativeResource`. Its payload is an `Arc<dyn Any + Send + Sync>` and may be recovered only by native code with `downcast_ref`; Simi can transport it through bindings, lists, maps, closures, raises, and module exports, but has no resource methods, equality, serialization, or raw-pointer access. The script-visible category is always `"resource"`, while `inspect` renders the host-selected stable label:
+
+```rust
+use simi::{Module, NativeResource, Value};
+
+struct Counter(u64);
+
+let counter = NativeResource::new("acme.counter", Counter(0));
+let module = Module::builder("acme/counter")
+    .value("value", Value::NativeResource(counter))
+    .build();
+```
+
+Do not place managed Simi values inside a resource payload. The `Send + Sync + 'static` bound prevents that in safe Rust, preserving tracing; the payload is released when the final host or Simi reference disappears.
+
 The low-level `Interpreter::with_globals` constructor treats its supplied environment as complete. Unlike normal/default interpreters and `Engine` evaluation, it does not add the `require`, `type`, and `inspect` prelude.
 
 ## Runtime and embedding invariants

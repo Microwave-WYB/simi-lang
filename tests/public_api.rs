@@ -17,8 +17,8 @@ use simi::runtime::{
 };
 use simi::{
     CatalogModule, CatalogModuleVisibility, CatalogRequirement, Engine, EngineBuilder, Module,
-    ModuleBuilder, NativeCallback, PackageCatalog, PackageManifest, Raised as RootRaised,
-    RequirementSource, ScriptResult as RootScriptResult, SourceModuleBuilder,
+    ModuleBuilder, NativeCallback, NativeResource, PackageCatalog, PackageManifest,
+    Raised as RootRaised, RequirementSource, ScriptResult as RootScriptResult, SourceModuleBuilder,
     TraceFrame as RootTraceFrame, Value as RootValue,
 };
 
@@ -104,6 +104,10 @@ fn current_public_paths_compile() {
     assert_eq!(bytes.as_slice(), [0, 255]);
     assert_eq!(bytes.slice(1, 2).unwrap().get(0), Some(255));
     let _: Value = Value::Bytes(bytes);
+    let resource = NativeResource::new("example.resource", 42_u64);
+    assert_eq!(resource.type_label(), "example.resource");
+    assert_eq!(resource.downcast_ref::<u64>(), Some(&42));
+    let _: Value = Value::NativeResource(resource);
     let _: List = List::new(Vec::new());
     let _: SharedList = List::shared(Vec::new());
     let _: SharedMap = Gc::new(GcCell::new(Vec::new()));

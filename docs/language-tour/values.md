@@ -12,6 +12,7 @@
   - [Lists](#lists)
   - [Maps](#maps)
   - [Functions are values](#functions-are-values)
+  - [Opaque native resources](#opaque-native-resources)
 - [Types and analysis](types-and-analysis.md)
 - [Expressions](expressions.md)
 - [Functions and bindings](functions-and-bindings.md)
@@ -207,6 +208,12 @@ double(21)
 Functions capture bindings from their lexical environment; here, `double` captures `multiplier`. Functions written in Simi and native functions supplied by the host both report `"function"` through `type`.
 
 The next page introduces optional erased type annotations for describing these runtime values without changing their behavior.
+
+## Opaque native resources
+
+Embedding hosts may also provide opaque native resources. Scripts can store, pass, return, raise, and inspect these values, but cannot access their Rust payload or use them as map keys, callables, indices, assignment targets, or equality operands. `type(value)` returns `"resource"`; `inspect` renders the stable host label as `<resource label>`.
+
+Only Rust native code can create a resource or recover its payload with `NativeResource::downcast_ref`. Resources must be `Send + Sync + 'static`, so they cannot safely hide untraced Simi managed values. Their lifecycle follows ordinary Rust `Arc` ownership: the payload is dropped after the final host and Simi reference disappears, including when Simi collects an unreachable container cycle.
 
 <!-- tour:navigation:start -->
 ---

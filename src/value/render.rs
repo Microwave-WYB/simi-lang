@@ -25,6 +25,7 @@ impl Value {
             Self::Map(_) => "map",
             Self::Function(_) => "function",
             Self::NativeFunction(_) => "native function",
+            Self::NativeResource(_) => "resource",
         }
     }
 
@@ -83,6 +84,9 @@ impl Value {
             }
             Self::Function(function) => format!("<fn {}>", function.name),
             Self::NativeFunction(function) => format!("<native {}>", function.name()),
+            Self::NativeResource(resource) => {
+                format!("<resource {}>", resource.type_label())
+            }
         }
     }
 }
