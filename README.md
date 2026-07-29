@@ -1,6 +1,7 @@
 # Simi
 
 ![Simi `two_sum` example](assets/two_sum.png)
+![Simi `quicksort` example](assets/quicksort.png)
 
 Simi is a small scripting language designed to be easy to run and embed.
 
