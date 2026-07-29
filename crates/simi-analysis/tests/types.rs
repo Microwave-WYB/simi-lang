@@ -3025,6 +3025,21 @@ let invalid: Expr = {kind = "unexpected", value = 1}
 }
 
 #[test]
+fn named_recursive_map_fields_narrow_nil_from_named_owners() {
+    let source = r#"
+type Environment = {parent: Environment | nil, ..}
+fn parent_or_self(env: Environment) -> Environment
+    if type(env.parent) == "nil" then env else env.parent end
+"#;
+    let (inference, _) = inferred(source);
+    assert!(
+        inference.diagnostics.is_empty(),
+        "{:?}",
+        inference.diagnostics
+    );
+}
+
+#[test]
 fn named_recursive_map_types_reject_deleting_required_fields() {
     let source = r#"
 type Environment = {values: {..}, parent: Environment | nil, ..}

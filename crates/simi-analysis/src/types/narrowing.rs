@@ -285,6 +285,10 @@ impl Context<'_> {
                     .get(&symbol)
                     .cloned()
                     .unwrap_or(Type::Unknown);
+                let current = match self.resolve_type(current) {
+                    Type::Named(name) => self.unfold_named_type(&name).unwrap_or(Type::Named(name)),
+                    other => other,
+                };
                 let narrowed = narrow_map_field(current, name.text(), matcher, keep);
                 if narrowed == Type::Never {
                     return false;
