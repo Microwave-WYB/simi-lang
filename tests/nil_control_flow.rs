@@ -139,7 +139,7 @@ fn nil_propagation_evaluates_each_kind_of_current_block_as_nil() {
         let from_protected = do
             let selected = do
                 nil?
-            catch of _ =>
+            catch _ =>
                 "must not catch"
             end
             [selected, "outer continued"]
@@ -147,7 +147,7 @@ fn nil_propagation_evaluates_each_kind_of_current_block_as_nil() {
         let from_catch = do
             let selected = do
                 raise "failure"
-            catch of
+            catch
             "failure" =>
                 nil?
             _ =>
@@ -186,14 +186,14 @@ fn multi_item_protected_body_returns_last_value_and_uses_a_fresh_scope() {
             let local = "protected"
             local
             42
-        catch of _ =>
+        catch _ =>
             "wrong"
         end
         let raised = do
             let hidden = "protected"
             raise hidden
             "unreachable"
-        catch of
+        catch
         value =>
             value
         end
@@ -214,7 +214,7 @@ fn protected_expression_does_not_catch_hard_diagnostics_or_nil_propagation() {
         do
             let selected = do
                 nil?
-            catch of _ =>
+            catch _ =>
                 "caught"
             end
             [selected, "enclosing block continued"]
@@ -224,7 +224,7 @@ fn protected_expression_does_not_catch_hard_diagnostics_or_nil_propagation() {
     assert_eq!(propagated.render(), "[nil, \"enclosing block continued\"]");
 
     assert!(matches!(
-        eval("do let local = 1 missing catch of _ => nil end"),
+        eval("do let local = 1 missing catch _ => nil end"),
         Err(SimiError::Runtime(_))
     ));
 }
@@ -259,7 +259,7 @@ fn direct_and_explicit_case_and_catch_arms_preserve_body_ownership() {
         let handled = do
             let first = "protected"
             raise 2
-        catch of 1 =>
+        catch 1 =>
             "one"
         n when n == 2 =>
             [n, selected]
@@ -277,8 +277,8 @@ fn missing_explicit_body_ends_and_unmarked_siblings_are_rejected() {
     for source in [
         "case 1 of 1 do nil of _ nil end",
         "case 1 of 1 nil _ nil end",
-        "do raise 1 catch of 1 do nil of _ nil end",
-        "do raise 1 catch of 1 nil _ nil end",
+        "do raise 1 catch 1 do nil of _ nil end",
+        "do raise 1 catch 1 nil _ nil end",
     ] {
         assert!(
             matches!(outer_error(source), SimiError::Parse(_)),
@@ -291,12 +291,15 @@ fn missing_explicit_body_ends_and_unmarked_siblings_are_rejected() {
 fn protected_expression_requires_items_arms_and_complete_delimiters() {
     for (source, message) in [
         (
-            "do catch of _ => nil end",
+            "do catch _ => nil end",
             "expected at least one protected block item",
         ),
-        ("do 1 catch end", "expected `of` after `catch`"),
         (
-            "do 1 catch of _ => do nil end",
+            "do 1 catch end",
+            "expected pattern after `catch`, found no catch arms",
+        ),
+        (
+            "do 1 catch _ => do nil end",
             "expected `end` after protected expression",
         ),
     ] {

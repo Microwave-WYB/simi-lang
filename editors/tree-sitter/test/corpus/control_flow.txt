@@ -135,7 +135,7 @@ fn classify(value)
 fn recover()
   do
     raise "failure"
-  catch of
+  catch
     "failure" =>
       "recovered"
     _ =>

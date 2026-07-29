@@ -67,7 +67,7 @@ let indexed_pairs = iter.enumerate(iter.take(iter.drop(ranged_pairs, 0), 2))
 do
     let error = { error = "example" }
     raise error
-catch of
+catch
     { error = message } when message != nil =>
         classify([final, indexed_pairs])
     "retry" =>

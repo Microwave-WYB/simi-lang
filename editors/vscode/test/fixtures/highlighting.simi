@@ -28,7 +28,7 @@ let mapped = iter.map(list.iter([1, 2])) <| mapper
 let handled = do
     let attempted = { error = "bad" }
     raise attempted
-catch of
+catch
     { error = reason } =>
         reason
 end

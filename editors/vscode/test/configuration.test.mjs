@@ -99,7 +99,7 @@ test("language configuration covers comments, pairs, indentation, and folding", 
     "case value of",
     "[head, ..tail] when ready =>",
     "[head, ..tail] when ready => do",
-    "catch of",
+    "catch",
     "else",
   ]) {
     assert.match(line, increase);
@@ -107,7 +107,7 @@ test("language configuration covers comments, pairs, indentation, and folding", 
   for (const line of ["end", "elseif ready then", "else", "catch"]) {
     assert.match(line, decrease);
   }
-  for (const line of ["case n of", "    case n of -- comment", "catch of", "_ =>"]) {
+  for (const line of ["case n of", "    case n of -- comment", "catch", "_ =>"]) {
     assert.match(line, indentNext);
     assert.match(line, increase);
   }
@@ -153,7 +153,7 @@ test("language configuration covers comments, pairs, indentation, and folding", 
   const protectedLines = [
     "do",
     "    prepare()",
-    "catch of",
+    "catch",
     "first =>",
     "    recover_first()",
     "second =>",
@@ -181,7 +181,7 @@ test("language configuration covers comments, pairs, indentation, and folding", 
   assert.doesNotMatch("value -- fake =>", increase);
   assert.match("_ => do", increase);
   assert.match("    case nested of", indentNext);
-  assert.doesNotMatch("do operation() catch of _ => value end", increase);
+  assert.doesNotMatch("do operation() catch _ => value end", increase);
 
   for (const legacyLine of ["match value with", "case value ->"]) {
     assert.doesNotMatch(legacyLine, increase);

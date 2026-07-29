@@ -2159,7 +2159,7 @@ _ =>
 end
 let catch_absent = do
     raise {}
-catch of
+catch
     {catch_missing} =>
         "wrong"
     _ =>
@@ -2167,7 +2167,7 @@ catch of
 end
 let catch_present = do
     raise {catch_value = 2}
-catch of
+catch
     {catch_value} =>
         catch_value
 end"#;

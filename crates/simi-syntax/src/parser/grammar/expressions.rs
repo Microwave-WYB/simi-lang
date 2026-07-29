@@ -343,7 +343,16 @@ pub(super) fn block_expr(p: &mut Parser<'_>) -> Parsed {
                 "expected at least one protected block item".to_owned(),
             );
         }
-        pattern_arms(p, K::CATCH_ARM, "`of` after `catch`");
+        // Legacy migration: accept and diagnose `catch of` but drop the `of`.
+        if p.at(K::OF_KW) {
+            let of_span = p.current_span();
+            p.error_at(
+                of_span,
+                "`catch of` was removed; write `catch pattern => …` instead".to_owned(),
+            );
+            p.bump();
+        }
+        catch_arms(p);
         p.expect(K::END_KW, "`end` after protected expression");
         return Parsed {
             marker: marker.complete(&mut p.events, K::PROTECTED_EXPR),

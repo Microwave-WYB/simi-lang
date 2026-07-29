@@ -3135,10 +3135,6 @@
           "value": "catch"
         },
         {
-          "type": "STRING",
-          "value": "of"
-        },
-        {
           "type": "REPEAT1",
           "content": {
             "type": "SYMBOL",

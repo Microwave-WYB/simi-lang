@@ -99,7 +99,7 @@ fn bytes_patterns_are_lossless_typed_patterns_and_recover() {
 fn delimiters_belong_to_their_typed_nodes() {
     let source = concat!(
         "case [1] of [head, ..tail] => head end ",
-        "do 1 catch of _ => 2 end ",
+        "do 1 catch _ => 2 end ",
         "if false then 0 else f(1) end",
     );
     let parse = parse_source(source);
@@ -108,7 +108,6 @@ fn delimiters_belong_to_their_typed_nodes() {
         (SyntaxKind::CASE_EXPR, SyntaxKind::OF_KW),
         (SyntaxKind::CASE_CLAUSE, SyntaxKind::FAT_ARROW),
         (SyntaxKind::PROTECTED_EXPR, SyntaxKind::CATCH_KW),
-        (SyntaxKind::PROTECTED_EXPR, SyntaxKind::OF_KW),
         (SyntaxKind::CATCH_ARM, SyntaxKind::FAT_ARROW),
         (SyntaxKind::REST_PATTERN, SyntaxKind::DOT_DOT),
         (SyntaxKind::ELSE_BRANCH, SyntaxKind::ELSE_KW),

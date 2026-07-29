@@ -212,7 +212,7 @@ test("parser-backed typing restores catch sibling arm, body, and end levels", as
   const app = await harness([
     "do",
     "  prepare()",
-    "catch of",
+    "catch",
     "first =>",
   ].join("\n"));
 

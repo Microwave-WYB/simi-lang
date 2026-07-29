@@ -1568,8 +1568,8 @@ fn boundaries(value: integer | nil) do
     let selected_if = if true then value? 1 else 2 end
     let selected_else = if false then 1 else value? 2 end
     let selected_case = case 1 of 1 => do value? 1 end end
-    let protected = do value? 1 catch of _ => 2 end
-    let caught = do raise "failure" catch of _ => do value? 1 end end
+    let protected = do value? 1 catch _ => 2 end
+    let caught = do raise "failure" catch _ => do value? 1 end end
     [standalone, selected_if, selected_else, selected_case, protected, caught]
     "continued"
 end
@@ -1877,7 +1877,7 @@ _ =>
 end
 let catch_absent = do
     raise {}
-catch of
+catch
     {catch_missing} =>
         "wrong"
     _ =>
@@ -1885,7 +1885,7 @@ catch of
 end
 let catch_present = do
     raise {catch_value = 2}
-catch of
+catch
     {catch_value} =>
         catch_value
 end
@@ -2331,7 +2331,7 @@ let callback = fn() do
 end
 let observed = do
     callback()
-catch of
+catch
     "bad" =>
         values
 end
@@ -2362,7 +2362,7 @@ end
 fn recovered() do
     do
         fail("bad")
-    catch of
+    catch
         "bad" =>
             1
     end

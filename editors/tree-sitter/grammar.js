@@ -526,7 +526,6 @@ module.exports = grammar({
       "do",
       field("protected", $.block),
       "catch",
-      "of",
       repeat1($.catch_arm),
       "end",
     ),

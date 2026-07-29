@@ -130,7 +130,7 @@ fn bytes_patterns_work_in_catch_and_refutable_let_bindings() {
             let #[first, middle:bytes(2), tail:bytes] = #[1, 2, 3, 4]
             let caught = do
                 raise #[9, 8, 7]
-            catch of
+            catch
                 #[code, detail:bytes] =>
                     [code, inspect(detail)]
             end

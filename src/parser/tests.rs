@@ -589,7 +589,7 @@ fn parses_raise_with_a_full_expression_operand_and_contract_span() {
 fn parses_protected_catch_arms_with_guards_empty_bodies_and_postfix_syntax() {
     let source = concat!(
         "do raise [1, 2] ",
-        "catch of [head, ..tail] when head == 1 => tail ",
+        "catch [head, ..tail] when head == 1 => tail ",
         "_ => do end ",
         "end[0]"
     );
@@ -645,9 +645,9 @@ fn parses_protected_catch_arms_with_guards_empty_bodies_and_postfix_syntax() {
 fn preserves_nested_protected_case_and_if_body_ownership() {
     let source = concat!(
         "do if true then ",
-        "case 1 of x => do x catch of _ => nil end end ",
+        "case 1 of x => do x catch _ => nil end end ",
         "else nil end ",
-        "catch of error when true => if false then error end ",
+        "catch error when true => if false then error end ",
         "_ => nil end"
     );
     let program = parse_source(source).unwrap();
@@ -679,21 +679,21 @@ fn preserves_nested_protected_case_and_if_body_ownership() {
 fn reports_required_protected_expression_delimiters_and_stray_catch() {
     for (source, expected_message) in [
         ("raise", "expected expression, found `end of file`"),
-        ("do 1 catch end", "expected `of` after `catch`, found `end`"),
+        (
+            "do 1 catch end",
+            "expected pattern after `catch`, found no catch arms",
+        ),
         (
             "do 1 catch _ nil end",
-            "expected `of` after `catch`, found `identifier`",
-        ),
-        (
-            "do 1 catch of _ when end",
-            "expected expression, found `end`",
-        ),
-        (
-            "do 1 catch of _ nil end",
             "expected `=>` after arm pattern and guard, found `nil`",
         ),
+        ("do 1 catch _ when end", "expected expression, found `end`"),
         (
-            "do 1 catch of _ => do nil",
+            "do 1 catch _ when do nil end end",
+            "expected `=>` after arm pattern and guard, found `end`",
+        ),
+        (
+            "do 1 catch _ => do nil",
             "expected `end` after standalone block, found `end of file`",
         ),
         ("catch", "unexpected `catch` outside of a block"),
@@ -705,7 +705,7 @@ fn reports_required_protected_expression_delimiters_and_stray_catch() {
 
 #[test]
 fn reports_empty_protected_body_at_the_catch_keyword() {
-    let source = "do catch of _ => nil end";
+    let source = "do catch _ => nil end";
     let error = parse_source(source).unwrap_err();
     assert_eq!(error.message, "expected at least one protected block item");
     assert_eq!(error.span, Span::new(3, 8));
@@ -713,7 +713,7 @@ fn reports_empty_protected_body_at_the_catch_keyword() {
 
 #[test]
 fn catch_clauses_reuse_existing_pattern_validation() {
-    let source = "do 0 catch of [value, ..value] => nil end";
+    let source = "do 0 catch [value, ..value] => nil end";
     let error = parse_source(source).unwrap_err();
     assert_eq!(error.message, "duplicate binding `value` in pattern");
     let start = source.rfind("value").unwrap();

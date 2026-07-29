@@ -170,7 +170,7 @@ end
 fn recover() -> integer ! never do
     do
         fail("missing")
-    catch of "missing" =>
+    catch "missing" =>
         0
     end
 end

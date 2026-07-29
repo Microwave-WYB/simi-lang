@@ -384,7 +384,7 @@ fn public_iterator_controls_support_stateful_case_and_catch_workflows() {
         )
         let recovered = do
             iter.next(readings)
-        catch of
+        catch
             { error = "sensor_failed", attempt = attempt } =>
                 { status = "recovered", attempt = attempt }
         end

@@ -207,13 +207,13 @@ result
 
 ### Protected catch boundaries
 
-A protected `do` has a protected block, followed by `catch of` and `pattern [when guard] => expression` arms. `catch` matches raised values; it does **not** catch postfix nil propagation. If `?` sees `nil` in the protected block, that block simply evaluates to `nil` and catch selection never begins:
+A protected `do` has a protected block, followed by `catch` and `pattern [when guard] => expression` arms. `catch` matches raised values; it does **not** catch postfix nil propagation. If `?` sees `nil` in the protected block, that block simply evaluates to `nil` and catch selection never begins:
 
 ```simi
 let selected = do
     nil?
     "unreachable"
-catch of
+catch
     _ =>
         "not caught"
 end
@@ -226,7 +226,7 @@ Likewise, `?` inside a selected catch arm stops that arm as `nil`; later arms ar
 ```simi
 let selected = do
     raise "missing"
-catch of
+catch
     "missing" => do
         nil?
         "unreachable"

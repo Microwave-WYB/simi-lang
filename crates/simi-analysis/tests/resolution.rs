@@ -158,7 +158,7 @@ case candidate of
 end
 do
     raise candidate
-catch of
+catch
     error when error != nil =>
         error
 end

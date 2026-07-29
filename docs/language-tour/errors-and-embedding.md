@@ -77,7 +77,7 @@ end
 
 do
     load("profile")
-catch of
+catch
     {error = "not_found", key = key} =>
         "missing: " <> key
     error =>
@@ -93,11 +93,11 @@ A raise from a catch guard or handler body escapes the current protected express
 do
     do
         raise "original"
-    catch of
+    catch
         error =>
             raise {error = "replacement", cause = error}
     end
-catch of
+catch
     {error = "replacement", cause = cause} =>
         cause
 end
@@ -109,7 +109,7 @@ A protected `do` catches neither postfix nil propagation nor hard diagnostics. T
 -- Expected type and runtime diagnostics: catch handles raises, not hard diagnostics.
 do
     1 + "two"
-catch of
+catch
     _ =>
         "not reached"
 end
@@ -130,7 +130,7 @@ end
 
 do
     lookup("profile")
-catch of {error = "not_found", key = key} =>
+catch {error = "not_found", key = key} =>
     "missing: " <> key
 end
 ```

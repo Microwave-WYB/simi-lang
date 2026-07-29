@@ -105,15 +105,15 @@ fn list_mutation_bounds_raise_structural_values() {
 
             let values = [1]
             let insert_error = do list.insert(values, 2, 9)
-                catch of error =>
+                catch error =>
                     error
             end
             let remove_error = do list.remove(values, 1)
-                catch of error =>
+                catch error =>
                     error
             end
             let pop_error = do list.pop([])
-                catch of error =>
+                catch error =>
                     error
             end
             [insert_error, remove_error, pop_error, values]
@@ -184,10 +184,10 @@ fn list_contains_rejects_cyclic_container_comparison_without_recursing() {
 #[test]
 fn new_list_indices_retain_hard_type_diagnostics() {
     for source in [
-        " do list.insert([], -1, nil) catch of _ => nil end",
-        " do list.remove([1], 0.0) catch of _ => nil end",
-        " do list.slice([1], \"0\", 1) catch of _ => nil end",
-        " do list.slice([1], 0, true) catch of _ => nil end",
+        " do list.insert([], -1, nil) catch _ => nil end",
+        " do list.remove([1], 0.0) catch _ => nil end",
+        " do list.slice([1], \"0\", 1) catch _ => nil end",
+        " do list.slice([1], 0, true) catch _ => nil end",
     ] {
         assert!(matches!(eval(source), Err(SimiError::Runtime(_))));
     }
