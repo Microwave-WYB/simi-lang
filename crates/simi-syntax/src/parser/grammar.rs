@@ -78,6 +78,10 @@ fn statement(p: &mut Parser<'_>) {
         || (p.at(K::IDENT) && p.current_text() == Some("alias") && p.nth(1) == K::IDENT)
     {
         alias_decl(p);
+    } else if p.at(K::TYPE_KW)
+        || (p.at(K::IDENT) && p.current_text() == Some("type") && p.nth(1) == K::IDENT)
+    {
+        type_decl(p);
     } else if p.at(K::LET_KW) {
         let_stmt(p);
     } else {
@@ -95,9 +99,11 @@ fn recover_statement(p: &mut Parser<'_>) {
     while !(p.at_end()
         || p.at(K::FN_KW)
         || p.at(K::ALIAS_KW)
+        || p.at(K::TYPE_KW)
         || p.at(K::LET_KW)
         || p.at(K::REQUIRES_KW)
-        || (p.at(K::IDENT) && p.current_text() == Some("alias") && p.nth(1) == K::IDENT))
+        || (p.at(K::IDENT) && p.current_text() == Some("alias") && p.nth(1) == K::IDENT)
+        || (p.at(K::IDENT) && p.current_text() == Some("type") && p.nth(1) == K::IDENT))
     {
         p.bump();
     }

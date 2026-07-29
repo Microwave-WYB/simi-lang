@@ -45,7 +45,7 @@ fn stmt(node: syntax::Stmt) -> Option<ast::Stmt> {
                 lower_body(support::child(node.syntax()).expect("valid function has a body"));
             ast::StmtKind::Function { name, params, body }
         }
-        syntax::Stmt::AliasDecl(_) => return None,
+        syntax::Stmt::AliasDecl(_) | syntax::Stmt::TypeDecl(_) => return None,
         syntax::Stmt::LetStmt(node) => {
             let pattern =
                 lower_pattern(support::child(node.syntax()).expect("valid let has a pattern"));

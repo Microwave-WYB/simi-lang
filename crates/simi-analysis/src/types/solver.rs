@@ -4,6 +4,34 @@ impl Context<'_> {
     pub(super) fn constrain(&mut self, expected: &Type, actual: &Type, at: Span) {
         let expected = self.resolve_type(expected.clone());
         let actual = self.resolve_type(actual.clone());
+        if let Type::Union(items) = &expected {
+            let expanded = items
+                .iter()
+                .map(|item| match item {
+                    Type::Named(name) => {
+                        self.unfold_named_type(name).unwrap_or_else(|| item.clone())
+                    }
+                    _ => item.clone(),
+                })
+                .collect::<Vec<_>>();
+            if expanded != *items {
+                self.constrain(&union(expanded), &actual, at);
+                return;
+            }
+        }
+        if let Type::Named(name) = &expected
+            && !matches!(&actual, Type::Named(actual_name) if actual_name == name)
+            && let Some(unfolded) = self.unfold_named_type(name)
+        {
+            self.constrain(&unfolded, &actual, at);
+            return;
+        }
+        if let Type::Named(name) = &actual
+            && let Some(unfolded) = self.unfold_named_type(name)
+        {
+            self.constrain(&expected, &unfolded, at);
+            return;
+        }
         match (&expected, &actual) {
             (Type::Function(_), Type::Any | Type::Unknown) => {
                 let mut infers = HashSet::new();
@@ -290,6 +318,19 @@ impl Context<'_> {
     pub(super) fn require_subtype(&mut self, actual: &Type, expected: &Type, at: Span) {
         let actual = self.resolve_type(actual.clone());
         let expected = self.resolve_type(expected.clone());
+        if let Type::Named(name) = &expected
+            && !matches!(&actual, Type::Named(actual_name) if actual_name == name)
+            && let Some(unfolded) = self.unfold_named_type(name)
+        {
+            self.require_subtype(&actual, &unfolded, at);
+            return;
+        }
+        if let Type::Named(name) = &actual
+            && let Some(unfolded) = self.unfold_named_type(name)
+        {
+            self.require_subtype(&unfolded, &expected, at);
+            return;
+        }
         let checked_actual = self.upper_bound_view(actual.clone());
         if !is_subtype(&actual, &expected) && !is_subtype(&checked_actual, &expected) {
             let displayed_expected = self.display_deferred_empty_lists(expected.clone());

@@ -83,6 +83,14 @@ pub(super) fn alias_decl(p: &mut Parser<'_>) {
     type_expr(p);
     marker.complete(&mut p.events, K::ALIAS_DECL);
 }
+pub(super) fn type_decl(p: &mut Parser<'_>) {
+    let marker = p.start();
+    p.bump();
+    p.expect(K::IDENT, "type name");
+    p.expect(K::EQ, "`=` after type name");
+    type_expr(p);
+    marker.complete(&mut p.events, K::TYPE_DECL);
+}
 pub(super) fn callable_type_param_list(p: &mut Parser<'_>) {
     type_param_list(p, true, K::CALLABLE_TYPE_PARAM_LIST);
 }

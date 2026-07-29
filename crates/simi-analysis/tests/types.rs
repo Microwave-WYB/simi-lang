@@ -480,6 +480,21 @@ fn fibonacci_example_is_syntax_and_type_clean() {
     );
 }
 
+#[test]
+fn lisp_example_is_a_fully_typed_recursive_interpreter() {
+    let source = include_str!("../../../examples/lisp.simi");
+    let (inference, resolution) = inferred(source);
+    assert!(
+        inference.diagnostics.is_empty(),
+        "type diagnostics: {:?}",
+        inference.diagnostics
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "final_environment"),
+        Type::Named("Environment".to_owned())
+    );
+}
+
 fn type_of(
     inference: &simi_analysis::TypeInference,
     resolution: &simi_analysis::Resolution,
@@ -715,6 +730,31 @@ fn map_index_signatures_type_dynamic_reads_and_reject_wrong_keys() {
             .map(|diagnostic| diagnostic.code.as_str())
             .collect::<Vec<_>>(),
         vec!["type_mismatch"]
+    );
+}
+
+#[test]
+fn closed_recursive_records_keep_declared_fields_out_of_index_signatures() {
+    let source = r#"
+type Environment = {
+    values: {[string]: integer},
+    parent: Environment | nil,
+}
+
+fn environment(parent: Environment | nil) -> Environment
+    {values = {}, parent = parent}
+
+let root: Environment = environment(nil)
+"#;
+    let (inference, resolution) = inferred(source);
+    assert!(
+        inference.diagnostics.is_empty(),
+        "{:?}",
+        inference.diagnostics
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "root"),
+        Type::Named("Environment".to_owned())
     );
 }
 
@@ -2970,6 +3010,89 @@ let invalid = [..1]
             .diagnostics
             .iter()
             .any(|diagnostic| diagnostic.code == AnalysisDiagnosticCode::TypeMismatch),
+        "{:?}",
+        inference.diagnostics
+    );
+}
+
+#[test]
+fn named_recursive_types_keep_recursive_edges_collapsed_and_check_structure() {
+    let source = r#"
+type Expr =
+    | {kind: "integer", value: integer}
+    | {kind: "list", items: [..Expr]}
+let leaf: Expr = {kind = "integer", value = 1}
+let tree: Expr = {kind = "list", items = [leaf, {kind = "list", items = []}]}
+let invalid: Expr = {kind = "unexpected", value = 1}
+"#;
+    let (inference, resolution) = inferred(source);
+    assert_eq!(
+        type_of(&inference, &resolution, "leaf"),
+        Type::Named("Expr".to_owned())
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "tree"),
+        Type::Named("Expr".to_owned())
+    );
+    assert!(
+        inference.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == AnalysisDiagnosticCode::TypeMismatch
+                && diagnostic.detail.contains("Expr")
+        }),
+        "{:?}",
+        inference.diagnostics
+    );
+    assert!(
+        inference.diagnostics.len() < 5,
+        "{:?}",
+        inference.diagnostics
+    );
+}
+
+#[test]
+fn named_recursive_map_fields_narrow_nil_from_named_owners() {
+    let source = r#"
+type Environment = {parent: Environment | nil, ..}
+fn parent_or_self(env: Environment) -> Environment
+    if type(env.parent) == "nil" then env else env.parent end
+"#;
+    let (inference, _) = inferred(source);
+    assert!(
+        inference.diagnostics.is_empty(),
+        "{:?}",
+        inference.diagnostics
+    );
+}
+
+#[test]
+fn named_recursive_map_types_reject_deleting_required_fields() {
+    let source = r#"
+type Environment = {values: {..}, parent: Environment | nil, ..}
+let env: Environment = {values = {}, parent = nil}
+env.values = nil
+let accepted: Environment = env
+"#;
+    let (inference, _) = inferred(source);
+    assert!(
+        inference.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == AnalysisDiagnosticCode::TypeMismatch
+                && diagnostic.detail == "Expected `{ .. }`, but found `nil`."
+        }),
+        "{:?}",
+        inference.diagnostics
+    );
+}
+
+#[test]
+fn named_recursive_map_types_allow_compatible_required_field_mutation() {
+    let source = r#"
+type Environment = {values: {..}, parent: Environment | nil, ..}
+let env: Environment = {values = {}, parent = nil}
+env.values = {count = 1}
+"#;
+    let (inference, _) = inferred(source);
+    assert!(
+        inference.diagnostics.is_empty(),
         "{:?}",
         inference.diagnostics
     );

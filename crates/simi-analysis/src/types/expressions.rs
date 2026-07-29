@@ -98,12 +98,19 @@ impl Context<'_> {
                         } else {
                             Type::Unknown
                         };
-                        if value != Type::Nil && !type_may_be_nil(&value) {
-                            fields.push((name.text().to_owned(), value));
-                        } else if value != Type::Nil {
-                            // The type model has no optional fields. An entry whose value may
-                            // be nil may be omitted at runtime, so retain only an open-map fact.
-                            open = true;
+                        if value != Type::Nil {
+                            if type_has_explicit_nil(&value) {
+                                // An explicit `T | nil` record field is optional at runtime:
+                                // map insertion deletes nil, but the union records that
+                                // absence precisely without opening the whole map.
+                                fields.push((name.text().to_owned(), value));
+                            } else if type_may_be_nil(&value) {
+                                // `any` and unresolved values may be nil without declaring an
+                                // optional field. Preserve soundness by widening the literal.
+                                open = true;
+                            } else {
+                                fields.push((name.text().to_owned(), value));
+                            }
                         }
                     } else if let (Some(key), Some(value)) =
                         (expressions.next(), expressions.next())

@@ -155,7 +155,7 @@ impl Builder {
                 }
                 self.body(node.syntax(), function_scope);
             }
-            syntax::Stmt::AliasDecl(_) => {}
+            syntax::Stmt::AliasDecl(_) | syntax::Stmt::TypeDecl(_) => {}
             syntax::Stmt::LetStmt(node) => {
                 if let Some(value) = support::child::<syntax::Expr>(node.syntax()) {
                     self.expression(value, scope);

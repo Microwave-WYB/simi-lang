@@ -183,6 +183,14 @@ pub(super) fn type_may_be_nil(ty: &Type) -> bool {
         _ => false,
     }
 }
+
+/// Whether a field explicitly declares optional map presence with `T | nil`.
+///
+/// `any` may contain nil too, but it does not declare that a closed record field
+/// is optional; a map literal containing such a value must instead widen open.
+pub(super) fn type_has_explicit_nil(ty: &Type) -> bool {
+    matches!(ty, Type::Nil) || matches!(ty, Type::Union(items) if items.contains(&Type::Nil))
+}
 pub(super) fn type_may_be_callable(ty: &Type) -> bool {
     match ty {
         Type::Function(_) | Type::Any | Type::Unknown | Type::Infer(_) => true,
@@ -523,8 +531,15 @@ fn partition_required_map_binding_field(source: Type, field: &str) -> (Type, Typ
     else {
         return (Type::Never, source);
     };
-    if fields.iter().any(|(name, _)| name == field) {
-        return (source, Type::Never);
+    if let Some((_, field_ty)) = fields.iter().find(|(name, _)| name == field) {
+        let matched =
+            replace_required_map_field(source.clone(), field, remove_nil(field_ty.clone()));
+        let unmatched = if type_has_explicit_nil(field_ty) {
+            source
+        } else {
+            Type::Never
+        };
+        return (matched, unmatched);
     }
     if *open || index.is_some() {
         return (source.clone(), source);
@@ -564,9 +579,15 @@ fn partition_required_map_field_with(
         return (Type::Never, source);
     };
     if let Some((_, field_ty)) = fields.iter().find(|(name, _)| name == field) {
-        let (matched_field, unmatched_field) = partition(field_ty.clone(), pattern);
+        let optional_presence = type_has_explicit_nil(field_ty);
+        let (matched_field, unmatched_field) = partition(remove_nil(field_ty.clone()), pattern);
         let matched = replace_required_map_field(source.clone(), field, matched_field);
-        let unmatched = replace_required_map_field(source, field, unmatched_field);
+        let value_mismatch = replace_required_map_field(source.clone(), field, unmatched_field);
+        let unmatched = if optional_presence {
+            union(vec![source, value_mismatch])
+        } else {
+            value_mismatch
+        };
         return (matched, unmatched);
     }
     if *open || index.is_some() {

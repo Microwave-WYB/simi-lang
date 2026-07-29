@@ -301,6 +301,8 @@ pub enum Type {
     Float,
     String,
     Bytes,
+    /// A named recursive type. Its definition remains in the analyzer and is erased at runtime.
+    Named(String),
     LiteralInt(i64),
     LiteralFloat(LiteralFloat),
     LiteralString(String),
@@ -355,6 +357,7 @@ fn display_type(ty: &Type, nested: bool) -> String {
         Type::Float => "float".to_owned(),
         Type::String => "string".to_owned(),
         Type::Bytes => "bytes".to_owned(),
+        Type::Named(name) => name.clone(),
         Type::LiteralInt(value) => value.to_string(),
         Type::LiteralFloat(value) => display_float_literal(value.value()),
         Type::LiteralString(value) => format!("{value:?}"),

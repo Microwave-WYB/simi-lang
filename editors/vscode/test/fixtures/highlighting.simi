@@ -63,3 +63,5 @@ let distinct = 1 != 2
 requires {
     local = {path = "packages/local"}
 }
+
+type Expr = {kind: "integer", value: integer} | {kind: "list", items: [..Expr]}

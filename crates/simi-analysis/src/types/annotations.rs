@@ -289,6 +289,22 @@ impl Context<'_> {
                     "string" => Type::String,
                     "bytes" => Type::Bytes,
                     "any" => Type::Any,
+                    _ if self.named_types.contains_key(&name) => {
+                        if arguments.is_empty() {
+                            Type::Named(name)
+                        } else {
+                            self.diagnostic(
+                                AnalysisDiagnosticCode::WrongTypeArity,
+                                "Wrong number of type arguments",
+                                format!(
+                                    "Type `{name}` expects 0 arguments, but received {}.",
+                                    arguments.len()
+                                ),
+                                span(node),
+                            );
+                            Type::Unknown
+                        }
+                    }
                     _ => self.expand_alias(&name, arguments, generics, span(node)),
                 }
             }
@@ -347,6 +363,11 @@ impl Context<'_> {
             _ => Type::Unknown,
         }
     }
+    pub(super) fn unfold_named_type(&mut self, name: &str) -> Option<Type> {
+        let definition = self.named_types.get(name)?.clone();
+        Some(self.parse_type(&definition.body, &mut HashMap::new()))
+    }
+
     pub(super) fn expand_alias(
         &mut self,
         name: &str,

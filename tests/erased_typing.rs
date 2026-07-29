@@ -37,9 +37,43 @@ alias trailing = option<string>
 }
 
 #[test]
+fn typed_lisp_example_runs_with_the_public_stdlib_enabled_eval_api() {
+    let rendered = std::thread::Builder::new()
+        .stack_size(8 * 1024 * 1024)
+        .spawn(|| {
+            eval(include_str!("../examples/lisp.simi"))
+                .expect("runtime parsing succeeds")
+                .expect("no raise")
+                .render()
+        })
+        .expect("runtime thread starts")
+        .join()
+        .expect("runtime thread completes");
+    assert_eq!(
+        rendered,
+        "{arithmetic=36, conditional=1, list_operations=true, quoted_symbols_equal=true, boolean_logic=true}"
+    );
+}
+
+#[test]
 fn annotations_do_not_turn_static_mismatches_into_runtime_checks() {
     let result = eval("let value: integer = \"text\" value")
         .expect("runtime accepts erased annotation")
         .expect("no raise");
     assert_eq!(result.render(), "\"text\"");
+}
+
+#[test]
+fn named_recursive_types_are_erased_at_runtime() {
+    let source = r#"
+type Expr =
+    | {kind: "integer", value: integer}
+    | {kind: "list", items: [..Expr]}
+let value: Expr = {kind = "list", items = [{kind = "integer", value = 7}]}
+value.items[0].value
+"#;
+    let result = eval(source)
+        .expect("runtime parsing succeeds")
+        .expect("no raise");
+    assert_eq!(result.render(), "7");
 }

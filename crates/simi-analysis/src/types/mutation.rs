@@ -21,6 +21,7 @@ impl Context<'_> {
         if let Some(object) = child_expr(node.syntax(), 0) {
             let object_ty = self.expression(object);
             let object_ty = self.resolve_type(object_ty);
+            let object_ty = self.unfold_named_mutable_type(object_ty);
             return field_lookup_type(object_ty, name.text());
         }
         Type::Unknown
@@ -281,6 +282,7 @@ impl Context<'_> {
             .symbol_types
             .get(&symbol)
             .cloned()
+            .map(|ty| self.unfold_named_mutable_type(ty))
             .map(|ty| self.resolve_type(ty))
             .unwrap_or(Type::Unknown);
         let updated = update_map_field(current, name.text(), value.clone());
@@ -397,6 +399,13 @@ impl Context<'_> {
         self.record_mutation(symbol);
         self.update_region_or_symbol(symbol, updated);
     }
+    fn unfold_named_mutable_type(&mut self, ty: Type) -> Type {
+        match self.resolve_type(ty.clone()) {
+            Type::Named(name) => self.unfold_named_type(&name).unwrap_or(Type::Named(name)),
+            _ => ty,
+        }
+    }
+
     fn is_deferred_empty_map_index(&self, key: &Type, value: &Type) -> bool {
         matches!(key, Type::Infer(id) if self.deferred_empty_map_infers.contains(id))
             && matches!(value, Type::Infer(id) if self.deferred_empty_map_infers.contains(id))
