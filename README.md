@@ -1,6 +1,6 @@
 # Simi
 
-![Simi `two_sum` example](assets/two_sum.png)
+![Simi `quicksort` example](assets/quicksort.png)
 
 Simi is a small scripting language designed to be easy to run and embed.
 
@@ -26,10 +26,10 @@ iter.fold_while(list.iter([1, 2, 3]), 0, fn(total, value)
     if value == 3 then iter.break(total) else iter.continue(total + value) end)
 ```
 
-Save this as `two_sum.simi`, install Simi using one of the options below, and run:
+Save this as `quicksort.simi`, install Simi using one of the options below, and run:
 
 ```sh
-simi run two_sum.simi
+simi run quicksort.simi
 ```
 
 ## Language tour
@@ -90,13 +90,13 @@ Zed and other editor integrations are currently installed from this repository.
 Run a script:
 
 ```sh
-simi run two_sum.simi
+simi run quicksort.simi
 ```
 
 Scripts control their own output. To also display the script's final value, including `nil`:
 
 ```sh
-simi run --inspect two_sum.simi
+simi run --inspect quicksort.simi
 ```
 
 Start the language server over standard input and output:
