@@ -33,9 +33,20 @@ use types::*;
 
 pub(super) fn root(p: &mut Parser<'_>) {
     let root = p.start_root();
+    let mut saw_executable_item = false;
+    let mut saw_requires = false;
     while !p.at_end() {
         let before = p.position;
-        if is_block_terminator(p.current()) {
+        if p.at(K::REQUIRES_KW) {
+            if saw_executable_item {
+                p.error("`requires` must appear before executable items".to_owned());
+            }
+            if saw_requires {
+                p.error("a source unit may contain at most one `requires` declaration".to_owned());
+            }
+            requires_decl(p);
+            saw_requires = true;
+        } else if is_block_terminator(p.current()) {
             let name = super::token_name(p.current(), false);
             p.error(format!("unexpected `{name}` outside of a block"));
             let error = p.start();
@@ -43,6 +54,7 @@ pub(super) fn root(p: &mut Parser<'_>) {
             error.complete(&mut p.events, K::ERROR);
         } else {
             statement(p);
+            saw_executable_item = true;
         }
         if p.position == before {
             recover_statement(p);
@@ -54,6 +66,13 @@ pub(super) fn root(p: &mut Parser<'_>) {
 
 fn statement(p: &mut Parser<'_>) {
     if p.at(K::FN_KW) && p.nth(1) == K::IDENT {
+        if p.block_depth > 0 {
+            p.error(
+                "named function declarations are only allowed at the top level; \
+                 use let name = fn(...) expression"
+                    .to_owned(),
+            );
+        }
         function_decl(p);
     } else if p.at(K::ALIAS_KW)
         || (p.at(K::IDENT) && p.current_text() == Some("alias") && p.nth(1) == K::IDENT)
@@ -77,40 +96,12 @@ fn recover_statement(p: &mut Parser<'_>) {
         || p.at(K::FN_KW)
         || p.at(K::ALIAS_KW)
         || p.at(K::LET_KW)
+        || p.at(K::REQUIRES_KW)
         || (p.at(K::IDENT) && p.current_text() == Some("alias") && p.nth(1) == K::IDENT))
     {
         p.bump();
     }
     marker.complete(&mut p.events, K::ERROR);
-}
-
-fn can_begin_expression(kind: K) -> bool {
-    matches!(
-        kind,
-        K::INT
-            | K::FLOAT
-            | K::STRING
-            | K::IDENT
-            | K::NIL_KW
-            | K::TRUE_KW
-            | K::FALSE_KW
-            | K::MINUS
-            | K::NOT_KW
-            | K::L_PAREN
-            | K::L_BRACKET
-            | K::L_BRACE
-            | K::DO_KW
-            | K::RAISE_KW
-            | K::PANIC_KW
-            | K::TODO_KW
-            | K::TRY_KW
-            | K::CATCH_KW
-            | K::CASE_KW
-            | K::IF_KW
-            | K::LOOP_KW
-            | K::BREAK_KW
-            | K::CONTINUE_KW
-    )
 }
 
 fn node_span_hint(p: &Parser<'_>, marker: CompletedMarker) -> crate::span::Span {

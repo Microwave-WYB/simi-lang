@@ -112,9 +112,8 @@ Operator contract violations—such as multiplying a string, applying `not` to a
 A call evaluates its callee and arguments, then produces the function's result. Arguments are evaluated once, from left to right:
 
 ```simi
-fn add(left, right) do
+fn add(left, right)
     left + right
-end
 
 let result = add(20, 22)
 result
@@ -123,11 +122,9 @@ result
 Calls compose with other postfix operations, so a returned function can be called immediately:
 
 ```simi
-fn make_greeter(greeting) do
-    fn(name) do
+fn make_greeter(greeting)
+    fn(name)
         greeting <> ", " <> name
-    end
-end
 
 make_greeter("Hello")("Ada")
 ```
@@ -148,33 +145,15 @@ let scores = [91, 95, 98]
 Missing map fields and nonnegative out-of-range list reads return `nil`. Postfix calls, fields, and indexing can be chained:
 
 ```simi
-fn load_team() do
+fn load_team()
     {members = [{name = "Ada"}, {name = "Grace"}]}
-end
 
 load_team().members[1].name
 ```
 
 ## Assignment expressions
 
-`let` introduces a binding; assignment updates an existing one. Assignment itself evaluates to the assigned value:
-
-```simi
-let count = 1
-let new_count = count = count + 1
-[count, new_count]
-```
-
-Assignment is right-associative:
-
-```simi
-let left = 1
-let right = 2
-left = right = 0
-[left, right]
-```
-
-A field or index assignment mutates a container location and also evaluates to the assigned value:
+`let` introduces an immutable binding. A bare binding name cannot be reassigned. Field and index assignments mutate a container location and also evaluate to the assigned value:
 
 ```simi
 let user = {name = "Ada"}
@@ -184,6 +163,14 @@ let replaced = values[0] = 10
 [user, values, renamed, replaced]
 ```
 
+Field and index assignment is right-associative:
+
+```simi
+let settings = {primary = false, secondary = false}
+settings.primary = settings.secondary = true
+settings
+```
+
 Assigning to an undefined name is a hard diagnostic. List writes replace existing positions and never grow a list. Assigning `nil` to a map field or key deletes that entry; mutation and copy behavior are covered in [Mutation and copies](mutation-and-copies.md).
 
 ## Pipelines
@@ -191,13 +178,11 @@ Assigning to an undefined name is a hard diagnostic. List writes replace existin
 `|>` passes its input as the first argument to a call stage:
 
 ```simi
-fn add(value, extra) do
+fn add(value, extra)
     value + extra
-end
 
-fn multiply(value, factor) do
+fn multiply(value, factor)
     value * factor
-end
 
 10
 |> add(5)
@@ -209,9 +194,8 @@ The first stage above is equivalent to `add(10, 5)`. A pipeline stage must visib
 The nil-aware `?>` behaves like `|>` for a non-`nil` input. For a `nil` input, it skips that stage's callee and all its arguments:
 
 ```simi
-fn increment(value) do
+fn increment(value)
     value + 1
-end
 
 let maybe_number = nil
 maybe_number
@@ -250,23 +234,18 @@ let alias = values |> tap list.append(4)
 Functions are values, so callback APIs first work through ordinary call arguments. This complete script creates a lazy mapped iterator and consumes it into a list:
 
 ```simi
-
-let iter = require("std/iter")
 let values = [1, 2, 3]
 
 values
 |> list.iter()
-|> iter.map(fn(value) do
-    value * 2
-end)
+|> iter.map(fn(value)
+    value * 2)
 |> iter.to_list()
 ```
 
 The optional `<|` operator appends its right operand as exactly one final argument to the call on its left. It is useful when a multiline callback should end with `end` instead of `end)`:
 
 ```simi
-
-let iter = require("std/iter")
 let values = [1, 2, 3]
 
 values

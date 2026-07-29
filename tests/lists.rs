@@ -8,6 +8,39 @@ fn assert_eval(source: &str, expected: &str) {
 }
 
 #[test]
+fn list_spread_evaluates_left_to_right_and_copies_only_the_outer_list() {
+    assert_eval(
+        r#"
+            let order = []
+            fn source(value) do
+                list.append(order, value)
+                [value]
+            end
+            let nested = [7]
+            let original = [nested, 2]
+            let spread = [0, ..source(1), ..original, source(3)]
+            list.set(original, 1, 9)
+            list.append(nested, 8)
+            [order, original, spread]
+        "#,
+        "[[1, 3], [[7, 8], 9], [0, 1, [7, 8], 2, [3]]]",
+    );
+}
+
+#[test]
+fn list_spread_rejects_non_list_operands_as_hard_diagnostics() {
+    let error = match eval("[..1]") {
+        Err(error) => error,
+        Ok(_) => panic!("non-list spread operand should be a hard diagnostic"),
+    };
+    assert!(
+        error
+            .to_string()
+            .contains("list spread requires a list, got integer")
+    );
+}
+
+#[test]
 fn list_copy_is_an_independent_shallow_full_list_copy() {
     assert_eval(
         r#"
@@ -71,14 +104,17 @@ fn list_mutation_bounds_raise_structural_values() {
         r#"
 
             let values = [1]
-            let insert_error = try list.insert(values, 2, 9)
-                catch error do error
+            let insert_error = do list.insert(values, 2, 9)
+                catch error =>
+                    error
             end
-            let remove_error = try list.remove(values, 1)
-                catch error do error
+            let remove_error = do list.remove(values, 1)
+                catch error =>
+                    error
             end
-            let pop_error = try list.pop([])
-                catch error do error
+            let pop_error = do list.pop([])
+                catch error =>
+                    error
             end
             [insert_error, remove_error, pop_error, values]
         "#,
@@ -148,10 +184,10 @@ fn list_contains_rejects_cyclic_container_comparison_without_recursing() {
 #[test]
 fn new_list_indices_retain_hard_type_diagnostics() {
     for source in [
-        " try list.insert([], -1, nil) catch _ do nil end",
-        " try list.remove([1], 0.0) catch _ do nil end",
-        " try list.slice([1], \"0\", 1) catch _ do nil end",
-        " try list.slice([1], 0, true) catch _ do nil end",
+        " do list.insert([], -1, nil) catch _ => nil end",
+        " do list.remove([1], 0.0) catch _ => nil end",
+        " do list.slice([1], \"0\", 1) catch _ => nil end",
+        " do list.slice([1], 0, true) catch _ => nil end",
     ] {
         assert!(matches!(eval(source), Err(SimiError::Runtime(_))));
     }

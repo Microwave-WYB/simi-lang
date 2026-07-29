@@ -23,20 +23,45 @@ module.exports = grammar({
 
   word: ($) => $.identifier,
 
+  reserved: {
+    global: (_) => [],
+    expression: (_) => ["loop", "break", "continue"],
+  },
+
   supertypes: ($) => [$._statement, $._expression, $._pattern],
 
   conflicts: ($) => [
     [$.assignment_target, $._primary_expression],
     [$.assignment_target, $._postfix_expression],
     [$.parenthesized_call, $._postfix_expression],
-    [$.loop_expression],
+    [$._primary_expression, $.function_expression],
+    [$._primary_expression, $.function_declaration],
+    [$.parameters, $.callable_type_parameters],
+    [$.declared_parameters, $.callable_type_parameters],
+    [$.callable_type_parameter, $.type_annotation],
+    [$.callable_type_parameter, $.declared_parameter],
+    [$.callable_type_parameter, $.parameter],
   ],
 
   rules: {
-    program: ($) => repeat($._statement),
+    program: ($) => seq(
+      optional($.requires_declaration),
+      repeat($._top_level_statement),
+    ),
+
+    requires_declaration: ($) => seq(
+      "requires",
+      field("requirements", $.map),
+    ),
+
+    // Named function declarations are allowed only as direct source-root
+    // items; blocks reuse `_statement`, which excludes them.
+    _top_level_statement: ($) => choice(
+      $.function_declaration,
+      $._statement,
+    ),
 
     _statement: ($) => choice(
-      $.function_declaration,
       $.alias_declaration,
       $.let_statement,
       $._expression,
@@ -53,9 +78,7 @@ module.exports = grammar({
         field("return_type", $.return_annotation),
         optional(field("effect", $.effect_annotation)),
       )),
-      "do",
-      optional(field("body", $.block)),
-      "end",
+      field("body", choice($.block_expression, $._expression)),
     ),
 
     alias_declaration: ($) => seq(
@@ -82,6 +105,7 @@ module.exports = grammar({
       $.boolean,
       $.nil,
       $.list_pattern,
+      $.bytes_pattern,
       $.map_pattern,
     ),
 
@@ -132,7 +156,7 @@ module.exports = grammar({
 
     pipeline_callee: ($) => seq(
       $.identifier,
-      repeat(seq(".", $.identifier)),
+      repeat(seq(".", $._member_identifier)),
     ),
 
     trailing_argument_expression: ($) => prec.right(PREC.TRAILING_ARGUMENT, seq(
@@ -208,8 +232,15 @@ module.exports = grammar({
     field_expression: ($) => prec.left(PREC.POSTFIX, seq(
       field("object", $._postfix_expression),
       ".",
-      field("name", $.identifier),
+      field("name", $._member_identifier),
     )),
+
+    _member_identifier: ($) => choice(
+      $.identifier,
+      alias("loop", $.identifier),
+      alias("break", $.identifier),
+      alias("continue", $.identifier),
+    ),
 
     index_expression: ($) => prec.left(PREC.POSTFIX, seq(
       field("object", $._postfix_expression),
@@ -276,29 +307,35 @@ module.exports = grammar({
       optional(seq(":", field("constraint", $._type))),
     ),
 
-    _type: ($) => $.function_type,
+    _type: ($) => $.callable_type,
 
-    function_type: ($) => prec.right(choice(
+    callable_type: ($) => prec.right(choice(
       seq(
-        field("type_parameters", $.callable_type_parameters),
-        field("parameter", $.union_type),
+        "fn",
+        optional(field("type_parameters", $.callable_type_parameters)),
+        field("parameters", $.callable_type_params),
         "->",
-        field("result", $.function_type),
+        field("result", $._type),
         optional(field("effect", $.effect_annotation)),
       ),
-      seq(
-        $.union_type,
-        optional(seq(
-          "->",
-          field("result", $.function_type),
-          optional(field("effect", $.effect_annotation)),
-        )),
-      ),
+      $.union_type,
     )),
 
-    effect_annotation: ($) => choice(
-      seq("raises", field("type", $._type)),
-      "noraise",
+    callable_type_params: ($) => seq(
+      "(",
+      optional(commaSep1($.callable_type_parameter)),
+      optional(","),
+      ")",
+    ),
+
+    callable_type_parameter: ($) => seq(
+      optional(seq(field("label", $.identifier), ":")),
+      $._type,
+    ),
+
+    effect_annotation: ($) => seq(
+      "!",
+      field("type", $._type),
     ),
 
     union_type: ($) => seq(
@@ -330,18 +367,17 @@ module.exports = grammar({
 
     type_variable: ($) => token(seq("'", /[A-Za-z_][A-Za-z0-9_]*/)),
 
-    literal_type: ($) => choice($.string, $.nil),
+    literal_type: ($) => choice(
+      $.string,
+      $.nil,
+      $.boolean,
+      seq(optional("-"), choice($.integer, $.float)),
+    ),
 
     parenthesized_type: ($) => seq(
       "(",
-      optional(commaSep1($.function_type_parameter)),
-      optional(","),
-      ")",
-    ),
-
-    function_type_parameter: ($) => seq(
-      optional(seq(field("label", $.identifier), ":")),
       $._type,
+      ")",
     ),
 
     list_type: ($) => seq(
@@ -367,7 +403,7 @@ module.exports = grammar({
     ),
 
     _primary_expression: ($) => choice(
-      $.identifier,
+      reserved("expression", $.identifier),
       $.integer,
       $.float,
       $.string,
@@ -375,23 +411,34 @@ module.exports = grammar({
       $.nil,
       $.parenthesized_expression,
       $.list,
+      $.bytes,
       $.map,
       $.function_expression,
       $.block_expression,
       $.if_expression,
-      $.loop_expression,
       $.case_expression,
+      $.protected_expression,
       $.raise_expression,
       $.panic_expression,
       $.todo_expression,
-      $.try_expression,
-      $.continue_expression,
-      $.break_expression,
     ),
 
     parenthesized_expression: ($) => seq("(", $._expression, ")"),
 
     list: ($) => seq(
+      "[",
+      optional(commaSep1($._list_element)),
+      optional(","),
+      "]",
+    ),
+
+    _list_element: ($) => seq(
+      optional(".."),
+      $._expression,
+    ),
+
+    bytes: ($) => seq(
+      "#",
       "[",
       optional(commaSep1($._expression)),
       optional(","),
@@ -435,9 +482,7 @@ module.exports = grammar({
         field("return_type", $.return_annotation),
         optional(field("effect", $.effect_annotation)),
       )),
-      "do",
-      optional(field("body", $.block)),
-      "end",
+      field("body", choice($.block_expression, $._expression)),
     ),
 
     block_expression: ($) => seq(
@@ -468,54 +513,34 @@ module.exports = grammar({
       optional(field("body", $.block)),
     ),
 
-    loop_expression: ($) => seq(
-      optional(field("label", $.loop_label)),
-      "loop",
-      optional(field("body", $.block)),
-      "end",
-    ),
-
-    loop_label: ($) => seq("@", field("name", $.identifier)),
-
-    continue_expression: ($) => prec.right(seq(
-      "continue",
-      optional(field("label", $.loop_label)),
-    )),
-
-    break_expression: ($) => seq(
-      "break",
-      optional(field("label", $.loop_label)),
-      field("value", $._expression),
-    ),
-
     case_expression: ($) => seq(
       "case",
       field("value", $._expression),
+      "of",
       repeat1($.case_clause),
       "end",
     ),
 
     case_clause: ($) => seq(
-      "of",
       field("pattern", $._pattern),
       optional(seq("when", field("guard", $._expression))),
-      "do",
-      optional(field("body", $.block)),
+      "=>",
+      field("body", $._expression),
     ),
 
-    try_expression: ($) => seq(
-      "try",
+    protected_expression: ($) => seq(
+      "do",
       field("protected", $.block),
-      repeat1($.catch_clause),
+      "catch",
+      repeat1($.catch_arm),
       "end",
     ),
 
-    catch_clause: ($) => seq(
-      "catch",
+    catch_arm: ($) => seq(
       field("pattern", $._pattern),
       optional(seq("when", field("guard", $._expression))),
-      "do",
-      optional(field("body", $.block)),
+      "=>",
+      field("body", $._expression),
     ),
 
     raise_expression: ($) => seq(
@@ -536,6 +561,7 @@ module.exports = grammar({
       $.boolean,
       $.nil,
       $.list_pattern,
+      $.bytes_pattern,
       $.map_pattern,
     ),
 
@@ -554,6 +580,41 @@ module.exports = grammar({
       "]",
     ),
 
+    bytes_pattern: ($) => seq(
+      "#",
+      "[",
+      optional(choice(
+        seq(
+          commaSep1($._bytes_pattern_sized_segment),
+          optional(seq(",", $.bytes_pattern_remainder)),
+          optional(","),
+        ),
+        seq($.bytes_pattern_remainder, optional(",")),
+      )),
+      "]",
+    ),
+
+    _bytes_pattern_sized_segment: ($) => choice(
+      $.string,
+      field("name", choice($.wildcard_pattern, $.identifier)),
+      $.bytes_pattern_fixed_capture,
+    ),
+
+    bytes_pattern_fixed_capture: ($) => seq(
+      field("name", choice($.wildcard_pattern, $.identifier)),
+      ":",
+      "bytes",
+      "(",
+      field("length", $.integer),
+      ")",
+    ),
+
+    bytes_pattern_remainder: ($) => seq(
+      field("name", choice($.wildcard_pattern, $.identifier)),
+      ":",
+      "bytes",
+    ),
+
     map_pattern: ($) => seq(
       "{",
       optional(choice(
@@ -569,8 +630,10 @@ module.exports = grammar({
 
     map_pattern_field: ($) => seq(
       field("name", $.identifier),
-      "=",
-      field("pattern", $._pattern),
+      optional(seq(
+        "=",
+        field("pattern", $._pattern),
+      )),
     ),
 
     rest_pattern: ($) => seq(

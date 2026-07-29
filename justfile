@@ -15,6 +15,7 @@ ci:
     cargo build --bin simi
     cargo run -p simi-xtask -- check
     cargo doc --workspace --no-deps
+    python3 -m unittest discover -s scripts/tests -p 'test_*.py'
     just docs tour
     export PATH="$PWD/editors/tree-sitter/node_modules/.bin:$PATH"
     just editors install

@@ -1,17 +1,196 @@
 use std::collections::HashMap;
 
 use simi_analysis::{
-    AnalysisDatabase, CallableType, Type, imported_members, imported_modules, member_at,
-    member_completions, module_at, module_shape,
+    AnalysisDatabase, CallableType, Type, imported_members, imported_modules, infer_types,
+    member_at, member_completions, module_at, module_shape,
 };
+
+#[test]
+fn bytes_facade_exports_precise_types_and_infers_through_require() {
+    let db = AnalysisDatabase::default();
+    let module_file = db.add_file(include_str!("../../../stdlib/bytes.simi"));
+    let diagnostics = simi_analysis::diagnostics(&db, module_file);
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    let shape = module_shape(&db, module_file);
+
+    let displayed = |name: &str| {
+        shape
+            .fields
+            .iter()
+            .find(|field| field.name == name)
+            .and_then(|field| field.ty.as_ref())
+            .expect("typed bytes facade export")
+            .display()
+    };
+    assert_eq!(displayed("length"), "fn(data: bytes) -> integer ! never");
+    assert_eq!(
+        displayed("get"),
+        "fn(data: bytes, index: integer) -> integer | nil ! never"
+    );
+    assert_eq!(
+        displayed("slice"),
+        "fn(data: bytes, start: integer, stop: integer) -> bytes ! never"
+    );
+    assert_eq!(
+        displayed("concat"),
+        "fn(left: bytes, right: bytes) -> bytes ! never"
+    );
+    assert_eq!(
+        displayed("from_list"),
+        "fn(values: [..integer]) -> bytes ! never"
+    );
+    assert_eq!(
+        displayed("to_list"),
+        "fn(data: bytes) -> [..integer] ! never"
+    );
+
+    let source = "let bytes = require(\"std/bytes\") bytes.to_list(bytes.slice(#[1, 2], 1, 2))";
+    let file = db.add_file(source);
+    let modules = HashMap::from([("std/bytes".to_owned(), shape)]);
+    let inference = infer_types(&db, file, &modules);
+    assert!(
+        inference.diagnostics.is_empty(),
+        "{:?}",
+        inference.diagnostics
+    );
+    assert_eq!(
+        inference
+            .result_type
+            .as_ref()
+            .expect("inferred bytes conversion result")
+            .display(),
+        "[..integer]"
+    );
+}
+
+#[test]
+fn iterator_facades_export_item_and_effect_relationships() {
+    let db = AnalysisDatabase::default();
+    let list_file = db.add_file(include_str!("../../../stdlib/list.simi"));
+    let map_file = db.add_file(include_str!("../../../stdlib/map.simi"));
+    let iter_file = db.add_file(include_str!("../../../stdlib/iter.simi"));
+    for file in [list_file, map_file, iter_file] {
+        let diagnostics = simi_analysis::diagnostics(&db, file);
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+    let list = module_shape(&db, list_file);
+    let map = module_shape(&db, map_file);
+    let iter = module_shape(&db, iter_file);
+
+    let displayed = |shape: &simi_analysis::ModuleShape, name: &str| {
+        shape
+            .fields
+            .iter()
+            .find(|field| field.name == name)
+            .and_then(|field| field.ty.as_ref())
+            .expect("typed facade export")
+            .display()
+    };
+    assert_eq!(
+        displayed(&list, "iter"),
+        "fn<'a>(xs: [..'a]) -> fn() -> { done: true, .. } | { done: false, value: 'a, .. } ! never ! never"
+    );
+    assert_eq!(
+        displayed(&map, "iter"),
+        "fn(entries: { .. }) -> fn() -> { done: true, .. } | { done: false, value: { key: boolean | integer | float | string, value: any, .. }, .. } ! never ! never"
+    );
+    assert_eq!(
+        displayed(&iter, "to_list"),
+        "fn<'a, 'b>(iterator: fn() -> { done: true, .. } | { done: false, value: 'a, .. } ! 'b) -> [..'a] ! 'b"
+    );
+    assert_eq!(
+        displayed(&iter, "find"),
+        "fn<'a, 'b, 'c>(iterator: fn() -> { done: true, .. } | { done: false, value: 'a, .. } ! 'b, predicate: fn('a) -> boolean ! 'c) -> 'a | nil ! 'b | 'c"
+    );
+
+    let break_control = displayed(&iter, "break");
+    assert!(
+        break_control
+            .contains("fn<'a>(value: 'a) -> { control: \"break\", value: 'a, .. } ! never"),
+        "{break_control}"
+    );
+    let continue_control = displayed(&iter, "continue");
+    assert!(
+        continue_control
+            .contains("fn<'a>(value: 'a) -> { control: \"continue\", value: 'a, .. } ! never"),
+        "{continue_control}"
+    );
+
+    let each_while = displayed(&iter, "each_while");
+    assert!(each_while.contains("control: \"continue\""), "{each_while}");
+    assert!(each_while.contains("control: \"break\""), "{each_while}");
+    assert!(each_while.contains("-> 'c | nil !"), "{each_while}");
+
+    let fold_while = displayed(&iter, "fold_while");
+    assert!(fold_while.contains("initial: 'a"), "{fold_while}");
+    assert!(fold_while.contains("control: \"continue\""), "{fold_while}");
+    assert!(fold_while.contains("control: \"break\""), "{fold_while}");
+    assert!(fold_while.contains("-> 'a | 'c !"), "{fold_while}");
+
+    let loop_driver = displayed(&iter, "loop");
+    assert!(loop_driver.contains("body: fn() ->"), "{loop_driver}");
+    assert!(
+        loop_driver.contains("control: \"continue\""),
+        "{loop_driver}"
+    );
+    assert!(loop_driver.contains("control: \"break\""), "{loop_driver}");
+    assert!(loop_driver.ends_with("-> 'b ! 'c"), "{loop_driver}");
+
+    let repeat_with = displayed(&iter, "repeat_with");
+    assert!(
+        repeat_with.contains("producer: fn() -> 'a ! 'b"),
+        "{repeat_with}"
+    );
+    assert!(repeat_with.contains("value: 'a"), "{repeat_with}");
+    assert!(repeat_with.ends_with("! 'b ! never"), "{repeat_with}");
+
+    let empty = displayed(&iter, "empty");
+    assert!(empty.starts_with("fn<'a>() -> fn() ->"), "{empty}");
+    assert!(empty.ends_with("! never ! never"), "{empty}");
+
+    let once = displayed(&iter, "once");
+    assert!(once.contains("fn<'a>(value: 'a)"), "{once}");
+    assert!(once.contains("value: 'a"), "{once}");
+
+    let repeat = displayed(&iter, "repeat");
+    assert!(repeat.contains("value: 'a, count: integer"), "{repeat}");
+    assert!(repeat.ends_with("! never ! never"), "{repeat}");
+
+    let range = displayed(&iter, "range");
+    assert!(range.contains("start: integer, stop: integer"), "{range}");
+    assert!(range.contains("value: integer"), "{range}");
+
+    let take = displayed(&iter, "take");
+    assert!(take.contains("count: integer"), "{take}");
+    assert!(take.ends_with("! 'b ! never"), "{take}");
+    let drop = displayed(&iter, "drop");
+    assert!(drop.contains("count: integer"), "{drop}");
+    assert!(drop.ends_with("! 'b ! never"), "{drop}");
+
+    let enumerate = displayed(&iter, "enumerate");
+    assert!(enumerate.contains("value: [integer, 'a]"), "{enumerate}");
+    assert!(enumerate.ends_with("! 'b ! never"), "{enumerate}");
+
+    let zip = displayed(&iter, "zip");
+    assert!(zip.contains("value: ['a, 'b]"), "{zip}");
+    assert!(zip.ends_with("! 'c | 'd ! never"), "{zip}");
+
+    let zip_longest = displayed(&iter, "zip_longest");
+    assert!(zip_longest.contains("fill: 'c"), "{zip_longest}");
+    assert!(
+        zip_longest.contains("value: ['a | 'c, 'b | 'c]"),
+        "{zip_longest}"
+    );
+    assert!(zip_longest.ends_with("! 'd | 'e ! never"), "{zip_longest}");
+}
 
 #[test]
 fn documented_typed_native_aliases_keep_callable_module_metadata() {
     let source = r#"
 --- Return the text length.
-let length: string -> integer = host.length
+let length: fn(string) -> integer = host.length
 --- Append a value.
-let append: ([..'a], 'b) -> nil = host.append
+let append: fn([..'a], 'b) -> nil = host.append
 {length = length, append = append}
 "#;
     let db = AnalysisDatabase::default();
@@ -40,7 +219,7 @@ let append: ([..'a], 'b) -> nil = host.append
 #[test]
 fn function_type_aliases_preserve_callable_alias_metadata() {
     let source = r#"
-alias appender<'a, 'b> = ([..'a], 'b) -> nil
+alias appender<'a, 'b> = fn([..'a], 'b) -> nil
 let append: appender<integer, string> = host.append
 let wrapped: ((appender<integer, string>)) = host.append
 {append = append, wrapped = wrapped}
@@ -72,8 +251,10 @@ let _ignored = 2
 fn infers_exported_functions_parameters_docs_and_nested_maps() {
     let source = r#"
 --- Append one value.
-fn append(xs, x) do nil end
-fn hidden(value) do value end
+fn append(xs, x)
+    nil
+fn hidden(value)
+    value
 {
     append = append,
     nested = { hidden = hidden },
@@ -101,56 +282,73 @@ fn hidden(value) do value end
 }
 
 #[test]
-fn prelude_modules_provide_members_and_remain_shadowable() {
-    let list_source = "fn append(xs, x) do nil end { append = append }";
-    let map_source = "fn clear(entries) do nil end { clear = clear }";
-    let source = " list.append map.clear";
+fn portable_prelude_modules_provide_members_and_remain_shadowable() {
     let db = AnalysisDatabase::default();
-    let list_file = db.add_file(list_source);
-    let map_file = db.add_file(map_source);
+    let source = "list.append map.clear iter.map number.to_string string.upper";
     let file = db.add_file(source);
-    let modules = HashMap::from([
-        ("std/list".to_owned(), module_shape(&db, list_file)),
-        ("std/map".to_owned(), module_shape(&db, map_file)),
-    ]);
-    assert_eq!(imported_modules(&db, file).len(), 2);
+    let modules = [
+        (
+            "std/list",
+            "fn append(xs, x)
+    nil { append = append }",
+        ),
+        (
+            "std/map",
+            "fn clear(entries)
+    nil { clear = clear }",
+        ),
+        (
+            "std/iter",
+            "fn map(iterator, callback)
+    nil { map = map }",
+        ),
+        (
+            "std/number",
+            "fn to_string(value)
+    nil { to_string = to_string }",
+        ),
+        (
+            "std/string",
+            "fn upper(value)
+    nil { upper = upper }",
+        ),
+    ]
+    .into_iter()
+    .map(|(name, source)| {
+        let module = db.add_file(source);
+        (name.to_owned(), module_shape(&db, module))
+    })
+    .collect::<HashMap<_, _>>();
+    assert_eq!(imported_modules(&db, file).len(), 5);
 
-    let append = member_at(
-        &db,
-        file,
-        &modules,
-        source,
-        source.find("append").expect("append") + 1,
-    )
-    .expect("known list member");
-    assert_eq!(append.field.name, "append");
-    assert_eq!(append.field.parameters.as_ref().unwrap(), &["xs", "x"]);
+    for member in ["append", "clear", "map", "to_string", "upper"] {
+        let field = member_at(
+            &db,
+            file,
+            &modules,
+            source,
+            source.rfind(member).expect("member") + 1,
+        )
+        .expect("known prelude member");
+        assert_eq!(field.field.name, member);
+    }
 
-    let clear = member_at(
-        &db,
-        file,
-        &modules,
-        source,
-        source.find("clear").expect("clear") + 1,
-    )
-    .expect("known map member");
-    assert_eq!(clear.field.name, "clear");
-
-    let incomplete = " list.";
+    let incomplete = "iter.";
     let incomplete_file = db.add_file(incomplete);
     let completions =
         member_completions(&db, incomplete_file, &modules, incomplete, incomplete.len());
     assert_eq!(completions.len(), 1);
-    assert_eq!(completions[0].name, "append");
+    assert_eq!(completions[0].name, "map");
 
-    let shadowed = "let list = {} list.";
+    let shadowed = "let string = {} string.";
     let shadowed_file = db.add_file(shadowed);
     assert!(member_completions(&db, shadowed_file, &modules, shadowed, shadowed.len()).is_empty());
 }
 
 #[test]
 fn literal_unshadowed_require_provides_members_but_shadowed_require_does_not() {
-    let module_source = "fn append(xs, x) do nil end { append = append }";
+    let module_source = "fn append(xs, x)
+    nil { append = append }";
     let db = AnalysisDatabase::default();
     let module_file = db.add_file(module_source);
     let modules = HashMap::from([("std/list".to_owned(), module_shape(&db, module_file))]);
@@ -163,8 +361,8 @@ fn literal_unshadowed_require_provides_members_but_shadowed_require_does_not() {
         1
     );
 
-    let shadowed =
-        "let require = fn(name) do nil end let imported = require(\"std/list\") imported.";
+    let shadowed = "let require = fn(name)
+    nil let imported = require(\"std/list\") imported.";
     let shadowed_file = db.add_file(shadowed);
     assert!(member_completions(&db, shadowed_file, &modules, shadowed, shadowed.len()).is_empty());
 }
@@ -173,7 +371,8 @@ fn literal_unshadowed_require_provides_members_but_shadowed_require_does_not() {
 fn propagates_direct_module_fields_through_bindings() {
     let module_source = r#"
 --- Print one value.
-fn println(value) do nil end
+fn println(value)
+    nil
 { println = println }
 "#;
     let db = AnalysisDatabase::default();
@@ -226,7 +425,8 @@ fn println(value) do nil end
 #[test]
 fn infers_simple_mutable_export_map() {
     let source = r#"
-fn run(value) do value end
+fn run(value)
+    value
 let exports = {}
 exports.run = run
 exports
@@ -245,7 +445,8 @@ fn only_the_final_module_value_defines_the_export_shape() {
 
     for source in [
         "{ stale = 1 } nil",
-        "{ stale = 1 } fn final_declaration() do nil end",
+        "{ stale = 1 } fn final_declaration()
+    nil",
         "let exports = { stale = 1 } exports exports.stale = nil",
     ] {
         let file = db.add_file(source);
@@ -263,7 +464,8 @@ fn module_documentation_is_distinct_and_follows_module_values() {
 ---- Values are flushed automatically.
 
 --- Print one value.
-fn println(value) do nil end
+fn println(value)
+    nil
 { println = println }
 "#;
     let db = AnalysisDatabase::default();
@@ -297,8 +499,10 @@ fn println(value) do nil end
 #[test]
 fn annotated_exported_functions_carry_types_and_trailing_aliases_are_erased() {
     let source = r#"
-fn map(xs: [..'a], transform: 'a -> 'b) -> [..'b] do [] end
-{ map = map, identity = fn(value) do value end }
+fn map(xs: [..'a], transform: fn('a) -> 'b) -> [..'b]
+    []
+{ map = map, identity = fn(value)
+    value }
 alias option<'a> = 'a | nil
 "#;
     let db = AnalysisDatabase::default();
@@ -311,7 +515,7 @@ alias option<'a> = 'a | nil
         .unwrap();
     assert_eq!(
         map.ty.as_ref().map(simi_analysis::Type::display).as_deref(),
-        Some("(xs: [..'a], transform: 'a -> 'b) -> [..'b]")
+        Some("fn(xs: [..'a], transform: fn('a) -> 'b) -> [..'b]")
     );
     let identity = shape
         .fields
@@ -324,7 +528,40 @@ alias option<'a> = 'a | nil
             .as_ref()
             .map(simi_analysis::Type::display)
             .as_deref(),
-        Some("(value: 'a) -> 'a")
+        Some("fn(value: 'a) -> 'a")
+    );
+}
+
+#[test]
+fn callable_union_display_compact_and_pretty_preserve_parenthesization() {
+    let source = r#"
+--- Optionally callable.
+fn optional(flag: boolean)
+    if flag then fn(value: integer)
+        value end
+{ optional = optional }
+"#;
+    let db = AnalysisDatabase::default();
+    let file = db.add_file(source);
+    let shape = module_shape(&db, file);
+    let optional = &shape.fields[0];
+    let ty = optional.ty.as_ref().unwrap();
+    assert_eq!(
+        ty.display(),
+        "fn(flag: boolean) -> (fn(value: integer) -> integer) | nil"
+    );
+    let pretty_wide = ty.pretty_display(80);
+    assert!(
+        pretty_wide.contains("(fn(value: integer) -> integer)"),
+        "wide pretty must include parenthesized callable, got {pretty_wide:?}"
+    );
+    assert!(
+        pretty_wide.ends_with("| nil"),
+        "wide pretty must end with union nil tail, got {pretty_wide:?}"
+    );
+    assert_eq!(
+        ty.pretty_display(20),
+        "fn(\n    flag: boolean,\n) -> | (fn(\n    value: integer,\n) -> integer)\n| nil"
     );
 }
 
@@ -333,15 +570,18 @@ fn documentation_requires_immediately_consecutive_triple_dash_comments() {
     let source = r#"
 --- Attached line one.
 --- Attached line two.
-fn attached(value) do value end
+fn attached(value)
+    value
 
 --- Separated.
 
-fn blank(value) do value end
+fn blank(value)
+    value
 
 --- Interrupted.
 -- Ordinary comment.
-fn ordinary(value) do value end
+fn ordinary(value)
+    value
 
 { attached = attached, blank = blank, ordinary = ordinary }
 "#;
@@ -358,7 +598,8 @@ fn ordinary(value) do value end
 
 #[test]
 fn imports_are_scope_aware_exact_calls_and_nil_fields_are_deleted() {
-    let module_source = "fn run(value) do value end { run = run }";
+    let module_source = "fn run(value)
+    value { run = run }";
     let consumer = r#"
 fn nested() do
     let module = require("known")
@@ -380,7 +621,8 @@ let extra = require("known", "ignored")
     assert_eq!(simi_analysis::imported_modules(&db, file).len(), 1);
 
     let deleted = r#"
-fn kept(value) do value end
+fn kept(value)
+    value
 let exports = { omitted = nil, kept = kept }
 exports.kept = nil
 exports.added = kept
@@ -396,7 +638,8 @@ exports
 fn infers_shorthand_map_exports() {
     let source = r#"
 --- Shared export.
-fn shared(value) do value end
+fn shared(value)
+    value
 {shared}
 "#;
     let db = AnalysisDatabase::default();
@@ -411,5 +654,188 @@ fn shared(value) do value end
     assert_eq!(
         shape.fields[0].documentation.as_deref(),
         Some("Shared export.")
+    );
+}
+
+// ---------------------------------------------------------------------------
+// codec facade shape and require inference
+// ---------------------------------------------------------------------------
+
+#[test]
+fn integer_facade_exports_precise_types_and_infers_through_require() {
+    let db = AnalysisDatabase::default();
+    let module_file = db.add_file(include_str!("../../../stdlib/integer.simi"));
+    let diagnostics = simi_analysis::diagnostics(&db, module_file);
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    let shape = module_shape(&db, module_file);
+
+    let displayed = |name: &str| {
+        shape
+            .fields
+            .iter()
+            .find(|field| field.name == name)
+            .and_then(|field| field.ty.as_ref())
+            .expect("typed integer facade export")
+            .display()
+    };
+    assert_eq!(
+        displayed("encode"),
+        "fn(value: integer, format: string) -> bytes ! never"
+    );
+    assert_eq!(
+        displayed("decode"),
+        "fn(data: bytes, format: string) -> integer | nil ! never"
+    );
+
+    let source = "let integer = require(\"std/integer\") integer.decode(integer.encode(0, \"i8le\"), \"i8le\")";
+    let file = db.add_file(source);
+    let modules = HashMap::from([("std/integer".to_owned(), shape)]);
+    let inference = infer_types(&db, file, &modules);
+    assert!(
+        inference.diagnostics.is_empty(),
+        "{:?}",
+        inference.diagnostics
+    );
+    assert_eq!(
+        inference
+            .result_type
+            .as_ref()
+            .expect("inferred integer conversion result")
+            .display(),
+        "integer | nil"
+    );
+}
+
+#[test]
+fn float_facade_exports_precise_types_and_infers_through_require() {
+    let db = AnalysisDatabase::default();
+    let module_file = db.add_file(include_str!("../../../stdlib/float.simi"));
+    let diagnostics = simi_analysis::diagnostics(&db, module_file);
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    let shape = module_shape(&db, module_file);
+
+    let displayed = |name: &str| {
+        shape
+            .fields
+            .iter()
+            .find(|field| field.name == name)
+            .and_then(|field| field.ty.as_ref())
+            .expect("typed float facade export")
+            .display()
+    };
+    assert_eq!(
+        displayed("encode"),
+        "fn(value: float | \"inf\" | \"-inf\" | \"nan\", format: string) -> bytes | nil ! never"
+    );
+    assert_eq!(
+        displayed("decode"),
+        "fn(data: bytes, format: string) -> float | \"inf\" | \"-inf\" | \"nan\" | nil ! never"
+    );
+
+    let source = "let float = require(\"std/float\") let encoded = float.encode(0.0, \"f64le\") let decoded = float.decode(encoded, \"f64le\")";
+    let file = db.add_file(source);
+    let modules = HashMap::from([("std/float".to_owned(), shape)]);
+    let inference = infer_types(&db, file, &modules);
+    // encoded is bytes | nil per facade; decode(encoded) is accepted but encoded may be nil.
+    // The analysis reports a type mismatch for potential nil flowing into bytes.
+    assert_eq!(inference.diagnostics.len(), 1);
+    assert_eq!(
+        inference
+            .result_type
+            .as_ref()
+            .expect("inferred float conversion result")
+            .display(),
+        "float | \"inf\" | \"-inf\" | \"nan\" | nil"
+    );
+    // A direct encode→decode chain through a let binding that the analyzer
+    // can see is non-nil (e.g. f64 never returns nil) is not yet refined.
+}
+
+#[test]
+fn utf8_facade_exports_precise_types_and_infers_through_require() {
+    let db = AnalysisDatabase::default();
+    let module_file = db.add_file(include_str!("../../../stdlib/utf8.simi"));
+    let diagnostics = simi_analysis::diagnostics(&db, module_file);
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    let shape = module_shape(&db, module_file);
+
+    let displayed = |name: &str| {
+        shape
+            .fields
+            .iter()
+            .find(|field| field.name == name)
+            .and_then(|field| field.ty.as_ref())
+            .expect("typed utf8 facade export")
+            .display()
+    };
+    assert_eq!(displayed("encode"), "fn(text: string) -> bytes ! never");
+    assert_eq!(
+        displayed("decode"),
+        "fn(data: bytes) -> string | nil ! never"
+    );
+
+    let source = "let utf8 = require(\"std/utf8\") utf8.encode(\"a\")";
+    let file = db.add_file(source);
+    let modules = HashMap::from([("std/utf8".to_owned(), shape)]);
+    let inference = infer_types(&db, file, &modules);
+    assert!(
+        inference.diagnostics.is_empty(),
+        "{:?}",
+        inference.diagnostics
+    );
+    assert_eq!(
+        inference
+            .result_type
+            .as_ref()
+            .expect("inferred utf8 conversion result")
+            .display(),
+        "bytes"
+    );
+}
+
+#[test]
+fn utf16_facade_exports_precise_types_and_infers_through_require() {
+    let db = AnalysisDatabase::default();
+    let module_file = db.add_file(include_str!("../../../stdlib/utf16.simi"));
+    let diagnostics = simi_analysis::diagnostics(&db, module_file);
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    let shape = module_shape(&db, module_file);
+
+    let displayed = |name: &str| {
+        shape
+            .fields
+            .iter()
+            .find(|field| field.name == name)
+            .and_then(|field| field.ty.as_ref())
+            .expect("typed utf16 facade export")
+            .display()
+    };
+    assert_eq!(displayed("encode_le"), "fn(text: string) -> bytes ! never");
+    assert_eq!(displayed("encode_be"), "fn(text: string) -> bytes ! never");
+    assert_eq!(
+        displayed("decode_le"),
+        "fn(data: bytes) -> string | nil ! never"
+    );
+    assert_eq!(
+        displayed("decode_be"),
+        "fn(data: bytes) -> string | nil ! never"
+    );
+
+    let source = "let utf16 = require(\"std/utf16\") utf16.encode_le(\"a\")";
+    let file = db.add_file(source);
+    let modules = HashMap::from([("std/utf16".to_owned(), shape)]);
+    let inference = infer_types(&db, file, &modules);
+    assert!(
+        inference.diagnostics.is_empty(),
+        "{:?}",
+        inference.diagnostics
+    );
+    assert_eq!(
+        inference
+            .result_type
+            .as_ref()
+            .expect("inferred utf16 conversion result")
+            .display(),
+        "bytes"
     );
 }

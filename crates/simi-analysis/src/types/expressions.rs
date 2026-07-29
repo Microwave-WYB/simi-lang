@@ -23,11 +23,57 @@ impl Context<'_> {
             syntax::Expr::Paren(node) => child_expr(node.syntax(), 0)
                 .map(|child| self.expression(child))
                 .unwrap_or(Type::Unknown),
-            syntax::Expr::List(node) => Type::ListExact(
-                expr_children(node.syntax())
-                    .map(|item| self.expression(item))
-                    .collect(),
-            ),
+            syntax::Expr::List(node) => {
+                let mut items = Vec::new();
+                let mut rest = Vec::new();
+                for element in support::children::<syntax::ListElement>(node.syntax()) {
+                    let Some(value) = child_expr(element.syntax(), 0) else {
+                        continue;
+                    };
+                    let value_type = self.expression(value);
+                    if direct_token(element.syntax(), K::DOT_DOT).is_none() {
+                        items.push(value_type);
+                        continue;
+                    }
+                    let item = self.fresh();
+                    self.constrain(
+                        &Type::ListRest(Box::new(item)),
+                        &value_type,
+                        span(element.syntax()),
+                    );
+                    match self.resolve_type(value_type) {
+                        Type::ListExact(values) => items.extend(values),
+                        Type::ListRest(item) => rest.push(*item),
+                        Type::Unknown | Type::Any | Type::Infer(_) => rest.push(Type::Unknown),
+                        _ => rest.push(Type::Unknown),
+                    }
+                }
+                if rest.is_empty() {
+                    Type::ListExact(items)
+                } else {
+                    rest.extend(items);
+                    Type::ListRest(Box::new(union(rest)))
+                }
+            }
+            syntax::Expr::Bytes(node) => {
+                for segment in expr_children(node.syntax()) {
+                    let literal_string = matches!(
+                        &segment,
+                        syntax::Expr::Literal(literal)
+                            if direct_token(literal.syntax(), K::STRING).is_some()
+                    );
+                    let segment_span = span(segment.syntax());
+                    let segment_type = self.expression(segment);
+                    if !literal_string {
+                        self.constrain(
+                            &Type::Union(vec![Type::Int, Type::Bytes]),
+                            &segment_type,
+                            segment_span,
+                        );
+                    }
+                }
+                Type::Bytes
+            }
             syntax::Expr::Map(node) => {
                 let mut fields = Vec::new();
                 let mut keys = Vec::new();
@@ -37,7 +83,9 @@ impl Context<'_> {
                     let mut expressions = expr_children(entry.syntax());
                     if let Some(name) = direct_token(entry.syntax(), K::IDENT) {
                         let value = if let Some(value) = expressions.next() {
-                            self.expression(value)
+                            let discriminant = direct_boolean_literal_type(&value);
+                            let inferred = self.expression(value);
+                            discriminant.unwrap_or(inferred)
                         } else if let Some(symbol) =
                             self.resolution.symbol_at(token_span(&name).start)
                             && let Some(ty) = self.symbol_types.get(&symbol).cloned()
@@ -79,7 +127,7 @@ impl Context<'_> {
             syntax::Expr::Assign(node) => self.assignment(node),
             syntax::Expr::If(node) => self.infer_if(node),
             syntax::Expr::Case(node) => self.infer_case(node),
-            syntax::Expr::Try(node) => self.infer_try(node),
+            syntax::Expr::Protected(node) => self.infer_protected(node),
             syntax::Expr::Panic(_) => Type::Never,
             syntax::Expr::Todo(node) => {
                 self.warning(
@@ -119,71 +167,6 @@ impl Context<'_> {
             }
             syntax::Expr::Pipeline(node) => self.pipeline(node),
             syntax::Expr::TrailingArgument(node) => self.trailing_call(node),
-            syntax::Expr::Loop(node) => {
-                let label = direct_token(node.syntax(), K::AT)
-                    .and_then(|_| direct_token(node.syntax(), K::IDENT))
-                    .map(|token| token.text().to_owned());
-                self.loops.push(LoopContext {
-                    label,
-                    breaks: Vec::new(),
-                });
-                let body = support::child::<syntax::Block>(node.syntax())
-                    .map(|block| self.infer_block(&block));
-                let context = self.loops.pop().expect("loop inference context");
-                if body != Some(Type::Never) {
-                    // Falling through repeats the loop; its value is discarded.
-                }
-                if context.breaks.is_empty() {
-                    Type::Never
-                } else {
-                    let (types, exits): (Vec<_>, Vec<_>) = context.breaks.into_iter().unzip();
-                    self.join_and_restore(exits);
-                    union(types)
-                }
-            }
-            syntax::Expr::Continue(node) => {
-                let label = direct_token(node.syntax(), K::AT)
-                    .and_then(|_| direct_token(node.syntax(), K::IDENT))
-                    .map(|token| token.text().to_owned());
-                if label.is_none() && self.loops.len() > 1 {
-                    self.warning(
-                        AnalysisDiagnosticCode::AmbiguousLoopControl,
-                        "Ambiguous loop control",
-                        "Unlabeled `continue` targets the nearest enclosing loop. Add a loop label to make the target explicit.".to_owned(),
-                        expression_span,
-                    );
-                }
-                Type::Never
-            }
-            syntax::Expr::Break(node) => {
-                let value = child_expr(node.syntax(), 0)
-                    .map(|child| self.expression(child))
-                    .unwrap_or(Type::Nil);
-                let label = direct_token(node.syntax(), K::AT)
-                    .and_then(|_| direct_token(node.syntax(), K::IDENT))
-                    .map(|token| token.text().to_owned());
-                if label.is_none() && self.loops.len() > 1 {
-                    self.warning(
-                        AnalysisDiagnosticCode::AmbiguousLoopControl,
-                        "Ambiguous loop control",
-                        "Unlabeled `break` targets the nearest enclosing loop. Add a loop label to make the target explicit.".to_owned(),
-                        expression_span,
-                    );
-                }
-                let exit = self.flow_state();
-                let index = label
-                    .as_ref()
-                    .and_then(|label| {
-                        self.loops
-                            .iter()
-                            .rposition(|context| context.label.as_ref() == Some(label))
-                    })
-                    .unwrap_or_else(|| self.loops.len().saturating_sub(1));
-                if let Some(context) = self.loops.get_mut(index) {
-                    context.breaks.push((value, exit));
-                }
-                Type::Never
-            }
         };
         self.expression_types.push((expression_span, ty.clone()));
         ty
@@ -245,7 +228,7 @@ impl Context<'_> {
             union(results)
         }
     }
-    pub(super) fn infer_try(&mut self, node: syntax::TryExpr) -> Type {
+    pub(super) fn infer_protected(&mut self, node: syntax::ProtectedExpr) -> Type {
         self.raised_exit_frames.push(Vec::new());
         let protected = support::child::<syntax::Block>(node.syntax())
             .map(|block| self.infer_block(&block))
@@ -258,7 +241,7 @@ impl Context<'_> {
             normal_exits.push(self.flow_state());
         }
 
-        for clause in support::children::<syntax::CatchClause>(node.syntax()) {
+        for clause in support::children::<syntax::CatchArm>(node.syntax()) {
             let Some(pattern) = support::child::<syntax::Pattern>(clause.syntax()) else {
                 continue;
             };
@@ -316,8 +299,8 @@ impl Context<'_> {
             }
 
             if handler_reachable {
-                let result = support::child::<syntax::Block>(clause.syntax())
-                    .map(|block| self.infer_block(&block))
+                let result = support::child::<syntax::Body>(clause.syntax())
+                    .map(|body| self.infer_body(body.syntax()))
                     .unwrap_or(Type::Nil);
                 if result != Type::Never {
                     results.push(result);
@@ -388,8 +371,8 @@ impl Context<'_> {
                     let after_guard = self.flow_state();
                     self.restore_flow(&after_guard);
                     if self.refine_condition(&guard, true) {
-                        let result = support::child::<syntax::Block>(clause.syntax())
-                            .map(|block| self.infer_block(&block))
+                        let result = support::child::<syntax::Body>(clause.syntax())
+                            .map(|body| self.infer_body(body.syntax()))
                             .unwrap_or(Type::Nil);
                         if result != Type::Never {
                             results.push(result);
@@ -418,8 +401,8 @@ impl Context<'_> {
                     }
                     pending = self.joined_flow(next);
                 } else {
-                    let result = support::child::<syntax::Block>(clause.syntax())
-                        .map(|block| self.infer_block(&block))
+                    let result = support::child::<syntax::Body>(clause.syntax())
+                        .map(|body| self.infer_body(body.syntax()))
                         .unwrap_or(Type::Nil);
                     if result != Type::Never {
                         results.push(result);

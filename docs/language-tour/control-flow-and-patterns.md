@@ -11,10 +11,10 @@
 - Control flow and patterns
   - [Conditionals are expressions](#conditionals-are-expressions)
   - [Structural pattern matching](#structural-pattern-matching)
+    - [Bytes patterns](#bytes-patterns)
     - [Destructuring with `let`](#destructuring-with-let)
   - [Postfix nil propagation](#postfix-nil-propagation)
-    - [Try and catch boundaries](#try-and-catch-boundaries)
-  - [Loops](#loops)
+    - [Protected catch boundaries](#protected-catch-boundaries)
 - [Mutation and copies](mutation-and-copies.md)
 - [Modules](modules.md)
 - [Text IO](text-io.md)
@@ -56,18 +56,18 @@ result
 
 ## Structural pattern matching
 
-A `case` evaluates its input once, then selects the first matching `of` clause whose optional guard succeeds. The selected clause's block supplies the value of the whole expression:
+A `case` evaluates its input once, then selects the first matching arm whose optional guard succeeds. The selected arm's result supplies the value of the whole expression:
 
 ```simi
 let response = {kind = "ok", value = "profile"}
 
-let message = case response
-of {kind = "ok", value = value} do
-    "received " <> value
-of {kind = "error", error = error} when error != nil do
-    "failed: " <> error
-of _ do
-    "unknown response"
+let message = case response of
+    {kind = "ok", value = value} =>
+        "received " <> value
+    {kind = "error", error = error} when error != nil =>
+        "failed: " <> error
+    _ =>
+        "unknown response"
 end
 
 message
@@ -80,21 +80,21 @@ Patterns include:
 - literals such as `42`, `"ok"`, `true`, and `nil`;
 - binding names;
 - the `_` wildcard;
-- nested list and map patterns;
+- nested list, bytes, and map patterns;
 - list and map rest captures.
 
 ```simi
 let input = {kind = "point", coordinates = [3, 4, 5], color = "blue"}
 
-case input
-of {
-    kind = "point",
-    coordinates = [x, y, ..remaining],
-    ..metadata
-} do
-    [x, y, remaining, metadata]
-of _ do
-    nil
+case input of
+    {
+        kind = "point",
+        coordinates = [x, y, ..remaining],
+        ..metadata
+    } =>
+        [x, y, remaining, metadata]
+    _ =>
+        nil
 end
 ```
 
@@ -107,27 +107,46 @@ Named map fields normally require the key to be present. The literal `nil` field
 ```simi
 let settings = {theme = "dark"}
 
-case settings
-of {nickname = nil, ..} do
-    "no nickname"
-of _ do
-    "has a nickname"
+case settings of
+    {nickname = nil, ..} =>
+        "no nickname"
+    _ =>
+        "has a nickname"
 end
 ```
 
+### Bytes patterns
+
+Bytes patterns use `#[]`. String segments match their exact UTF-8 byte prefixes, a bare binding captures one byte as an integer, and `name:bytes(n)` captures exactly `n` bytes. A final `name:bytes` capture receives the entire remaining suffix; it must be final.
+
+```simi
+let packet = #["PNG", 1, 0, 2, 255]
+
+case packet of
+    #["PNG", version, length:bytes(2), payload:bytes] =>
+        [version, inspect(length), inspect(payload)]
+    _ =>
+        nil
+end
+```
+
+Bytes patterns work anywhere structural patterns do, including `let` and `catch`. A pattern with no final remainder must consume the whole bytes value. As with other refutable `let` patterns, a mismatch is a hard diagnostic; use `case` when failure is expected.
+
 ### Destructuring with `let`
 
-The left side of `let` may use the same structural patterns:
+The left side of `let` may use structural patterns. Direct named map bindings default an absent key to `nil`; shorthand `{name}` binds the `name` key to the `name` local, while `{source = name}` keeps a distinct lookup key and local name:
 
 ```simi
 let values = [10, 20, 30, 40]
 let [first, second, ..rest] = values
 
 let user = {name = "Ada", role = "admin", active = true}
-let {name = name, ..details} = user
+let {name, nickname, role = account_role, ..details} = user
 
-[first, second, rest, name, details]
+[first, second, rest, name, nickname, account_role, details]
 ```
+
+This default applies only to direct binding fields. Other field patterns, and every map field in `case` and `catch`, continue to require presence (except for the existing literal `nil` rule above). Map patterns remain closed: without `..` or `..rest`, unrelated keys still make a `let` pattern fail.
 
 The right side is evaluated once, and matching is atomic: no bindings are installed unless the entire pattern succeeds. A mismatch in `let` is a hard diagnostic. Use `case` instead when mismatch is an ordinary possibility.
 
@@ -150,7 +169,7 @@ end
 
 Here the function body is the nearest block. `greeting("Ada")` returns the greeting, while `greeting(nil)` stops before concatenation and returns `nil`.
 
-Every control-flow body is a block: each `if` branch, each `case` clause, the protected body of `try`, each `catch` body, every named or anonymous function body, every standalone `do ... end`, and every loop body. Propagation stops at the nearest one of these lexical boundaries rather than searching only for a standalone block.
+Every control-flow body is a nil-propagation boundary: each `if` branch, each `case` arm, the protected body and selected catch arm of a protected `do`, every named or anonymous function body, every standalone `do ... end`. Propagation stops at the nearest one of these lexical boundaries rather than searching only for a standalone block.
 
 For example, propagation inside an `if` branch makes that branch `nil`; it does not stop the surrounding standalone block:
 
@@ -186,113 +205,40 @@ result
 
 `?` propagates only ordinary `nil`. It does not intercept a raised value or a hard diagnostic, and it cannot be used when there is no enclosing block.
 
-### Try and catch boundaries
+### Protected catch boundaries
 
-A `try` has a protected block, and every `catch` has its own handler block. `catch` matches raised values; it does **not** catch postfix nil propagation. If `?` sees `nil` in the protected block, that block simply evaluates to `nil` and catch selection never begins:
+A protected `do` has a protected block, followed by `catch` and `pattern [when guard] => expression` arms. `catch` matches raised values; it does **not** catch postfix nil propagation. If `?` sees `nil` in the protected block, that block simply evaluates to `nil` and catch selection never begins:
 
 ```simi
-let selected = try
+let selected = do
     nil?
     "unreachable"
-catch _ do
-    "not caught"
+catch
+    _ =>
+        "not caught"
 end
 
-[selected, "execution continues after try"]
+[selected, "execution continues after the protected expression"]
 ```
 
-Likewise, `?` inside a selected catch stops that catch block as `nil`; later catches are not tried:
+Likewise, `?` inside a selected catch arm stops that arm as `nil`; later arms are not tried:
 
 ```simi
-let selected = try
+let selected = do
     raise "missing"
-catch "missing" do
-    nil?
-    "unreachable"
-catch _ do
-    "not selected"
+catch
+    "missing" => do
+        nil?
+        "unreachable"
+    end
+    _ =>
+        "not selected"
 end
 
-[selected, "execution continues after try"]
+[selected, "execution continues after the protected expression"]
 ```
 
 Raised values and the full error model are covered in [Errors and embedding](errors-and-embedding.md).
-
-## Loops
-
-A loop is an expression with one primitive form. Its body repeats when it reaches `end`; `continue` repeats early, and `break value` is the only terminating path and supplies the loop result. Ordinary body values are discarded.
-
-```simi
-let result = do
-    let state = 0
-
-    loop
-        if state == 3 then break state end
-        state = state + 1
-    end
-end
-
-result
-```
-
-State is ordinary lexical state. Lists and maps retain their normal mutable alias behavior, so a private setup block is useful when loop-local bindings should not escape:
-
-```simi
-let result = do
-    let values = []
-
-    loop
-        list.append(values, 1)
-        if list.length(values) == 3 then break values end
-    end
-end
-
-result
-```
-
-Because a loop body is a block, postfix nil propagation exits the current body normally and starts the next iteration. It does not determine the loop result; only `break value` does.
-
-```simi
-let result = do
-    let remaining = 1
-
-    loop
-        if remaining == 0 then break "finished" end
-        remaining = remaining - 1
-        nil?
-    end
-end
-
-result
-```
-
-An ordinary `break nil` ends a loop with `nil`:
-
-```simi
-let result = loop
-    break nil
-end
-
-result
-```
-
-Loop control targets the nearest lexical loop and cannot cross a function boundary. Nested loops may be labeled with `@name` to make a cross-loop transfer explicit. A label is lexical: it targets only an enclosing loop and is unavailable inside a nested function.
-
-```simi
-let result = do
-    let count = 0
-
-    @outer loop
-        loop
-            count = count + 1
-            if count < 3 then continue @outer end
-            break @outer count
-        end
-    end
-end
-
-result
-```
 
 <!-- tour:navigation:start -->
 ---

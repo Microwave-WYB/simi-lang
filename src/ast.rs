@@ -11,6 +11,8 @@ pub struct Block {
     pub span: Span,
 }
 
+pub type Body = Block;
+
 #[derive(Clone, Debug)]
 pub struct Stmt {
     pub kind: StmtKind,
@@ -22,7 +24,7 @@ pub enum StmtKind {
     Function {
         name: String,
         params: Vec<String>,
-        body: Block,
+        body: Body,
     },
     Let {
         pattern: Pattern,
@@ -41,7 +43,7 @@ pub struct Expr {
 pub struct PatternClause {
     pub pattern: Pattern,
     pub guard: Option<Expr>,
-    pub body: Block,
+    pub body: Body,
 }
 
 #[derive(Clone, Debug)]
@@ -63,6 +65,7 @@ pub enum PatternKind {
         elements: Vec<Pattern>,
         rest: Option<PatternRest>,
     },
+    Bytes(Vec<BytesPatternSegment>),
     Map {
         fields: Vec<(String, Pattern)>,
         rest: Option<PatternRest>,
@@ -73,6 +76,14 @@ pub enum PatternKind {
 pub enum PatternRest {
     Discard,
     Binding(String),
+}
+
+#[derive(Clone, Debug)]
+pub enum BytesPatternSegment {
+    String(String),
+    Byte(Option<String>),
+    Fixed { name: Option<String>, length: usize },
+    Remainder(Option<String>),
 }
 
 #[derive(Clone, Debug)]
@@ -89,18 +100,31 @@ pub enum AssignmentTargetKind {
 }
 
 #[derive(Clone, Debug)]
+pub enum BytesSegment {
+    String(String),
+    Value(Expr),
+}
+
+#[derive(Clone, Debug)]
+pub enum ListElement {
+    Value(Expr),
+    Spread(Expr),
+}
+
+#[derive(Clone, Debug)]
 pub enum ExprKind {
     Int(i64),
     Float(f64),
     String(String),
     Bool(bool),
     Nil,
-    List(Vec<Expr>),
+    List(Vec<ListElement>),
+    Bytes(Vec<BytesSegment>),
     Map(Vec<(Expr, Expr)>),
     Variable(String),
     Function {
         params: Vec<String>,
-        body: Block,
+        body: Body,
     },
     Assign {
         target: AssignmentTarget,
@@ -130,17 +154,6 @@ pub enum ExprKind {
     If {
         branches: Vec<(Expr, Block)>,
         else_branch: Option<Block>,
-    },
-    Loop {
-        label: Option<String>,
-        body: Block,
-    },
-    Continue {
-        label: Option<String>,
-    },
-    Break {
-        label: Option<String>,
-        value: Box<Expr>,
     },
     Call {
         callee: Box<Expr>,

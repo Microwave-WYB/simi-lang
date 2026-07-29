@@ -29,8 +29,8 @@ npm exec -- tree-sitter parse path/to/file.simi
 
 ## Coverage and editor queries
 
-The grammar follows the Rust lexer and parser in `../../src/`, including ASCII identifiers, `--` line comments, string escapes, decimal/exponent numbers, standalone `do ... end` block expressions, destructuring patterns, repeated-`of` case clauses, repeated-`catch` handlers, multi-item try regions, functional loops, postfix calls/fields/adjacent indexes and `?`, assignment, `|>`/`?>` pipelines, and right-associative trailing arguments. Runtime-category checks use ordinary calls and equality, such as `type(value) == "integer"`; `is` is an ordinary identifier and has no operator or keyword role.
+The grammar follows the Rust lexer and parser in `../../src/`, including ASCII identifiers, `--` line comments, string escapes, decimal/exponent numbers, standalone `do ... end` block expressions, destructuring patterns, `case ... of pattern => expression ... end` dispatch, protected `do ... catch pattern => expression ... end` regions, postfix calls/fields/adjacent indexes and `?`, assignment, `|>`/`?>` pipelines, and right-associative trailing arguments. Runtime-category checks use ordinary calls and equality, such as `type(value) == "integer"`; `is` is an ordinary identifier and has no operator or keyword role.
 
 Queries are provided for syntax highlighting (`queries/highlights.scm`), Neovim-style indentation captures (`queries/indents.scm`), and folding (`queries/folds.scm`). Consumers may need to map capture names to their editor's conventions.
 
-Tree-sitter recognizes syntax rather than runtime validity. Contextual checks performed by Simi after parsing—such as duplicate names, loop control outside a loop, assignability beyond the syntactic target shape, and finite/i64 numeric bounds—remain the responsibility of the Simi implementation.
+Tree-sitter recognizes syntax rather than runtime validity. Contextual checks performed by Simi after parsing—such as duplicate names, assignability beyond the syntactic target shape, and finite/i64 numeric bounds—remain the responsibility of the Simi implementation.

@@ -41,10 +41,10 @@ fn expect_raised(source: &str) -> Raised {
 fn callable_generic_constraints_labels_and_effects_are_runtime_erased() {
     let value = evaluate(
         r#"
-fn apply<'a: | integer | string>(callback: (input: 'a) -> 'a raises string, value: 'a) -> 'a noraise do
+fn apply<'a: | integer | string>(callback: fn(input: 'a) -> 'a ! string, value: 'a) -> 'a ! never
     callback(value)
-end
-let identity = fn<'a: any>(value: 'a) -> 'a raises string do value end
+let identity = fn<'a: any>(value: 'a) -> 'a ! string
+    value
 apply(identity, 42)
 "#,
     )
@@ -101,7 +101,7 @@ fn expect_runtime_error(source: &str) -> RuntimeError {
 fn evaluates_recursion_and_elseif() {
     let value = evaluate(
         r#"
-                fn countdown(n) do
+                fn countdown(n)
                     if n == 0 then
                         "done"
                     elseif n > 0 then
@@ -109,7 +109,6 @@ fn evaluates_recursion_and_elseif() {
                     else
                         nil
                     end
-                end
                 countdown(4)
             "#,
     )
@@ -123,15 +122,15 @@ fn anonymous_functions_capture_lexical_environments_and_recurse_through_let() {
     let value = evaluate(
         r#"
             fn make_counter(start) do
-                let current = start
+                let state = {current = start}
                 fn(step) do
-                    current = current + step
+                    state.current = state.current + step
+                    state.current
                 end
             end
             let counter = make_counter(10)
-            let factorial = fn(n) do
+            let factorial = fn(n)
                 if n == 0 then 1 else n * factorial(n - 1) end
-            end
             [counter(2), counter(3), factorial(5)]
         "#,
     )
@@ -143,9 +142,12 @@ fn anonymous_functions_capture_lexical_environments_and_recurse_through_let() {
 #[test]
 fn anonymous_function_names_are_used_for_rendering_arity_and_raise_frames() {
     assert_eq!(
-        evaluate("fn() do nil end")
-            .expect("anonymous function should evaluate")
-            .render(),
+        evaluate(
+            "fn()
+    nil"
+        )
+        .expect("anonymous function should evaluate")
+        .render(),
         "<fn <anonymous>>"
     );
 
@@ -182,7 +184,8 @@ fn missing_else_returns_nil_and_selected_branch_has_child_scope() {
 fn evaluates_field_and_call_chains() {
     let value = evaluate(
         r#"
-                fn identity(value) do value end
+                fn identity(value)
+                    value
                 identity({nested={answer=42}}).nested.answer
             "#,
     )
@@ -195,7 +198,8 @@ fn evaluates_field_and_call_chains() {
 fn pipeline_inserts_input_as_first_argument() {
     let value = evaluate(
         r#"
-                fn add(left, right) do left + right end
+                fn add(left, right)
+                    left + right
                 2 |> add(3)
             "#,
     )
@@ -221,19 +225,21 @@ fn tap_pipeline_preserves_the_alias_to_the_mutated_list() {
 }
 
 #[test]
-fn try_catches_values_with_match_semantics_and_unmatched_raises_are_unchanged() {
+fn protected_expression_catches_values_and_leaves_unmatched_raises_unchanged() {
     let value = evaluate(
         r#"
-                try raise {kind="missing", payload=[1, 2]}
-                    catch {kind="missing", payload=[head, ..tail]} when head == 1 do tail
-                    catch _ do nil
+                do raise {kind="missing", payload=[1, 2]}
+                    catch {kind="missing", payload=[head, ..tail]} when head == 1 =>
+                        tail
+                    _ =>
+                        nil
                 end
             "#,
     )
     .expect("the structural catch should match");
     assert_eq!(value.render(), "[2]");
 
-    let source = "try raise 1 catch 2 do nil end";
+    let source = "do raise 1 catch 2 => nil end";
     let raised = expect_raised(source);
     let raise_start = source
         .find("raise 1")
@@ -245,7 +251,7 @@ fn try_catches_values_with_match_semantics_and_unmatched_raises_are_unchanged() 
 }
 
 #[test]
-fn try_evaluates_its_protected_expression_exactly_once() {
+fn protected_expression_evaluates_its_body_exactly_once() {
     PROTECTED_EVALUATIONS.store(0, Ordering::SeqCst);
     let globals = Environment::new();
     globals.define(
@@ -256,7 +262,7 @@ fn try_evaluates_its_protected_expression_exactly_once() {
             Arc::new(count_protected_evaluation),
         )),
     );
-    let source = "try raise tick() catch count do count end";
+    let source = "do raise tick() catch count => count end";
     let program = parser::parse_source(source).expect("test source should parse");
     let outcome = Interpreter::with_globals(globals)
         .evaluate(&program)
@@ -272,11 +278,11 @@ fn try_evaluates_its_protected_expression_exactly_once() {
 
 #[test]
 fn hard_errors_and_non_boolean_catch_guards_bypass_language_catches() {
-    let undefined = expect_runtime_error("try missing_name catch _ do \"must not catch\" end");
-    assert_eq!(undefined.span, Span::new(4, 16));
+    let undefined = expect_runtime_error("do missing_name catch _ => \"must not catch\" end");
+    assert_eq!(undefined.span, Span::new(3, 15));
     assert!(undefined.message.contains("undefined name"));
 
-    let guard_source = "try raise 1 catch _ when 2 do nil end";
+    let guard_source = "do raise 1 catch _ when 2 => nil end";
     let guard = expect_runtime_error(guard_source);
     let guard_start = guard_source.find("2").expect("guard should exist");
     assert_eq!(guard.span, Span::new(guard_start, guard_start + 1));
@@ -285,12 +291,16 @@ fn hard_errors_and_non_boolean_catch_guards_bypass_language_catches() {
 
 #[test]
 fn handler_raises_escape_siblings_and_append_the_caught_chain() {
-    let source = r#"try try raise "old"
-                catch _ do raise "middle"
-                catch _ do "inner sibling must not run"
+    let source = r#"do do raise "old"
+                catch _ =>
+                    raise "middle"
+                _ =>
+                    "inner sibling must not run"
             end
-                catch _ do raise "new"
-                catch _ do "outer sibling must not run"
+                catch _ =>
+                    raise "new"
+                _ =>
+                    "outer sibling must not run"
             end"#;
     let raised = expect_raised(source);
 
@@ -324,9 +334,11 @@ fn handler_raises_escape_siblings_and_append_the_caught_chain() {
 
 #[test]
 fn handler_reraise_records_a_new_origin_and_freezes_caught_frames_in_its_cause() {
-    let source = r#"fn leaf() do raise "old" end
-try leaf()
-catch error do raise error
+    let source = r#"fn leaf()
+    raise "old"
+do leaf()
+catch error =>
+    raise error
 end"#;
     let raised = expect_raised(source);
     let reraised_start = source.rfind("raise error").expect("re-raise should exist");
@@ -360,9 +372,11 @@ end"#;
 
 #[test]
 fn a_raise_from_a_catch_guard_escapes_without_trying_siblings() {
-    let source = r#"try raise "caught"
-catch _ when raise "guard" do "body must not run"
-catch _ do "sibling must not run"
+    let source = r#"do raise "caught"
+catch _ when raise "guard" =>
+    "body must not run"
+_ =>
+    "sibling must not run"
 end"#;
     let raised = expect_raised(source);
     assert_eq!(raised.value.render(), "\"guard\"");
@@ -376,9 +390,11 @@ end"#;
 
 #[test]
 fn user_function_raises_collect_declared_names_and_call_spans() {
-    let source = r#"fn leaf() do raise "boom" end
+    let source = r#"fn leaf()
+    raise "boom"
 let alias = leaf
-fn middle() do alias() end
+fn middle()
+    alias()
 middle()"#;
     let raised = expect_raised(source);
     let alias_start = source.find("alias()").expect("aliased call should exist");
@@ -402,9 +418,8 @@ middle()"#;
 
 #[test]
 fn recursive_and_pipeline_calls_record_each_entered_invocation() {
-    let recursive = r#"fn recur(n) do
+    let recursive = r#"fn recur(n)
 if n == 0 then raise n else recur(n - 1) end
-end
 recur(2)"#;
     let raised = expect_raised(recursive);
     let recursive_start = recursive
@@ -428,7 +443,8 @@ recur(2)"#;
     );
     assert!(raised.frames.iter().all(|frame| frame.function == "recur"));
 
-    let pipeline = "fn fail(value) do raise value end\n1 |> fail()";
+    let pipeline = "fn fail(value)
+    raise value\n1 |> fail()";
     let raised = expect_raised(pipeline);
     let pipe_start = pipeline.find("|>").expect("pipeline stage should exist");
     assert_eq!(
@@ -449,108 +465,6 @@ fn runtime_errors_keep_the_expression_span() {
 
     assert_eq!(error.span, Span::new(0, 7));
     assert!(error.message.contains("undefined name"));
-}
-
-#[test]
-fn leaked_top_level_control_becomes_a_runtime_error() {
-    for (kind, expected_message) in [
-        (
-            ExprKind::Break {
-                label: None,
-                value: Box::new(Expr {
-                    kind: ExprKind::Int(1),
-                    span: Span::new(6, 7),
-                }),
-            },
-            "`break` outside of a loop",
-        ),
-        (
-            ExprKind::Continue { label: None },
-            "`continue` outside of a loop",
-        ),
-    ] {
-        let control_span = Span::new(2, 10);
-        let program = Program {
-            items: vec![Stmt {
-                kind: StmtKind::Expr(Expr {
-                    kind,
-                    span: control_span,
-                }),
-                span: control_span,
-            }],
-        };
-
-        let error = match Interpreter::new().evaluate(&program) {
-            Ok(_) => panic!("leaked top-level control should fail defensively"),
-            Err(error) => error,
-        };
-        assert_eq!(error.span, control_span);
-        assert_eq!(error.message, expected_message);
-    }
-}
-
-#[test]
-fn leaked_function_control_cannot_be_caught_by_callers_loop() {
-    let control_span = Span::new(20, 27);
-    let function = Stmt {
-        kind: StmtKind::Function {
-            name: "escape".to_owned(),
-            params: Vec::new(),
-            body: Block {
-                items: vec![Stmt {
-                    kind: StmtKind::Expr(Expr {
-                        kind: ExprKind::Break {
-                            label: None,
-                            value: Box::new(Expr {
-                                kind: ExprKind::Int(9),
-                                span: Span::new(26, 27),
-                            }),
-                        },
-                        span: control_span,
-                    }),
-                    span: control_span,
-                }],
-                span: control_span,
-            },
-        },
-        span: Span::new(0, 31),
-    };
-    let call_span = Span::new(50, 58);
-    let caller_loop = Stmt {
-        kind: StmtKind::Expr(Expr {
-            kind: ExprKind::Loop {
-                label: None,
-                body: Block {
-                    items: vec![Stmt {
-                        kind: StmtKind::Expr(Expr {
-                            kind: ExprKind::Call {
-                                callee: Box::new(Expr {
-                                    kind: ExprKind::Variable("escape".to_owned()),
-                                    span: Span::new(50, 56),
-                                }),
-                                args: Vec::new(),
-                            },
-                            span: call_span,
-                        }),
-                        span: call_span,
-                    }],
-                    span: call_span,
-                },
-            },
-            span: Span::new(34, 62),
-        }),
-        span: Span::new(34, 62),
-    };
-
-    let error = match Interpreter::new().evaluate(&Program {
-        items: vec![function, caller_loop],
-    }) {
-        Ok(_) => panic!("function control must not escape into a caller loop"),
-        Err(error) => error,
-    };
-
-    assert_eq!(error.span, control_span);
-    assert_eq!(error.message, "`break` outside of a loop");
 }
 
 fn expression(kind: ExprKind, span: Span) -> Expr {

@@ -149,22 +149,15 @@ fn map_argument_errors_are_qualified_hard_diagnostics() {
 }
 
 #[test]
-fn built_in_map_module_path_is_not_requireable() {
-    let source = "require(\"std/map\")";
-    let raised = match Engine::new()
-        .eval(source)
-        .expect("missing built-in map path should not be a hard diagnostic")
-    {
-        Err(raised) => raised,
-        Ok(value) => panic!(
-            "built-in map path should raise module_not_found, got {}",
-            value.render()
-        ),
-    };
-    assert_eq!(
-        raised.value.render(),
-        "{error=\"module_not_found\", module=\"std/map\"}"
-    );
-    assert_eq!(raised.origin.start, 0);
-    assert_eq!(raised.origin.end, source.len());
+fn map_prelude_and_canonical_path_share_identity() {
+    let value = Engine::new()
+        .eval(
+            r#"
+            map.marker = "shared"
+            require("std/map").marker
+            "#,
+        )
+        .expect("canonical map path should not hard fail")
+        .expect("canonical map path should not raise");
+    assert_eq!(value.render(), "\"shared\"");
 }

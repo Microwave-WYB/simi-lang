@@ -7,10 +7,11 @@ fn classify(value, limit) do
     elseif value == nil or value < limit then
         value ?> tap inspect()
     else
-        case [value, message]
-        of [head, ..tail] when true do
-            { result = head, rest = tail }
-        of _ do "small"
+        case [value, message] of
+            [head, ..tail] when true =>
+                { result = head, rest = tail }
+            _ =>
+                "small"
         end
     end
 end
@@ -18,35 +19,47 @@ end
 fn declared_effect(
     xs: [..integer],
     pair: [integer, string],
-) -> nil do nil end
+) -> nil
+    nil
 
-let mapper = fn(item) do item * 2 end
+let mapper = fn(item)
+    item * 2
+let spread_values = [0, ..[1, 2], 3]
 let iter = require("std/iter")
 let mapped = iter.map(list.iter([1, 2])) <| mapper
-let handled = try
+let handled = do
     let attempted = { error = "bad" }
     raise attempted
-catch { error = reason } do reason
+catch
+    { error = reason } =>
+        reason
 end
 let optional = do mapped? end
-do
-    let state = 0
-    loop
-        if state > 1 then break state else state = state + 1 end
-    end
-end
+let final = iter.fold_while(iter.repeat_with(fn()
+    1), 0, fn(state, _)
+    if state > 1 then iter.break(state) else iter.continue(state + 1) end)
+let ranged_pairs = iter.enumerate(iter.zip_longest(iter.range(0, 2), iter.once(final), nil))
+let sliced_pairs = iter.take(iter.drop(ranged_pairs, 0), 2)
 let bad_escape = "\q"
 let concatenated = "Simi" <> " language"
 let integer_check = type(threshold) == "integer"
 let function_check = type(mapper) == "function"
 let is = integer_check
 let piped = mapped |> list.length()
-fn identity<'a: | integer | string>(value: 'a) -> 'a noraise do value end
-let typed_mapper: <'a: any> (input: | integer | string) -> 'a raises string = nil
-let generic_lambda = fn<'a: any>(value: 'a) -> 'a raises string do value end
-let raises = 1
-let noraise = raises
-fn nested<'a: wrapper<integer>>(value: 'a) -> 'a noraise do value end
-let typed_no_raise: () -> nil noraise = nil
-let literal_raise: () -> nil raises "oops" = nil
+fn identity<'a: | integer | string>(value: 'a) -> 'a ! never
+    value
+let typed_mapper: fn<'a: any>(input: | integer | string) -> 'a ! string = nil
+let generic_lambda = fn<'a: any>(value: 'a) -> 'a ! string
+    value
+let raised = 1
+let no_raise = raised
+fn nested<'a: wrapper<integer>>(value: 'a) -> 'a ! never
+    value
+let typed_no_raise: fn() -> nil ! never = nil
+let literal_raise: fn() -> nil ! "oops" = nil
 let parsed = string.to_number("42")
+let distinct = 1 != 2
+
+requires {
+    local = {path = "packages/local"}
+}

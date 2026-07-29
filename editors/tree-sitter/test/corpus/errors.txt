@@ -1,4 +1,19 @@
 ==================
+Bytes construction
+==================
+
+#[0, "PNG", payload]
+
+---
+
+(program
+  (bytes
+    (integer)
+    (string
+      (string_content))
+    (identifier)))
+
+==================
 Trailing arguments require a call on the left
 ==================
 
@@ -102,19 +117,19 @@ case value of 1 do "one" end of _ do "other" end
 ---
 
 (program
-  (case_expression
+  (ERROR
     (identifier)
-    (case_clause
+    (ERROR
       (integer)
-      (block
-        (string
-          (string_content)))))
-  (identifier)
-  (identifier)
-  (block_expression
-    (block
+      (identifier)
       (string
-        (string_content)))))
+        (string_content))
+      (identifier)
+      (wildcard_pattern)
+      (identifier))
+    (string
+      (string_content))
+    (identifier)))
 
 ==================
 Legacy per-catch-handler end is rejected
@@ -125,15 +140,15 @@ try raise 1 catch 1 do "one" end catch _ do "other" end
 ---
 
 (program
-  (try_expression
+  (identifier)
+  (raise_expression
+    (integer))
+  (identifier)
+  (integer)
+  (block_expression
     (block
-      (raise_expression
-        (integer)))
-    (catch_clause
-      (integer)
-      (block
-        (string
-          (string_content)))))
+      (string
+        (string_content))))
   (identifier)
   (identifier)
   (block_expression

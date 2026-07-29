@@ -2,6 +2,7 @@ mod db;
 mod lower;
 mod model;
 mod modules;
+mod requires;
 mod resolver;
 mod types;
 
@@ -9,14 +10,18 @@ pub use db::{
     AnalysisDatabase, FileId, ParsedFile, diagnostics, document_symbols, hir, parse, references,
     resolve, source_text, type_inference,
 };
+pub use requires::{
+    PackageRequirementsError, Requirement, RequirementSource, Requires, parse_requires,
+};
 pub use simi_syntax::span::Span;
 
 pub use model::{
     AnalysisDiagnostic, AnalysisDiagnosticCode, AnalysisDiagnosticSeverity, CallableParameter,
     CallableType, Capture, DocumentSymbol, ExportField, ExprData, ExprId, GenericConstraint, Hir,
-    HoverFacts, ModuleMember, ModuleShape, ModuleValue, NameOccurrence, OccurrenceKind,
-    PatternData, PatternId, RaisedAnnotation, RelatedDiagnostic, RenameError, Resolution,
-    ScopeData, ScopeId, SymbolData, SymbolId, SymbolKind, Type, TypeInference, display_signature,
+    HoverFacts, LiteralFloat, ModuleMember, ModuleShape, ModuleValue, NameOccurrence,
+    OccurrenceKind, PatternData, PatternId, RaisedAnnotation, RelatedDiagnostic, RenameError,
+    Resolution, ScopeData, ScopeId, SymbolData, SymbolId, SymbolKind, Type, TypeInference,
+    display_signature,
 };
 pub use modules::{
     imported_members, imported_modules, member_at, member_completions, module_at, module_shape,

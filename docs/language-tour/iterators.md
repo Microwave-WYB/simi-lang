@@ -14,7 +14,9 @@
 - [Text IO](text-io.md)
 - Iterators
   - [Collection snapshots](#collection-snapshots)
+  - [Iterator sources](#iterator-sources)
   - [Lazy adapters](#lazy-adapters)
+  - [Structural controls](#structural-controls)
   - [Consumers](#consumers)
   - [Single-pass traversal](#single-pass-traversal)
   - [Steps and custom iterators](#steps-and-custom-iterators)
@@ -27,7 +29,6 @@
 
 ```simi
 
-let iter = require("std/iter")
 let values = [1, 2]
 let source = list.iter(values)
 
@@ -38,13 +39,36 @@ list.append(values, 3)
 
 `map.iter(value)` similarly snapshots the map's insertion-ordered entries. Snapshotting is shallow: nested mutable values retain their usual alias identity.
 
-## Lazy adapters
+## Iterator sources
 
-`iter.map` and `iter.filter` return new iterators. They do not invoke their callbacks when the adapter is created; work begins only when a consumer requests values.
+`iter.empty()` is immediately exhausted, and `iter.once(value)` yields one value.
+`iter.repeat(value, count)` repeats the same value a finite number of times, while
+`iter.range(start, stop)` lazily yields ascending integers in the half-open range
+from `start` through `stop`. A range is empty when `start >= stop`.
 
 ```simi
 
-let iter = require("std/iter")
+[
+    iter.to_list(iter.empty()),
+    iter.to_list(iter.once("only")),
+    iter.to_list(iter.repeat("again", 3)),
+    iter.to_list(iter.range(-2, 3)),
+]
+```
+
+Repeat counts and adapter counts must be nonnegative integers. Invalid counts and
+non-integer range bounds are hard diagnostics. Repeated values preserve alias
+identity rather than being copied.
+
+## Lazy adapters
+
+`iter.map`, `iter.filter`, `iter.take`, `iter.drop`, `iter.enumerate`, `iter.zip`,
+and `iter.zip_longest` return new iterators. They do not invoke callbacks or pull
+from their sources when the adapter is created; work begins only when a consumer
+requests values.
+
+```simi
+
 let calls: [..any] = []
 
 let transformed =
@@ -54,9 +78,8 @@ let transformed =
         list.append(calls, value)
         value >= 0
     end)
-    |> iter.map(fn(value) do
-        value * 2
-    end)
+    |> iter.map(fn(value)
+        value * 2)
 
 let calls_before_consuming = list.length(calls)
 let result = iter.to_list(transformed)
@@ -65,6 +88,72 @@ let result = iter.to_list(transformed)
 ```
 
 Filter predicates must return booleans. A callback raise propagates unchanged through adapters and consumers.
+
+`take(iterator, count)` yields at most `count` values and leaves later source
+values unconsumed. `drop(iterator, count)` discards that many values on the first
+pull and then yields the remainder. `enumerate` yields exact two-element lists
+`[index, value]`, starting at index zero.
+
+```simi
+
+let source = list.iter([10, 20, 30, 40])
+let first_two = iter.to_list(iter.take(source, 2))
+let remaining = iter.to_list(source)
+let indexed = iter.to_list(iter.enumerate(list.iter(["a", "b"])))
+
+[first_two, remaining, indexed]
+```
+
+`zip(left, right)` yields `[left, right]` pairs until either source exhausts.
+`zip_longest(left, right, fill)` continues until both exhaust; it substitutes the
+same `fill` value for a missing side, preserving its alias identity.
+
+```simi
+
+iter.to_list(iter.zip_longest(
+    list.iter([1]),
+    list.iter(["a", "b"]),
+    nil,
+))
+```
+
+## Structural controls
+
+`iter.each_while` and `iter.fold_while` let callbacks choose whether a native
+iterator driver continues or stops. Return `iter.continue(value)` to continue,
+or `iter.break(value)` to stop and return its payload. These are ordinary maps,
+not lexical control flow.
+
+```simi
+let iter = require("std/iter")
+
+let sum = iter.fold_while(list.iter([1, 2, 3, 4]), 0, fn(total, value)
+    if value == 4 then iter.break(total)
+    else iter.continue(total + value) end)
+
+sum
+```
+
+`each_while` returns its break payload, or `nil` when its source is exhausted.
+`fold_while` returns its current state at exhaustion. `iter.loop` repeatedly
+runs a no-argument body until it returns `iter.break(value)`; a continue
+payload is ignored. It is useful for an unbounded stateful operation that does
+not produce iterator items.
+
+```simi
+let iter = require("std/iter")
+let state = {attempts = 0}
+
+iter.loop(fn() do
+    state.attempts = state.attempts + 1
+    if state.attempts == 3 then iter.break(state.attempts)
+    else iter.continue(nil) end
+end)
+```
+
+`iter.repeat_with` creates a lazy infinite iterator: its producer runs once per
+requested item and may produce `nil`. Malformed callback control maps are hard
+diagnostics, while raises from a source or callback propagate unchanged.
 
 ## Consumers
 
@@ -82,37 +171,41 @@ each
 count
 ```
 
-Consumers advance the iterator they receive. `to_list` consumes all remaining values. `fold` threads an accumulator. `find` and `find_index` return `nil` when there is no match, and `each` always returns `nil` after successful traversal.
+Consumers advance the iterator they receive. `to_list` consumes all remaining values. `fold` threads an accumulator. `find` and `find_index` return `nil` when there is no match, and `each` always returns `nil` after successful traversal. Iterator item types propagate through adapters and consumers, while source and callback raised types remain part of the resulting iterator or consumer type.
 
 ```simi
 
-let iter = require("std/iter")
 let values = [1, 2, 3, 4]
 
 let total =
     values
     |> list.iter()
-    |> iter.fold(0) <| fn(sum: integer, value: integer) -> integer noraise do
+    |> iter.fold(0) <| fn(sum, value)
         sum + value
-    end
 
-let even_count = iter.count(list.iter(values), fn(value: integer) -> boolean noraise do
-    value % 2 == 0
-end)
+let even_count = iter.count(list.iter(values), fn(value: integer) -> boolean ! never
+    value % 2 == 0)
 
 [total, even_count]
+```
+
+The initial accumulator supplies the stable state type for `fold`. A mixed integer/float source can use a float initial value, and the unannotated callback parameters are inferred accordingly:
+
+```simi
+
+
+iter.fold(list.iter([1, 2.5]), 0.0, fn(total, value)
+    total + value)
 ```
 
 Predicates passed to `find`, `find_index`, `any`, `all`, and predicate-based `count` must return booleans. Searches and boolean queries short-circuit, leaving later values unconsumed.
 
 ```simi
 
-let iter = require("std/iter")
 let source = list.iter([1, 2, 3, 4])
 
-let found = iter.find(source, fn(value) do
-    value == 2
-end)
+let found = iter.find(source, fn(value)
+    value == 2)
 
 [found, iter.to_list(source)]
 ```
@@ -123,7 +216,6 @@ Iterators are single-pass: once a value has been consumed, it is not available a
 
 ```simi
 
-let iter = require("std/iter")
 let values: [..string] = ["a", "b"]
 let source = list.iter(values)
 
@@ -148,23 +240,31 @@ Do not reuse an iterator when two independent traversals are needed. Create two 
 
 Lists may legitimately contain `nil`. Such an item produces `{done = false}` because maps omit nil-valued fields; the boolean `done` field is therefore the authoritative completion signal.
 
+The erased static contract mirrors those runtime variants:
+
+```simi
+alias Step<'a> =
+    | {done: true, ..}
+    | {done: false, value: 'a, ..}
+```
+
+An `if step.done` check narrows the `else` branch to the false variant, where `step.value` has the iterator item type. The exhausted variant does not advertise a required value. If the item type includes `nil`, the false variant still permits the runtime field to be absent because reading that absent field produces the valid `nil` item.
+
 A custom producer is a zero-argument function returning these step maps. Wrap it with `iter.from` to obtain a public iterator:
 
 ```simi
-let iter = require("std/iter")
 
 fn countdown(start) do
-    let current = start
+    let state = {current = start}
 
-    iter.from(fn() do
-        if current <= 0 then
+    iter.from(fn()
+        if state.current <= 0 then
             {done = true}
         else
-            let value = current
-            current = current - 1
+            let value = state.current
+            state.current = state.current - 1
             {done = false, value = value}
-        end
-    end)
+        end)
 end
 
 iter.to_list(countdown(3))

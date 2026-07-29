@@ -13,8 +13,7 @@ fn kinds(source: &str) -> Vec<TokenKind> {
 fn lexes_every_keyword_operator_and_delimiter() {
     assert_eq!(
         kinds(
-            "fn do end if then elseif else let tap nil true false and or not loop break continue \
-             case of when raise try catch ( ) [ ] { } , . .. = == != + - * / // % < <= > >= ? ?> |> <| @"
+            "fn do end if then elseif else let tap nil true false and or not case of when raise try catch ( ) [ ] { } , : ' -> => | . .. = == != + - * / // % < <= > >= ? ?> |> <|"
         ),
         vec![
             TokenKind::Fn,
@@ -32,9 +31,6 @@ fn lexes_every_keyword_operator_and_delimiter() {
             TokenKind::And,
             TokenKind::Or,
             TokenKind::Not,
-            TokenKind::Loop,
-            TokenKind::Break,
-            TokenKind::Continue,
             TokenKind::Case,
             TokenKind::Of,
             TokenKind::When,
@@ -48,6 +44,11 @@ fn lexes_every_keyword_operator_and_delimiter() {
             TokenKind::LBrace,
             TokenKind::RBrace,
             TokenKind::Comma,
+            TokenKind::Colon,
+            TokenKind::Apostrophe,
+            TokenKind::Arrow,
+            TokenKind::FatArrow,
+            TokenKind::Pipe,
             TokenKind::Dot,
             TokenKind::DotDot,
             TokenKind::Equal,
@@ -67,10 +68,16 @@ fn lexes_every_keyword_operator_and_delimiter() {
             TokenKind::QuestionGreater,
             TokenKind::PipeGreater,
             TokenKind::LessPipe,
-            TokenKind::At,
             TokenKind::Eof,
         ]
     );
+}
+
+#[test]
+fn former_loop_label_marker_is_rejected() {
+    let error = lex("@outer").expect_err("loop label marker should be rejected");
+    assert_eq!(error.span, Span::new(0, 1));
+    assert_eq!(error.message, "unexpected character '@'");
 }
 
 #[test]
@@ -118,7 +125,7 @@ fn lexes_anonymous_function_expression_tokens_with_exact_spans() {
 #[test]
 fn lexes_case_expression_tokens() {
     assert_eq!(
-        kinds("case value of [x, ..xs] when true do x end"),
+        kinds("case value of [x, ..xs] when true => do x end"),
         vec![
             TokenKind::Case,
             TokenKind::Ident("value".to_owned()),
@@ -131,6 +138,7 @@ fn lexes_case_expression_tokens() {
             TokenKind::RBracket,
             TokenKind::When,
             TokenKind::True,
+            TokenKind::FatArrow,
             TokenKind::Do,
             TokenKind::Ident("x".to_owned()),
             TokenKind::End,
@@ -293,45 +301,22 @@ fn lexes_identifiers_integers_and_exact_keywords() {
 }
 
 #[test]
-fn lexes_loop_control_keywords_with_exact_utf8_byte_spans() {
+fn former_control_words_are_identifiers_for_member_calls() {
     assert_eq!(
-        lex("\"é\" loop break continue").expect("source should lex"),
+        kinds("iter.break(1) iter.continue(nil)"),
         vec![
-            Token {
-                kind: TokenKind::String("é".to_owned()),
-                span: Span::new(0, 4),
-            },
-            Token {
-                kind: TokenKind::Loop,
-                span: Span::new(5, 9),
-            },
-            Token {
-                kind: TokenKind::Break,
-                span: Span::new(10, 15),
-            },
-            Token {
-                kind: TokenKind::Continue,
-                span: Span::new(16, 24),
-            },
-            Token {
-                kind: TokenKind::Eof,
-                span: Span::new(24, 24),
-            },
-        ]
-    );
-}
-
-#[test]
-fn loop_control_keywords_are_exact_and_case_sensitive() {
-    assert_eq!(
-        kinds("looping breaker continued Loop Break Continue"),
-        vec![
-            TokenKind::Ident("looping".to_owned()),
-            TokenKind::Ident("breaker".to_owned()),
-            TokenKind::Ident("continued".to_owned()),
-            TokenKind::Ident("Loop".to_owned()),
-            TokenKind::Ident("Break".to_owned()),
-            TokenKind::Ident("Continue".to_owned()),
+            TokenKind::Ident("iter".to_owned()),
+            TokenKind::Dot,
+            TokenKind::Ident("break".to_owned()),
+            TokenKind::LParen,
+            TokenKind::Int(1),
+            TokenKind::RParen,
+            TokenKind::Ident("iter".to_owned()),
+            TokenKind::Dot,
+            TokenKind::Ident("continue".to_owned()),
+            TokenKind::LParen,
+            TokenKind::Nil,
+            TokenKind::RParen,
             TokenKind::Eof,
         ]
     );

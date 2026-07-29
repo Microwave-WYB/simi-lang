@@ -1,6 +1,16 @@
 "use strict";
 
-function createExtensionRuntime({ vscode, LanguageClient, resolveServerCommand, environment }) {
+const { createStructuralIndentTypingController } = require("./typing");
+
+function createExtensionRuntime({
+  vscode,
+  LanguageClient,
+  resolveServerCommand,
+  environment,
+  createSimiParser,
+}) {
+  let structuralTyping;
+  let syntaxParser;
   let active;
   let starting;
   let restartQueue = Promise.resolve();
@@ -134,8 +144,29 @@ function createExtensionRuntime({ vscode, LanguageClient, resolveServerCommand, 
   async function activate(context) {
     deactivated = false;
     extensionPath = context.extensionPath;
+    if (createSimiParser) {
+      try {
+        syntaxParser = await createSimiParser(extensionPath);
+        structuralTyping = createStructuralIndentTypingController({
+          vscode,
+          parser: syntaxParser,
+        });
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : String(error);
+        await Promise.resolve(vscode.window.showErrorMessage(
+          `Unable to load the Simi indentation parser: ${detail}`,
+        )).catch(() => undefined);
+      }
+    }
+
     context.subscriptions.push(
       vscode.commands.registerCommand("simi.restartLanguageServer", queueRestart),
+      vscode.workspace.onDidChangeTextDocument((event) => (
+        structuralTyping?.onDidChangeTextDocument(event)
+      )),
+      vscode.window.onDidChangeTextEditorSelection((event) => (
+        structuralTyping?.onDidChangeTextEditorSelection(event)
+      )),
       vscode.workspace.onDidChangeConfiguration((event) => {
         if (event.affectsConfiguration("simi.languageServer.path")) {
           return queueRestart();
@@ -148,6 +179,10 @@ function createExtensionRuntime({ vscode, LanguageClient, resolveServerCommand, 
 
   async function deactivate() {
     deactivated = true;
+    structuralTyping?.clear();
+    structuralTyping = undefined;
+    syntaxParser?.delete();
+    syntaxParser = undefined;
     await restartQueue;
     await stopActive();
   }

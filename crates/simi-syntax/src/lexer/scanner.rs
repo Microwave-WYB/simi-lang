@@ -130,10 +130,6 @@ impl<'a> Scanner<'a> {
                 self.simple(start, SyntaxKind::APOSTROPHE, TokenKind::Apostrophe);
                 Ok(())
             }
-            b'@' => {
-                self.simple(start, SyntaxKind::AT, TokenKind::At);
-                Ok(())
-            }
             b'.' => {
                 self.one_or_two(
                     start,
@@ -176,6 +172,10 @@ impl<'a> Scanner<'a> {
                 self.simple(start, SyntaxKind::PERCENT, TokenKind::Percent);
                 Ok(())
             }
+            b'=' if self.peek(1) == Some(b'>') => {
+                self.double(start, SyntaxKind::FAT_ARROW, TokenKind::FatArrow);
+                Ok(())
+            }
             b'=' => {
                 self.one_or_two(
                     start,
@@ -187,8 +187,19 @@ impl<'a> Scanner<'a> {
                 );
                 Ok(())
             }
-            b'!' if self.peek(1) == Some(b'=') => {
-                self.double(start, SyntaxKind::BANG_EQ, TokenKind::BangEqual);
+            b'!' => {
+                self.one_or_two(
+                    start,
+                    SyntaxKind::BANG,
+                    TokenKind::Bang,
+                    b'=',
+                    SyntaxKind::BANG_EQ,
+                    TokenKind::BangEqual,
+                );
+                Ok(())
+            }
+            b'#' => {
+                self.simple(start, SyntaxKind::HASH, TokenKind::Hash);
                 Ok(())
             }
             b'<' if self.peek(1) == Some(b'|') => {
@@ -550,6 +561,7 @@ fn keyword(text: &str) -> Option<(SyntaxKind, TokenKind)> {
         "elseif" => (SyntaxKind::ELSEIF_KW, TokenKind::ElseIf),
         "else" => (SyntaxKind::ELSE_KW, TokenKind::Else),
         "let" => (SyntaxKind::LET_KW, TokenKind::Let),
+        "requires" => (SyntaxKind::REQUIRES_KW, TokenKind::Requires),
         "tap" => (SyntaxKind::TAP_KW, TokenKind::Tap),
         "nil" => (SyntaxKind::NIL_KW, TokenKind::Nil),
         "true" => (SyntaxKind::TRUE_KW, TokenKind::True),
@@ -557,9 +569,6 @@ fn keyword(text: &str) -> Option<(SyntaxKind, TokenKind)> {
         "and" => (SyntaxKind::AND_KW, TokenKind::And),
         "or" => (SyntaxKind::OR_KW, TokenKind::Or),
         "not" => (SyntaxKind::NOT_KW, TokenKind::Not),
-        "loop" => (SyntaxKind::LOOP_KW, TokenKind::Loop),
-        "break" => (SyntaxKind::BREAK_KW, TokenKind::Break),
-        "continue" => (SyntaxKind::CONTINUE_KW, TokenKind::Continue),
         "case" => (SyntaxKind::CASE_KW, TokenKind::Case),
         "of" => (SyntaxKind::OF_KW, TokenKind::Of),
         "when" => (SyntaxKind::WHEN_KW, TokenKind::When),

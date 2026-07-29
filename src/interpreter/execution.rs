@@ -1,8 +1,10 @@
 use gc::{Gc, GcCell};
 
-use super::{EvaluationError, EvaluationResult, Interpreter, pattern::match_pattern};
-use crate::ast::{BinaryOp, Block, Expr, ExprKind, Stmt, StmtKind};
-use crate::runtime::{Environment, List, MapKey, Raised, RuntimeError, UserFunction, Value};
+use super::{EvaluationError, EvaluationResult, Interpreter, pattern::match_let_pattern};
+use crate::ast::{
+    BinaryOp, Block, Body, BytesSegment, Expr, ExprKind, ListElement, Stmt, StmtKind,
+};
+use crate::runtime::{Bytes, Environment, List, MapKey, Raised, RuntimeError, UserFunction, Value};
 
 impl Interpreter {
     pub(super) fn evaluate_items(
@@ -40,6 +42,14 @@ impl Interpreter {
         }
     }
 
+    pub(super) fn evaluate_body(
+        &mut self,
+        body: &Body,
+        env: &Environment,
+    ) -> EvaluationResult<Value> {
+        self.evaluate_block(body, env)
+    }
+
     fn evaluate_statement(
         &mut self,
         statement: &Stmt,
@@ -75,7 +85,7 @@ impl Interpreter {
             StmtKind::Let { pattern, value } => {
                 let value = self.evaluate_expression(value, env)?;
                 let mut bindings = Vec::new();
-                if !match_pattern(pattern, &value, &mut bindings)? {
+                if !match_let_pattern(pattern, &value, &mut bindings)? {
                     return Err(EvaluationError::Runtime(RuntimeError::new(
                         pattern.span,
                         "let pattern did not match",
@@ -119,9 +129,65 @@ impl Interpreter {
             ExprKind::List(elements) => {
                 let mut values = Vec::with_capacity(elements.len());
                 for element in elements {
-                    values.push(self.evaluate_expression(element, env)?);
+                    match element {
+                        ListElement::Value(element) => {
+                            values.push(self.evaluate_expression(element, env)?);
+                        }
+                        ListElement::Spread(element) => {
+                            let source = self.evaluate_expression(element, env)?;
+                            let Value::List(source) = source else {
+                                return Err(EvaluationError::Runtime(RuntimeError::new(
+                                    element.span,
+                                    format!(
+                                        "list spread requires a list, got {}",
+                                        source.type_name()
+                                    ),
+                                )));
+                            };
+                            let source = source.try_borrow().map_err(|_| {
+                                EvaluationError::Runtime(RuntimeError::new(
+                                    element.span,
+                                    "could not borrow list for spread",
+                                ))
+                            })?;
+                            values.extend(source.to_vec());
+                        }
+                    }
                 }
                 Ok(Value::List(List::shared(values)))
+            }
+            ExprKind::Bytes(segments) => {
+                let mut values = Vec::new();
+                for segment in segments {
+                    match segment {
+                        BytesSegment::String(text) => values.extend(text.bytes()),
+                        BytesSegment::Value(segment) => {
+                            let value = self.evaluate_expression(segment, env)?;
+                            match value {
+                                Value::Int(value @ 0..=255) => values.push(value as u8),
+                                Value::Int(value) => {
+                                    return Err(EvaluationError::Runtime(RuntimeError::new(
+                                        segment.span,
+                                        format!(
+                                            "bytes integer segment must be within 0 through 255, got {value}"
+                                        ),
+                                    )));
+                                }
+                                Value::Bytes(bytes) => values.extend_from_slice(bytes.as_slice()),
+                                value => {
+                                    return Err(EvaluationError::Runtime(RuntimeError::new(
+                                        segment.span,
+                                        format!(
+                                            "bytes segment must be an integer, a string literal, or bytes, got {}",
+                                            value.type_name()
+                                        ),
+                                    )));
+                                }
+                            }
+                        }
+                    }
+                }
+                Ok(Value::Bytes(Bytes::new(values)))
             }
             ExprKind::Map(entries) => {
                 let mut values = Vec::with_capacity(entries.len());
@@ -162,7 +228,7 @@ impl Interpreter {
             ExprKind::Assign { target, value } => {
                 let target = self.prepare_assignment_target(target, env)?;
                 let value = self.evaluate_expression(value, env)?;
-                self.commit_assignment(target, value, env)
+                self.commit_assignment(target, value)
             }
             ExprKind::If {
                 branches,
@@ -200,19 +266,8 @@ impl Interpreter {
                     Ok(value)
                 }
             }
-            ExprKind::Try { protected, clauses } => self.evaluate_try(protected, clauses, env),
-            ExprKind::Loop { label, body } => self.evaluate_loop(label.as_deref(), body, env),
-            ExprKind::Continue { label } => Err(EvaluationError::Continue {
-                label: label.clone(),
-                span: expression.span,
-            }),
-            ExprKind::Break { label, value } => {
-                let value = self.evaluate_expression(value, env)?;
-                Err(EvaluationError::Break {
-                    value,
-                    label: label.clone(),
-                    span: expression.span,
-                })
+            ExprKind::Try { protected, clauses } => {
+                self.evaluate_protected(protected, clauses, env)
             }
             ExprKind::Call { callee, args } => {
                 let callee = self.evaluate_expression(callee, env)?;
@@ -325,39 +380,6 @@ impl Interpreter {
                 self.evaluate_block(branch, &branch_env)
             }
             None => Ok(Value::Nil),
-        }
-    }
-
-    fn evaluate_loop(
-        &mut self,
-        label: Option<&str>,
-        body: &Block,
-        env: &Environment,
-    ) -> EvaluationResult<Value> {
-        loop {
-            let iteration_env = env.child();
-
-            match self.evaluate_block(body, &iteration_env) {
-                Ok(_) => {}
-                Err(EvaluationError::Continue { label: target, .. })
-                    if target.as_deref().is_none_or(|target| Some(target) == label) => {}
-                Err(EvaluationError::Break {
-                    value,
-                    label: target,
-                    ..
-                }) if target.as_deref().is_none_or(|target| Some(target) == label) => {
-                    return Ok(value);
-                }
-                Err(error @ (EvaluationError::Continue { .. } | EvaluationError::Break { .. })) => {
-                    return Err(error);
-                }
-                Err(error @ (EvaluationError::Runtime(_) | EvaluationError::Raised(_))) => {
-                    return Err(error);
-                }
-                Err(EvaluationError::NilPropagate { .. }) => {
-                    unreachable!("loop body must contain nil propagation")
-                }
-            }
         }
     }
 }

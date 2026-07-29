@@ -1,15 +1,19 @@
+mod bytes;
 mod list;
 mod map;
 mod raised;
 mod render;
+mod resource;
 
+pub use bytes::Bytes;
 pub use list::List;
+pub use resource::NativeResource;
 
 use std::sync::Arc;
 
 use gc::{Finalize, Gc, GcCell, Trace, custom_trace};
 
-use crate::ast::Block;
+use crate::ast::Body;
 use crate::environment::Environment;
 use crate::module::NativeCallback;
 use crate::span::Span;
@@ -69,12 +73,14 @@ pub enum Value {
     Int(i64),
     Float(f64),
     String(String),
+    Bytes(Bytes),
     Bool(bool),
     Nil,
     List(SharedList),
     Map(SharedMap),
     Function(SharedFunction),
     NativeFunction(NativeFunction),
+    NativeResource(NativeResource),
 }
 
 impl Finalize for Value {}
@@ -88,9 +94,13 @@ unsafe impl Trace for Value {
             Self::Int(_)
             | Self::Float(_)
             | Self::String(_)
+            | Self::Bytes(_)
             | Self::Bool(_)
             | Self::Nil
-            | Self::NativeFunction(_) => {}
+            | Self::NativeFunction(_)
+            // NativeResource payloads are Send + Sync + 'static, so safe payloads cannot hold
+            // Simi's non-Send managed values outside this traced Value graph.
+            | Self::NativeResource(_) => {}
         }
     });
 }
@@ -112,7 +122,7 @@ pub struct Raised {
 pub struct UserFunction {
     pub name: String,
     pub params: Vec<String>,
-    pub body: Block,
+    pub body: Body,
     pub closure: Environment,
     pub(crate) source_domain: u64,
     pub(crate) module: Option<String>,
@@ -137,6 +147,32 @@ pub struct NativeFunction {
 pub(crate) enum NativeImplementation {
     Callback(Arc<NativeCallback>),
     Require,
+    Iterator(IteratorIntrinsic),
+}
+
+#[derive(Clone, Copy)]
+pub(crate) enum IteratorIntrinsic {
+    TypedIterator,
+    ValidateCount,
+    ValidateRange,
+    DropNext,
+    EnumerateNext,
+    ZipNext,
+    ZipLongestNext,
+    FilterNext,
+    ToList,
+    Fold,
+    Find,
+    FindIndex,
+    Contains,
+    Any,
+    All,
+    Each,
+    Count,
+    EachWhile,
+    FoldWhile,
+    Loop,
+    RepeatNext,
 }
 
 impl NativeFunction {
@@ -164,6 +200,18 @@ impl NativeFunction {
         }
     }
 
+    pub(crate) fn iterator(
+        name: impl Into<String>,
+        arity: usize,
+        intrinsic: IteratorIntrinsic,
+    ) -> Self {
+        Self {
+            name: name.into(),
+            arity,
+            implementation: NativeImplementation::Iterator(intrinsic),
+        }
+    }
+
     pub(crate) fn implementation(&self) -> &NativeImplementation {
         &self.implementation
     }
@@ -172,7 +220,7 @@ impl NativeFunction {
 impl Finalize for NativeFunction {}
 unsafe impl Trace for NativeFunction {
     // Callback closures are Send + Sync, which prevents safe captures of Simi's
-    // non-Send managed values. The remaining require intrinsic is data-free.
+    // non-Send managed values. The remaining intrinsic discriminators are data-free.
     gc::unsafe_empty_trace!();
 }
 

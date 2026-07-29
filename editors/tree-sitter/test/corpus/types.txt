@@ -16,31 +16,100 @@ fn mutate(
       (declared_parameter
         (identifier)
         (type_annotation
-          (function_type
+          (callable_type
             (union_type
               (list_type
-                (function_type
+                (callable_type
                   (union_type
                     (named_type
                       (identifier)))))))))
       (declared_parameter
         (identifier)
         (type_annotation
-          (function_type
+          (callable_type
             (union_type
               (list_type
-                (function_type
+                (callable_type
                   (union_type
                     (named_type
                       (identifier))))
-                (function_type
+                (callable_type
                   (union_type
                     (named_type
                       (identifier))))))))))
     (return_annotation
-      (function_type
+      (callable_type
         (union_type
           (literal_type
             (nil)))))
-    (block
-      (nil))))
+    (block_expression
+      (block
+        (nil)))))
+
+==================
+Boolean record discriminant types
+==================
+
+alias Step<'a> =
+    | {done: true, ..}
+    | {done: false, value: 'a, ..}
+
+---
+
+(program
+  (alias_declaration
+    (identifier)
+    (type_parameters
+      (type_variable))
+    (callable_type
+      (union_type
+        (map_type
+          (map_type_entry
+            (identifier)
+            (callable_type
+              (union_type
+                (literal_type
+                  (boolean))))))
+        (map_type
+          (map_type_entry
+            (identifier)
+            (callable_type
+              (union_type
+                (literal_type
+                  (boolean)))))
+          (map_type_entry
+            (identifier)
+            (callable_type
+              (union_type
+                (type_variable)))))))))
+
+==================
+Primitive singleton types
+==================
+
+alias Literals = nil | true | false | "ready" | 42 | -7 | 1.0 | -0.0
+
+---
+
+(program
+  (alias_declaration
+    (identifier)
+    (callable_type
+      (union_type
+        (literal_type
+          (nil))
+        (literal_type
+          (boolean))
+        (literal_type
+          (boolean))
+        (literal_type
+          (string
+            (string_content)))
+        (literal_type
+          (integer))
+        (literal_type
+          (integer))
+        (literal_type
+          (float))
+        (literal_type
+          (float))))))

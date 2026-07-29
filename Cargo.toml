@@ -1,8 +1,9 @@
 [package]
 name = "simi"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 edition = "2024"
 rust-version = "1.88"
+publish = false
 description = "A small embeddable scripting language with expression-oriented control flow"
 license = "MIT"
 repository = "https://github.com/Microwave-WYB/simi-lang"
@@ -19,6 +20,8 @@ path = "src/main.rs"
 clap = { version = "4", features = ["derive"] }
 gc = { version = "0.5", features = ["derive", "unstable-stats"] }
 gc_derive = "0.5"
+sha2 = "0.10"
+simi-analysis = { path = "crates/simi-analysis" }
 simi-lsp = { path = "crates/simi-lsp" }
 simi-syntax = { path = "crates/simi-syntax" }
 

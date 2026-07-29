@@ -1,7 +1,9 @@
 use gc::{Gc, GcCell};
 
 use super::{EvaluationError, EvaluationResult, Interpreter, operations::numeric_equal};
-use crate::ast::{Block, Expr, Pattern, PatternClause, PatternKind, PatternRest};
+use crate::ast::{
+    Block, BytesPatternSegment, Expr, Pattern, PatternClause, PatternKind, PatternRest,
+};
 use crate::runtime::{Environment, MapKey, RuntimeError, RuntimeResult, Value};
 use crate::span::Span;
 
@@ -42,7 +44,7 @@ impl Interpreter {
                 }
             }
 
-            return self.evaluate_block(&clause.body, &clause_env);
+            return self.evaluate_body(&clause.body, &clause_env);
         }
 
         Err(EvaluationError::Runtime(RuntimeError {
@@ -51,7 +53,7 @@ impl Interpreter {
         }))
     }
 
-    pub(super) fn evaluate_try(
+    pub(super) fn evaluate_protected(
         &mut self,
         protected: &Block,
         clauses: &[PatternClause],
@@ -96,7 +98,7 @@ impl Interpreter {
                 }
             }
 
-            return match self.evaluate_block(&clause.body, &clause_env) {
+            return match self.evaluate_body(&clause.body, &clause_env) {
                 Err(EvaluationError::Raised(mut raised)) => {
                     raised.append_cause(caught);
                     Err(EvaluationError::Raised(raised))
@@ -109,10 +111,33 @@ impl Interpreter {
     }
 }
 
+#[derive(Clone, Copy)]
+enum PatternMatchMode {
+    Structural,
+    LetDestructure,
+}
+
 pub(super) fn match_pattern(
     pattern: &Pattern,
     value: &Value,
     bindings: &mut Vec<(String, Value)>,
+) -> RuntimeResult<bool> {
+    match_pattern_with_mode(pattern, value, bindings, PatternMatchMode::Structural)
+}
+
+pub(super) fn match_let_pattern(
+    pattern: &Pattern,
+    value: &Value,
+    bindings: &mut Vec<(String, Value)>,
+) -> RuntimeResult<bool> {
+    match_pattern_with_mode(pattern, value, bindings, PatternMatchMode::LetDestructure)
+}
+
+fn match_pattern_with_mode(
+    pattern: &Pattern,
+    value: &Value,
+    bindings: &mut Vec<(String, Value)>,
+    mode: PatternMatchMode,
 ) -> RuntimeResult<bool> {
     match &pattern.kind {
         PatternKind::Wildcard => Ok(true),
@@ -151,7 +176,7 @@ pub(super) fn match_pattern(
 
             let fixed_match = values.with_visible(|visible| {
                 for (element_pattern, element_value) in elements.iter().zip(visible.iter()) {
-                    if !match_pattern(element_pattern, element_value, bindings)? {
+                    if !match_pattern_with_mode(element_pattern, element_value, bindings, mode)? {
                         return Ok(false);
                     }
                 }
@@ -168,6 +193,57 @@ pub(super) fn match_pattern(
                 ));
             }
             Ok(true)
+        }
+        PatternKind::Bytes(segments) => {
+            let Value::Bytes(bytes) = value else {
+                return Ok(false);
+            };
+            let mut offset = 0usize;
+            for segment in segments {
+                match segment {
+                    BytesPatternSegment::String(expected) => {
+                        let expected = expected.as_bytes();
+                        let Some(end) = offset.checked_add(expected.len()) else {
+                            return Ok(false);
+                        };
+                        if bytes.as_slice().get(offset..end) != Some(expected) {
+                            return Ok(false);
+                        }
+                        offset = end;
+                    }
+                    BytesPatternSegment::Byte(name) => {
+                        let Some(value) = bytes.get(offset) else {
+                            return Ok(false);
+                        };
+                        offset += 1;
+                        if let Some(name) = name {
+                            bindings.push((name.clone(), Value::Int(i64::from(value))));
+                        }
+                    }
+                    BytesPatternSegment::Fixed { name, length } => {
+                        let Some(end) = offset.checked_add(*length) else {
+                            return Ok(false);
+                        };
+                        let Some(capture) = bytes.slice(offset, end) else {
+                            return Ok(false);
+                        };
+                        offset = end;
+                        if let Some(name) = name {
+                            bindings.push((name.clone(), Value::Bytes(capture)));
+                        }
+                    }
+                    BytesPatternSegment::Remainder(name) => {
+                        let Some(capture) = bytes.slice(offset, bytes.len()) else {
+                            return Ok(false);
+                        };
+                        offset = bytes.len();
+                        if let Some(name) = name {
+                            bindings.push((name.clone(), Value::Bytes(capture)));
+                        }
+                    }
+                }
+            }
+            Ok(offset == bytes.len())
         }
         PatternKind::Map { fields, rest } => {
             let Value::Map(entries) = value else {
@@ -195,7 +271,10 @@ pub(super) fn match_pattern(
                         entries.iter().find(|(entry_key, _)| entry_key == &key)
                     {
                         field_values.push(value.clone());
-                    } else if matches!(field_pattern.kind, PatternKind::Nil) {
+                    } else if matches!(field_pattern.kind, PatternKind::Nil)
+                        || matches!(mode, PatternMatchMode::LetDestructure)
+                            && matches!(field_pattern.kind, PatternKind::Binding(_))
+                    {
                         field_values.push(Value::Nil);
                     } else {
                         return Ok(false);
@@ -221,7 +300,7 @@ pub(super) fn match_pattern(
             };
 
             for ((_, field_pattern), field_value) in fields.iter().zip(&field_values) {
-                if !match_pattern(field_pattern, field_value, bindings)? {
+                if !match_pattern_with_mode(field_pattern, field_value, bindings, mode)? {
                     return Ok(false);
                 }
             }

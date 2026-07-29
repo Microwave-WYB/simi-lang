@@ -19,14 +19,11 @@ impl Context<'_> {
             .map(|list| expr_children(list.syntax()).collect::<Vec<_>>())
             .unwrap_or_default();
         argument_nodes.extend(expr_children(stage.syntax()).skip(1));
+        let call_span = span(stage.syntax());
         let mut arguments = vec![incoming.clone()];
-        arguments.extend(
-            argument_nodes
-                .iter()
-                .cloned()
-                .map(|argument| self.expression(argument)),
-        );
-        let (result, raised) = self.apply_call_type(callee, &arguments, span(stage.syntax()));
+        self.constrain_call_argument(&callee, 0, &incoming, call_span);
+        arguments.extend(self.infer_call_arguments(&callee, &argument_nodes, 1));
+        let (result, raised) = self.apply_call_type(callee, &arguments, call_span);
         let raised_entry = self.flow_state();
         let known_tap_result = member.as_ref().and_then(|(module, field)| {
             (tap && module == "std/list" && field == "append" && arguments.len() == 2).then(|| {
@@ -100,11 +97,7 @@ impl Context<'_> {
             .map(|list| expr_children(list.syntax()).collect::<Vec<_>>())
             .unwrap_or_default();
         argument_nodes.push(trailing);
-        let arguments = argument_nodes
-            .iter()
-            .cloned()
-            .map(|argument| self.expression(argument))
-            .collect::<Vec<_>>();
+        let arguments = self.infer_call_arguments(&callee, &argument_nodes, 0);
         let (result, raised) = self.apply_call_type(callee, &arguments, span(node.syntax()));
         let raised_entry = self.flow_state();
         if result != Type::Never
@@ -138,6 +131,252 @@ impl Context<'_> {
         );
         result
     }
+    fn infer_call_arguments(
+        &mut self,
+        callee: &Type,
+        arguments: &[syntax::Expr],
+        parameter_offset: usize,
+    ) -> Vec<Type> {
+        let mut deferred_empty_lists = Vec::new();
+        let mut deferred_empty_maps = Vec::new();
+        let inferred = arguments
+            .iter()
+            .enumerate()
+            .map(|(index, argument)| {
+                let parameter_index = parameter_offset + index;
+                let expected = self.call_parameter_type(callee, parameter_index);
+                let defer_empty_literals = expected.as_ref().is_some_and(|expected| {
+                    self.call_parameter_threads_inference_through_callback(
+                        callee,
+                        parameter_index,
+                        expected,
+                    )
+                });
+                let actual = self.infer_call_argument(
+                    argument.clone(),
+                    expected.as_ref(),
+                    defer_empty_literals,
+                    &mut deferred_empty_lists,
+                    &mut deferred_empty_maps,
+                );
+                self.constrain_call_argument(
+                    callee,
+                    parameter_index,
+                    &actual,
+                    span(argument.syntax()),
+                );
+                actual
+            })
+            .collect();
+        self.finalize_deferred_empty_lists(deferred_empty_lists);
+        self.finalize_deferred_empty_maps(deferred_empty_maps);
+        inferred
+    }
+
+    fn infer_call_argument(
+        &mut self,
+        argument: syntax::Expr,
+        expected: Option<&Type>,
+        defer_empty_literals: bool,
+        deferred_empty_lists: &mut Vec<u32>,
+        deferred_empty_maps: &mut Vec<(u32, u32)>,
+    ) -> Type {
+        match (argument, expected) {
+            (syntax::Expr::Function(function), Some(Type::Function(callable))) => {
+                self.infer_anonymous_expected(function, callable)
+            }
+            (syntax::Expr::Paren(paren), Some(expected @ Type::Function(_))) => {
+                child_expr(paren.syntax(), 0).map_or(Type::Unknown, |inner| {
+                    self.infer_call_argument(
+                        inner,
+                        Some(expected),
+                        false,
+                        deferred_empty_lists,
+                        deferred_empty_maps,
+                    )
+                })
+            }
+            (argument, Some(expected)) if type_contains_singleton(expected) => {
+                direct_literal_type(&argument).unwrap_or_else(|| self.expression(argument))
+            }
+            (argument, _) => {
+                let inferred = self.expression(argument.clone());
+                if defer_empty_literals {
+                    self.defer_empty_container_literals(
+                        &argument,
+                        inferred,
+                        deferred_empty_lists,
+                        deferred_empty_maps,
+                    )
+                } else {
+                    inferred
+                }
+            }
+        }
+    }
+
+    fn call_parameter_threads_inference_through_callback(
+        &self,
+        callee: &Type,
+        parameter_index: usize,
+        parameter: &Type,
+    ) -> bool {
+        let mut variables = HashSet::new();
+        collect_infers(parameter, &mut variables);
+        if variables.is_empty() {
+            return false;
+        }
+        let Type::Function(callable) = callee else {
+            return false;
+        };
+        variables.into_iter().any(|variable| {
+            callable
+                .parameters
+                .iter()
+                .skip(parameter_index + 1)
+                .any(|later| {
+                    let Type::Function(callback) = &later.ty else {
+                        return false;
+                    };
+                    callback
+                        .parameters
+                        .iter()
+                        .any(|parameter| contains_specific_infer(&parameter.ty, variable))
+                        && contains_specific_infer(&callback.result, variable)
+                })
+        })
+    }
+
+    fn defer_empty_container_literals(
+        &mut self,
+        expression: &syntax::Expr,
+        inferred: Type,
+        deferred_empty_lists: &mut Vec<u32>,
+        deferred_empty_maps: &mut Vec<(u32, u32)>,
+    ) -> Type {
+        let deferred = match (expression, inferred) {
+            (syntax::Expr::List(list), Type::ListExact(items)) => {
+                let elements =
+                    support::children::<syntax::ListElement>(list.syntax()).collect::<Vec<_>>();
+                if elements.is_empty() {
+                    let Type::Infer(variable) = self.fresh() else {
+                        unreachable!("fresh types are inference variables")
+                    };
+                    deferred_empty_lists.push(variable);
+                    self.deferred_empty_list_infers.insert(variable);
+                    Type::ListRest(Box::new(Type::Infer(variable)))
+                } else if elements
+                    .iter()
+                    .all(|element| direct_token(element.syntax(), K::DOT_DOT).is_none())
+                    && elements.len() == items.len()
+                {
+                    Type::ListExact(
+                        elements
+                            .iter()
+                            .filter_map(|element| child_expr(element.syntax(), 0))
+                            .zip(items)
+                            .map(|(child, item)| {
+                                self.defer_empty_container_literals(
+                                    &child,
+                                    item,
+                                    deferred_empty_lists,
+                                    deferred_empty_maps,
+                                )
+                            })
+                            .collect(),
+                    )
+                } else {
+                    Type::ListExact(items)
+                }
+            }
+            (
+                syntax::Expr::Map(map),
+                Type::Map {
+                    mut fields,
+                    index,
+                    open,
+                },
+            ) => {
+                if fields.is_empty() && index.is_none() && !open {
+                    let Type::Infer(key) = self.fresh() else {
+                        unreachable!("fresh types are inference variables")
+                    };
+                    let Type::Infer(value) = self.fresh() else {
+                        unreachable!("fresh types are inference variables")
+                    };
+                    deferred_empty_maps.push((key, value));
+                    self.deferred_empty_map_infers.extend([key, value]);
+                    Type::Map {
+                        fields,
+                        index: Some((Box::new(Type::Infer(key)), Box::new(Type::Infer(value)))),
+                        open,
+                    }
+                } else {
+                    for entry in support::children::<syntax::MapEntry>(map.syntax()) {
+                        let Some(name) = direct_token(entry.syntax(), K::IDENT) else {
+                            continue;
+                        };
+                        let Some(value) = expr_children(entry.syntax()).next() else {
+                            continue;
+                        };
+                        let Some((_, field)) =
+                            fields.iter_mut().find(|(field, _)| field == name.text())
+                        else {
+                            continue;
+                        };
+                        *field = self.defer_empty_container_literals(
+                            &value,
+                            field.clone(),
+                            deferred_empty_lists,
+                            deferred_empty_maps,
+                        );
+                    }
+                    Type::Map {
+                        fields,
+                        index,
+                        open,
+                    }
+                }
+            }
+            (syntax::Expr::Paren(paren), inferred) => child_expr(paren.syntax(), 0)
+                .map(|inner| {
+                    self.defer_empty_container_literals(
+                        &inner,
+                        inferred.clone(),
+                        deferred_empty_lists,
+                        deferred_empty_maps,
+                    )
+                })
+                .unwrap_or(inferred),
+            (_, inferred) => inferred,
+        };
+        if let Some((_, recorded)) = self
+            .expression_types
+            .iter_mut()
+            .rev()
+            .find(|(at, _)| *at == span(expression.syntax()))
+        {
+            *recorded = deferred.clone();
+        }
+        deferred
+    }
+
+    fn call_parameter_type(&self, callee: &Type, index: usize) -> Option<Type> {
+        let Type::Function(callable) = self.resolve_type(callee.clone()) else {
+            return None;
+        };
+        callable
+            .parameters
+            .get(index)
+            .map(|parameter| self.resolve_type(parameter.ty.clone()))
+    }
+
+    fn constrain_call_argument(&mut self, callee: &Type, index: usize, actual: &Type, at: Span) {
+        if let Some(expected) = self.call_parameter_type(callee, index) {
+            self.constrain(&expected, actual, at);
+        }
+    }
+
     pub(super) fn apply_call_type(
         &mut self,
         callee: Type,
@@ -157,9 +396,6 @@ impl Context<'_> {
                         ),
                         at,
                     );
-                }
-                for (actual, expected) in arguments.iter().zip(&callable.parameters) {
-                    self.constrain(&expected.ty, actual, at);
                 }
                 let raised = if callable.parameters.len() == arguments.len() {
                     (*callable.raised).clone()
@@ -195,11 +431,7 @@ impl Context<'_> {
         let arguments = support::child::<syntax::ArgList>(node.syntax())
             .map(|list| expr_children(list.syntax()).collect::<Vec<_>>())
             .unwrap_or_default();
-        let argument_types = arguments
-            .iter()
-            .cloned()
-            .map(|argument| self.expression(argument))
-            .collect::<Vec<_>>();
+        let argument_types = self.infer_call_arguments(&callee, &arguments, 0);
         let (mut result, raised) =
             self.apply_call_type(callee, &argument_types, span(node.syntax()));
         if let Some(required_type) = required_type {

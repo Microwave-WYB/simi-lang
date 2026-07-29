@@ -57,6 +57,15 @@ fn assert_simi_hover(markup: &MarkupContent, expected: &str) {
     assert_eq!(markup.value, formatted);
 }
 
+fn assert_simi_hover_raw(markup: &MarkupContent) -> String {
+    assert_eq!(markup.kind, MarkupKind::Markdown);
+    let value = &markup.value;
+    let start = value.find("```simi\n").unwrap();
+    let body_start = start + "```simi\n".len();
+    let end = value[body_start..].find("\n```").unwrap();
+    value[body_start..body_start + end].to_owned()
+}
+
 fn text_position(source: &str, needle: &str, occurrence: usize) -> Position {
     let offset = source
         .match_indices(needle)
@@ -253,6 +262,53 @@ fn syntax_diagnostics_use_structured_gleam_style_presentation() {
 }
 
 #[test]
+fn nested_named_function_declarations_publish_a_diagnostic_at_the_fn_token() {
+    let source = "fn outer() do\n    fn inner()
+    nil\nend";
+    let mut backend = Backend::new();
+    let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
+    assert_eq!(diagnostics.diagnostics.len(), 1);
+    let diagnostic = &diagnostics.diagnostics[0];
+    assert_eq!(
+        diagnostic.code,
+        Some(lsp_types::NumberOrString::String("syntax_error".to_owned()))
+    );
+    assert_eq!(
+        diagnostic.message,
+        "Syntax error\n\nNamed function declarations are only allowed at the top level; \
+         use let name = fn(...) expression."
+    );
+    assert_eq!(diagnostic.range.start, text_position(source, "fn inner", 0));
+    assert_eq!(
+        diagnostic.range.end,
+        Position::new(
+            diagnostic.range.start.line,
+            diagnostic.range.start.character + 2
+        )
+    );
+}
+
+#[test]
+fn binding_reassignment_publishes_a_diagnostic_at_the_target_name() {
+    let source = "let value = 1\nvalue = 2";
+    let mut backend = Backend::new();
+    let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
+    assert_eq!(diagnostics.diagnostics.len(), 1);
+    let diagnostic = &diagnostics.diagnostics[0];
+    assert_eq!(
+        diagnostic.code,
+        Some(lsp_types::NumberOrString::String("syntax_error".to_owned()))
+    );
+    assert_eq!(
+        diagnostic.message,
+        "Syntax error\n\nBindings are immutable and cannot be reassigned; \
+         declare a new binding with let or mutate a list or map field."
+    );
+    assert_eq!(diagnostic.range.start, Position::new(1, 0));
+    assert_eq!(diagnostic.range.end, Position::new(1, 5));
+}
+
+#[test]
 fn completion_suppresses_exact_visible_identifiers_during_recovery() {
     let source = "fn fib(n) do\n    case n\n    of\nend";
     let mut backend = Backend::new();
@@ -319,8 +375,63 @@ fn completion_prioritizes_partial_lexical_matches_before_builtins() {
 }
 
 #[test]
+fn requires_keyword_has_completion_and_hover_help() {
+    let completion_source = "requ";
+    let mut backend = Backend::new();
+    open(&mut backend, completion_source);
+    let completion: Option<CompletionResponse> = serde_json::from_value(
+        request(
+            &mut backend,
+            Completion::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": position::position(completion_source, completion_source.len()).unwrap(),
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let CompletionResponse::Array(items) = completion.unwrap() else {
+        panic!("expected completion array")
+    };
+    let item = items
+        .iter()
+        .find(|item| item.label == "requires")
+        .expect("requires keyword completion");
+    assert_eq!(item.kind, Some(CompletionItemKind::KEYWORD));
+    assert_eq!(
+        item.detail.as_deref(),
+        Some("requires {std = {simi = revision}}")
+    );
+
+    let hover_source = "requires {}";
+    let mut backend = Backend::new();
+    open(&mut backend, hover_source);
+    let hover: Option<Hover> = serde_json::from_value(
+        request(
+            &mut backend,
+            HoverRequest::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": text_position(hover_source, "requires", 0),
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let HoverContents::Markup(markup) = hover.expect("requires keyword hover").contents else {
+        panic!("expected markup")
+    };
+    assert_eq!(
+        markup.value,
+        "keyword `requires`\n\nDeclares static package requirements before executable source items. Use `{simi = revision}` for the official standard-library catalog, `{git = url, rev = revision}` for Git packages, or `{path = path}` for development packages.\n\nSyntax: requires {std = {simi = revision}}"
+    );
+}
+
+#[test]
 fn same_scope_shadows_are_diagnostic_free_and_navigate_by_binding_version() {
-    let source = "let closure = fn() do later end let later = 1 let later = 2 later";
+    let source = "let closure = fn()
+    later let later = 1 let later = 2 later";
     let mut backend = Backend::new();
     let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
     assert!(diagnostics.diagnostics.is_empty());
@@ -535,7 +646,9 @@ fn memory_transport_performs_initialize_shutdown_and_exit_lifecycle() {
     };
     assert!(response.error.is_none());
     let result: InitializeResult = serde_json::from_value(response.result.unwrap()).unwrap();
-    assert_eq!(result.server_info.unwrap().name, "simi-lsp");
+    let server_info = result.server_info.unwrap();
+    assert_eq!(server_info.name, "simi-lsp");
+    assert_eq!(server_info.version.as_deref(), Some("0.1.0-alpha.1"));
     client
         .sender
         .send(Message::Notification(Notification::new(
@@ -568,10 +681,34 @@ fn memory_transport_performs_initialize_shutdown_and_exit_lifecycle() {
 }
 
 #[test]
+fn list_spread_hover_reports_the_flattened_exact_shape() {
+    let source = "let spread = [1, ..[2, 3], \"four\"]";
+    let mut backend = Backend::new();
+    open(&mut backend, source);
+    let hover: Option<Hover> = serde_json::from_value(
+        request(
+            &mut backend,
+            HoverRequest::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": text_position(source, "spread", 0),
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let HoverContents::Markup(markup) = hover.expect("spread hover").contents else {
+        panic!("expected markup")
+    };
+    assert_simi_hover(&markup, "[integer, integer, integer, \"four\"]");
+}
+
+#[test]
 fn module_members_show_source_signatures_and_plain_text_docs() {
     let module = r#"
 --- Append one value.
-fn append(xs, x) do nil end
+fn append(xs, x)
+    nil
 { append = append }
 "#;
     let mut backend = Backend::with_module_sources([("std/list", module)]);
@@ -596,7 +733,7 @@ fn append(xs, x) do nil end
     assert_eq!(items[0].label, "append");
     assert_eq!(
         items[0].detail.as_deref(),
-        Some("append : (xs: 'a, x: 'b) -> nil")
+        Some("append : fn(xs: 'a, x: 'b) -> nil")
     );
     assert_eq!(
         items[0].documentation,
@@ -621,7 +758,7 @@ fn append(xs, x) do nil end
     let HoverContents::Markup(markup) = hover.unwrap().contents else {
         panic!("expected markup")
     };
-    assert_simi_hover(&markup, "(xs: 'a, x: 'b) -> nil\n\nAppend one value.");
+    assert_simi_hover(&markup, "fn(xs: 'a, x: 'b) -> nil\n\nAppend one value.");
 }
 
 #[test]
@@ -630,7 +767,8 @@ fn module_documentation_appears_on_require_literals_and_module_bindings() {
 ---- Standard output operations.
 ---- Values are flushed automatically.
 
-fn println(value) do nil end
+fn println(value)
+    nil
 { println = println }
 "#;
     let source = "let stdout = require(\"std/io\") stdout";
@@ -638,12 +776,12 @@ fn println(value) do nil end
         (
             "std/io",
             0,
-            "{ println: (value: 'a) -> nil }\n\nStandard output operations.\nValues are flushed automatically.",
+            "{ println: fn(value: 'a) -> nil }\n\nStandard output operations.\nValues are flushed automatically.",
         ),
         (
             "stdout",
             1,
-            "{ println: (value: 'a) -> nil }\n\nStandard output operations.\nValues are flushed automatically.",
+            "{ println: fn(value: 'a) -> nil }\n\nStandard output operations.\nValues are flushed automatically.",
         ),
     ] {
         let mut backend = Backend::with_module_sources([("std/io", module)]);
@@ -671,10 +809,12 @@ fn println(value) do nil end
 fn direct_module_fields_and_aliases_keep_signatures_and_docs() {
     let module = r#"
 --- Print one value.
-fn println(value) do nil end
+fn println(value)
+    nil
 --- Inspect text through a native alias.
-let inspect: string -> string noraise = host.inspect
-{ println = println, identity = fn(value) do value end, inspect = inspect }
+let inspect: fn(string) -> string ! never = host.inspect
+{ println = println, identity = fn(value)
+    value, inspect = inspect }
 "#;
 
     for (source, needle, occurrence, expected) in [
@@ -682,25 +822,25 @@ let inspect: string -> string noraise = host.inspect
             "require(\"std/io\").println",
             "println",
             0,
-            "(value: 'a) -> nil\n\nPrint one value.",
+            "fn(value: 'a) -> nil\n\nPrint one value.",
         ),
         (
             "let print = require(\"std/io\").println print",
             "print",
             2,
-            "(value: 'a) -> nil\n\nPrint one value.",
+            "fn(value: 'a) -> nil\n\nPrint one value.",
         ),
         (
             "require(\"std/io\").identity",
             "identity",
             0,
-            "(value: 'a) -> 'a",
+            "fn(value: 'a) -> 'a",
         ),
         (
             "require(\"std/io\").inspect",
             "inspect",
             0,
-            "string -> string noraise\n\nInspect text through a native alias.",
+            "fn(string) -> string ! never\n\nInspect text through a native alias.",
         ),
     ] {
         let mut backend = Backend::with_module_sources([("std/io", module)]);
@@ -746,7 +886,10 @@ let inspect: string -> string noraise = host.inspect
         .find(|item| item.label == "print")
         .expect("print completion");
     assert_eq!(print.kind, Some(CompletionItemKind::FUNCTION));
-    assert_eq!(print.detail.as_deref(), Some("print : (value: 'a) -> nil"));
+    assert_eq!(
+        print.detail.as_deref(),
+        Some("print : fn(value: 'a) -> nil")
+    );
     assert_eq!(
         print.documentation,
         Some(Documentation::String("Print one value.".to_owned()))
@@ -754,7 +897,8 @@ let inspect: string -> string noraise = host.inspect
 
     let typed_source = concat!(
         "let inspect = require(\"std/io\").inspect\n",
-        "let callback: integer -> integer = fn(value) do value end\n",
+        "let callback: fn(integer) -> integer = fn(value)
+    value\n",
     );
     let mut backend = Backend::with_module_sources([("std/io", module)]);
     open(&mut backend, typed_source);
@@ -806,7 +950,7 @@ let inspect: string -> string noraise = host.inspect
     assert_eq!(inspect.kind, Some(CompletionItemKind::FUNCTION));
     assert_eq!(
         inspect.detail.as_deref(),
-        Some("inspect : string -> string noraise")
+        Some("inspect : fn(string) -> string ! never")
     );
     assert_eq!(
         inspect.documentation,
@@ -820,7 +964,8 @@ let inspect: string -> string noraise = host.inspect
 fn nested_module_hover_and_utf16_member_completion_use_catalog_without_diagnostics() {
     let module = r#"
 --- Run a nested operation.
-fn run(value) do value end
+fn run(value)
+    value
 { nested = { run = run } }
 "#;
     let complete = "let emoji = \"😀\"\nlet module = require(\"nested\")\nmodule.nested.run";
@@ -843,7 +988,7 @@ fn run(value) do value end
     let HoverContents::Markup(markup) = hover.unwrap().contents else {
         panic!("expected markup")
     };
-    assert_simi_hover(&markup, "(value: 'a) -> 'a\n\nRun a nested operation.");
+    assert_simi_hover(&markup, "fn(value: 'a) -> 'a\n\nRun a nested operation.");
 
     let incomplete = "let emoji = \"😀\"\nlet module = require(\"nested\")\nmodule.nested.";
     let mut backend = Backend::with_module_sources([("nested", module)]);
@@ -864,7 +1009,10 @@ fn run(value) do value end
         panic!("expected completion array")
     };
     assert_eq!(items.len(), 1);
-    assert_eq!(items[0].detail.as_deref(), Some("run : (value: 'a) -> 'a"));
+    assert_eq!(
+        items[0].detail.as_deref(),
+        Some("run : fn(value: 'a) -> 'a")
+    );
 }
 
 #[test]
@@ -890,8 +1038,690 @@ fn real_annotated_stdlib_facade_supplies_generic_member_types() {
     };
     assert_simi_hover(
         &markup,
-        "<'a, 'b, 'c, 'd> (\n    iterator: () -> { done: boolean, .. } raises 'c,\n    transform: 'a -> 'b raises 'd,\n) -> () -> { done: boolean, .. } raises 'c | 'd noraise",
+        "fn<'a, 'b, 'c, 'd>(\n    iterator: fn() -> { done: true, .. } | { done: false, value: 'a, .. } ! 'c,\n    transform: fn('a) -> 'b ! 'd,\n) -> fn() -> { done: true, .. } | { done: false, value: 'b, .. } ! 'c | 'd ! never",
     );
+}
+
+#[test]
+fn iterator_loop_hover_exposes_control_contract_and_documentation() {
+    let module = include_str!("../../../../stdlib/iter.simi");
+    let source = "let iter = require(\"std/iter\") iter.loop";
+    let mut backend = Backend::with_module_sources([("std/iter", module)]);
+    open(&mut backend, source);
+    let hover: Option<Hover> = serde_json::from_value(
+        request(
+            &mut backend,
+            HoverRequest::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": text_position(source, "loop", 0),
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let HoverContents::Markup(markup) = hover.expect("stdlib hover").contents else {
+        panic!("expected markup")
+    };
+    assert!(markup.value.contains("body: fn() ->"), "{}", markup.value);
+    assert!(
+        markup.value.contains("control: \"continue\"")
+            && markup.value.contains("control: \"break\""),
+        "{}",
+        markup.value
+    );
+    assert!(
+        markup
+            .value
+            .contains("Repeatedly run body until it returns an explicit break control."),
+        "{}",
+        markup.value
+    );
+}
+
+#[test]
+fn iterator_pair_adapter_hover_preserves_item_and_source_effect_types() {
+    let module = include_str!("../../../../stdlib/iter.simi");
+    let source = "let iter = require(\"std/iter\") iter.enumerate";
+    let mut backend = Backend::with_module_sources([("std/iter", module)]);
+    open(&mut backend, source);
+    let hover: Option<Hover> = serde_json::from_value(
+        request(
+            &mut backend,
+            HoverRequest::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": text_position(source, "enumerate", 0),
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let HoverContents::Markup(markup) = hover.expect("stdlib hover").contents else {
+        panic!("expected markup")
+    };
+    assert!(
+        markup.value.contains("value: [integer, 'a]"),
+        "{}",
+        markup.value
+    );
+    assert!(markup.value.contains("! 'b ! never"), "{}", markup.value);
+    assert!(
+        markup
+            .value
+            .contains("Pair every value with its zero-based integer index."),
+        "{}",
+        markup.value
+    );
+}
+
+#[test]
+fn portable_prelude_members_have_the_same_lsp_metadata_as_require() {
+    let source = "number.to_string";
+    let mut backend = Backend::with_module_sources([(
+        "std/number",
+        include_str!("../../../../stdlib/number.simi"),
+    )]);
+    open(&mut backend, source);
+    let hover: Option<Hover> = serde_json::from_value(
+        request(
+            &mut backend,
+            HoverRequest::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": text_position(source, "to_string", 0),
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let HoverContents::Markup(markup) = hover.expect("portable prelude hover").contents else {
+        panic!("expected markup")
+    };
+    assert_simi_hover(
+        &markup,
+        "fn(value: integer | float) -> string ! never\n\nRender a number using canonical Simi notation.",
+    );
+}
+
+#[test]
+fn real_iterator_facades_publish_no_diagnostics() {
+    for source in [
+        include_str!("../../../../stdlib/list.simi"),
+        include_str!("../../../../stdlib/map.simi"),
+        include_str!("../../../../stdlib/iter.simi"),
+    ] {
+        let mut backend = Backend::new();
+        let published = diagnostics_from(open(&mut backend, source).remove(0));
+        assert!(
+            published.diagnostics.is_empty(),
+            "{:?}",
+            published.diagnostics
+        );
+    }
+}
+
+#[test]
+fn bytes_annotations_and_type_narrowing_hover_as_the_primitive_type() {
+    let source = r#"fn first(value: bytes)
+    value[0]
+fn classify(value: bytes | string)
+    if type(value) == "bytes" then value[0] else value end
+"#;
+    let mut backend = Backend::new();
+    let published = diagnostics_from(open(&mut backend, source).remove(0));
+    assert!(
+        published.diagnostics.is_empty(),
+        "{:?}",
+        published.diagnostics
+    );
+
+    for occurrence in [0, 1, 4] {
+        let hover: Option<Hover> = serde_json::from_value(
+            request(
+                &mut backend,
+                HoverRequest::METHOD,
+                json!({
+                    "textDocument": { "uri": uri() },
+                    "position": text_position(source, "value", occurrence),
+                }),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let HoverContents::Markup(markup) = hover.expect("bytes hover").contents else {
+            panic!("expected markup");
+        };
+        assert_simi_hover(&markup, "bytes");
+    }
+}
+
+#[test]
+fn bytes_literals_hover_as_bytes_and_reject_dynamic_text_segments() {
+    let source = "let data = #[0, \"PNG\", 255]";
+    let mut backend = Backend::new();
+    let published = diagnostics_from(open(&mut backend, source).remove(0));
+    assert!(
+        published.diagnostics.is_empty(),
+        "{:?}",
+        published.diagnostics
+    );
+
+    let hover: Option<Hover> = serde_json::from_value(
+        request(
+            &mut backend,
+            HoverRequest::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": text_position(source, "data", 0),
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let HoverContents::Markup(markup) = hover.expect("bytes literal hover").contents else {
+        panic!("expected markup")
+    };
+    assert_simi_hover(&markup, "bytes");
+
+    let source = "let text = \"PNG\" let data = #[text]";
+    let published = diagnostics_from(open(&mut backend, source).remove(0));
+    assert!(
+        published
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("Type mismatch")),
+        "{:?}",
+        published.diagnostics
+    );
+}
+
+#[test]
+fn bytes_pattern_captures_hover_as_integer_and_bytes() {
+    let source = r#"let result = case #[1, 2, 3] of
+    #[byte, fixed:bytes(1), rest:bytes] => [byte, fixed, rest]
+end"#;
+    let mut backend = Backend::new();
+    let published = diagnostics_from(open(&mut backend, source).remove(0));
+    assert!(
+        published.diagnostics.is_empty(),
+        "{:?}",
+        published.diagnostics
+    );
+
+    for (name, expected) in [("byte", "integer"), ("fixed", "bytes"), ("rest", "bytes")] {
+        let hover: Option<Hover> = serde_json::from_value(
+            request(
+                &mut backend,
+                HoverRequest::METHOD,
+                json!({
+                    "textDocument": { "uri": uri() },
+                    "position": text_position(source, name, 0),
+                }),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let HoverContents::Markup(markup) = hover.expect("bytes pattern capture hover").contents
+        else {
+            panic!("expected markup");
+        };
+        assert_simi_hover(&markup, expected);
+    }
+}
+
+#[test]
+fn primitive_singleton_annotations_hover_without_narrowing_expression_inference() {
+    let source = r#"let count = 42
+let exact_integer: 42 = 42
+let exact_float: 1.0 = 1.0
+let normalized_zero: 0.0 = -0.0
+let exact_text: "ready" = "ready"
+let exact_flag: false = false
+let mismatch: 42 = 43
+"#;
+    let mut backend = Backend::new();
+    let published = diagnostics_from(open(&mut backend, source).remove(0));
+    assert_eq!(
+        published.diagnostics.len(),
+        1,
+        "{:?}",
+        published.diagnostics
+    );
+    assert!(published.diagnostics[0].message.contains("Type mismatch"));
+
+    for (name, expected) in [
+        ("count", "integer"),
+        ("exact_integer", "42"),
+        ("exact_float", "1.0"),
+        ("normalized_zero", "0.0"),
+        ("exact_text", "\"ready\""),
+        ("exact_flag", "false"),
+    ] {
+        let hover: Option<Hover> = serde_json::from_value(
+            request(
+                &mut backend,
+                HoverRequest::METHOD,
+                json!({
+                    "textDocument": { "uri": uri() },
+                    "position": text_position(source, name, 0),
+                }),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let HoverContents::Markup(markup) = hover.expect("singleton hover").contents else {
+            panic!("expected markup")
+        };
+        assert_simi_hover(&markup, expected);
+    }
+}
+
+#[test]
+fn contextual_singleton_function_bodies_and_mutations_publish_exact_hovers() {
+    let source = r#"fn direct_true() -> true true
+fn direct_int() -> 42 42
+let anon = fn() -> false false
+let annotated: fn() -> true ! never = fn() true
+let tagged: {done: true} = {done = true}
+tagged.done = true
+let indexed: {done: true} = {done = true}
+indexed["done"] = true
+let initial_code: 41 = 41
+let field_union: {code: 41 | 42} = {code = initial_code}
+field_union.code = 42
+field_union.code = 41
+let index_union: {code: 41 | 42} = {code = initial_code}
+index_union["code"] = 42
+index_union["code"] = 41
+"#;
+    let mut backend = Backend::new();
+    let published = diagnostics_from(open(&mut backend, source).remove(0));
+    assert!(
+        published.diagnostics.is_empty(),
+        "{:?}",
+        published.diagnostics
+    );
+
+    for (name, expected) in [
+        ("direct_true", "fn() -> true"),
+        ("direct_int", "fn() -> 42"),
+        ("anon", "fn() -> false"),
+        ("annotated", "fn() -> true ! never"),
+        ("tagged", "{ done: true }"),
+        ("indexed", "{ done: true }"),
+        ("field_union", "{ code: 41 | 42 }"),
+        ("index_union", "{ code: 41 | 42 }"),
+    ] {
+        let hover: Option<Hover> = serde_json::from_value(
+            request(
+                &mut backend,
+                HoverRequest::METHOD,
+                json!({
+                    "textDocument": { "uri": uri() },
+                    "position": text_position(source, name, 0),
+                }),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let HoverContents::Markup(markup) = hover.expect("contextual singleton hover").contents
+        else {
+            panic!("expected markup")
+        };
+        assert_simi_hover(&markup, expected);
+    }
+}
+
+#[test]
+fn broad_mutation_values_publish_singleton_mismatch_diagnostics() {
+    let source = r#"let field_flag: {done: true} = {done = true}
+let index_flag: {done: true} = {done = true}
+let broad_flag = false and true
+field_flag.done = broad_flag
+index_flag["done"] = broad_flag
+"#;
+    let mut backend = Backend::new();
+    let published = diagnostics_from(open(&mut backend, source).remove(0));
+    assert_eq!(
+        published.diagnostics.len(),
+        2,
+        "{:?}",
+        published.diagnostics
+    );
+    assert!(published.diagnostics.iter().all(|diagnostic| {
+        diagnostic.code == Some(NumberOrString::String("type_mismatch".to_owned()))
+            && diagnostic.message.contains("Type mismatch")
+    }));
+}
+
+#[test]
+fn iterator_step_hover_and_boolean_narrowing_are_sound() {
+    let source = r#"let iter = require("std/iter")
+let step = iter.next(map.iter({}))
+if step.done then
+    let exhausted_entry = step.value
+else
+    let live_entry = step.value
+end
+"#;
+    let mut backend = Backend::with_module_sources([
+        ("std/iter", include_str!("../../../../stdlib/iter.simi")),
+        ("std/map", include_str!("../../../../stdlib/map.simi")),
+    ]);
+    let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
+    assert!(
+        diagnostics.diagnostics.is_empty(),
+        "{:?}",
+        diagnostics.diagnostics
+    );
+
+    for (name, expected) in [
+        (
+            "next",
+            "fn<'a, 'b>(\n    iterator: fn() -> { done: true, .. } | { done: false, value: 'a, .. } ! 'b,\n) -> { done: true, .. } | { done: false, value: 'a, .. } ! 'b",
+        ),
+        ("exhausted_entry", "any"),
+        (
+            "live_entry",
+            "{ key: boolean | integer | float | string, value: any, .. }",
+        ),
+    ] {
+        let hover: Option<Hover> = serde_json::from_value(
+            request(
+                &mut backend,
+                HoverRequest::METHOD,
+                json!({
+                    "textDocument": { "uri": uri() },
+                    "position": text_position(source, name, 0),
+                }),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let HoverContents::Markup(markup) = hover.expect("iterator step hover").contents else {
+            panic!("expected markup")
+        };
+        assert_simi_hover(&markup, expected);
+    }
+}
+
+#[test]
+fn real_iterator_pipeline_contextualizes_unannotated_fold_callback() {
+    let source = r#"let iter = require("std/iter")
+let number = require("std/number")
+let io = require("std/io")
+let total =
+    [1, 2, 3]
+    |> list.iter()
+    |> iter.fold(0, fn(acc, item)
+        acc + item)
+let rendered = total |> number.to_string()
+let mapped =
+    [1, 2, 3]
+    |> list.iter()
+    |> iter.map(fn(mapped_item)
+        mapped_item + 1)
+    |> iter.to_list()
+let keys =
+    map.iter({first = 1})
+    |> iter.map(fn(entry)
+        entry.key)
+    |> iter.to_list()
+[1, 2, 3, 4, 5]
+|> list.iter()
+|> iter.fold(0, fn(acc, n)
+    acc + n)
+|> number.to_string()
+|> io.println()
+"#;
+    let mut backend = Backend::with_module_sources([
+        ("std/list", include_str!("../../../../stdlib/list.simi")),
+        ("std/iter", include_str!("../../../../stdlib/iter.simi")),
+        ("std/map", include_str!("../../../../stdlib/map.simi")),
+        ("std/number", include_str!("../../../../stdlib/number.simi")),
+        ("std/io", include_str!("../../../../stdlib/io.simi")),
+    ]);
+    let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
+    assert!(
+        diagnostics.diagnostics.is_empty(),
+        "{:?}",
+        diagnostics.diagnostics
+    );
+
+    for (name, occurrence, expected) in [
+        ("total", 0, "integer"),
+        ("acc", 0, "integer"),
+        ("item", 0, "integer"),
+        ("rendered", 0, "string"),
+        ("mapped", 0, "[..integer]"),
+        ("mapped_item", 0, "integer"),
+        (
+            "entry",
+            0,
+            "{ key: boolean | integer | float | string, value: any, .. }",
+        ),
+        ("keys", 0, "[..(boolean | integer | float | string)]"),
+    ] {
+        let hover: Option<Hover> = serde_json::from_value(
+            request(
+                &mut backend,
+                HoverRequest::METHOD,
+                json!({
+                    "textDocument": { "uri": uri() },
+                    "position": text_position(source, name, occurrence),
+                }),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let HoverContents::Markup(markup) = hover.expect("iterator hover").contents else {
+            panic!("expected markup")
+        };
+        assert_simi_hover(&markup, expected);
+    }
+}
+
+#[test]
+fn generic_callback_without_element_evidence_has_exact_empty_list_hovers() {
+    let source = r#"fn bridge<'state>(initial: 'state, callback: fn('state) -> 'state) -> 'state
+    callback(initial)
+let inferred = bridge([], fn(xs)
+    xs)
+let unchanged: [] = bridge([], fn(other)
+    other)
+"#;
+    let mut backend = Backend::new();
+    let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
+    assert!(
+        diagnostics.diagnostics.is_empty(),
+        "{:?}",
+        diagnostics.diagnostics
+    );
+
+    for name in ["inferred", "unchanged", "xs", "other"] {
+        let hover: Option<Hover> = serde_json::from_value(
+            request(
+                &mut backend,
+                HoverRequest::METHOD,
+                json!({
+                    "textDocument": { "uri": uri() },
+                    "position": text_position(source, name, 0),
+                }),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let HoverContents::Markup(markup) = hover.expect("exact empty list hover").contents else {
+            panic!("expected markup")
+        };
+        assert_simi_hover(&markup, "[]");
+    }
+}
+
+#[test]
+fn contextual_empty_map_fold_while_has_precise_protocol_hovers() {
+    let source = r#"let iter = require("std/iter")
+
+fn two_sum(values: [..integer], target: integer)
+    values
+    |> list.iter()
+    |> iter.enumerate()
+    |> iter.fold_while({}) <| fn(seen, item) do
+        let index = item[0]
+        let value = item[1]
+        let match_index = seen[target - value]
+        if match_index == nil then
+            seen[value] = index
+            iter.continue(seen)
+        else
+            iter.break([match_index, index])
+        end
+    end
+"#;
+    let mut backend = Backend::with_module_sources([
+        ("std/list", include_str!("../../../../stdlib/list.simi")),
+        ("std/iter", include_str!("../../../../stdlib/iter.simi")),
+    ]);
+    let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
+    assert!(
+        diagnostics.diagnostics.is_empty(),
+        "{:?}",
+        diagnostics.diagnostics
+    );
+
+    for (name, expected) in [
+        ("seen", "{ [integer]: integer }"),
+        (
+            "two_sum",
+            "fn(\n    values: [..integer],\n    target: integer,\n) -> [integer, integer] | { [integer]: integer }",
+        ),
+    ] {
+        let hover: Option<Hover> = serde_json::from_value(
+            request(
+                &mut backend,
+                HoverRequest::METHOD,
+                json!({
+                    "textDocument": { "uri": uri() },
+                    "position": text_position(source, name, 0),
+                }),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let HoverContents::Markup(markup) = hover.expect("contextual empty map hover").contents
+        else {
+            panic!("expected markup")
+        };
+        assert_simi_hover(&markup, expected);
+    }
+}
+
+#[test]
+fn contextual_empty_map_capture_and_nil_delete_hovers_remain_exact() {
+    let source = r#"fn bridge<'state>(initial: 'state, callback: fn('state) -> 'state) -> 'state
+    callback(initial)
+let captured = bridge({}, fn(state) do
+    let mutate = fn(key)
+        state[key] = 1
+    state
+end)
+let deleted = bridge({}, fn(state) do
+    let key = "missing"
+    state[key] = nil
+    state
+end)
+let unchanged = bridge({}, fn(state)
+    state)
+"#;
+    let mut backend = Backend::new();
+    let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
+    assert_eq!(diagnostics.diagnostics.len(), 1, "{diagnostics:?}");
+    assert!(
+        diagnostics.diagnostics[0]
+            .message
+            .starts_with("Captured mutation exceeds declared type"),
+        "{diagnostics:?}"
+    );
+
+    for name in ["captured", "deleted", "unchanged"] {
+        let hover: Option<Hover> = serde_json::from_value(
+            request(
+                &mut backend,
+                HoverRequest::METHOD,
+                json!({
+                    "textDocument": { "uri": uri() },
+                    "position": text_position(source, name, 0),
+                }),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let HoverContents::Markup(markup) = hover.expect("exact empty map hover").contents else {
+            panic!("expected markup")
+        };
+        assert_simi_hover(&markup, "{}");
+    }
+}
+
+#[test]
+fn fold_accumulator_nested_empty_lists_have_precise_protocol_hovers() {
+    let source = r#"let iter = require("std/iter")
+alias number = integer | float
+
+fn partition(ns: [..number], pivot: number)
+    ns
+    |> list.iter()
+    |> iter.fold({lower=[], higher=[]}) <| fn(acc, n)
+        case acc of
+            {lower, higher} when n < pivot =>
+                {lower=lower |> tap list.append(n), higher}
+            {lower, higher} =>
+                {lower, higher=higher |> tap list.append(n)}
+        end
+"#;
+    let mut backend = Backend::with_module_sources([
+        ("std/list", include_str!("../../../../stdlib/list.simi")),
+        ("std/iter", include_str!("../../../../stdlib/iter.simi")),
+    ]);
+    let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
+    assert!(
+        diagnostics.diagnostics.is_empty(),
+        "{:?}",
+        diagnostics.diagnostics
+    );
+
+    for (name, occurrence, expected) in [
+        (
+            "partition",
+            0,
+            "fn(\n    ns: [..(integer | float)],\n    pivot: integer | float,\n) -> { lower: [..(integer | float)], higher: [..(integer | float)] }",
+        ),
+        (
+            "acc",
+            0,
+            "{ lower: [..(integer | float)], higher: [..(integer | float)] }",
+        ),
+        ("lower", 1, "[..(integer | float)]"),
+        ("higher", 1, "[..(integer | float)]"),
+    ] {
+        let hover: Option<Hover> = serde_json::from_value(
+            request(
+                &mut backend,
+                HoverRequest::METHOD,
+                json!({
+                    "textDocument": { "uri": uri() },
+                    "position": text_position(source, name, occurrence),
+                }),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let HoverContents::Markup(markup) = hover.expect("fold accumulator hover").contents else {
+            panic!("expected markup")
+        };
+        assert_simi_hover(&markup, expected);
+    }
 }
 
 #[test]
@@ -948,7 +1778,7 @@ nums[3]"#;
     };
     assert_simi_hover(
         &markup,
-        "(xs: [..'a], value: 'b) -> nil noraise\n\nAppend a value to a list.",
+        "fn(xs: [..'a], value: 'b) -> nil ! never\n\nAppend a value to a list.",
     );
 }
 
@@ -1005,9 +1835,8 @@ fn literal_require_call_hover_uses_the_evaluated_module_type() {
 
 #[test]
 fn hover_reports_branch_narrowed_symbol_types() {
-    let source = r#"fn classify(value: integer | string) do
-    if type(value) == "integer" then value else value end
-end"#;
+    let source = r#"fn classify(value: integer | string)
+    if type(value) == "integer" then value else value end"#;
     let mut backend = Backend::default();
     let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
     assert!(diagnostics.diagnostics.is_empty());
@@ -1072,16 +1901,16 @@ ns"#;
 }
 
 #[test]
-fn explicit_any_hover_does_not_fall_back_to_a_later_assignment() {
+fn explicit_any_hover_does_not_fall_back_to_later_shadowing() {
     let source = r#"let value: any = 1
 value
-value = "later"
+let value = "later"
 value"#;
     let mut backend = Backend::default();
     let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
     assert!(diagnostics.diagnostics.is_empty());
 
-    for (occurrence, expected) in [(1, "any"), (2, "any"), (3, "\"later\"")] {
+    for (occurrence, expected) in [(1, "any"), (3, "\"later\"")] {
         let hover: Option<Hover> = serde_json::from_value(
             request(
                 &mut backend,
@@ -1104,9 +1933,12 @@ value"#;
 #[test]
 fn typed_hover_uses_type_only_simi_code_blocks() {
     let source = r#"
-fn process(n) do n + 1 end
-fn increment(n: integer) do n + 1 end
-fn identity(value) do value end
+fn process(n)
+    n + 1
+fn increment(n: integer)
+    n + 1
+fn identity(value)
+    value
 let selected = identity("text")
 let values = [1, "two"]
 let indexed: { [string]: integer } = { answer = 42 }
@@ -1116,9 +1948,9 @@ let found = indexed[key]
     let mut backend = Backend::new();
     open(&mut backend, source);
     for (name, expected) in [
-        ("process", "(n: integer | float) -> integer | float"),
-        ("increment", "(n: integer) -> integer"),
-        ("identity", "(value: 'a) -> 'a"),
+        ("process", "fn(n: integer | float) -> integer | float"),
+        ("increment", "fn(n: integer) -> integer"),
+        ("identity", "fn(value: 'a) -> 'a"),
         ("selected", "\"text\""),
         ("values", "[integer, \"two\"]"),
         ("found", "integer | nil"),
@@ -1144,7 +1976,7 @@ let found = indexed[key]
 
 #[test]
 fn raised_contract_diagnostics_and_hover_use_protocol_types() {
-    let source = "let prefix = \"😀\"\nfn bad() -> integer noraise do raise \"boom\" end\n";
+    let source = "let prefix = \"😀\"\nfn bad() -> integer ! never do raise \"boom\" end\n";
     let mut backend = Backend::new();
     let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
     let contract = diagnostics
@@ -1153,7 +1985,7 @@ fn raised_contract_diagnostics_and_hover_use_protocol_types() {
         .find(|diagnostic| {
             diagnostic.code == Some(NumberOrString::String("type_mismatch".to_owned()))
         })
-        .expect("noraise contract diagnostic");
+        .expect("! never contract diagnostic");
     assert_eq!(contract.range.start.line, 1);
     assert_eq!(contract.range.start.character, 0);
     assert!(contract.message.contains("never"));
@@ -1173,7 +2005,95 @@ fn raised_contract_diagnostics_and_hover_use_protocol_types() {
     let HoverContents::Markup(markup) = hover.expect("bad hover").contents else {
         panic!("expected markup")
     };
-    assert_simi_hover(&markup, "() -> integer noraise");
+    assert_simi_hover(&markup, "fn() -> integer ! never");
+}
+
+#[test]
+fn callable_or_nil_hover_roundtrips_through_annotation() {
+    let source = r#"
+fn nullable(flag: boolean)
+    if flag then fn(value: integer)
+        value end
+"#;
+    let mut backend = Backend::new();
+    let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
+    assert!(
+        diagnostics.diagnostics.is_empty(),
+        "{:?}",
+        diagnostics.diagnostics,
+    );
+    let hover: Option<Hover> = serde_json::from_value(
+        request(
+            &mut backend,
+            HoverRequest::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": text_position(source, "nullable", 0),
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let HoverContents::Markup(markup) = hover.expect("hover").contents else {
+        panic!("expected markup")
+    };
+    let displayed = assert_simi_hover_raw(&markup);
+    assert_eq!(
+        displayed,
+        "fn(flag: boolean) -> (fn(value: integer) -> integer) | nil"
+    );
+    // Round-trip: reusing the hover text as an annotation must parse.
+    let parse = simi_syntax::parse_source(&format!("let _: {displayed} = nil"));
+    assert!(
+        parse.diagnostics().is_empty(),
+        "round-trip parse failed for '{displayed}': {:?}",
+        parse.diagnostics()
+    );
+}
+
+#[test]
+fn varied_direct_bang_never_bodies_are_clean_and_have_exact_hover_types() {
+    let source = concat!(
+        "fn identity(value: integer) -> integer ! never value\n",
+        "fn text() -> string ! never \"ok\"\n",
+        "fn values() -> [..integer] ! never [1, 2]\n",
+        "fn nothing() -> nil ! never nil\n",
+        "fn grouped() -> integer ! never (1 + 2)\n",
+        "fn append(xs: [..integer]) -> nil ! never host.append(xs)\n",
+    );
+    let mut backend = Backend::new();
+    let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
+    assert!(
+        diagnostics.diagnostics.is_empty(),
+        "{:?}",
+        diagnostics.diagnostics
+    );
+
+    for (name, expected) in [
+        ("identity", "fn(value: integer) -> integer ! never"),
+        ("text", "fn() -> string ! never"),
+        ("values", "fn() -> [..integer] ! never"),
+        ("nothing", "fn() -> nil ! never"),
+        ("grouped", "fn() -> integer ! never"),
+        ("append", "fn(xs: [..integer]) -> nil ! never"),
+    ] {
+        let hover: Option<Hover> = serde_json::from_value(
+            request(
+                &mut backend,
+                HoverRequest::METHOD,
+                json!({
+                    "textDocument": { "uri": uri() },
+                    "position": text_position(source, name, 0),
+                }),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let HoverContents::Markup(markup) = hover.expect("function hover").contents else {
+            panic!("expected markup")
+        };
+        assert_simi_hover(&markup, expected);
+    }
 }
 
 #[test]
@@ -1182,7 +2102,8 @@ fn type_errors_are_published_and_clear_after_incremental_repair() {
         "let declared: integer = \"wrong\"\n",
         "let bad_operator = \"x\" + 1\n",
         "let not_callable = 1(2)\n",
-        "fn one(value: integer) -> integer do value end\n",
+        "fn one(value: integer) -> integer
+    value\n",
         "one()\n",
     );
     let mut backend = Backend::new();
@@ -1256,6 +2177,145 @@ fn rename_expands_map_local_binding_shorthand_without_renaming_its_key() {
 }
 
 #[test]
+fn map_destructuring_hover_reports_optional_binding_type() {
+    let source = r#"fn extract(values: {[string]: integer}) do
+    let {value, ..} = values
+    value
+end"#;
+    let mut backend = Backend::new();
+    let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
+    assert!(diagnostics.diagnostics.is_empty(), "{diagnostics:?}");
+    let hover: Option<Hover> = serde_json::from_value(
+        request(
+            &mut backend,
+            HoverRequest::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": text_position(source, "value", 1),
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let HoverContents::Markup(markup) = hover.expect("value hover").contents else {
+        panic!("expected markup")
+    };
+    assert_simi_hover(&markup, "integer | nil");
+}
+
+#[test]
+fn structural_map_pattern_shorthand_reports_absence_and_present_binding_types() {
+    let source = r#"let case_absent = case {} of
+{case_missing} =>
+    "wrong"
+_ =>
+    0
+end
+let case_present = case {case_value = 1} of
+{case_value} =>
+    case_value
+_ =>
+    "wrong"
+end
+let catch_absent = do
+    raise {}
+catch
+    {catch_missing} =>
+        "wrong"
+    _ =>
+        0
+end
+let catch_present = do
+    raise {catch_value = 2}
+catch
+    {catch_value} =>
+        catch_value
+end"#;
+    let mut backend = Backend::new();
+    let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
+    assert!(diagnostics.diagnostics.is_empty(), "{diagnostics:?}");
+
+    let mut hover_at = |needle: &str, occurrence: usize| {
+        let hover: Option<Hover> = serde_json::from_value(
+            request(
+                &mut backend,
+                HoverRequest::METHOD,
+                json!({
+                    "textDocument": { "uri": uri() },
+                    "position": text_position(source, needle, occurrence),
+                }),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let HoverContents::Markup(markup) = hover.expect("pattern hover").contents else {
+            panic!("expected markup")
+        };
+        markup
+    };
+    for (needle, occurrence) in [
+        ("case_absent", 0),
+        ("case_value", 1),
+        ("catch_absent", 0),
+        ("catch_value", 1),
+    ] {
+        assert_simi_hover(&hover_at(needle, occurrence), "integer");
+    }
+}
+
+#[test]
+fn rename_expands_map_pattern_binding_shorthand_without_renaming_its_key() {
+    let source = "let record = {} let {name} = record name";
+    let mut backend = Backend::new();
+    open(&mut backend, source);
+    let edit: Option<WorkspaceEdit> = serde_json::from_value(
+        request(
+            &mut backend,
+            Rename::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": text_position(source, "name", 0),
+                "newName": "renamed"
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let mut edits = edit.unwrap().changes.unwrap()[&uri()].clone();
+    edits.sort_by_key(|edit| (edit.range.start.line, edit.range.start.character));
+    assert_eq!(edits.len(), 2);
+    assert_eq!(edits[0].new_text, "name = renamed");
+    assert_eq!(edits[1].new_text, "renamed");
+}
+
+#[test]
+fn real_bytes_module_hover_uses_its_typed_facade_documentation() {
+    let module = include_str!("../../../../stdlib/bytes.simi");
+    let source = "let bytes = require(\"std/bytes\")\nbytes.get";
+    let mut backend = Backend::with_module_sources([("std/bytes", module)]);
+    open(&mut backend, source);
+    let hover: Option<Hover> = serde_json::from_value(
+        request(
+            &mut backend,
+            HoverRequest::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": text_position(source, "get", 0),
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let HoverContents::Markup(markup) = hover.expect("bytes get hover").contents else {
+        panic!("expected markup")
+    };
+    assert_simi_hover(
+        &markup,
+        "fn(data: bytes, index: integer) -> integer | nil ! never\n\nReturn the octet at an index, or nil when it is out of range.",
+    );
+}
+
+#[test]
 fn real_string_module_hover_wraps_export_map_at_presentation_width() {
     let module = include_str!("../../../../stdlib/string.simi");
     let source = "let string = require(\"std/string\")\nstring";
@@ -1278,8 +2338,39 @@ fn real_string_module_hover_wraps_export_map_at_presentation_width() {
     };
     assert_simi_hover(
         &markup,
-        "{\n    to_number: (text: string) -> integer | float | nil noraise,\n    concat: (left: string, right: string) -> string noraise,\n    length: (text: string) -> integer noraise,\n    slice: (text: string, start: integer, stop: integer) -> string noraise,\n    contains: (text: string, needle: string) -> boolean noraise,\n    starts_with: (text: string, prefix: string) -> boolean noraise,\n    ends_with: (text: string, suffix: string) -> boolean noraise,\n    split: (text: string, separator: string) -> [..string] noraise,\n    trim: (text: string) -> string noraise,\n    lower: (text: string) -> string noraise,\n    upper: (text: string) -> string noraise,\n}\n\nUnicode-aware string inspection, transformation, and conversion.",
+        "{\n    to_number: fn(text: string) -> integer | float | nil ! never,\n    concat: fn(left: string, right: string) -> string ! never,\n    length: fn(text: string) -> integer ! never,\n    slice: fn(text: string, start: integer, stop: integer) -> string ! never,\n    contains: fn(text: string, needle: string) -> boolean ! never,\n    starts_with: fn(text: string, prefix: string) -> boolean ! never,\n    ends_with: fn(text: string, suffix: string) -> boolean ! never,\n    split: fn(text: string, separator: string) -> [..string] ! never,\n    trim: fn(text: string) -> string ! never,\n    lower: fn(text: string) -> string ! never,\n    upper: fn(text: string) -> string ! never,\n}\n\nUnicode-aware string inspection, transformation, and conversion.",
     );
+}
+
+#[test]
+fn closed_map_destructuring_over_unknown_keys_publishes_extra_key_warnings() {
+    let source = r#"fn indexed_closed(values: {[string]: integer}) do
+    let {value} = values
+    value
+end
+fn indexed_rest(values: {[string]: integer}) do
+    let {value, ..} = values
+    value
+end
+fn open_closed(values: {..}) do
+    let {value} = values
+    value
+end
+fn open_rest(values: {..}) do
+    let {value, ..rest} = values
+    [value, rest]
+end"#;
+    let mut backend = Backend::new();
+    let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
+    assert_eq!(diagnostics.diagnostics.len(), 2, "{diagnostics:?}");
+    assert!(diagnostics.diagnostics.iter().all(|diagnostic| {
+        diagnostic.code
+            == Some(lsp_types::NumberOrString::String(
+                "destructuring_let_may_fail".to_owned(),
+            ))
+            && diagnostic.severity == Some(lsp_types::DiagnosticSeverity::WARNING)
+            && diagnostic.message.contains("Use `case`")
+    }));
 }
 
 #[test]
@@ -1333,4 +2424,287 @@ fn destructuring_let_certainty_diagnostics_publish_warnings_and_errors() {
         panic!("expected markup")
     };
     assert_simi_hover(&markup, "any");
+}
+
+#[test]
+fn registered_portable_builtins_hover_with_module_shape_type() {
+    let module = "fn append(xs, x)
+    nil { append = append }";
+    let source = "list";
+    let mut backend = Backend::with_module_sources([("std/list", module)]);
+    open(&mut backend, source);
+    let hover: Option<Hover> = serde_json::from_value(
+        request(
+            &mut backend,
+            HoverRequest::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": text_position(source, "list", 0),
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let HoverContents::Markup(markup) = hover.expect("registered builtin hover").contents else {
+        panic!("expected markup")
+    };
+    assert!(
+        markup.value.contains("append"),
+        "expected module shape type, got {}",
+        markup.value
+    );
+}
+
+#[test]
+fn bare_portable_builtins_hover_as_any_when_not_registered() {
+    let source = "list";
+    let mut backend = Backend::default();
+    open(&mut backend, source);
+    let hover: Option<Hover> = serde_json::from_value(
+        request(
+            &mut backend,
+            HoverRequest::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": text_position(source, "list", 0),
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let HoverContents::Markup(markup) = hover.expect("bare builtin hover").contents else {
+        panic!("expected markup")
+    };
+    assert_simi_hover(&markup, "any");
+}
+
+#[test]
+fn portable_builtin_member_completion_when_registered() {
+    let module = "fn append(xs, x)
+    nil { append = append }";
+    let source = "list.";
+    let mut backend = Backend::with_module_sources([("std/list", module)]);
+    open(&mut backend, source);
+    let completion: Option<CompletionResponse> = serde_json::from_value(
+        request(
+            &mut backend,
+            Completion::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": position::position(source, source.len()).unwrap(),
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let CompletionResponse::Array(items) = completion.unwrap() else {
+        panic!("expected completion array")
+    };
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0].label, "append");
+}
+
+#[test]
+fn shadowed_builtin_does_not_export_module_members() {
+    let module = "fn append(xs, x)
+    nil { append = append }";
+    let source = "let list = 42\nlist.";
+    let mut backend = Backend::with_module_sources([("std/list", module)]);
+    open(&mut backend, source);
+    let completion: Option<CompletionResponse> = serde_json::from_value(
+        request(
+            &mut backend,
+            Completion::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": position::position(source, source.len()).unwrap(),
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let CompletionResponse::Array(items) = completion.unwrap() else {
+        panic!("expected completion array")
+    };
+    assert!(items.is_empty(), "shadowed builtin should have no members");
+}
+
+#[test]
+fn require_alias_retains_precise_member_metadata_with_registered_shape() {
+    let module = r#"
+--- Append one value.
+fn append(xs, x)
+    nil
+{ append = append }
+"#;
+    let source = "let list = require(\"std/list\") list.append";
+    let mut backend = Backend::with_module_sources([("std/list", module)]);
+    open(&mut backend, source);
+    let hover: Option<Hover> = serde_json::from_value(
+        request(
+            &mut backend,
+            HoverRequest::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": text_position(source, "append", 0),
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let HoverContents::Markup(markup) = hover.expect("require alias hover").contents else {
+        panic!("expected markup")
+    };
+    assert_simi_hover(&markup, "fn(xs: 'a, x: 'b) -> nil\n\nAppend one value.");
+}
+
+#[test]
+fn static_requirement_metadata_diagnostics_are_published_over_lsp() {
+    for (source, code, detail, needle) in [
+        (
+            "requires {tools = {git = \"\", rev = \"v1\"}}",
+            "invalid_package_requirements",
+            "Requirement `tools` must declare exactly one of `{simi = revision}`, `{git = url, rev = revision}`, or `{path = path}`.",
+            "tools",
+        ),
+        (
+            "requires {tools = {path = \"../tools\"}}",
+            "invalid_package_requirements",
+            "Development path must be a non-escaping, package-root-relative slash-separated path.",
+            "path",
+        ),
+        (
+            "let value = 1 requires {tools = {path = \"tools\"}}",
+            "syntax_error",
+            "`requires` must appear before executable items.",
+            "requires",
+        ),
+    ] {
+        let mut backend = Backend::new();
+        let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
+        assert_eq!(diagnostics.diagnostics.len(), 1, "{source}");
+        let diagnostic = &diagnostics.diagnostics[0];
+        assert_eq!(
+            diagnostic.code,
+            Some(NumberOrString::String(code.to_owned())),
+            "{source}"
+        );
+        assert_eq!(diagnostic.source.as_deref(), Some("simi"), "{source}");
+        assert!(diagnostic.message.ends_with(detail), "{diagnostic:?}");
+        assert_eq!(diagnostic.range.start, text_position(source, needle, 0));
+    }
+}
+
+// ---------------------------------------------------------------------------
+// codec module hovers
+// ---------------------------------------------------------------------------
+
+#[test]
+fn real_integer_module_hover_uses_typed_facade() {
+    let module = include_str!("../../../../stdlib/integer.simi");
+    let source = "let integer = require(\"std/integer\")\ninteger.encode";
+    let mut backend = Backend::with_module_sources([("std/integer", module)]);
+    open(&mut backend, source);
+    let hover: Option<Hover> = serde_json::from_value(
+        request(
+            &mut backend,
+            HoverRequest::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": text_position(source, "encode", 0),
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let HoverContents::Markup(markup) = hover.expect("integer encode hover").contents else {
+        panic!("expected markup")
+    };
+    assert_simi_hover(
+        &markup,
+        "fn(value: integer, format: string) -> bytes ! never\n\nEncode an integer as bytes in an explicit endian format.\n\nAccepted formats: i8le, i8be, u8le, u8be, i16le, i16be, u16le, u16be,\ni32le, i32be, u32le, u32be, i64le, i64be, u64le, u64be.\n\nA value outside the selected range — including any negative value for an\nunsigned format — is a hard runtime diagnostic.",
+    );
+}
+
+#[test]
+fn real_float_module_hover_reports_union_wire_type() {
+    let module = include_str!("../../../../stdlib/float.simi");
+    let source = "let float = require(\"std/float\")\nfloat.decode";
+    let mut backend = Backend::with_module_sources([("std/float", module)]);
+    open(&mut backend, source);
+    let hover: Option<Hover> = serde_json::from_value(
+        request(
+            &mut backend,
+            HoverRequest::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": text_position(source, "decode", 0),
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let HoverContents::Markup(markup) = hover.expect("float decode hover").contents else {
+        panic!("expected markup")
+    };
+    let raw = assert_simi_hover_raw(&markup);
+    assert!(
+        raw.contains("float | \"inf\" | \"-inf\" | \"nan\""),
+        "{raw}"
+    );
+    assert!(raw.contains("bytes, format: string"), "{raw}");
+}
+
+#[test]
+fn real_utf8_module_hover_uses_typed_facade() {
+    let module = include_str!("../../../../stdlib/utf8.simi");
+    let source = "let utf8 = require(\"std/utf8\")\nutf8.encode";
+    let mut backend = Backend::with_module_sources([("std/utf8", module)]);
+    open(&mut backend, source);
+    let hover: Option<Hover> = serde_json::from_value(
+        request(
+            &mut backend,
+            HoverRequest::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": text_position(source, "encode", 0),
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let HoverContents::Markup(markup) = hover.expect("utf8 encode hover").contents else {
+        panic!("expected markup")
+    };
+    assert_simi_hover(
+        &markup,
+        "fn(text: string) -> bytes ! never\n\nEncode a string into its UTF-8 byte representation.",
+    );
+}
+
+#[test]
+fn real_utf16_module_hover_uses_typed_facade() {
+    let module = include_str!("../../../../stdlib/utf16.simi");
+    let source = "let utf16 = require(\"std/utf16\")\nutf16.decode_le";
+    let mut backend = Backend::with_module_sources([("std/utf16", module)]);
+    open(&mut backend, source);
+    let hover: Option<Hover> = serde_json::from_value(
+        request(
+            &mut backend,
+            HoverRequest::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": text_position(source, "decode_le", 0),
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let HoverContents::Markup(markup) = hover.expect("utf16 decode_le hover").contents else {
+        panic!("expected markup")
+    };
+    assert_simi_hover(
+        &markup,
+        "fn(data: bytes) -> string | nil ! never\n\nStrictly decode little-endian UTF-16 bytes into a string, or nil when malformed.",
+    );
 }

@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 
 use clap::{Parser, Subcommand};
 
+use crate::package::{ResolutionMode, lock_path, resolve_script};
 use crate::span::line_column;
 use crate::{Engine, Raised, ScriptResult, SimiError};
 
@@ -24,6 +25,19 @@ pub enum CliCommand {
         /// Print the final value using canonical inspector rendering.
         #[arg(long)]
         inspect: bool,
+        /// Require a matching lockfile and never fetch or rewrite it.
+        #[arg(long, conflicts_with = "offline")]
+        locked: bool,
+        /// Require a matching lockfile and cached Git checkouts without network access.
+        #[arg(long)]
+        offline: bool,
+        file: PathBuf,
+    },
+    /// Generate or refresh the lockfile for a Simi source file.
+    Lock {
+        /// Generate from local paths and already cached Git repositories without network access.
+        #[arg(long)]
+        offline: bool,
         file: PathBuf,
     },
     /// Run the Simi language server over standard input and output.
@@ -33,20 +47,49 @@ pub enum CliCommand {
 #[derive(Debug)]
 pub enum CliError {
     Io { path: PathBuf, source: io::Error },
+    Package { path: PathBuf, message: String },
     Simi(SimiError),
 }
 
-pub fn run(file: &Path) -> Result<ScriptResult, CliError> {
+pub fn run(file: &Path, mode: ResolutionMode) -> Result<ScriptResult, CliError> {
     let source = fs::read_to_string(file).map_err(|source| CliError::Io {
         path: file.to_path_buf(),
         source,
     })?;
-    Engine::builder()
-        .stdlib()
-        .stdio()
-        .build()
-        .eval(&source)
-        .map_err(CliError::Simi)
+    let resolved = resolve_script(file, mode).map_err(|message| CliError::Package {
+        path: file.to_path_buf(),
+        message,
+    })?;
+    if mode == ResolutionMode::Update {
+        let path = lock_path(file);
+        fs::write(&path, &resolved.lockfile).map_err(|source| CliError::Io { path, source })?;
+    }
+    let has_official_stdlib = crate::stdlib::is_official_catalog(&resolved.catalog);
+    let builder = Engine::builder().prelude().catalog(resolved.catalog);
+    let builder = if has_official_stdlib {
+        builder.stdio()
+    } else {
+        builder
+    };
+    builder.build().eval(&source).map_err(CliError::Simi)
+}
+
+pub fn lock(file: &Path, offline: bool) -> Result<PathBuf, CliError> {
+    let mode = if offline {
+        ResolutionMode::OfflineUpdate
+    } else {
+        ResolutionMode::Update
+    };
+    let resolved = resolve_script(file, mode).map_err(|message| CliError::Package {
+        path: file.to_path_buf(),
+        message,
+    })?;
+    let path = lock_path(file);
+    fs::write(&path, resolved.lockfile).map_err(|source| CliError::Io {
+        path: path.clone(),
+        source,
+    })?;
+    Ok(path)
 }
 
 pub fn format_raised_trace(path: &Path, source: &str, raised: &Raised) -> String {
@@ -83,6 +126,7 @@ impl fmt::Display for CliError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Io { path, source } => write!(formatter, "{}: {source}", path.display()),
+            Self::Package { path, message } => write!(formatter, "{}: {message}", path.display()),
             Self::Simi(error) => error.fmt(formatter),
         }
     }
@@ -92,6 +136,7 @@ impl Error for CliError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
             Self::Io { source, .. } => Some(source),
+            Self::Package { .. } => None,
             Self::Simi(error) => Some(error),
         }
     }
@@ -109,14 +154,23 @@ mod tests {
         let run = Cli::try_parse_from(["simi", "run", "demo.simi"]).unwrap();
         assert!(matches!(
             run.command,
-            CliCommand::Run { inspect: false, file } if file == Path::new("demo.simi")
+            CliCommand::Run { inspect: false, locked: false, offline: false, file } if file == Path::new("demo.simi")
         ));
 
-        let inspected = Cli::try_parse_from(["simi", "run", "--inspect", "demo.simi"]).unwrap();
+        let inspected =
+            Cli::try_parse_from(["simi", "run", "--inspect", "--locked", "demo.simi"]).unwrap();
         assert!(matches!(
             inspected.command,
-            CliCommand::Run { inspect: true, file } if file == Path::new("demo.simi")
+            CliCommand::Run { inspect: true, locked: true, offline: false, file } if file == Path::new("demo.simi")
         ));
+        assert!(
+            Cli::try_parse_from(["simi", "run", "--locked", "--offline", "demo.simi"]).is_err()
+        );
+
+        let lock = Cli::try_parse_from(["simi", "lock", "--offline", "demo.simi"]).unwrap();
+        assert!(
+            matches!(lock.command, CliCommand::Lock { offline: true, file } if file == Path::new("demo.simi"))
+        );
 
         let lsp = Cli::try_parse_from(["simi", "lsp"]).unwrap();
         assert!(matches!(lsp.command, CliCommand::Lsp));
@@ -126,11 +180,55 @@ mod tests {
     #[test]
     fn reports_the_path_for_missing_files() {
         let path = PathBuf::from("this-file-does-not-exist.simi");
-        let error = match run(&path) {
+        let error = match run(&path, ResolutionMode::Update) {
             Ok(_) => panic!("missing file should fail"),
             Err(error) => error,
         };
         assert!(matches!(error, CliError::Io { path: error_path, .. } if error_path == path));
+    }
+
+    #[test]
+    fn run_resolves_path_packages_before_engine_evaluation() {
+        let directory = std::env::temp_dir().join(format!(
+            "simi-cli-package-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let package = directory.join("deps/tools");
+        fs::create_dir_all(&package).unwrap();
+        fs::write(
+            package.join("simi.package.simi"),
+            r#"{name = "tools", simi = "0.1", modules = ["tools"]}"#,
+        )
+        .unwrap();
+        fs::write(package.join("tools.simi"), "{value = 42}").unwrap();
+        let app = directory.join("app.simi");
+        fs::write(
+            &app,
+            "requires {tools = {path = \"deps/tools\"}}\nlet tools = require(\"tools\")\ntools.value",
+        )
+        .unwrap();
+
+        assert_eq!(
+            run(&app, ResolutionMode::Update).unwrap().unwrap().render(),
+            "42"
+        );
+        assert!(lock_path(&app).is_file());
+        assert_eq!(
+            run(&app, ResolutionMode::Locked).unwrap().unwrap().render(),
+            "42"
+        );
+        assert_eq!(
+            run(&app, ResolutionMode::Offline)
+                .unwrap()
+                .unwrap()
+                .render(),
+            "42"
+        );
+        fs::remove_dir_all(directory).unwrap();
     }
 
     #[test]
@@ -139,14 +237,33 @@ mod tests {
         fs::write(
             &path,
             r#"
+            requires {std = {simi = "0.1.0-alpha.1"}}
             let io = require("std/io")
             [type(io.println), type(io.eprintln)]
             "#,
         )
         .unwrap();
-        let result = run(&path).unwrap().unwrap();
+        let result = run(&path, ResolutionMode::Update).unwrap().unwrap();
         fs::remove_file(path).unwrap();
         assert_eq!(result.render(), "[\"function\", \"function\"]");
+    }
+
+    #[test]
+    fn cli_requires_the_official_catalog_for_non_prelude_modules() {
+        let path = std::env::temp_dir().join(format!("simi-stdlib-{}.simi", std::process::id()));
+        fs::write(&path, "require(\"std/iter\")").unwrap();
+        let result = match run(&path, ResolutionMode::Update).unwrap() {
+            Err(raised) => raised,
+            Ok(value) => panic!(
+                "missing stdlib module unexpectedly returned {}",
+                value.render()
+            ),
+        };
+        fs::remove_file(&path).unwrap();
+        assert_eq!(
+            result.value.render(),
+            "{error=\"module_not_found\", module=\"std/iter\"}"
+        );
     }
 
     #[test]

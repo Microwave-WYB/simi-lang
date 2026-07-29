@@ -18,8 +18,13 @@ mod value;
 pub use engine::{Engine, EngineBuilder};
 pub use error::SimiError;
 pub use module::{Module, ModuleBuilder, NativeCallback, SourceModuleBuilder};
-pub use package::{NativePackage, PackageManifest, PackageManifestError, PackageModule};
-pub use runtime::{NativeResult, Raised, ScriptResult, TraceFrame, Value};
+pub use package::{
+    CatalogModule, CatalogModuleVisibility, CatalogRequirement, NativePackage, PackageCatalog,
+    PackageCatalogError, PackageManifest, PackageManifestError, PackageModule,
+    PackageRequirementsError, Requirement, RequirementSource, Requires, ResolvedScript,
+    parse_requires, resolve_script,
+};
+pub use runtime::{NativeResource, NativeResult, Raised, ScriptResult, TraceFrame, Value};
 
 pub fn eval(source: &str) -> Result<ScriptResult, SimiError> {
     Engine::with_stdlib().eval(source)

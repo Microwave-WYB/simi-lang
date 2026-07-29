@@ -7,38 +7,36 @@ fn value(source: &str) -> Value {
 }
 
 #[test]
-fn variable_assignment_is_expression_valued_right_associative_and_lexical() {
-    let result = value(
-        r#"
-        let outer = 1
-        let other = 2
-        fn update(parameter) do
-            outer = other = parameter = 9
-            [outer, other, parameter]
-        end
-        let inside = update(3)
-        let matched = case [4]
-            of [item] do item = item + 1
-        end
-        let looped = do
-            let state = 0
-            loop
-                if state == 3 then break state else state = state + 1 end
-            end
-        end
-        [inside, outer, other, matched, looped]
-        "#,
-    );
-    assert_eq!(result.render(), "[[9, 9, 9], 9, 9, 5, 3]");
+fn binding_reassignment_is_a_parse_error_for_every_lexical_binding() {
+    for source in [
+        "let value = 1\nvalue = 2",
+        "fn update(parameter) do\n    parameter = 9\nend",
+        "let outer = {}\nouter.field = missing = 1",
+        "case [4] of\n    [item] =>\n        item = item + 1\nend",
+        "missing = 1",
+    ] {
+        match eval(source) {
+            Err(SimiError::Parse(error)) => {
+                assert_eq!(
+                    error.message,
+                    "bindings are immutable and cannot be reassigned; \
+                     declare a new binding with let or mutate a list or map field",
+                    "{source}"
+                );
+            }
+            _ => panic!("expected reassignment parse error for {source}"),
+        }
+    }
 }
 
 #[test]
-fn closures_update_captured_bindings_and_undefined_assignment_is_hard() {
+fn closures_evolve_state_through_mutable_container_fields() {
     let result = value(
         r#"
         fn counter() do
-            let count = 0
-            fn next() do count = count + 1 end
+            let state = {count = 0}
+            let next = fn()
+                state.count = state.count + 1
             next
         end
         let next = counter()
@@ -46,17 +44,6 @@ fn closures_update_captured_bindings_and_undefined_assignment_is_hard() {
         "#,
     );
     assert_eq!(result.render(), "[1, 2]");
-
-    match eval("missing = 1") {
-        Err(SimiError::Runtime(error)) => {
-            assert!(
-                error
-                    .message
-                    .contains("cannot assign to undefined name `missing`")
-            );
-        }
-        _ => panic!("undefined assignment should be a hard runtime error"),
-    }
 }
 
 #[test]
@@ -116,12 +103,12 @@ fn assignment_prepares_object_and_key_once_before_rhs() {
 }
 
 #[test]
-fn failed_variable_target_skips_the_rhs() {
-    // If the RHS ran, this would produce an inner Raised result instead of the
-    // undefined-target hard runtime error.
+fn variable_targets_are_rejected_before_the_rhs_can_run() {
+    // If evaluation reached the RHS, this would produce an inner Raised result
+    // instead of the immutable-binding parse error.
     assert!(matches!(
         eval("missing = raise \"rhs ran\""),
-        Err(SimiError::Runtime(_))
+        Err(SimiError::Parse(_))
     ));
 }
 
@@ -133,12 +120,14 @@ fn list_bounds_reads_return_nil_while_writes_raise_without_growth() {
         let values = [1]
         let rhs_ran = []
         let read = values[2]
-        let write = try values[3] = list.append(rhs_ran, true)
-            catch {error=error, index=index, length=length, ..} do [error, index, length]
+        let write = do values[3] = list.append(rhs_ran, true)
+            catch {error=error, index=index, length=length, ..} =>
+                [error, index, length]
         end
         let get = list.get(values, 4)
-        let set = try list.set(values, 5, 9)
-            catch {error=error, index=index, length=length, ..} do [error, index, length]
+        let set = do list.set(values, 5, 9)
+            catch {error=error, index=index, length=length, ..} =>
+                [error, index, length]
         end
         [read, write, get, set, values, rhs_ran]
         "#,
@@ -173,10 +162,10 @@ fn native_set_bounds_raises_preserve_the_call_origin_and_user_frame() {
 #[test]
 fn negative_and_wrong_type_list_indices_remain_hard_errors() {
     for source in [
-        "try [1][0 - 1] catch _ do nil end",
-        "try [1][\"0\"] = 2 catch _ do nil end",
-        "\ntry list.get([1], 0 - 1) catch _ do nil end",
-        "\ntry list.set([1], \"0\", 2) catch _ do nil end",
+        "do [1][0 - 1] catch _ => nil end",
+        "do [1][\"0\"] = 2 catch _ => nil end",
+        "\ndo list.get([1], 0 - 1) catch _ => nil end",
+        "\ndo list.set([1], \"0\", 2) catch _ => nil end",
     ] {
         assert!(matches!(eval(source), Err(SimiError::Runtime(_))));
     }
@@ -184,7 +173,12 @@ fn negative_and_wrong_type_list_indices_remain_hard_errors() {
 
 #[test]
 fn invalid_assignment_targets_are_parse_errors() {
-    for source in ["1 = 2", "(1 + 2) = 3", "fn f() do 1 end f() = 2"] {
+    for source in [
+        "1 = 2",
+        "(1 + 2) = 3",
+        "fn f()
+    1 f() = 2",
+    ] {
         assert!(matches!(eval(source), Err(SimiError::Parse(_))));
     }
 }

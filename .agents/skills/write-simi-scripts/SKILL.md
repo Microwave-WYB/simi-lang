@@ -15,15 +15,15 @@ Read the relevant topic in the [language tour](../../../docs/language-tour.md) b
 
 1. Identify whether the script needs only portable modules or the CLI-only `std/io` capability.
 2. Write a complete `.simi` program using current syntax and compact delimiter formatting.
-3. Prefer expression-valued control flow, structural patterns, and explicit-state `loop` when state evolves.
+3. Prefer expression-valued control flow, structural patterns, and lazy iterator drivers when state evolves.
 4. Run the script with `simi run FILE`; use `simi run --inspect FILE` when the final value should also be rendered.
 5. If the script belongs to this repository, add a focused test or independently validated documentation example at the lowest useful layer.
 
 ## Core contracts
 
 - Runtime typing is dynamic. Optional annotations and aliases are erased and must not change runtime behavior.
-- `if`, `case`, `try`, `do`, function bodies, and loop bodies are value-producing lexical blocks.
-- Postfix `?` passes non-`nil` values through; `nil` evaluates the nearest lexical block as `nil`. In a loop body that supplies the next state rather than breaking the loop.
+- `if`, `case`, protected `do ... catch ... end`, standalone `do`, and function bodies are value-producing lexical blocks.
+- Postfix `?` passes non-`nil` values through; `nil` evaluates the nearest lexical block as `nil`.
 - Booleans are strict; there is no truthiness. Use `type(value) == "integer"` for runtime category checks.
 - Lists are zero-based and mutable. Maps are insertion-ordered, normalize numeric keys, and delete entries assigned `nil`.
 - Map patterns are closed by default. Add `..` to permit extra fields or `..rest` to capture them.
@@ -31,17 +31,17 @@ Read the relevant topic in the [language tour](../../../docs/language-tour.md) b
 - `<|` appends exactly one trailing argument to a call. `<>` is strict string concatenation.
 - Return `nil` for expected absence, `raise` recoverable values, and leave programmer contract violations as hard diagnostics.
 - Callable labels document positional parameters; they do not enable named arguments. Optional generic headers use ordinary Simi type bounds.
-- Omit a callable effect to infer it, use `raises E` for an upper bound, and use `noraise` for `raises never`. Effects are erased and do not affect runtime behavior.
+- Omit a callable raised contract to infer it, use `! E` for an upper bound, and use `! never` to forbid language raises. Raised-error contracts are erased and do not affect runtime behavior.
 
 ## Standard modules
 
-- built-in `list`: list primitives, mutation, copy, and slicing.
-- built-in `map`: map primitives and inspection.
-- `std/iter`: lazy single-pass adapters and consumers.
-- `std/number` and `std/string`: explicit conversions and scalar operations.
+- `list`: list primitives, mutation, copy, and slicing.
+- `map`: map primitives and inspection.
+- `iter`: lazy single-pass adapters and consumers.
+- `number` and `string`: explicit conversions and scalar operations.
 - `std/io`: opt-in text IO available from the CLI and engines configured with stdio.
 
-Use `require("std/...")` explicitly for registered modules; `list` and `map` are built-in globals. Filesystem/package discovery, serialization, bytes, a formatter, a REPL, runtime tuples, and script-visible command-line arguments are not implemented.
+The portable `list`, `map`, `iter`, `number`, and `string` values are globals; their canonical `std/*` paths remain available through `require`. `std/io` always requires an opt-in host capability. Immutable `bytes` values may be supplied by Rust hosts, but there is not yet a bytes literal, constructor, or standard module. Filesystem/package discovery, serialization, a formatter, a REPL, runtime tuples, and script-visible command-line arguments are not implemented.
 
 ## Formatting and checks
 

@@ -16,6 +16,7 @@ impl SyntaxKind {
                 | Self::BLOCK_EXPR
                 | Self::PAREN_EXPR
                 | Self::LIST_EXPR
+                | Self::BYTES_EXPR
                 | Self::MAP_EXPR
                 | Self::CALL_EXPR
                 | Self::FIELD_EXPR
@@ -27,12 +28,9 @@ impl SyntaxKind {
                 | Self::PIPELINE_EXPR
                 | Self::TRAILING_ARGUMENT_EXPR
                 | Self::RAISE_EXPR
-                | Self::TRY_EXPR
+                | Self::PROTECTED_EXPR
                 | Self::CASE_EXPR
                 | Self::IF_EXPR
-                | Self::LOOP_EXPR
-                | Self::CONTINUE_EXPR
-                | Self::BREAK_EXPR
         )
     }
 
@@ -43,6 +41,7 @@ impl SyntaxKind {
                 | Self::WILDCARD_PATTERN
                 | Self::LITERAL_PATTERN
                 | Self::LIST_PATTERN
+                | Self::BYTES_PATTERN
                 | Self::MAP_PATTERN
         )
     }

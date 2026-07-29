@@ -13,20 +13,20 @@ pub(super) struct KeywordHelp {
 const KEYWORDS: &[KeywordHelp] = &[
     KeywordHelp {
         word: "fn",
-        syntax: "fn name(parameters) do … end",
+        syntax: "fn name(parameters) expression",
         documentation: "Declares a named function. Without a name, creates an anonymous function expression.",
         contextual: false,
     },
     KeywordHelp {
         word: "do",
         syntax: "do … end",
-        documentation: "Begins a value-producing block, function body, loop body, case arm, or catch handler.",
+        documentation: "Begins a value-producing standalone block, explicit multi-item body, or protected expression when followed by `catch`.",
         contextual: false,
     },
     KeywordHelp {
         word: "end",
         syntax: "… end",
-        documentation: "Closes the nearest function, block, conditional, loop, case, or try expression.",
+        documentation: "Closes the nearest function, block, conditional, case, or protected expression.",
         contextual: false,
     },
     KeywordHelp {
@@ -63,6 +63,12 @@ const KEYWORDS: &[KeywordHelp] = &[
         word: "alias",
         syntax: "alias name = type",
         documentation: "Declares a transparent, runtime-erased type alias.",
+        contextual: false,
+    },
+    KeywordHelp {
+        word: "requires",
+        syntax: "requires {std = {simi = revision}}",
+        documentation: "Declares static package requirements before executable source items. Use `{simi = revision}` for the official standard-library catalog, `{git = url, rev = revision}` for Git packages, or `{path = path}` for development packages.",
         contextual: false,
     },
     KeywordHelp {
@@ -108,39 +114,21 @@ const KEYWORDS: &[KeywordHelp] = &[
         contextual: false,
     },
     KeywordHelp {
-        word: "loop",
-        syntax: "loop … end",
-        documentation: "Begins an expression-valued loop. Its body repeats on fall-through; `break value` supplies its result.",
-        contextual: false,
-    },
-    KeywordHelp {
-        word: "break",
-        syntax: "break value",
-        documentation: "Stops the nearest loop and supplies the loop expression's result.",
-        contextual: false,
-    },
-    KeywordHelp {
-        word: "continue",
-        syntax: "continue",
-        documentation: "Starts the nearest loop's next iteration and discards the current body value.",
-        contextual: false,
-    },
-    KeywordHelp {
         word: "case",
-        syntax: "case value of pattern do … end",
-        documentation: "Begins expression-valued structural pattern matching with one or more `of` arms.",
+        syntax: "case value of pattern => expression … end",
+        documentation: "Begins expression-valued structural pattern matching. One `of` introduces one or more pattern-result arms.",
         contextual: false,
     },
     KeywordHelp {
         word: "of",
-        syntax: "of pattern when guard do …",
-        documentation: "Begins a `case` arm. Its optional guard must evaluate to boolean.",
+        syntax: "of pattern when guard => expression",
+        documentation: "Introduces arms for a `case` expression. Every arm uses `=>`, and an optional guard must evaluate to boolean.",
         contextual: false,
     },
     KeywordHelp {
         word: "when",
-        syntax: "pattern when guard do …",
-        documentation: "Adds a boolean guard to a `case` or `catch` pattern.",
+        syntax: "pattern when guard => expression",
+        documentation: "Adds a boolean guard before a `case` or `catch` arm's `=>`.",
         contextual: false,
     },
     KeywordHelp {
@@ -162,28 +150,10 @@ const KEYWORDS: &[KeywordHelp] = &[
         contextual: false,
     },
     KeywordHelp {
-        word: "try",
-        syntax: "try … catch pattern do … end",
-        documentation: "Evaluates a protected block and matches raised values against one or more catch handlers.",
-        contextual: false,
-    },
-    KeywordHelp {
         word: "catch",
-        syntax: "catch pattern when guard do …",
-        documentation: "Begins a handler for a value raised by the protected `try` block.",
+        syntax: "do … catch pattern => expression … end",
+        documentation: "Begins the catch section for values raised by the protected `do` body. Patterns and result arms follow directly without `of`.",
         contextual: false,
-    },
-    KeywordHelp {
-        word: "raises",
-        syntax: "-> result raises error",
-        documentation: "Declares a runtime-erased upper bound for values a callable may raise.",
-        contextual: true,
-    },
-    KeywordHelp {
-        word: "noraise",
-        syntax: "-> result noraise",
-        documentation: "Declares that a callable does not raise through the language-error channel.",
-        contextual: true,
     },
     KeywordHelp {
         word: "any",
@@ -265,7 +235,6 @@ fn contains(token: &SyntaxToken, offset: usize) -> bool {
 
 fn is_contextual_keyword(token: &SyntaxToken, word: &str) -> bool {
     token.parent_ancestors().any(|node| match word {
-        "raises" | "noraise" => node.kind() == K::EFFECT_ANNOTATION,
         "any" | "never" | "boolean" | "integer" | "float" | "string" => matches!(
             node.kind(),
             K::TYPE_EXPR
@@ -289,10 +258,9 @@ mod tests {
             .map(|keyword| keyword.word)
             .collect::<BTreeSet<_>>();
         let expected = [
-            "alias", "and", "any", "boolean", "break", "case", "catch", "continue", "do", "else",
-            "elseif", "end", "false", "float", "fn", "if", "integer", "let", "loop", "nil",
-            "noraise", "not", "of", "or", "panic", "raise", "raises", "string", "tap", "then",
-            "todo", "true", "try", "when", "never",
+            "alias", "and", "any", "boolean", "case", "catch", "do", "else", "elseif", "end",
+            "false", "float", "fn", "if", "integer", "let", "nil", "not", "of", "or", "panic",
+            "raise", "requires", "string", "tap", "then", "todo", "true", "when", "never",
         ]
         .into_iter()
         .collect::<BTreeSet<_>>();

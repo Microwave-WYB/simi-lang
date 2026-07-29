@@ -14,24 +14,19 @@
   "end"
   "let"
   "alias"
+  "requires"
   "if"
   "then"
   "elseif"
   "else"
-  "loop"
-  "break"
-  "continue"
   "case"
   "of"
   "when"
   "raise"
   "panic"
   "todo"
-  "try"
   "catch"
   "tap"
-  "raises"
-  "noraise"
 ] @keyword
 
 [
@@ -44,6 +39,7 @@
   "="
   "=="
   "!="
+  "!"
   "+"
   "-"
   "*"
@@ -61,8 +57,8 @@
   "<|"
   ".."
   "->"
+  "=>"
   "|"
-  "@"
 ] @operator
 
 (function_declaration
@@ -76,7 +72,7 @@
 
 (type_variable) @type.parameter
 
-(function_type_parameter
+(callable_type_parameter
   label: (identifier) @variable.parameter)
 
 (parameter
@@ -107,7 +103,11 @@
 (map_pattern_field
   name: (identifier) @property)
 
-["(" ")" "[" "]" "{" "}"] @punctuation.bracket
-["," "."] @punctuation.delimiter
+(bytes_pattern_fixed_capture
+  name: (identifier) @variable)
 
-(loop_label name: (identifier) @variable)
+(bytes_pattern_remainder
+  name: (identifier) @variable)
+
+["#" "(" ")" "[" "]" "{" "}"] @punctuation.bracket
+["," "."] @punctuation.delimiter

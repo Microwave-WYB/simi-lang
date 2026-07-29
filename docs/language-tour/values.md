@@ -8,9 +8,11 @@
   - [Nil and booleans](#nil-and-booleans)
   - [Integers and floats](#integers-and-floats)
   - [Strings](#strings)
+  - [Bytes](#bytes)
   - [Lists](#lists)
   - [Maps](#maps)
   - [Functions are values](#functions-are-values)
+  - [Opaque native resources](#opaque-native-resources)
 - [Types and analysis](types-and-analysis.md)
 - [Expressions](expressions.md)
 - [Functions and bindings](functions-and-bindings.md)
@@ -94,14 +96,25 @@ let name = "Ada"
 "Hello, " <> name <> "!"
 ```
 
-Concatenation is strict: both operands must be strings. Convert numbers explicitly with `std/number`:
+Concatenation is strict: both operands must be strings. Convert numbers explicitly with the portable `number` module value:
 
 ```simi
-let number = require("std/number")
 "The answer is " <> number.to_string(42)
 ```
 
 The builtin `inspect(value)` can produce a human-readable representation of any value. It is intended for display and debugging, not serialization.
+
+## Bytes
+
+Bytes are immutable contiguous octets. Construct them with a flat `#[]` literal: integer segments encode one byte from `0` through `255`, string literal segments append their UTF-8 bytes, and existing bytes values append their contents. Segments evaluate left to right exactly once. Dynamic strings are not accepted; convert text outside the literal through an encoding module.
+
+```simi
+let header = #["PNG", 13, 10, 26, 10]
+let payload = #[0, 127, 255]
+#[header, payload]
+```
+
+Unsupported segment categories and out-of-range integers are hard diagnostics. `type(value)` returns `"bytes"`, equality compares byte contents, and zero-based indexing returns an integer from `0` through `255` or `nil` beyond the end. Negative and non-integer indices are hard diagnostics. `inspect` renders bytes deterministically as hexadecimal, for example `bytes[00 7f ff]`. The explicit portable `std/bytes` module supplies length, clamped O(1) range views, concatenation, and integer-list conversion; it does not add a `bytes` prelude global.
 
 ## Lists
 
@@ -117,6 +130,16 @@ An empty list is `[]`. Trailing commas are accepted:
 ```simi
 [1, 2, 3,]
 ```
+
+Use `..` inside a list literal to spread another list. Spread operands evaluate once from left to right; their elements are shallow-copied into a new outer list, so nested mutable values retain their aliases:
+
+```simi
+let prefix = [1, 2]
+let values = [0, ..prefix, 3]
+values
+```
+
+Only lists may be spread. This syntax is limited to list construction; bytes literals remain flat segments and do not support spread.
 
 Reading a nonnegative index beyond the end of a list returns `nil`:
 
@@ -172,13 +195,12 @@ Lists are different: they may store `nil` as an element.
 
 ## Functions are values
 
-Anonymous functions use `fn(parameters) do ... end`. Like other values, they can be stored in bindings, passed to other functions, and returned from functions:
+Anonymous functions put a single body expression directly after `fn(parameters)`; use `do ... end` for a zero- or multi-item lexical body, or when it is needed to delimit nested or postfix composition. Like other values, they can be stored in bindings, passed to other functions, and returned from functions:
 
 ```simi
 let multiplier = 2
-let double = fn(value) do
+let double = fn(value)
     value * multiplier
-end
 
 double(21)
 ```
@@ -186,6 +208,12 @@ double(21)
 Functions capture bindings from their lexical environment; here, `double` captures `multiplier`. Functions written in Simi and native functions supplied by the host both report `"function"` through `type`.
 
 The next page introduces optional erased type annotations for describing these runtime values without changing their behavior.
+
+## Opaque native resources
+
+Embedding hosts may also provide opaque native resources. Scripts can store, pass, return, raise, and inspect these values, but cannot access their Rust payload or use them as map keys, callables, indices, assignment targets, or equality operands. `type(value)` returns `"resource"`; `inspect` renders the stable host label as `<resource label>`.
+
+Only Rust native code can create a resource or recover its payload with `NativeResource::downcast_ref`. Resources must be `Send + Sync + 'static`, so they cannot safely hide untraced Simi managed values. Their lifecycle follows ordinary Rust `Arc` ownership: the payload is dropped after the final host and Simi reference disappears, including when Simi collects an unreachable container cycle.
 
 <!-- tour:navigation:start -->
 ---

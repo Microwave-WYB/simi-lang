@@ -161,8 +161,9 @@ fn missing_modules_raise_exact_values_at_the_call_span_and_are_catchable() {
     let value = engine
         .eval(
             r#"
-            try require("missing")
-                catch {error="module_not_found", module=module, ..} do module
+            do require("missing")
+                catch {error="module_not_found", module=module, ..} =>
+                    module
             end
             "#,
         )
@@ -202,41 +203,59 @@ fn require_type_errors_and_qualified_native_arity_errors_are_hard() {
 }
 
 #[test]
-fn list_and_map_are_engine_prelude_modules_and_require_is_shadowable() {
-    let engine = Engine::new();
-    engine
-        .eval("list.marker = 1 map.marker = 2 nil")
-        .expect("engine prelude mutation should have no hard diagnostic")
-        .expect("engine prelude mutation should not raise");
+fn portable_prelude_values_are_direct_shadowable_and_share_require_identity() {
+    let engine = Engine::with_stdlib();
     let value = engine
         .eval(
             r#"
-            [list.length([1, 2, 3]), list.marker, map.marker]
-            "#,
+                iter.marker = "cached"
+                number.marker = "numeric"
+                [
+                    list.length([1, 2, 3]),
+                    map.length({}),
+                    iter.to_list(list.iter([4]))[0],
+                    number.to_string(5),
+                    string.upper("simi"),
+                    require("std/iter").marker,
+                    require("std/number").marker,
+                ]
+                "#,
         )
-        .expect("engine prelude calls should have no hard diagnostic")
-        .expect("engine prelude calls should not raise");
-    assert_eq!(value.render(), "[3, 1, 2]");
+        .expect("portable prelude calls should have no hard diagnostic")
+        .expect("portable prelude calls should not raise");
+    assert_eq!(
+        value.render(),
+        "[3, 0, 4, \"5\", \"SIMI\", \"cached\", \"numeric\"]"
+    );
 
-    let value = eval(" list.length([1, 2, 3])")
-        .expect("root eval should provide standard modules")
-        .expect("standard list call should not raise");
-    assert_eq!(value.render(), "3");
+    let value = engine
+        .eval("require(\"std/iter\").marker")
+        .expect("cached prelude state should have no hard diagnostic")
+        .expect("cached prelude state should not raise");
+    assert_eq!(value.render(), "\"cached\"");
 
-    for legacy_name in ["list", "map", "string"] {
-        let result = Engine::with_stdlib()
-            .eval(&format!("require(\"{legacy_name}\")"))
-            .expect("legacy module names should raise rather than hard fail");
-        assert!(
-            result.is_err(),
-            "legacy module `{legacy_name}` must be absent"
-        );
-    }
+    let minimal = Engine::new()
+        .eval("[list.length([1]), map.length({})]")
+        .expect("minimum prelude should have no hard diagnostic")
+        .expect("minimum prelude should not raise");
+    assert_eq!(minimal.render(), "[1, 0]");
+    assert!(
+        Engine::new()
+            .eval("require(\"std/iter\")")
+            .unwrap()
+            .is_err()
+    );
 
     let value = eval("list.length([1])")
-        .expect("root list prelude should have no hard diagnostic")
-        .expect("root list prelude should not raise");
+        .expect("root eval should provide the portable prelude")
+        .expect("portable prelude call should not raise");
     assert_eq!(value.render(), "1");
+
+    let value = Engine::new()
+        .eval("let list = 1 let map = 2 let iter = 3 let number = 4 let string = 5 [list, map, iter, number, string]")
+        .expect("shadowed prelude values should have no hard diagnostic")
+        .expect("shadowed prelude values should not raise");
+    assert_eq!(value.render(), "[1, 2, 3, 4, 5]");
 
     let value = Engine::new()
         .eval("let require = 42 require")
@@ -245,32 +264,25 @@ fn list_and_map_are_engine_prelude_modules_and_require_is_shadowable() {
     assert_eq!(value.render(), "42");
 
     let value = Engine::new()
-        .eval("fn identity(require) do require end identity(43)")
+        .eval(
+            "fn identity(require)
+    require identity(43)",
+        )
         .expect("parameter-shadowed require should have no hard diagnostic")
         .expect("parameter-shadowed require should not raise");
     assert_eq!(value.render(), "43");
 }
 
 #[test]
-fn built_in_list_path_is_not_requireable_and_hosts_can_opt_in_to_legacy_paths() {
-    let source = "require(\"std/list\")";
-    let raised = match Engine::with_stdlib()
-        .eval(source)
-        .expect("missing built-in list path should not be a hard diagnostic")
-    {
-        Err(raised) => raised,
-        Ok(value) => panic!(
-            "built-in list path should raise module_not_found, got {}",
-            value.render()
-        ),
-    };
-    assert_eq!(
-        raised.value.render(),
-        "{error=\"module_not_found\", module=\"std/list\"}"
-    );
-    assert_eq!(raised.origin, Span::new(0, source.len()));
+fn standard_paths_are_requireable_and_hosts_can_override_them() {
+    let value = Engine::new()
+        .eval("require(\"std/list\").length([1, 2])")
+        .expect("standard list path should not hard fail")
+        .expect("standard list path should not raise");
+    assert_eq!(value.render(), "2");
 
     let engine = Engine::builder()
+        .stdlib()
         .module(
             Module::builder("std/list")
                 .value("host_registered", Value::Int(1))
@@ -285,15 +297,111 @@ fn built_in_list_path_is_not_requireable_and_hosts_can_opt_in_to_legacy_paths() 
     let value = engine
         .eval(
             r#"
+            list.marker = "shared"
             [
-                require("std/list").host_registered,
-                require("std/map").host_registered,
+                list.host_registered,
+                map.host_registered,
+                require("std/list").marker,
             ]
             "#,
         )
-        .expect("host legacy paths should not have hard diagnostics")
-        .expect("host legacy paths should not raise");
-    assert_eq!(value.render(), "[1, 2]");
+        .expect("host overrides should not have hard diagnostics")
+        .expect("host overrides should not raise");
+    assert_eq!(value.render(), "[1, 2, \"shared\"]");
+}
+
+#[test]
+fn source_portable_override_raises_remain_language_raises() {
+    let engine = Engine::builder()
+        .stdlib()
+        .module(Module::source("std/list", "raise \"prelude failed\"").build())
+        .build();
+    let raised = match engine
+        .eval("nil")
+        .expect("source override raise should not become a hard diagnostic")
+    {
+        Err(raised) => raised,
+        Ok(value) => panic!("source override should raise, got {}", value.render()),
+    };
+    assert_eq!(raised.value.render(), "\"prelude failed\"");
+    assert_eq!(raised.origin, Span::new(0, 0));
+}
+
+#[test]
+fn circular_source_portable_override_remains_a_language_raise() {
+    let engine = Engine::builder()
+        .stdlib()
+        .module(Module::source("std/list", "require(\"std/list\")").build())
+        .build();
+    let raised = match engine
+        .eval("nil")
+        .expect("circular override should not become a hard diagnostic")
+    {
+        Err(raised) => raised,
+        Ok(value) => panic!("circular override should raise, got {}", value.render()),
+    };
+    assert_eq!(
+        raised.value.render(),
+        "{error=\"circular_module_dependency\", module=\"std/list\"}"
+    );
+    assert_eq!(raised.origin, Span::new(0, 0));
+}
+
+#[test]
+fn direct_source_modules_remain_available_outside_the_reserved_namespace() {
+    let direct = Engine::builder()
+        .stdlib()
+        .module(Module::source("custom", "list").build())
+        .build();
+    assert_eq!(
+        direct
+            .eval("type(require(\"custom\"))")
+            .unwrap()
+            .unwrap()
+            .render(),
+        "\"map\""
+    );
+
+    let explicit = Engine::builder()
+        .stdlib()
+        .module(
+            Module::source(
+                "custom",
+                "let dependency = require(\"std/list\") {dependency = dependency}",
+            )
+            .build(),
+        )
+        .build();
+    let value = explicit
+        .eval(
+            r#"
+            list.marker = "shared"
+            require("custom").dependency.marker
+            "#,
+        )
+        .expect("explicit portable dependency should not hard fail")
+        .expect("explicit portable dependency should not raise");
+    assert_eq!(value.render(), "\"shared\"");
+}
+
+#[test]
+fn bare_engine_builder_does_not_install_the_portable_prelude() {
+    for name in ["list", "map", "iter", "number", "string"] {
+        let error = match Engine::builder().build().eval(name) {
+            Err(error) => error,
+            Ok(_) => panic!("bare builder should leave `{name}` undefined"),
+        };
+        assert!(
+            error.to_string().contains("undefined name"),
+            "unexpected error for `{name}`: {error}"
+        );
+    }
+
+    let missing = Engine::builder()
+        .build()
+        .eval("require(\"std/iter\")")
+        .expect("missing module should raise rather than hard fail");
+    assert!(missing.is_err());
 }
 
 #[test]
@@ -317,7 +425,8 @@ fn remaining_standard_modules_are_requireable() {
 fn global_type_reports_every_runtime_value_category() {
     let value = eval(
         r#"
-        fn sample() do nil end
+        fn sample()
+            nil
         [
             type(1),
             type(1.5),
@@ -375,10 +484,12 @@ fn global_inspect_renders_cyclic_containers_and_builtins_are_shadowable() {
 
 #[test]
 fn stdio_module_is_an_opt_in_capability() {
-    let result = Engine::with_stdlib()
-        .eval("require(\"std/io\")")
-        .expect("missing stdio module should raise, not hard fail");
-    assert!(result.is_err());
+    for engine in [Engine::new(), Engine::with_stdlib()] {
+        let result = engine
+            .eval("require(\"std/io\")")
+            .expect("missing stdio module should raise, not hard fail");
+        assert!(result.is_err());
+    }
 
     let value = Engine::builder()
         .stdlib()
@@ -444,9 +555,10 @@ fn source_facades_evaluate_with_generated_functions_and_data_in_private_host() {
     let module = Module::source(
         "generated",
         r#"
-            let add: (integer, integer) -> integer = host.add
+            let add: fn(integer, integer) -> integer = host.add
             let answer: integer = host.answer
-            fn doubled_answer() do add(answer, answer) end
+            fn doubled_answer()
+                add(answer, answer)
             {add = add, answer = answer, doubled_answer = doubled_answer}
         "#,
     )
@@ -506,12 +618,16 @@ fn direct_native_aliases_avoid_facade_function_wrappers() {
 
 #[test]
 fn shadowed_host_names_remain_ordinary_simi_functions() {
-    let module = Module::source("shadowed-host", "fn invoke(host) do host.fail() end invoke")
-        .host(simi::host_value! {
-            name: "shadowed-host",
-            values: { "label" => Value::String("private".to_owned()) },
-        })
-        .build();
+    let module = Module::source(
+        "shadowed-host",
+        "fn invoke(host)
+    host.fail() invoke",
+    )
+    .host(simi::host_value! {
+        name: "shadowed-host",
+        values: { "label" => Value::String("private".to_owned()) },
+    })
+    .build();
     let engine = Engine::builder().module(module).build();
     assert_eq!(
         engine
@@ -523,7 +639,10 @@ fn shadowed_host_names_remain_ordinary_simi_functions() {
     );
 
     let raised = match engine
-        .eval("let invoke = require(\"shadowed-host\") invoke({fail = fn() do raise \"boom\" end})")
+        .eval(
+            "let invoke = require(\"shadowed-host\") invoke({fail = fn()
+    raise \"boom\"})",
+        )
         .unwrap()
     {
         Err(raised) => raised,
@@ -535,15 +654,19 @@ fn shadowed_host_names_remain_ordinary_simi_functions() {
 }
 
 #[test]
-fn reassigned_and_arbitrary_host_functions_keep_public_trace_boundaries() {
+fn overridden_and_arbitrary_host_functions_keep_public_trace_boundaries() {
     for (name, source) in [
         (
-            "assigned-before",
-            "let replacement = {fail = fn() do raise \"boom\" end} host = replacement fn invoke() do host.fail() end invoke",
+            "shadowed-before",
+            "let host = {fail = fn()
+    raise \"boom\"} fn invoke()
+    host.fail() invoke",
         ),
         (
-            "assigned-after",
-            "fn invoke() do host.fail() end let replacement = {fail = fn() do raise \"boom\" end} host = replacement invoke",
+            "mutated-after",
+            "fn invoke()
+    host.fail() host.fail = fn()
+    raise \"boom\" invoke",
         ),
     ] {
         let engine = Engine::builder()
@@ -575,7 +698,10 @@ fn reassigned_and_arbitrary_host_functions_keep_public_trace_boundaries() {
 
     let producer = Engine::new();
     let user_function = producer
-        .eval("fn fail() do raise \"host boom\" end fail")
+        .eval(
+            "fn fail()
+    raise \"host boom\" fail",
+        )
         .unwrap()
         .unwrap();
     let direct_user_function = user_function.clone();
@@ -592,7 +718,9 @@ fn reassigned_and_arbitrary_host_functions_keep_public_trace_boundaries() {
         .module(
             Module::source(
                 "arbitrary-functions",
-                "fn invoke() do host.fail() end fn load() do host.load(\"absent\") end {invoke = invoke, load = load}",
+                "fn invoke()
+    host.fail() fn load()
+    host.load(\"absent\") {invoke = invoke, load = load}",
             )
             .host(simi::host_value! {
                 name: "arbitrary-functions",
@@ -646,7 +774,9 @@ fn nested_source_module_frames_collapse_to_the_public_boundary() {
         .module(
             Module::source(
                 "nested-frames",
-                "fn inner() do raise \"boom\" end fn outer() do inner() end outer",
+                "fn inner()
+    raise \"boom\" fn outer()
+    inner() outer",
             )
             .build(),
         )
@@ -738,7 +868,7 @@ fn source_modules_cache_exports_and_capture_private_host_values() {
     let module = Module::source(
         "source",
         r#"
-        let next: () -> integer = host.next
+        let next: fn() -> integer = host.next
         {next = next}
         "#,
     )
@@ -762,7 +892,8 @@ fn source_modules_reject_missing_host_values_and_raise_for_cycles() {
     let missing = Module::source(
         "missing-host",
         r#"
-        fn call() do host.missing() end
+        fn call()
+            host.missing()
         {call = call}
         "#,
     )
@@ -921,12 +1052,17 @@ fn source_module_nested_loads_retry_failures_and_isolate_cached_mutation() {
 #[test]
 fn engine_lsp_catalog_includes_bundled_prelude_facades() {
     for module in [
+        simi::stdlib::bytes(),
+        simi::stdlib::float(),
+        simi::stdlib::integer(),
         simi::stdlib::list(),
         simi::stdlib::map(),
         simi::stdlib::iter(),
         simi::stdlib::number(),
         simi::stdlib::string(),
         simi::stdlib::io(),
+        simi::stdlib::utf8(),
+        simi::stdlib::utf16(),
     ] {
         assert!(
             module.is_source_backed(),
@@ -940,12 +1076,18 @@ fn engine_lsp_catalog_includes_bundled_prelude_facades() {
     assert_eq!(
         sources.iter().map(|(name, _)| name).collect::<Vec<_>>(),
         [
+            "std",
+            "std/bytes",
+            "std/float",
+            "std/integer",
             "std/io",
             "std/iter",
             "std/list",
             "std/map",
             "std/number",
             "std/string",
+            "std/utf16",
+            "std/utf8",
         ]
     );
     assert_eq!(
@@ -971,8 +1113,10 @@ fn source_module_failures_are_attributed_to_the_public_boundary() {
             Module::source(
                 "failing",
                 r#"
-                fn raised() do raise "module raise" end
-                fn hard() do nil + 1 end
+                fn raised()
+                    raise "module raise"
+                fn hard()
+                    nil + 1
                 { raised = raised, hard = hard }
                 "#,
             )

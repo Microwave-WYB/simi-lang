@@ -68,46 +68,49 @@ end
 
 ## Catching raised values
 
-A `try` expression evaluates one or more protected items. Its `catch` clauses use the same structural patterns and Boolean guards as `case`, in source order:
+A protected `do` expression evaluates one or more protected items. Its `catch` arms use the same structural patterns and Boolean guards as `case`; every arm separates its header and result with `=>`:
 
 ```simi
-fn load(key) do
+fn load(key)
     raise {error = "not_found", key = key}
-end
 
-try
+do
     load("profile")
-catch {error = "not_found", key = key} do
-    "missing: " <> key
-catch error do
-    raise error
+catch
+    {error = "not_found", key = key} =>
+        "missing: " <> key
+    error =>
+        raise error
 end
 ```
 
 Only a raise from the protected block is considered by those catches. If no clause matches, the original raise continues unchanged. Bindings created by a catch pattern belong only to that handler.
 
-A raise from a catch guard or handler body escapes the current `try`; it is not offered to later sibling catches:
+A raise from a catch guard or handler body escapes the current protected expression; it is not offered to later sibling arms:
 
 ```simi
-try
-    try
+do
+    do
         raise "original"
-    catch error do
-        raise {error = "replacement", cause = error}
+    catch
+        error =>
+            raise {error = "replacement", cause = error}
     end
-catch {error = "replacement", cause = cause} do
-    cause
+catch
+    {error = "replacement", cause = cause} =>
+        cause
 end
 ```
 
-`try` catches neither postfix nil propagation nor hard diagnostics. This complete script intentionally produces a hard operand diagnostic; its handler is not entered:
+A protected `do` catches neither postfix nil propagation nor hard diagnostics. This complete script intentionally produces a hard operand diagnostic; its handler is not entered:
 
 ```simi
 -- Expected type and runtime diagnostics: catch handles raises, not hard diagnostics.
-try
+do
     1 + "two"
-catch _ do
-    "not reached"
+catch
+    _ =>
+        "not reached"
 end
 ```
 
@@ -120,18 +123,17 @@ alias lookup_error =
     | {error: "not_found", key: string, ..}
     | {error: "unavailable", message: string, ..}
 
-fn lookup(key: string) -> string raises lookup_error do
+fn lookup(key: string) -> string ! lookup_error
     raise {error = "not_found", key = key}
-end
 
-try
+do
     lookup("profile")
-catch {error = "not_found", key = key} do
+catch {error = "not_found", key = key} =>
     "missing: " <> key
 end
 ```
 
-An omitted clause is inferred. `raises E` checks an upper bound, and `noraise` means `raises never`. Generic effect variables can connect a callback's raised type to its caller. Catch patterns remove definitely handled variants from the protected effect; guarded matches remain possible, and handler effects escape. Structural mutation inference is analyzer-only within a binding's defining lexical scope; captured bindings require stable compatible contracts, and annotations remain erased.
+An omitted raised-error contract is inferred. `! E` checks an upper bound, and `! never` forbids language raises. Generic raised-type variables can connect a callback's raised type to its caller. Catch patterns remove definitely handled variants from the protected raised type; guarded matches remain possible, and handler raises escape. Structural mutation inference is analyzer-only within a binding's defining lexical scope; captured bindings require stable compatible contracts, and annotations remain erased.
 
 ## Minimal Rust embedding
 
@@ -217,7 +219,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-`Engine::new()` provides built-in `list` and `map` prelude globals, along with the core `type`, `inspect`, and `require` globals. Built-in `require("std/list")` and `require("std/map")` raise `module_not_found`; hosts may still explicitly register modules at those paths. `Engine::with_stdlib()` adds the portable modules `std/iter`, `std/number`, and `std/string`. Text IO is a separate capability:
+`Engine::new()` and `Engine::with_stdlib()` provide the same portable `list`, `map`, `iter`, `number`, and `string` prelude globals, alongside `type`, `inspect`, and `require`. Their canonical `std/*` paths remain require-able and return the same cached module values; `std/bytes` is portable but intentionally require-only. `Engine::builder().build()` remains a bare explicit-host constructor.
+
+Package resolution is also explicit at the embedding boundary. `Engine::eval` never reads package paths, accesses Git, downloads code, invokes Cargo, or runs build scripts. Source with a `requires` declaration must receive a previously locked `PackageCatalog` through `EngineBuilder::catalog`; otherwise evaluation returns a hard `SimiError` before source executes. The CLI resolver returns this catalog after it has performed its filesystem/Git work, and catalog installation preserves ordinary lazy module caching while giving each engine independent module state. Direct `Module` registrations remain separate and do not satisfy `requires` metadata.
+
+Text IO is a separate capability:
 
 ```rust
 use simi::Engine;
@@ -240,11 +246,10 @@ A facade can attach erased type information to a native function without wrappin
 
 ```simi
 --- Double an integer using the native implementation.
-let double: integer -> integer = host.double
+let double: fn(integer) -> integer = host.double
 
-fn quadruple(value: integer) -> integer do
+fn quadruple(value: integer) -> integer
     double(double(value))
-end
 
 {double = double, quadruple = quadruple}
 ```
@@ -273,6 +278,21 @@ The macro's `name` prefixes rendered native-function names and their diagnostics
 
 Native callbacks may capture Rust state, but they must be `Send + Sync + 'static`. Managed Simi values must not be hidden in untraced Rust containers or captured as untraced edges. Missing host fields read as `nil`; attempting to call one is a hard runtime diagnostic.
 
+For host-owned objects that should remain opaque to Simi, use `NativeResource`. Its payload is an `Arc<dyn Any + Send + Sync>` and may be recovered only by native code with `downcast_ref`; Simi can transport it through bindings, lists, maps, closures, raises, and module exports, but has no resource methods, equality, serialization, or raw-pointer access. The script-visible category is always `"resource"`, while `inspect` renders the host-selected stable label:
+
+```rust
+use simi::{Module, NativeResource, Value};
+
+struct Counter(u64);
+
+let counter = NativeResource::new("acme.counter", Counter(0));
+let module = Module::builder("acme/counter")
+    .value("value", Value::NativeResource(counter))
+    .build();
+```
+
+Do not place managed Simi values inside a resource payload. The `Send + Sync + 'static` bound prevents that in safe Rust, preserving tracing; the payload is released when the final host or Simi reference disappears.
+
 The low-level `Interpreter::with_globals` constructor treats its supplied environment as complete. Unlike normal/default interpreters and `Engine` evaluation, it does not add the `require`, `type`, and `inspect` prelude.
 
 ## Runtime and embedding invariants
@@ -294,7 +314,7 @@ The current implementation intentionally does not include:
 
 - filesystem or package module discovery;
 - script-visible command-line arguments;
-- a bytes type or raw stream IO;
+- raw stream IO;
 - serialization;
 - a formatter or REPL;
 - runtime tuples or multiple returns;

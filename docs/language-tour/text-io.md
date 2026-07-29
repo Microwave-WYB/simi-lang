@@ -25,11 +25,11 @@
 The module currently exposes five operations:
 
 ```text
-read_line() -> string | nil
-print(string) -> nil
-println(string) -> nil
-eprint(string) -> nil
-eprintln(string) -> nil
+fn() -> string | nil
+fn(string) -> nil
+fn(string) -> nil
+fn(string) -> nil
+fn(string) -> nil
 ```
 
 `print` and `println` write to standard output. `eprint` and `eprintln` write to standard error. The `ln` variants append a line ending. All four output operations flush automatically and return `nil` after a successful write.
@@ -65,7 +65,7 @@ A blank input line is an empty string, not `nil`. Only end of file produces `nil
 
 ## Rendering non-string values
 
-The print family accepts strings only. Passing an integer, list, map, or other non-string value is a hard contract diagnostic. Convert numbers with `std/number`, or use the global `inspect` function when human-readable rendering is appropriate.
+The print family accepts strings only. Passing an integer, list, map, or other non-string value is a hard contract diagnostic. Convert numbers with the portable `number` module value, or use the global `inspect` function when human-readable rendering is appropriate.
 
 ```simi
 let io = require("std/io")
@@ -88,7 +88,7 @@ Stream failures are recoverable language raises shaped like:
 
 The `operation` field identifies the originating operation, including an automatic flush failure. Wrong arity and wrong argument types remain hard diagnostics rather than raised IO values.
 
-Raw bounded `read` and `write` are intentionally absent until Simi has a bytes type.
+Raw bounded `read` and `write` remain intentionally absent. The immutable host-supplied bytes value does not yet add a stream byte API.
 
 When running a file, `simi run` leaves output entirely to the script. `simi run --inspect` also renders the script's final value, including `nil`; that extra rendering is CLI behavior, not an implicit language print.
 

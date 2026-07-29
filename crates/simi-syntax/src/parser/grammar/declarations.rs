@@ -1,5 +1,16 @@
 use super::*;
 
+pub(super) fn requires_decl(p: &mut Parser<'_>) {
+    let marker = p.start();
+    p.expect(K::REQUIRES_KW, "`requires`");
+    if p.at(K::L_BRACE) {
+        map_expr(p);
+    } else {
+        p.error("`requires` must be followed by a map".to_owned());
+    }
+    marker.complete(&mut p.events, K::REQUIRES_DECL);
+}
+
 pub(super) fn function_decl(p: &mut Parser<'_>) {
     let marker = p.start();
     p.expect(K::FN_KW, "`fn`");
@@ -40,16 +51,26 @@ pub(super) fn function_parts(p: &mut Parser<'_>, open: &str) {
         result.complete(&mut p.events, K::RETURN_ANNOTATION);
         effect_annotation(p);
     } else if at_effect(p) {
-        p.error("a callable effect requires `->` and a result type".to_owned());
+        p.error("a callable raised-error contract requires `->` and a result type".to_owned());
+        effect_annotation(p);
+    } else if at_legacy_effect(p) {
         effect_annotation(p);
     }
-    p.expect(K::DO_KW, "`do` before function body");
-    let old_loop = std::mem::replace(&mut p.loop_depth, 0);
-    let old_labels = std::mem::take(&mut p.loop_labels);
-    block(p);
-    p.loop_labels = old_labels;
-    p.loop_depth = old_loop;
-    p.expect(K::END_KW, "`end` after function body");
+    function_body(p);
+}
+
+pub(super) fn function_body(p: &mut Parser<'_>) {
+    let marker = p.start();
+    p.block_depth += 1;
+    if p.at(K::DO_KW) && !do_starts_protected(p) {
+        p.bump();
+        block(p);
+        p.expect(K::END_KW, "`end` after function body");
+    } else {
+        expression(p);
+    }
+    p.block_depth -= 1;
+    marker.complete(&mut p.events, K::BODY);
 }
 pub(super) fn alias_decl(p: &mut Parser<'_>) {
     let marker = p.start();

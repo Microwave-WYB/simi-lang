@@ -42,7 +42,7 @@ fn stmt(node: syntax::Stmt) -> Option<ast::Stmt> {
                 .map(|token| token.text().to_string())
                 .collect();
             let body =
-                lower_block(support::child(node.syntax()).expect("valid function has a body"));
+                lower_body(support::child(node.syntax()).expect("valid function has a body"));
             ast::StmtKind::Function { name, params, body }
         }
         syntax::Stmt::AliasDecl(_) => return None,
@@ -89,7 +89,7 @@ fn lower_expr(node: syntax::Expr) -> ast::Expr {
                 .filter_map(|param| direct_token(param.syntax(), K::IDENT))
                 .map(|token| token.text().to_string())
                 .collect();
-            let body = lower_block(support::child(node.syntax()).expect("function body"));
+            let body = lower_body(support::child(node.syntax()).expect("function body"));
             ast::ExprKind::Function { params, body }
         }
         syntax::Expr::Block(node) => ast::ExprKind::Block(lower_block(
@@ -100,9 +100,31 @@ fn lower_expr(node: syntax::Expr) -> ast::Expr {
             inner.span = node_span;
             return inner;
         }
-        syntax::Expr::List(node) => {
-            ast::ExprKind::List(expr_children(node.syntax()).map(lower_expr).collect())
-        }
+        syntax::Expr::List(node) => ast::ExprKind::List(
+            support::children::<syntax::ListElement>(node.syntax())
+                .map(|element| {
+                    let value = lower_expr(child_expr(element.syntax(), 0));
+                    if support::token(element.syntax(), K::DOT_DOT).is_some() {
+                        ast::ListElement::Spread(value)
+                    } else {
+                        ast::ListElement::Value(value)
+                    }
+                })
+                .collect(),
+        ),
+        syntax::Expr::Bytes(node) => ast::ExprKind::Bytes(
+            expr_children(node.syntax())
+                .map(|segment| {
+                    if let syntax::Expr::Literal(literal) = &segment
+                        && let Some(token) = direct_token(literal.syntax(), K::STRING)
+                    {
+                        ast::BytesSegment::String(decode_string(token.text()))
+                    } else {
+                        ast::BytesSegment::Value(lower_expr(segment))
+                    }
+                })
+                .collect(),
+        ),
         syntax::Expr::Map(node) => {
             let entries = support::children::<syntax::MapEntry>(node.syntax())
                 .map(|entry| lower_map_entry(&entry))
@@ -203,9 +225,9 @@ fn lower_expr(node: syntax::Expr) -> ast::Expr {
         syntax::Expr::Todo(node) => ast::ExprKind::Todo {
             note: direct_token(node.syntax(), K::STRING).map(|token| decode_string(token.text())),
         },
-        syntax::Expr::Try(node) => {
+        syntax::Expr::Protected(node) => {
             let protected = lower_block(support::child(node.syntax()).expect("protected block"));
-            let clauses = support::children::<syntax::CatchClause>(node.syntax())
+            let clauses = support::children::<syntax::CatchArm>(node.syntax())
                 .map(lower_clause)
                 .collect();
             ast::ExprKind::Try { protected, clauses }
@@ -236,24 +258,6 @@ fn lower_expr(node: syntax::Expr) -> ast::Expr {
                 else_branch,
             }
         }
-        syntax::Expr::Loop(node) => {
-            let label = direct_token(node.syntax(), K::AT)
-                .and_then(|_| direct_token(node.syntax(), K::IDENT))
-                .map(|token| token.text().to_string());
-            let body = lower_block(support::child(node.syntax()).expect("loop body"));
-            ast::ExprKind::Loop { label, body }
-        }
-        syntax::Expr::Continue(node) => ast::ExprKind::Continue {
-            label: direct_token(node.syntax(), K::AT)
-                .and_then(|_| direct_token(node.syntax(), K::IDENT))
-                .map(|token| token.text().to_string()),
-        },
-        syntax::Expr::Break(node) => ast::ExprKind::Break {
-            label: direct_token(node.syntax(), K::AT)
-                .and_then(|_| direct_token(node.syntax(), K::IDENT))
-                .map(|token| token.text().to_string()),
-            value: Box::new(lower_expr(child_expr(node.syntax(), 0))),
-        },
     };
     ast::Expr {
         kind,
@@ -304,10 +308,27 @@ fn lower_pipeline_stage(node: syntax::PipelineStage) -> ast::PipelineStage {
     }
 }
 
+fn lower_body(node: syntax::Body) -> ast::Body {
+    if let Some(block) = support::child::<syntax::Block>(node.syntax()) {
+        lower_block(block)
+    } else {
+        let expression = lower_expr(support::child(node.syntax()).expect("body expression"));
+        let span = expression.span;
+        ast::Block {
+            items: vec![ast::Stmt {
+                kind: ast::StmtKind::Expr(expression),
+                span,
+            }],
+            span,
+        }
+    }
+}
+
 fn lower_clause<N: AstNode>(node: N) -> ast::PatternClause {
     let pattern = lower_pattern(support::child(node.syntax()).expect("clause pattern"));
-    let guard = support::child::<syntax::Expr>(node.syntax()).map(lower_expr);
-    let body = lower_block(support::child(node.syntax()).expect("clause body"));
+    let expressions = support::children::<syntax::Expr>(node.syntax()).collect::<Vec<_>>();
+    let guard = expressions.first().cloned().map(lower_expr);
+    let body = lower_body(support::child(node.syntax()).expect("clause body"));
     ast::PatternClause {
         pattern,
         guard,
@@ -331,6 +352,11 @@ fn lower_pattern(node: syntax::Pattern) -> ast::Pattern {
             let rest = support::child::<syntax::RestPattern>(node.syntax()).map(lower_rest);
             ast::PatternKind::List { elements, rest }
         }
+        syntax::Pattern::Bytes(node) => ast::PatternKind::Bytes(
+            support::children::<syntax::BytesPatternSegment>(node.syntax())
+                .map(lower_bytes_pattern_segment)
+                .collect(),
+        ),
         syntax::Pattern::Map(node) => {
             let fields = support::children::<syntax::MapPatternField>(node.syntax())
                 .map(|field| {
@@ -338,8 +364,17 @@ fn lower_pattern(node: syntax::Pattern) -> ast::Pattern {
                         .expect("map pattern name")
                         .text()
                         .to_string();
-                    let pattern =
-                        lower_pattern(support::child(field.syntax()).expect("map field pattern"));
+                    let pattern = support::child(field.syntax()).map_or_else(
+                        || ast::Pattern {
+                            kind: if name.starts_with('_') {
+                                ast::PatternKind::Wildcard
+                            } else {
+                                ast::PatternKind::Binding(name.clone())
+                            },
+                            span: span(field.syntax()),
+                        },
+                        lower_pattern,
+                    );
                     (name, pattern)
                 })
                 .collect();
@@ -351,6 +386,26 @@ fn lower_pattern(node: syntax::Pattern) -> ast::Pattern {
         kind,
         span: node_span,
     }
+}
+
+fn lower_bytes_pattern_segment(node: syntax::BytesPatternSegment) -> ast::BytesPatternSegment {
+    if let Some(string) = direct_token(node.syntax(), K::STRING) {
+        return ast::BytesPatternSegment::String(decode_string(string.text()));
+    }
+
+    let name = direct_token(node.syntax(), K::IDENT)
+        .map(|token| token.text().to_owned())
+        .filter(|name| !name.starts_with('_'));
+    if direct_token(node.syntax(), K::COLON).is_none() {
+        return ast::BytesPatternSegment::Byte(name);
+    }
+    if let Some(length) = direct_token(node.syntax(), K::INT) {
+        return ast::BytesPatternSegment::Fixed {
+            name,
+            length: parse_int_literal(length.text()) as usize,
+        };
+    }
+    ast::BytesPatternSegment::Remainder(name)
 }
 
 fn lower_rest(node: syntax::RestPattern) -> ast::PatternRest {

@@ -1,12 +1,123 @@
-use crate::Module;
-use crate::native::{
-    io_eprint, io_eprintln, io_print, io_println, list_append, list_contains, list_copy,
-    list_extend, list_get, list_insert, list_iter, list_length, list_pop, list_remove,
-    list_reverse, list_set, list_slice, map_clear, map_copy, map_has, map_iter, map_length,
-    number_to_string, stdin_read_line, string_concat, string_contains, string_ends_with,
-    string_length, string_lower, string_slice, string_split, string_starts_with, string_to_number,
-    string_trim, string_upper,
+use crate::{
+    CatalogModule, CatalogModuleVisibility, CatalogRequirement, Module, PackageCatalog,
+    RequirementSource,
 };
+
+/// Exact revision of the distribution-supplied official standard-library catalog.
+pub const OFFICIAL_REVISION: &str = env!("CARGO_PKG_VERSION");
+
+/// Source-only manifest of the official non-prelude standard library.
+///
+/// The catalog deliberately excludes `std/list`, `std/map`, and capability modules such as
+/// `std/io`. Engine installation pairs these source facades with the core's fixed native hosts;
+/// loading the catalog alone grants neither globals nor capabilities.
+pub fn official_catalog() -> PackageCatalog {
+    PackageCatalog::new(
+        [
+            catalog_module("std", "{}"),
+            catalog_module("std/bytes", include_str!("../stdlib/bytes.simi")),
+            catalog_module("std/float", include_str!("../stdlib/float.simi")),
+            catalog_module("std/integer", include_str!("../stdlib/integer.simi")),
+            catalog_module("std/iter", include_str!("../stdlib/iter.simi")),
+            catalog_module("std/number", include_str!("../stdlib/number.simi")),
+            catalog_module("std/string", include_str!("../stdlib/string.simi")),
+            catalog_module("std/utf8", include_str!("../stdlib/utf8.simi")),
+            catalog_module("std/utf16", include_str!("../stdlib/utf16.simi")),
+        ],
+        [CatalogRequirement::new(
+            "std",
+            RequirementSource::Official {
+                revision: OFFICIAL_REVISION.to_owned(),
+            },
+        )],
+    )
+    .expect("the built-in official standard-library catalog is valid")
+}
+
+fn catalog_module(name: &str, source: &str) -> CatalogModule {
+    CatalogModule::new(
+        name,
+        source,
+        "std",
+        format!("{name}.simi"),
+        CatalogModuleVisibility::Public,
+    )
+    .expect("the built-in official standard-library module is valid")
+}
+
+pub(crate) fn is_official_catalog(catalog: &PackageCatalog) -> bool {
+    let official = official_catalog();
+    let is_std_module =
+        |module: &CatalogModule| module.name() == "std" || module.name().starts_with("std/");
+    let is_std_requirement = |requirement: &CatalogRequirement| requirement.package() == "std";
+
+    // A catalog can combine the official source package with unrelated packages, but its
+    // reserved `std/*` entries and `std` revision must be an exact match. `EngineBuilder`
+    // installs trusted native hosts for those entries, so additions or replacements must remain
+    // untrusted and be rejected before installation.
+    official
+        .modules()
+        .iter()
+        .all(|module| catalog.modules().contains(module))
+        && catalog
+            .modules()
+            .iter()
+            .filter(|module| is_std_module(module))
+            .all(|module| official.modules().contains(module))
+        && official
+            .requirements()
+            .iter()
+            .all(|requirement| catalog.requirements().contains(requirement))
+        && catalog
+            .requirements()
+            .iter()
+            .filter(|requirement| is_std_requirement(requirement))
+            .all(|requirement| official.requirements().contains(requirement))
+}
+
+pub(crate) fn official_module(name: &str) -> Option<Module> {
+    Some(match name {
+        "std" => Module::source("std", "{}").build(),
+        "std/bytes" => bytes(),
+        "std/float" => float(),
+        "std/integer" => integer(),
+        "std/iter" => iter(),
+        "std/number" => number(),
+        "std/string" => string(),
+        "std/utf8" => utf8(),
+        "std/utf16" => utf16(),
+        _ => return None,
+    })
+}
+use crate::native::{
+    bytes_concat, bytes_from_list, bytes_get, bytes_length, bytes_slice, bytes_to_list,
+    float_decode, float_encode, integer_decode, integer_encode, io_eprint, io_eprintln, io_print,
+    io_println, list_append, list_contains, list_copy, list_extend, list_get, list_insert,
+    list_iter, list_length, list_pop, list_remove, list_reverse, list_set, list_slice, map_clear,
+    map_copy, map_has, map_iter, map_length, number_to_string, stdin_read_line, string_concat,
+    string_contains, string_ends_with, string_length, string_lower, string_slice, string_split,
+    string_starts_with, string_to_number, string_trim, string_upper, utf8_decode, utf8_encode,
+    utf16_decode_be, utf16_decode_le, utf16_encode_be, utf16_encode_le,
+};
+use crate::runtime::{NativeFunction, Value};
+use crate::value::IteratorIntrinsic;
+
+pub fn bytes() -> Module {
+    let host = crate::host_value! {
+        name: "std/bytes",
+        functions: {
+            "length" => (1, bytes_length),
+            "get" => (2, bytes_get),
+            "slice" => (3, bytes_slice),
+            "concat" => (2, bytes_concat),
+            "from_list" => (1, bytes_from_list),
+            "to_list" => (1, bytes_to_list),
+        },
+    };
+    Module::source("std/bytes", include_str!("../stdlib/bytes.simi"))
+        .host(host)
+        .build()
+}
 
 pub fn list() -> Module {
     let host = crate::host_value! {
@@ -33,12 +144,78 @@ pub fn list() -> Module {
 }
 
 pub fn iter() -> Module {
-    let host = crate::host_value! {
-        name: "std/iter",
-        functions: {
-            "append" => (2, list_append),
-        },
+    let intrinsic = |name, arity, operation| {
+        Value::NativeFunction(NativeFunction::iterator(
+            format!("std/iter.{name}"),
+            arity,
+            operation,
+        ))
     };
+    let host = Module::builder("std/iter")
+        .value(
+            "typed_iterator",
+            intrinsic("typed_iterator", 1, IteratorIntrinsic::TypedIterator),
+        )
+        .value(
+            "validate_count",
+            intrinsic("validate_count", 1, IteratorIntrinsic::ValidateCount),
+        )
+        .value(
+            "validate_range",
+            intrinsic("validate_range", 2, IteratorIntrinsic::ValidateRange),
+        )
+        .value(
+            "drop_next",
+            intrinsic("drop_next", 2, IteratorIntrinsic::DropNext),
+        )
+        .value(
+            "enumerate_next",
+            intrinsic("enumerate_next", 2, IteratorIntrinsic::EnumerateNext),
+        )
+        .value(
+            "zip_next",
+            intrinsic("zip_next", 2, IteratorIntrinsic::ZipNext),
+        )
+        .value(
+            "zip_longest_next",
+            intrinsic("zip_longest_next", 5, IteratorIntrinsic::ZipLongestNext),
+        )
+        .value(
+            "filter_next",
+            intrinsic("filter_next", 2, IteratorIntrinsic::FilterNext),
+        )
+        .value(
+            "to_list",
+            intrinsic("to_list", 1, IteratorIntrinsic::ToList),
+        )
+        .value("fold", intrinsic("fold", 3, IteratorIntrinsic::Fold))
+        .value("find", intrinsic("find", 2, IteratorIntrinsic::Find))
+        .value(
+            "find_index",
+            intrinsic("find_index", 2, IteratorIntrinsic::FindIndex),
+        )
+        .value(
+            "contains",
+            intrinsic("contains", 2, IteratorIntrinsic::Contains),
+        )
+        .value("any", intrinsic("any", 2, IteratorIntrinsic::Any))
+        .value("all", intrinsic("all", 2, IteratorIntrinsic::All))
+        .value("each", intrinsic("each", 2, IteratorIntrinsic::Each))
+        .value("count", intrinsic("count", 2, IteratorIntrinsic::Count))
+        .value(
+            "each_while",
+            intrinsic("each_while", 2, IteratorIntrinsic::EachWhile),
+        )
+        .value(
+            "fold_while",
+            intrinsic("fold_while", 3, IteratorIntrinsic::FoldWhile),
+        )
+        .value("loop", intrinsic("loop", 1, IteratorIntrinsic::Loop))
+        .value(
+            "repeat_next",
+            intrinsic("repeat_next", 1, IteratorIntrinsic::RepeatNext),
+        )
+        .build_value();
     Module::source("std/iter", include_str!("../stdlib/iter.simi"))
         .host(host)
         .build()
@@ -107,6 +284,60 @@ pub fn map() -> Module {
         },
     };
     Module::source("std/map", include_str!("../stdlib/map.simi"))
+        .host(host)
+        .build()
+}
+
+pub fn integer() -> Module {
+    let host = crate::host_value! {
+        name: "std/integer",
+        functions: {
+            "encode" => (2, integer_encode),
+            "decode" => (2, integer_decode),
+        },
+    };
+    Module::source("std/integer", include_str!("../stdlib/integer.simi"))
+        .host(host)
+        .build()
+}
+
+pub fn float() -> Module {
+    let host = crate::host_value! {
+        name: "std/float",
+        functions: {
+            "encode" => (2, float_encode),
+            "decode" => (2, float_decode),
+        },
+    };
+    Module::source("std/float", include_str!("../stdlib/float.simi"))
+        .host(host)
+        .build()
+}
+
+pub fn utf8() -> Module {
+    let host = crate::host_value! {
+        name: "std/utf8",
+        functions: {
+            "encode" => (1, utf8_encode),
+            "decode" => (1, utf8_decode),
+        },
+    };
+    Module::source("std/utf8", include_str!("../stdlib/utf8.simi"))
+        .host(host)
+        .build()
+}
+
+pub fn utf16() -> Module {
+    let host = crate::host_value! {
+        name: "std/utf16",
+        functions: {
+            "encode_le" => (1, utf16_encode_le),
+            "encode_be" => (1, utf16_encode_be),
+            "decode_le" => (1, utf16_decode_le),
+            "decode_be" => (1, utf16_decode_be),
+        },
+    };
+    Module::source("std/utf16", include_str!("../stdlib/utf16.simi"))
         .host(host)
         .build()
 }

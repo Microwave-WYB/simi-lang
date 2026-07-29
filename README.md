@@ -1,6 +1,6 @@
 # Simi
 
-![Simi `two_sum` example](assets/two_sum.png)
+![Simi `quicksort` example](assets/quicksort.png)
 
 Simi is a small scripting language designed to be easy to run and embed.
 
@@ -11,33 +11,25 @@ Simi is a small scripting language designed to be easy to run and embed.
 ```simi
 let io = require("std/io")
 
-fn greet(name) do
+fn greet(name)
     io.println("Hello, " <> name <> "!")
-end
 
 greet("Simi")
 ```
 
-### Loops
+### Iterator controls
 
 ```simi
---- Computes the greatest common divisor with ordinary lexical state.
-fn gcd(left: integer, right: integer) -> integer noraise do
-    loop
-        if right == 0 then break left end
-        let remainder = left % right
-        left = right
-        right = remainder
-    end
-end
+let iter = require("std/iter")
 
-gcd(1071, 462)
+iter.fold_while(list.iter([1, 2, 3]), 0, fn(total, value)
+    if value == 3 then iter.break(total) else iter.continue(total + value) end)
 ```
 
-Save this as `two_sum.simi`, install Simi using one of the options below, and run:
+Save this as `quicksort.simi`, install Simi using one of the options below, and run:
 
 ```sh
-simi run two_sum.simi
+simi run quicksort.simi
 ```
 
 ## Language tour
@@ -46,7 +38,7 @@ Start with [Hello, world!](docs/language-tour/hello-world.md), continue through 
 
 ## Installation
 
-> **Status:** Simi is under active development. Versioned prereleases and the moving `latest` development release include the exact source commit in every download name.
+> **Status:** Simi is under active development. Alpha releases are distributed only as GitHub Release artifacts; crates.io publication is deferred. Versioned prereleases and the moving `latest` development release include the exact source commit in every download name.
 
 ### Latest release
 
@@ -68,7 +60,7 @@ Development artifacts are produced for Linux x86-64, Intel macOS, and Windows x8
 
 ### Cargo
 
-To build the newest source directly, first [install Rust with rustup](https://rustup.rs/). Simi currently requires Rust 1.88 or newer. Then run:
+Simi is not published to crates.io during the alpha phase. To build the newest source directly, first [install Rust with rustup](https://rustup.rs/). Simi currently requires Rust 1.88 or newer. Then run:
 
 ```sh
 cargo install --git https://github.com/Microwave-WYB/simi-lang --bin simi
@@ -98,13 +90,13 @@ Zed and other editor integrations are currently installed from this repository.
 Run a script:
 
 ```sh
-simi run two_sum.simi
+simi run quicksort.simi
 ```
 
 Scripts control their own output. To also display the script's final value, including `nil`:
 
 ```sh
-simi run --inspect two_sum.simi
+simi run --inspect quicksort.simi
 ```
 
 Start the language server over standard input and output:
@@ -117,9 +109,9 @@ simi lsp
 
 - dynamic values with optional, runtime-erased annotations, bounded generics, callable labels, and raised-effect contracts;
 - lexical closures, recursion, and same-scope shadowing;
-- expression-valued `if`, `case`, `try`, standalone blocks, and functional loops;
+- expression-valued `if`, `case`, protected and standalone `do` blocks, and iterator controls;
 - ordinary, nil-aware, tap, and trailing-callback pipeline operators;
-- mutable zero-based lists and insertion-ordered maps;
+- mutable zero-based lists, insertion-ordered maps, and immutable packed bytes;
 - structural list/map patterns and catchable raised values;
 - tracing garbage collection with cycle-safe inspection;
 - explicit source-backed modules with private native host values;
@@ -138,7 +130,7 @@ pub type ScriptResult = Result<Value, Raised>;
 pub fn eval(source: &str) -> Result<ScriptResult, SimiError>;
 ```
 
-`eval` uses a fresh engine with the portable standard library. `Engine::new()` instead provides the built-in `list` and `map` prelude globals in addition to `type`, `inspect`, and `require`. Built-in `require("std/list")` and `require("std/map")` raise `module_not_found`; hosts may still explicitly register modules at those paths. For persistent module state or custom capabilities, construct an `Engine`:
+`eval` uses a fresh portable engine. `Engine::new()` and `Engine::with_stdlib()` provide the same shadowable `list`, `map`, `iter`, `number`, and `string` prelude globals, together with `type`, `inspect`, and `require`; their canonical `std/*` paths remain available through `require` and share the same cached module values. The portable `std/bytes` module is require-only and intentionally has no global alias. For persistent module state or custom capabilities, construct an `Engine`:
 
 ```rust
 use simi::Engine;
@@ -157,17 +149,22 @@ Hosts can register direct value modules or use `host_value!` to generate a priva
 
 ## Standard modules
 
-`Engine::new()` provides the minimum prelude:
+`Engine::new()` and `Engine::with_stdlib()` both provide the portable prelude:
 
-- built-in `list` and `map` globals
+- `list`, `map`, `iter`, `number`, and `string` globals;
+- canonical `std/list`, `std/map`, `std/iter`, `std/number`, `std/string`, and require-only `std/bytes`, `std/float`, `std/integer`, `std/utf8`, and `std/utf16` paths for `require`.
 
-`Engine::with_stdlib()` additionally provides:
-
-- `std/iter`
-- `std/number`
-- `std/string`
+`Engine::builder().build()` remains an explicit bare host configuration. Use `.stdlib()` to install this portable prelude, and add `.stdio()` only when text IO is required.
 
 The CLI additionally registers the opt-in `std/io` capability. Filesystem and package module discovery are not implemented yet; embedders register modules explicitly.
+
+### Numeric encoding
+
+`std/integer` encodes and decodes fixed-width twos-complement and unsigned integers in explicit endianness. `std/float` encodes and decodes IEEE 754 single- and double-precision values, representing non-finite values as the exact strings `"inf"`, `"-inf"`, and `"nan"`.
+
+### Unicode codecs
+
+`std/utf8` encodes strings into UTF-8 bytes and performs strict decoding, returning `nil` for malformed input. `std/utf16` provides explicit little-endian and big-endian encode and decode, with `nil` for odd-length byte sequences, unpaired surrogates, and other malformed UTF-16.
 
 ## Development
 

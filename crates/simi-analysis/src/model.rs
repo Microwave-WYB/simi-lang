@@ -95,6 +95,7 @@ pub struct Resolution {
 pub enum AnalysisDiagnosticCode {
     InvalidSyntax,
     SyntaxError,
+    InvalidPackageRequirements,
     TypeMismatch,
     InvalidOperator,
     NotCallable,
@@ -104,7 +105,6 @@ pub enum AnalysisDiagnosticCode {
     CyclicTypeAlias,
     InvalidType,
     Todo,
-    AmbiguousLoopControl,
     DestructuringLetMayFail,
     DestructuringLetNeverMatches,
 }
@@ -114,6 +114,7 @@ impl AnalysisDiagnosticCode {
         match self {
             Self::InvalidSyntax => "invalid_syntax",
             Self::SyntaxError => "syntax_error",
+            Self::InvalidPackageRequirements => "invalid_package_requirements",
             Self::TypeMismatch => "type_mismatch",
             Self::InvalidOperator => "invalid_operator",
             Self::NotCallable => "not_callable",
@@ -123,7 +124,6 @@ impl AnalysisDiagnosticCode {
             Self::CyclicTypeAlias => "cyclic_type_alias",
             Self::InvalidType => "invalid_type",
             Self::Todo => "todo",
-            Self::AmbiguousLoopControl => "ambiguous_loop_control",
             Self::DestructuringLetMayFail => "destructuring_let_may_fail",
             Self::DestructuringLetNeverMatches => "destructuring_let_never_matches",
         }
@@ -272,6 +272,25 @@ impl Hash for CallableType {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct LiteralFloat(u64);
+
+impl LiteralFloat {
+    pub fn new(mut value: f64) -> Option<Self> {
+        if !value.is_finite() {
+            return None;
+        }
+        if value == 0.0 {
+            value = 0.0;
+        }
+        Some(Self(value.to_bits()))
+    }
+
+    pub fn value(self) -> f64 {
+        f64::from_bits(self.0)
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Type {
     #[doc(hidden)]
@@ -283,7 +302,9 @@ pub enum Type {
     Int,
     Float,
     String,
+    Bytes,
     LiteralInt(i64),
+    LiteralFloat(LiteralFloat),
     LiteralString(String),
     LiteralBoolean(bool),
     ListExact(Vec<Type>),
@@ -316,6 +337,15 @@ impl Type {
     }
 }
 
+fn display_float_literal(value: f64) -> String {
+    let rendered = value.to_string();
+    if rendered.contains(['.', 'e', 'E']) {
+        rendered
+    } else {
+        format!("{rendered}.0")
+    }
+}
+
 fn display_type(ty: &Type, nested: bool) -> String {
     match ty {
         Type::Never => "never".to_owned(),
@@ -326,7 +356,9 @@ fn display_type(ty: &Type, nested: bool) -> String {
         Type::Int => "integer".to_owned(),
         Type::Float => "float".to_owned(),
         Type::String => "string".to_owned(),
+        Type::Bytes => "bytes".to_owned(),
         Type::LiteralInt(value) => value.to_string(),
+        Type::LiteralFloat(value) => display_float_literal(value.value()),
         Type::LiteralString(value) => format!("{value:?}"),
         Type::LiteralBoolean(value) => value.to_string(),
         Type::ListExact(items) => format!(
@@ -378,7 +410,7 @@ fn display_type(ty: &Type, nested: bool) -> String {
                     })
                     .collect::<Vec<_>>()
                     .join(", ");
-                format!("<{values}> ")
+                format!("<{values}>")
             };
             let rendered_parameters = callable
                 .parameters
@@ -391,12 +423,9 @@ fn display_type(ty: &Type, nested: bool) -> String {
                     value
                 })
                 .collect::<Vec<_>>();
-            let left = match callable.parameters.as_slice() {
-                [parameter] if parameter.name.is_none() => display_type(&parameter.ty, true),
-                _ => format!("({})", rendered_parameters.join(", ")),
-            };
             let mut value = format!(
-                "{constraints}{left} -> {}",
+                "fn{constraints}({}) -> {}",
+                rendered_parameters.join(", "),
                 display_type(&callable.result, false)
             );
             let orphan_inferred_effect = match callable.raised.as_ref() {
@@ -418,9 +447,9 @@ fn display_type(ty: &Type, nested: bool) -> String {
             };
             match (&*callable.raised, callable.raised_annotation) {
                 (Type::Never, RaisedAnnotation::Inferred) => {}
-                (Type::Never, _) => value.push_str(" noraise"),
+                (Type::Never, _) => value.push_str(" ! never"),
                 (raised, _) if !orphan_inferred_effect => {
-                    value.push_str(" raises ");
+                    value.push_str(" ! ");
                     value.push_str(&display_type(raised, false));
                 }
                 _ => {}
@@ -577,10 +606,10 @@ fn pretty_function(callable: &CallableType, continuation_indent: usize, width: u
             })
             .collect::<Vec<_>>();
         if constraints.join(", ").len() + continuation_indent + 3 <= width {
-            format!("<{}> ", constraints.join(", "))
+            format!("<{}>", constraints.join(", "))
         } else {
             format!(
-                "<\n{}\n{}> ",
+                "<\n{}\n{}>",
                 constraints
                     .iter()
                     .map(|constraint| format!("{}{},", " ".repeat(indent), constraint))
@@ -597,12 +626,12 @@ fn pretty_function(callable: &CallableType, continuation_indent: usize, width: u
         continuation_indent,
         width,
     );
-    let mut value = format!("{constraints}{parameters} -> {result}");
+    let mut value = format!("fn{constraints}{parameters} -> {result}");
     match (&*callable.raised, callable.raised_annotation) {
         (Type::Never, RaisedAnnotation::Inferred) => {}
-        (Type::Never, _) => value.push_str(" noraise"),
+        (Type::Never, _) => value.push_str(" ! never"),
         (raised, _) => {
-            value.push_str(" raises ");
+            value.push_str(" ! ");
             let raised = if value.len() + raised.display().len() <= width {
                 raised.display()
             } else {
@@ -786,11 +815,11 @@ mod tests {
         };
         assert_eq!(
             ty.pretty_display(40),
-            "{\n    concat: (\n        left: string,\n        right: string,\n    ) -> string noraise,\n    length: integer,\n    ..\n}"
+            "{\n    concat: fn(\n        left: string,\n        right: string,\n    ) -> string ! never,\n    length: integer,\n    ..\n}"
         );
         assert_eq!(
             ty.display(),
-            "{ concat: (left: string, right: string) -> string noraise, length: integer, .. }"
+            "{ concat: fn(left: string, right: string) -> string ! never, length: integer, .. }"
         );
     }
 
@@ -827,7 +856,7 @@ mod tests {
         }));
         let rendered = ty.pretty_display(40);
         assert!(rendered.contains("<"));
-        assert!(rendered.contains("raises"));
+        assert!(rendered.contains("!"));
         assert!(rendered.lines().all(|line| line.len() <= 40), "{rendered}");
     }
 }

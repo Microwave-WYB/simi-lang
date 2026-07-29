@@ -33,11 +33,9 @@ impl Context<'_> {
                     let Some(name) = direct_token(field.syntax(), K::IDENT) else {
                         continue;
                     };
-                    let Some(child) = support::child::<syntax::Pattern>(field.syntax()) else {
-                        continue;
-                    };
-                    if let Some((_, field_type)) =
-                        fields.iter().find(|(field, _)| field == name.text())
+                    if let Some(child) = support::child::<syntax::Pattern>(field.syntax())
+                        && let Some((_, field_type)) =
+                            fields.iter().find(|(field, _)| field == name.text())
                     {
                         self.constrain_pattern_domain(field_type, &child);
                     }
@@ -51,16 +49,16 @@ impl Context<'_> {
             syntax::Pattern::Binding(_) | syntax::Pattern::Wildcard(_) => Some(self.fresh()),
             syntax::Pattern::Literal(node) => Some(literal_type(node.syntax())),
             syntax::Pattern::List(_) => Some(Type::ListRest(Box::new(self.fresh()))),
+            syntax::Pattern::Bytes(_) => Some(Type::Bytes),
             syntax::Pattern::Map(map) => {
                 let mut fields = Vec::new();
                 for field in support::children::<syntax::MapPatternField>(map.syntax()) {
                     let Some(name) = direct_token(field.syntax(), K::IDENT) else {
                         continue;
                     };
-                    let Some(child) = support::child::<syntax::Pattern>(field.syntax()) else {
-                        continue;
-                    };
-                    let field_type = self.pattern_domain(&child).unwrap_or(Type::Unknown);
+                    let field_type = support::child::<syntax::Pattern>(field.syntax())
+                        .and_then(|child| self.pattern_domain(&child))
+                        .unwrap_or_else(|| self.fresh());
                     fields.push((name.text().to_owned(), field_type));
                 }
                 Some(Type::Map {
@@ -83,6 +81,12 @@ impl Context<'_> {
             .all(|pattern| matches!(pattern, syntax::Pattern::List(_)))
         {
             return Some(Type::ListRest(Box::new(self.fresh())));
+        }
+        if patterns
+            .iter()
+            .all(|pattern| matches!(pattern, syntax::Pattern::Bytes(_)))
+        {
+            return Some(Type::Bytes);
         }
         if patterns
             .iter()
@@ -230,6 +234,7 @@ impl Context<'_> {
             "integer" => "integer",
             "float" => "float",
             "string" => "string",
+            "bytes" => "bytes",
             "list" => "list",
             "map" => "map",
             "function" => "function",

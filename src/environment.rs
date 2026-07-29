@@ -113,14 +113,6 @@ impl Environment {
         }
     }
 
-    pub(crate) fn assign(&self, name: &str, value: Value) -> bool {
-        let Some(binding) = self.binding(name) else {
-            return false;
-        };
-        *binding.borrow_mut() = value;
-        true
-    }
-
     pub fn get(&self, name: &str) -> Option<Value> {
         self.binding(name).map(|binding| binding.borrow().clone())
     }
@@ -207,30 +199,6 @@ mod tests {
         assert_eq!(int(&second, "value"), Some(2));
         assert_eq!(int(&first, "later"), Some(3));
         assert_eq!(int(&second, "later"), Some(3));
-
-        first.assign("value", Value::Int(4));
-        second.assign("later", Value::Int(5));
-        assert_eq!(int(&first, "value"), Some(4));
-        assert_eq!(int(&second, "value"), Some(2));
-        assert_eq!(int(&first, "later"), Some(5));
-    }
-
-    #[test]
-    fn assignments_walk_parents_and_update_the_nearest_scope() {
-        let parent = Environment::new();
-        parent.define_fresh("value", Value::Int(1));
-        let child = parent.child();
-        let alias = parent.clone();
-
-        assert!(child.assign("value", Value::Int(2)));
-        assert_eq!(int(&parent, "value"), Some(2));
-        assert_eq!(int(&alias, "value"), Some(2));
-
-        child.define_fresh("value", Value::Int(3));
-        assert!(child.assign("value", Value::Int(4)));
-        assert_eq!(int(&child, "value"), Some(4));
-        assert_eq!(int(&parent, "value"), Some(2));
-        assert!(!child.assign("missing", Value::Int(0)));
     }
 
     #[test]
