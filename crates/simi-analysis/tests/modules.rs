@@ -630,3 +630,186 @@ fn shared(value) do value end
         Some("Shared export.")
     );
 }
+
+// ---------------------------------------------------------------------------
+// codec facade shape and require inference
+// ---------------------------------------------------------------------------
+
+#[test]
+fn integer_facade_exports_precise_types_and_infers_through_require() {
+    let db = AnalysisDatabase::default();
+    let module_file = db.add_file(include_str!("../../../stdlib/integer.simi"));
+    let diagnostics = simi_analysis::diagnostics(&db, module_file);
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    let shape = module_shape(&db, module_file);
+
+    let displayed = |name: &str| {
+        shape
+            .fields
+            .iter()
+            .find(|field| field.name == name)
+            .and_then(|field| field.ty.as_ref())
+            .expect("typed integer facade export")
+            .display()
+    };
+    assert_eq!(
+        displayed("encode"),
+        "fn(value: integer, format: string) -> bytes ! never"
+    );
+    assert_eq!(
+        displayed("decode"),
+        "fn(data: bytes, format: string) -> integer | nil ! never"
+    );
+
+    let source = "let integer = require(\"std/integer\") integer.decode(integer.encode(0, \"i8le\"), \"i8le\")";
+    let file = db.add_file(source);
+    let modules = HashMap::from([("std/integer".to_owned(), shape)]);
+    let inference = infer_types(&db, file, &modules);
+    assert!(
+        inference.diagnostics.is_empty(),
+        "{:?}",
+        inference.diagnostics
+    );
+    assert_eq!(
+        inference
+            .result_type
+            .as_ref()
+            .expect("inferred integer conversion result")
+            .display(),
+        "integer | nil"
+    );
+}
+
+#[test]
+fn float_facade_exports_precise_types_and_infers_through_require() {
+    let db = AnalysisDatabase::default();
+    let module_file = db.add_file(include_str!("../../../stdlib/float.simi"));
+    let diagnostics = simi_analysis::diagnostics(&db, module_file);
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    let shape = module_shape(&db, module_file);
+
+    let displayed = |name: &str| {
+        shape
+            .fields
+            .iter()
+            .find(|field| field.name == name)
+            .and_then(|field| field.ty.as_ref())
+            .expect("typed float facade export")
+            .display()
+    };
+    assert_eq!(
+        displayed("encode"),
+        "fn(value: float | \"inf\" | \"-inf\" | \"nan\", format: string) -> bytes | nil ! never"
+    );
+    assert_eq!(
+        displayed("decode"),
+        "fn(data: bytes, format: string) -> float | \"inf\" | \"-inf\" | \"nan\" | nil ! never"
+    );
+
+    let source = "let float = require(\"std/float\") let encoded = float.encode(0.0, \"f64le\") let decoded = float.decode(encoded, \"f64le\")";
+    let file = db.add_file(source);
+    let modules = HashMap::from([("std/float".to_owned(), shape)]);
+    let inference = infer_types(&db, file, &modules);
+    // encoded is bytes | nil per facade; decode(encoded) is accepted but encoded may be nil.
+    // The analysis reports a type mismatch for potential nil flowing into bytes.
+    assert_eq!(inference.diagnostics.len(), 1);
+    assert_eq!(
+        inference
+            .result_type
+            .as_ref()
+            .expect("inferred float conversion result")
+            .display(),
+        "float | \"inf\" | \"-inf\" | \"nan\" | nil"
+    );
+    // A direct encode→decode chain through a let binding that the analyzer
+    // can see is non-nil (e.g. f64 never returns nil) is not yet refined.
+}
+
+#[test]
+fn utf8_facade_exports_precise_types_and_infers_through_require() {
+    let db = AnalysisDatabase::default();
+    let module_file = db.add_file(include_str!("../../../stdlib/utf8.simi"));
+    let diagnostics = simi_analysis::diagnostics(&db, module_file);
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    let shape = module_shape(&db, module_file);
+
+    let displayed = |name: &str| {
+        shape
+            .fields
+            .iter()
+            .find(|field| field.name == name)
+            .and_then(|field| field.ty.as_ref())
+            .expect("typed utf8 facade export")
+            .display()
+    };
+    assert_eq!(displayed("encode"), "fn(text: string) -> bytes ! never");
+    assert_eq!(
+        displayed("decode"),
+        "fn(data: bytes) -> string | nil ! never"
+    );
+
+    let source = "let utf8 = require(\"std/utf8\") utf8.encode(\"a\")";
+    let file = db.add_file(source);
+    let modules = HashMap::from([("std/utf8".to_owned(), shape)]);
+    let inference = infer_types(&db, file, &modules);
+    assert!(
+        inference.diagnostics.is_empty(),
+        "{:?}",
+        inference.diagnostics
+    );
+    assert_eq!(
+        inference
+            .result_type
+            .as_ref()
+            .expect("inferred utf8 conversion result")
+            .display(),
+        "bytes"
+    );
+}
+
+#[test]
+fn utf16_facade_exports_precise_types_and_infers_through_require() {
+    let db = AnalysisDatabase::default();
+    let module_file = db.add_file(include_str!("../../../stdlib/utf16.simi"));
+    let diagnostics = simi_analysis::diagnostics(&db, module_file);
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    let shape = module_shape(&db, module_file);
+
+    let displayed = |name: &str| {
+        shape
+            .fields
+            .iter()
+            .find(|field| field.name == name)
+            .and_then(|field| field.ty.as_ref())
+            .expect("typed utf16 facade export")
+            .display()
+    };
+    assert_eq!(displayed("encode_le"), "fn(text: string) -> bytes ! never");
+    assert_eq!(displayed("encode_be"), "fn(text: string) -> bytes ! never");
+    assert_eq!(
+        displayed("decode_le"),
+        "fn(data: bytes) -> string | nil ! never"
+    );
+    assert_eq!(
+        displayed("decode_be"),
+        "fn(data: bytes) -> string | nil ! never"
+    );
+
+    let source = "let utf16 = require(\"std/utf16\") utf16.encode_le(\"a\")";
+    let file = db.add_file(source);
+    let modules = HashMap::from([("std/utf16".to_owned(), shape)]);
+    let inference = infer_types(&db, file, &modules);
+    assert!(
+        inference.diagnostics.is_empty(),
+        "{:?}",
+        inference.diagnostics
+    );
+    assert_eq!(
+        inference
+            .result_type
+            .as_ref()
+            .expect("inferred utf16 conversion result")
+            .display(),
+        "bytes"
+    );
+}

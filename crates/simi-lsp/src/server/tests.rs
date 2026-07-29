@@ -2530,3 +2530,117 @@ fn static_requirement_metadata_diagnostics_are_published_over_lsp() {
         assert_eq!(diagnostic.range.start, text_position(source, needle, 0));
     }
 }
+
+// ---------------------------------------------------------------------------
+// codec module hovers
+// ---------------------------------------------------------------------------
+
+#[test]
+fn real_integer_module_hover_uses_typed_facade() {
+    let module = include_str!("../../../../stdlib/integer.simi");
+    let source = "let integer = require(\"std/integer\")\ninteger.encode";
+    let mut backend = Backend::with_module_sources([("std/integer", module)]);
+    open(&mut backend, source);
+    let hover: Option<Hover> = serde_json::from_value(
+        request(
+            &mut backend,
+            HoverRequest::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": text_position(source, "encode", 0),
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let HoverContents::Markup(markup) = hover.expect("integer encode hover").contents else {
+        panic!("expected markup")
+    };
+    assert_simi_hover(
+        &markup,
+        "fn(value: integer, format: string) -> bytes ! never\n\nEncode an integer as bytes in an explicit endian format.\n\nAccepted formats: i8le, i8be, u8le, u8be, i16le, i16be, u16le, u16be,\ni32le, i32be, u32le, u32be, i64le, i64be, u64le, u64be.\n\nA value outside the selected range — including any negative value for an\nunsigned format — is a hard runtime diagnostic.",
+    );
+}
+
+#[test]
+fn real_float_module_hover_reports_union_wire_type() {
+    let module = include_str!("../../../../stdlib/float.simi");
+    let source = "let float = require(\"std/float\")\nfloat.decode";
+    let mut backend = Backend::with_module_sources([("std/float", module)]);
+    open(&mut backend, source);
+    let hover: Option<Hover> = serde_json::from_value(
+        request(
+            &mut backend,
+            HoverRequest::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": text_position(source, "decode", 0),
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let HoverContents::Markup(markup) = hover.expect("float decode hover").contents else {
+        panic!("expected markup")
+    };
+    let raw = assert_simi_hover_raw(&markup);
+    assert!(
+        raw.contains("float | \"inf\" | \"-inf\" | \"nan\""),
+        "{raw}"
+    );
+    assert!(raw.contains("bytes, format: string"), "{raw}");
+}
+
+#[test]
+fn real_utf8_module_hover_uses_typed_facade() {
+    let module = include_str!("../../../../stdlib/utf8.simi");
+    let source = "let utf8 = require(\"std/utf8\")\nutf8.encode";
+    let mut backend = Backend::with_module_sources([("std/utf8", module)]);
+    open(&mut backend, source);
+    let hover: Option<Hover> = serde_json::from_value(
+        request(
+            &mut backend,
+            HoverRequest::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": text_position(source, "encode", 0),
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let HoverContents::Markup(markup) = hover.expect("utf8 encode hover").contents else {
+        panic!("expected markup")
+    };
+    assert_simi_hover(
+        &markup,
+        "fn(text: string) -> bytes ! never\n\nEncode a string into its UTF-8 byte representation.",
+    );
+}
+
+#[test]
+fn real_utf16_module_hover_uses_typed_facade() {
+    let module = include_str!("../../../../stdlib/utf16.simi");
+    let source = "let utf16 = require(\"std/utf16\")\nutf16.decode_le";
+    let mut backend = Backend::with_module_sources([("std/utf16", module)]);
+    open(&mut backend, source);
+    let hover: Option<Hover> = serde_json::from_value(
+        request(
+            &mut backend,
+            HoverRequest::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": text_position(source, "decode_le", 0),
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let HoverContents::Markup(markup) = hover.expect("utf16 decode_le hover").contents else {
+        panic!("expected markup")
+    };
+    assert_simi_hover(
+        &markup,
+        "fn(data: bytes) -> string | nil ! never\n\nStrictly decode little-endian UTF-16 bytes into a string, or nil when malformed.",
+    );
+}

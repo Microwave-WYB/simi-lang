@@ -15,6 +15,12 @@
   - [Module identity and state](#module-identity-and-state)
   - [Conversion and string helpers](#conversion-and-string-helpers)
   - [Byte helpers](#byte-helpers)
+  - [Numeric encoding](#numeric-encoding)
+    - [Integer encoding](#integer-encoding)
+    - [Float encoding](#float-encoding)
+  - [Unicode codecs](#unicode-codecs)
+    - [UTF-8](#utf-8)
+    - [UTF-16](#utf-16)
   - [Prelude globals](#prelude-globals)
 - [Text IO](text-io.md)
 - [Iterators](iterators.md)
@@ -96,6 +102,58 @@ let body = bytes.slice(header, 1, 20)
 ```
 
 `bytes.get` returns `nil` beyond the end. Negative and non-integer indices, invalid octets, and wrong argument categories are hard diagnostics.
+
+## Numeric encoding
+
+The require-only `std/integer` and `std/float` modules encode and decode numbers into bytes with explicit endianness.
+
+### Integer encoding
+
+`std/integer` supports fixed-width twos-complement and unsigned formats: `i8le`, `i8be`, `u8le`, `u8be`, `i16le`, `i16be`, `u16le`, `u16be`, `i32le`, `i32be`, `u32le`, `u32be`, `i64le`, `i64be`, `u64le`, and `u64be`. A value outside the selected range — including any negative value for an unsigned format — is a hard runtime diagnostic. `decode` returns `nil` when the byte length does not match the format width. A decoded `u64` value that exceeds the `i64` range is also a hard diagnostic.
+
+```simi
+let integer = require("std/integer")
+
+let encoded = integer.encode(0x1234, "i16be")
+let value = integer.decode(#[127], "i8be")
+```
+
+### Float encoding
+
+`std/float` supports IEEE 754 single- and double-precision in `f32le`, `f32be`, `f64le`, and `f64be`. It accepts a finite float or one of the exact special-wire strings `"inf"`, `"-inf"`, or `"nan"` for encode. Encoding a finite `f64` value that narrows to a non-finite `f32` returns `nil`. Decode returns the same special-wire string for IEEE infinities and NaN values, and `nil` when the byte-length does not match the format.
+
+```simi
+let float = require("std/float")
+
+let encoded = float.encode("inf", "f64le")
+let value = float.decode(#[0, 0, 128, 127], "f32le")
+```
+
+## Unicode codecs
+
+The require-only `std/utf8` and `std/utf16` modules encode strings to bytes and perform strict decoding.
+
+### UTF-8
+
+`utf8.encode` returns the UTF-8 byte representation of a string. `utf8.decode` returns `nil` for any malformed byte sequence — invalid continuation bytes, overlong encodings, surrogate halves encoded in UTF-8, and truncated multi-byte sequences.
+
+```simi
+let utf8 = require("std/utf8")
+
+let data = utf8.encode("aé🦀")
+let text = utf8.decode(#[97, 195, 169, 240, 159, 166, 128])
+```
+
+### UTF-16
+
+`utf16` provides explicit little-endian and big-endian functions: `encode_le`, `encode_be`, `decode_le`, and `decode_be`. Decode returns `nil` for odd-length byte sequences, unpaired surrogates, and broken surrogate pairs. The BOM codepoint `U+FEFF` is preserved as an ordinary character; this module does not strip or interpret it.
+
+```simi
+let utf16 = require("std/utf16")
+
+let little = utf16.encode_le("AB")
+let text = utf16.decode_le(little)
+```
 
 ## Prelude globals
 

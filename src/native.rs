@@ -29,3 +29,5 @@ pub use string::{
     string_concat, string_contains, string_ends_with, string_length, string_lower, string_slice,
     string_split, string_starts_with, string_to_number, string_trim, string_upper,
 };
+pub use utf8::{utf8_decode, utf8_encode};
+pub use utf16::{utf16_decode_be, utf16_decode_le, utf16_encode_be, utf16_encode_le};

@@ -1,11 +1,13 @@
 use crate::Module;
 use crate::native::{
-    bytes_concat, bytes_from_list, bytes_get, bytes_length, bytes_slice, bytes_to_list, io_eprint,
-    io_eprintln, io_print, io_println, list_append, list_contains, list_copy, list_extend,
-    list_get, list_insert, list_iter, list_length, list_pop, list_remove, list_reverse, list_set,
-    list_slice, map_clear, map_copy, map_has, map_iter, map_length, number_to_string,
-    stdin_read_line, string_concat, string_contains, string_ends_with, string_length, string_lower,
-    string_slice, string_split, string_starts_with, string_to_number, string_trim, string_upper,
+    bytes_concat, bytes_from_list, bytes_get, bytes_length, bytes_slice, bytes_to_list,
+    float_decode, float_encode, integer_decode, integer_encode, io_eprint, io_eprintln, io_print,
+    io_println, list_append, list_contains, list_copy, list_extend, list_get, list_insert,
+    list_iter, list_length, list_pop, list_remove, list_reverse, list_set, list_slice, map_clear,
+    map_copy, map_has, map_iter, map_length, number_to_string, stdin_read_line, string_concat,
+    string_contains, string_ends_with, string_length, string_lower, string_slice, string_split,
+    string_starts_with, string_to_number, string_trim, string_upper, utf8_decode, utf8_encode,
+    utf16_decode_be, utf16_decode_le, utf16_encode_be, utf16_encode_le,
 };
 use crate::runtime::{NativeFunction, Value};
 use crate::value::IteratorIntrinsic;
@@ -192,6 +194,60 @@ pub fn map() -> Module {
         },
     };
     Module::source("std/map", include_str!("../stdlib/map.simi"))
+        .host(host)
+        .build()
+}
+
+pub fn integer() -> Module {
+    let host = crate::host_value! {
+        name: "std/integer",
+        functions: {
+            "encode" => (2, integer_encode),
+            "decode" => (2, integer_decode),
+        },
+    };
+    Module::source("std/integer", include_str!("../stdlib/integer.simi"))
+        .host(host)
+        .build()
+}
+
+pub fn float() -> Module {
+    let host = crate::host_value! {
+        name: "std/float",
+        functions: {
+            "encode" => (2, float_encode),
+            "decode" => (2, float_decode),
+        },
+    };
+    Module::source("std/float", include_str!("../stdlib/float.simi"))
+        .host(host)
+        .build()
+}
+
+pub fn utf8() -> Module {
+    let host = crate::host_value! {
+        name: "std/utf8",
+        functions: {
+            "encode" => (1, utf8_encode),
+            "decode" => (1, utf8_decode),
+        },
+    };
+    Module::source("std/utf8", include_str!("../stdlib/utf8.simi"))
+        .host(host)
+        .build()
+}
+
+pub fn utf16() -> Module {
+    let host = crate::host_value! {
+        name: "std/utf16",
+        functions: {
+            "encode_le" => (1, utf16_encode_le),
+            "encode_be" => (1, utf16_encode_be),
+            "decode_le" => (1, utf16_decode_le),
+            "decode_be" => (1, utf16_decode_be),
+        },
+    };
+    Module::source("std/utf16", include_str!("../stdlib/utf16.simi"))
         .host(host)
         .build()
 }

@@ -1,18 +1,15 @@
 ---- IEEE 754 single- and double-precision encoding and decoding.
 
---- A finite float or an exact special wire string.
-type float_wire_value = float | "inf" | "-inf" | "nan"
-
 --- Encode a finite float or special wire string into bytes.
 ---
 --- Returns nil when a finite f64 narrows to a non-finite f32. Wrong arity,
 --- argument categories, unsupported strings, and unknown formats are hard errors.
-let encode: fn(value: float_wire_value, format: string) -> bytes | nil ! never = host.encode
+let encode: fn(value: float | "inf" | "-inf" | "nan", format: string) -> bytes | nil ! never = host.encode
 
 --- Decode bytes into a finite float or special wire string.
 ---
 --- Returns nil when the byte slice length does not match the format.
-let decode: fn(data: bytes, format: string) -> float_wire_value | nil ! never = host.decode
+let decode: fn(data: bytes, format: string) -> float | "inf" | "-inf" | "nan" | nil ! never = host.decode
 
 {
     encode = encode,

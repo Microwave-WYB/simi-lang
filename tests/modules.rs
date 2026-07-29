@@ -1017,12 +1017,17 @@ fn source_module_nested_loads_retry_failures_and_isolate_cached_mutation() {
 #[test]
 fn engine_lsp_catalog_includes_bundled_prelude_facades() {
     for module in [
+        simi::stdlib::bytes(),
+        simi::stdlib::float(),
+        simi::stdlib::integer(),
         simi::stdlib::list(),
         simi::stdlib::map(),
         simi::stdlib::iter(),
         simi::stdlib::number(),
         simi::stdlib::string(),
         simi::stdlib::io(),
+        simi::stdlib::utf8(),
+        simi::stdlib::utf16(),
     ] {
         assert!(
             module.is_source_backed(),
@@ -1036,12 +1041,17 @@ fn engine_lsp_catalog_includes_bundled_prelude_facades() {
     assert_eq!(
         sources.iter().map(|(name, _)| name).collect::<Vec<_>>(),
         [
+            "std/bytes",
+            "std/float",
+            "std/integer",
             "std/io",
             "std/iter",
             "std/list",
             "std/map",
             "std/number",
             "std/string",
+            "std/utf16",
+            "std/utf8",
         ]
     );
     assert_eq!(

@@ -165,11 +165,15 @@ impl EngineBuilder {
         self.install_prelude = true;
         for module in [
             stdlib::bytes(),
+            stdlib::float(),
+            stdlib::integer(),
             stdlib::list(),
             stdlib::map(),
             stdlib::iter(),
             stdlib::number(),
             stdlib::string(),
+            stdlib::utf8(),
+            stdlib::utf16(),
         ] {
             self.modules.insert(module.name().to_owned(), module);
         }

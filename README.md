@@ -154,11 +154,19 @@ Hosts can register direct value modules or use `host_value!` to generate a priva
 `Engine::new()` and `Engine::with_stdlib()` both provide the portable prelude:
 
 - `list`, `map`, `iter`, `number`, and `string` globals;
-- canonical `std/list`, `std/map`, `std/iter`, `std/number`, `std/string`, and require-only `std/bytes` paths for `require`.
+- canonical `std/list`, `std/map`, `std/iter`, `std/number`, `std/string`, and require-only `std/bytes`, `std/float`, `std/integer`, `std/utf8`, and `std/utf16` paths for `require`.
 
 `Engine::builder().build()` remains an explicit bare host configuration. Use `.stdlib()` to install this portable prelude, and add `.stdio()` only when text IO is required.
 
 The CLI additionally registers the opt-in `std/io` capability. Filesystem and package module discovery are not implemented yet; embedders register modules explicitly.
+
+### Numeric encoding
+
+`std/integer` encodes and decodes fixed-width twos-complement and unsigned integers in explicit endianness. `std/float` encodes and decodes IEEE 754 single- and double-precision values, representing non-finite values as the exact strings `"inf"`, `"-inf"`, and `"nan"`.
+
+### Unicode codecs
+
+`std/utf8` encodes strings into UTF-8 bytes and performs strict decoding, returning `nil` for malformed input. `std/utf16` provides explicit little-endian and big-endian encode and decode, with `nil` for odd-length byte sequences, unpaired surrogates, and other malformed UTF-16.
 
 ## Development
 
