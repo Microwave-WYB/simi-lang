@@ -1439,7 +1439,7 @@ end
 }
 
 #[test]
-fn short_circuit_guards_narrow_rhs_and_join_assignments() {
+fn short_circuit_guards_narrow_rhs() {
     let source = r#"
 fn choose(input: string | nil) do
     if nil != input and (input == "x" or input == "y") then
@@ -1447,11 +1447,6 @@ fn choose(input: string | nil) do
     else
         "other"
     end
-end
-fn replace(flag: boolean) do
-    let value = 1
-    if flag then value = "new" else nil end
-    value
 end
 "#;
     let (inference, resolution) = inferred(source);
@@ -1467,10 +1462,6 @@ end
     assert_eq!(
         type_at(source, &inference, &resolution, "input", 4),
         "\"x\" | \"y\""
-    );
-    assert_eq!(
-        type_at(source, &inference, &resolution, "value", 2),
-        "integer | \"new\""
     );
 }
 
@@ -2135,11 +2126,11 @@ indexed_alias
 }
 
 #[test]
-fn temporal_any_and_constant_boolean_reachability_are_preserved() {
+fn shadowed_any_and_constant_boolean_reachability_are_preserved() {
     let source = r#"
 let value: any = 1
 value
-value = "later"
+let value = "later"
 value
 let selected = if true then 1 else "unreachable" end
 let short = false and ("bad" + true)
@@ -2151,9 +2142,8 @@ let short = false and ("bad" + true)
         inference.diagnostics
     );
     assert_eq!(type_at(source, &inference, &resolution, "value", 1), "any");
-    assert_eq!(type_at(source, &inference, &resolution, "value", 2), "any");
     assert_eq!(
-        type_at(source, &inference, &resolution, "value", 3),
+        type_at(source, &inference, &resolution, "value", 2),
         "\"later\""
     );
     assert_eq!(

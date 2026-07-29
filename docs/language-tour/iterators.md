@@ -144,11 +144,11 @@ not produce iterator items.
 
 ```simi
 let iter = require("std/iter")
-let attempts = 0
+let state = {attempts = 0}
 
 iter.loop(fn() do
-    attempts = attempts + 1
-    if attempts == 3 then iter.break(attempts)
+    state.attempts = state.attempts + 1
+    if state.attempts == 3 then iter.break(state.attempts)
     else iter.continue(nil) end
 end)
 ```
@@ -261,14 +261,14 @@ A custom producer is a zero-argument function returning these step maps. Wrap it
 ```simi
 
 fn countdown(start) do
-    let current = start
+    let state = {current = start}
 
     iter.from(fn() do
-        if current <= 0 then
+        if state.current <= 0 then
             {done = true}
         else
-            let value = current
-            current = current - 1
+            let value = state.current
+            state.current = state.current - 1
             {done = false, value = value}
         end
     end)

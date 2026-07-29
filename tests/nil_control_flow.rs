@@ -34,19 +34,19 @@ fn nil_aware_pipelines_are_lazy_left_associative_and_stage_local() {
 fn nil_aware_pipelines_evaluate_input_and_active_stage_parts_once() {
     let result = value(
         r#"
-        let calls = 0
+        let state = {calls = 0}
         fn next() do
-            calls = calls + 1
-            calls
+            state.calls = state.calls + 1
+            state.calls
         end
         fn none() do
-            calls = calls + 1
+            state.calls = state.calls + 1
             nil
         end
         fn add(value, amount) do value + amount end
         let piped = next() ?> add(next())
         let skipped = none() ?> missing(next())
-        [piped, skipped, calls]
+        [piped, skipped, state.calls]
         "#,
     );
     assert_eq!(result.render(), "[3, nil, 3]");

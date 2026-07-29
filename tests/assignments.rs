@@ -7,37 +7,37 @@ fn value(source: &str) -> Value {
 }
 
 #[test]
-fn variable_assignment_is_expression_valued_right_associative_and_lexical() {
-    let result = value(
-        r#"
-        let outer = 1
-        let other = 2
-        fn update(parameter) do
-            outer = other = parameter = 9
-            [outer, other, parameter]
-        end
-        let inside = update(3)
-        let matched = case [4] of
-            [item] =>
-                item = item + 1
-        end
-        let iter = require("std/iter")
-        let looped = iter.fold_while(iter.repeat_with(fn() do 1 end), 0, fn(state, _) do
-            if state == 3 then iter.break(state) else iter.continue(state + 1) end
-        end)
-        [inside, outer, other, matched, looped]
-        "#,
-    );
-    assert_eq!(result.render(), "[[9, 9, 9], 9, 9, 5, 3]");
+fn binding_reassignment_is_a_parse_error_for_every_lexical_binding() {
+    for source in [
+        "let value = 1\nvalue = 2",
+        "fn update(parameter) do\n    parameter = 9\nend",
+        "let outer = {}\nouter.field = missing = 1",
+        "case [4] of\n    [item] =>\n        item = item + 1\nend",
+        "missing = 1",
+    ] {
+        match eval(source) {
+            Err(SimiError::Parse(error)) => {
+                assert_eq!(
+                    error.message,
+                    "bindings are immutable and cannot be reassigned; \
+                     declare a new binding with let or mutate a list or map field",
+                    "{source}"
+                );
+            }
+            _ => panic!("expected reassignment parse error for {source}"),
+        }
+    }
 }
 
 #[test]
-fn closures_update_captured_bindings_and_undefined_assignment_is_hard() {
+fn closures_evolve_state_through_mutable_container_fields() {
     let result = value(
         r#"
         fn counter() do
-            let count = 0
-            let next = fn() do count = count + 1 end
+            let state = {count = 0}
+            let next = fn() do
+                state.count = state.count + 1
+            end
             next
         end
         let next = counter()
@@ -45,17 +45,6 @@ fn closures_update_captured_bindings_and_undefined_assignment_is_hard() {
         "#,
     );
     assert_eq!(result.render(), "[1, 2]");
-
-    match eval("missing = 1") {
-        Err(SimiError::Runtime(error)) => {
-            assert!(
-                error
-                    .message
-                    .contains("cannot assign to undefined name `missing`")
-            );
-        }
-        _ => panic!("undefined assignment should be a hard runtime error"),
-    }
 }
 
 #[test]
@@ -115,12 +104,12 @@ fn assignment_prepares_object_and_key_once_before_rhs() {
 }
 
 #[test]
-fn failed_variable_target_skips_the_rhs() {
-    // If the RHS ran, this would produce an inner Raised result instead of the
-    // undefined-target hard runtime error.
+fn variable_targets_are_rejected_before_the_rhs_can_run() {
+    // If evaluation reached the RHS, this would produce an inner Raised result
+    // instead of the immutable-binding parse error.
     assert!(matches!(
         eval("missing = raise \"rhs ran\""),
-        Err(SimiError::Runtime(_))
+        Err(SimiError::Parse(_))
     ));
 }
 

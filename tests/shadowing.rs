@@ -18,16 +18,16 @@ let read_after = fn() do value end
 }
 
 #[test]
-fn assignments_update_the_binding_selected_by_each_lexical_view() {
+fn container_mutation_updates_the_binding_version_selected_by_each_lexical_view() {
     let value = eval(
         r#"
-let value = 1
-let get_before = fn() do value end
-let set_before = fn(next) do value = next end
-let value = 2
-value = 3
+let value = {n = 1}
+let get_before = fn() do value.n end
+let set_before = fn(next) do value.n = next end
+let value = {n = 2}
+value.n = 3
 set_before(4)
-[get_before(), value]
+[get_before(), value.n]
 "#,
     )
     .unwrap()

@@ -1,6 +1,6 @@
 use simi_analysis::{
-    AnalysisDatabase, AnalysisDiagnosticCode, OccurrenceKind, RenameError, SymbolId, SymbolKind,
-    diagnostics, document_symbols, parse, references, resolve, source_text,
+    AnalysisDatabase, AnalysisDiagnosticCode, RenameError, SymbolId, SymbolKind, diagnostics,
+    document_symbols, parse, references, resolve, source_text,
 };
 
 fn symbol_named(resolution: &simi_analysis::Resolution, name: &str, kind: SymbolKind) -> SymbolId {
@@ -10,57 +10,6 @@ fn symbol_named(resolution: &simi_analysis::Resolution, name: &str, kind: Symbol
         .iter()
         .find_map(|(id, symbol)| (symbol.name == name && symbol.kind == kind).then_some(id))
         .unwrap_or_else(|| panic!("missing {kind:?} symbol {name}"))
-}
-
-#[test]
-fn resolves_shadowing_and_nearest_assignment() {
-    let source = "let value = 0 do let value = 1 value = 2 end value = 3";
-    let db = AnalysisDatabase::default();
-    let file = db.add_file(source);
-    let resolution = resolve(&db, file);
-    let values = resolution
-        .hir
-        .symbols
-        .iter()
-        .filter_map(|(id, symbol)| (symbol.name == "value").then_some(id))
-        .collect::<Vec<_>>();
-    assert_eq!(values.len(), 2);
-
-    let assignments = resolution
-        .hir
-        .occurrences
-        .iter()
-        .zip(&resolution.occurrence_symbols)
-        .filter(|(occurrence, _)| occurrence.kind == OccurrenceKind::Assignment)
-        .collect::<Vec<_>>();
-    assert_eq!(assignments.len(), 2);
-    assert_ne!(assignments[0].1, assignments[1].1);
-    assert_eq!(assignments[0].1, &Some(values[1]));
-    assert_eq!(assignments[1].1, &Some(values[0]));
-}
-
-#[test]
-fn assignment_before_a_later_inner_binding_uses_the_outer_binding() {
-    let source = "let value = 0 do value = 1 let value = 2 end";
-    let db = AnalysisDatabase::default();
-    let file = db.add_file(source);
-    let resolution = resolve(&db, file);
-    let outer = resolution
-        .hir
-        .symbols
-        .iter()
-        .find_map(|(id, symbol)| {
-            (symbol.name == "value" && symbol.scope == resolution.hir.root_scope).then_some(id)
-        })
-        .expect("outer binding");
-    let assignment = resolution
-        .hir
-        .occurrences
-        .iter()
-        .zip(&resolution.occurrence_symbols)
-        .find(|(occurrence, _)| occurrence.kind == OccurrenceKind::Assignment)
-        .expect("assignment");
-    assert_eq!(*assignment.1, Some(outer));
 }
 
 #[test]
@@ -247,17 +196,16 @@ fn repeated_bindings_create_distinct_symbols_and_later_reads_use_the_latest() {
 }
 
 #[test]
-fn unresolved_host_reads_and_assignments_are_not_diagnostics_or_rename_targets() {
-    let source = "host_value host_value = other_host";
+fn unresolved_host_reads_are_not_diagnostics_or_rename_targets() {
+    let source = "host_value other_host";
     let db = AnalysisDatabase::default();
     let file = db.add_file(source);
     assert!(diagnostics(&db, file).is_empty());
     let resolution = resolve(&db, file);
-    assert_eq!(resolution.hir.occurrences.len(), 3);
+    assert_eq!(resolution.hir.occurrences.len(), 2);
     assert!(resolution.occurrence_symbols.iter().all(Option::is_none));
     for offset in [
         source.find("host_value").unwrap(),
-        source.rfind("host_value").unwrap(),
         source.find("other_host").unwrap(),
     ] {
         assert_eq!(resolution.symbol_at(offset), None);
@@ -566,5 +514,28 @@ fn nested_named_function_declarations_report_syntax_errors_and_recover() {
         document_symbols(&db, file)
             .iter()
             .any(|symbol| symbol.name == "later")
+    );
+}
+
+#[test]
+fn binding_reassignment_reports_a_syntax_error_and_recovers() {
+    let source = "let value = 1\nvalue = 2\nlet doubled = value * 2\ndoubled";
+    let db = AnalysisDatabase::default();
+    let file = db.add_file(source);
+    let diagnostics = diagnostics(&db, file);
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, AnalysisDiagnosticCode::SyntaxError);
+    assert_eq!(
+        diagnostics[0].detail,
+        "Bindings are immutable and cannot be reassigned; \
+         declare a new binding with let or mutate a list or map field."
+    );
+    let start = source.find("value = 2").unwrap();
+    assert_eq!(diagnostics[0].span.start, start);
+    assert_eq!(diagnostics[0].span.end, start + "value".len());
+    assert!(
+        document_symbols(&db, file)
+            .iter()
+            .any(|symbol| symbol.name == "doubled")
     );
 }

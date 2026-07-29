@@ -72,16 +72,17 @@ Postfix `?` passes a non-`nil` value through unchanged. A `nil` value stops the 
 
 ### Bindings and assignment
 
-`let` introduces bindings. Its left side may be any existing structural pattern; a refutable pattern is an assertion and a mismatch is a hard runtime error. The right side is evaluated once, matching is atomic, and bindings are installed only after the complete pattern succeeds.
+`let` introduces immutable bindings. Its left side may be any existing structural pattern; a refutable pattern is an assertion and a mismatch is a hard runtime error. The right side is evaluated once, matching is atomic, and bindings are installed only after the complete pattern succeeds. A bare name cannot be reassigned; use a new binding, recursive parameters, `iter.fold`, or an explicitly mutable container field for evolving state.
 
 ```simi
 let count = 1
 let [first, second, ..rest] = values
 let { name = name, ..settings } = user
-count = count + 1
+let state = {count = count}
+state.count = state.count + 1
 ```
 
-Use `case` when pattern failure is expected and requires recovery. Assignment updates the nearest existing lexical binding and evaluates to its right-hand value. Assigning to an undefined name is a hard runtime error. Assignment is right-associative.
+Use `case` when pattern failure is expected and requires recovery. Field and index assignments mutate containers and evaluate to their right-hand value. They are right-associative.
 
 Field and index assignments mutate containers:
 

@@ -123,9 +123,10 @@ fn anonymous_functions_capture_lexical_environments_and_recurse_through_let() {
     let value = evaluate(
         r#"
             fn make_counter(start) do
-                let current = start
+                let state = {current = start}
                 fn(step) do
-                    current = current + step
+                    state.current = state.current + step
+                    state.current
                 end
             end
             let counter = make_counter(10)

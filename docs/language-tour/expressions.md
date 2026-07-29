@@ -157,24 +157,7 @@ load_team().members[1].name
 
 ## Assignment expressions
 
-`let` introduces a binding; assignment updates an existing one. Assignment itself evaluates to the assigned value:
-
-```simi
-let count = 1
-let new_count = count = count + 1
-[count, new_count]
-```
-
-Assignment is right-associative:
-
-```simi
-let left = 1
-let right = 2
-left = right = 0
-[left, right]
-```
-
-A field or index assignment mutates a container location and also evaluates to the assigned value:
+`let` introduces an immutable binding. A bare binding name cannot be reassigned. Field and index assignments mutate a container location and also evaluate to the assigned value:
 
 ```simi
 let user = {name = "Ada"}
@@ -182,6 +165,14 @@ let values = [1, 2, 3]
 let renamed = user.name = "Grace"
 let replaced = values[0] = 10
 [user, values, renamed, replaced]
+```
+
+Field and index assignment is right-associative:
+
+```simi
+let settings = {primary = false, secondary = false}
+settings.primary = settings.secondary = true
+settings
 ```
 
 Assigning to an undefined name is a hard diagnostic. List writes replace existing positions and never grow a list. Assigning `nil` to a map field or key deletes that entry; mutation and copy behavior are covered in [Mutation and copies](mutation-and-copies.md).

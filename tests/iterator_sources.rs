@@ -57,15 +57,15 @@ fn repeat_once_and_zip_longest_preserve_alias_identity() {
 fn take_and_drop_are_lazy_and_preserve_source_remainders() {
     assert_eval(
         r#"
-        let calls = 0
+        let state = {calls = 0}
         let source = iter.repeat_with(fn() do
-            calls = calls + 1
-            calls
+            state.calls = state.calls + 1
+            state.calls
         end)
         let taken = iter.take(source, 2)
-        let before_take = calls
+        let before_take = state.calls
         let taken_values = iter.to_list(taken)
-        let after_take = calls
+        let after_take = state.calls
         let source_next = iter.next(source)
 
         let dropped_source = list.iter([1, 2, 3, 4])
@@ -111,19 +111,19 @@ fn enumerate_zip_and_zip_longest_yield_exact_list_pairs() {
 fn pair_adapters_do_not_pull_sources_when_constructed() {
     assert_eval(
         r#"
-        let calls = 0
+        let state = {calls = 0}
         fn source() do
             iter.repeat_with(fn() do
-                calls = calls + 1
-                calls
+                state.calls = state.calls + 1
+                state.calls
             end)
         end
         let enumerated = iter.enumerate(source())
         let zipped = iter.zip(source(), iter.once(1))
         let longest = iter.zip_longest(iter.empty(), source(), nil)
-        let before = calls
+        let before = state.calls
         let values = [iter.next(enumerated), iter.next(zipped), iter.next(longest)]
-        [before, calls, values]
+        [before, state.calls, values]
         "#,
         "[0, 3, [{done=false, value=[0, 1]}, {done=false, value=[2, 1]}, {done=false, value=[nil, 3]}]]",
     );
@@ -178,10 +178,10 @@ fn invalid_counts_and_range_bounds_are_hard_diagnostics() {
 fn dropping_a_million_items_is_stack_safe() {
     assert_eval(
         r#"
-        let current = 0
+        let state = {current = 0}
         let source = iter.repeat_with(fn() do
-            current = current + 1
-            current
+            state.current = state.current + 1
+            state.current
         end)
         iter.next(iter.drop(source, 1000000))
         "#,

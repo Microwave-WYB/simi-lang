@@ -72,17 +72,17 @@ fn custom_iterators_stay_exhausted_and_nil_queries_do_not_use_nil_as_a_sentinel(
         r#"
 
         let iter = require("std/iter")
-        let calls = 0
+        let state = {calls = 0}
         let source = iter.from(fn() do
-            calls = calls + 1
-            if calls == 1 then { done = true }
+            state.calls = state.calls + 1
+            if state.calls == 1 then { done = true }
             else { done = false, value = 1 }
             end
         end)
         [
             iter.next(source),
             iter.next(source),
-            calls,
+            state.calls,
             iter.contains(list.iter([nil]), nil),
             iter.any(list.iter([nil]), fn(value) do value == nil end),
         ]
@@ -281,13 +281,13 @@ fn repeat_with_is_lazy_emits_nil_and_propagates_raises() {
     assert_eval(
         r#"
         let iter = require("std/iter")
-        let calls = 0
+        let state = {calls = 0}
         let repeated = iter.repeat_with(fn() do
-            calls = calls + 1
-            if calls == 1 then nil else calls end
+            state.calls = state.calls + 1
+            if state.calls == 1 then nil else state.calls end
         end)
-        let before = calls
-        [before, iter.next(repeated), iter.next(repeated), calls]
+        let before = state.calls
+        [before, iter.next(repeated), iter.next(repeated), state.calls]
         "#,
         "[0, {done=false}, {done=false, value=2}, 2]",
     );
@@ -361,13 +361,13 @@ fn public_iterator_controls_support_stateful_case_and_catch_workflows() {
     assert_eval(
         r#"
         let iter = require("std/iter")
-        let attempts = 0
+        let state = {attempts = 0}
         let readings = iter.repeat_with(fn() do
-            attempts = attempts + 1
-            if attempts == 4 then
-                raise { error = "sensor_failed", attempt = attempts }
+            state.attempts = state.attempts + 1
+            if state.attempts == 4 then
+                raise { error = "sensor_failed", attempt = state.attempts }
             else
-                attempts * 3
+                state.attempts * 3
             end
         end)
         let summary = iter.fold_while(
@@ -388,7 +388,7 @@ fn public_iterator_controls_support_stateful_case_and_catch_workflows() {
             { error = "sensor_failed", attempt = attempt } =>
                 { status = "recovered", attempt = attempt }
         end
-        [summary, recovered, attempts]
+        [summary, recovered, state.attempts]
         "#,
         "[{status=\"threshold\", sum=9, value=9}, {status=\"recovered\", attempt=4}, 4]",
     );
@@ -399,10 +399,10 @@ fn native_filter_driver_is_stack_safe_for_a_million_rejections() {
     assert_eval(
         r#"
         let iter = require("std/iter")
-        let current = 0
+        let state = {current = 0}
         let source = iter.repeat_with(fn() do
-            current = current + 1
-            current
+            state.current = state.current + 1
+            state.current
         end)
         let filtered = iter.filter(source, fn(value) do value > 1000000 end)
         iter.next(filtered)

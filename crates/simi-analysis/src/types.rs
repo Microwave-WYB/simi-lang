@@ -545,12 +545,10 @@ mod tests {
     use crate::db::AnalysisDatabase;
 
     #[test]
-    fn assigned_private_host_bindings_are_not_trusted_wrappers() {
+    fn locally_bound_host_values_are_not_trusted_wrappers() {
         for source in [
-            "host = replacement fn mutate(xs: [..integer]) -> nil do host.mutate(xs) end",
-            "fn mutate(xs: [..integer]) -> nil do host.mutate(xs) end host = replacement",
-            "host = replacement fn mutate(xs: [..integer]) -> nil host.mutate(xs)",
-            "fn mutate(xs: [..integer]) -> nil host.mutate(xs) host = replacement",
+            "let host = replacement fn mutate(xs: [..integer]) -> nil do host.mutate(xs) end",
+            "let host = replacement fn mutate(xs: [..integer]) -> nil host.mutate(xs)",
         ] {
             let db = AnalysisDatabase::default();
             let file = db.add_file(source);

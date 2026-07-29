@@ -29,7 +29,14 @@ pub(super) fn assignment(p: &mut Parser<'_>) -> Parsed {
     }
     let marker = left.marker.precede(&mut p.events);
     let target_span = node_span_hint(p, left.marker);
-    if !matches!(left.flavor, Flavor::Name | Flavor::Field | Flavor::Index) {
+    if matches!(left.flavor, Flavor::Name) {
+        p.error_at(
+            target_span,
+            "bindings are immutable and cannot be reassigned; \
+             declare a new binding with let or mutate a list or map field"
+                .to_owned(),
+        );
+    } else if !matches!(left.flavor, Flavor::Field | Flavor::Index) {
         p.error_at(target_span, "invalid assignment target".to_owned());
     }
     p.bump();

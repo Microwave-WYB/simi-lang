@@ -228,7 +228,7 @@ impl Interpreter {
             ExprKind::Assign { target, value } => {
                 let target = self.prepare_assignment_target(target, env)?;
                 let value = self.evaluate_expression(value, env)?;
-                self.commit_assignment(target, value, env)
+                self.commit_assignment(target, value)
             }
             ExprKind::If {
                 branches,

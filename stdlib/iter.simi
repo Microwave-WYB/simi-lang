@@ -14,13 +14,13 @@ alias Control<'next, 'result> =
     | Break<'result>
 
 fn from<'a, 'e>(next_fn: Iterator<'a, 'e>) -> Iterator<'a, 'e> ! never do
-    let exhausted = false
+    let state: {exhausted: boolean} = {exhausted = false}
     fn() do
-        if exhausted then { done = true }
+        if state.exhausted then { done = true }
         else
             let step = next_fn()
             if step.done then
-                exhausted = true
+                state.exhausted = true
                 { done = true }
             else
                 { done = false, value = step.value }
@@ -38,11 +38,11 @@ end
 
 --- Return an iterator that yields one value.
 fn once<'a>(value: 'a) -> Iterator<'a, never> ! never do
-    let emitted = false
+    let state: {emitted: boolean} = {emitted = false}
     from(fn() -> Step<'a> ! never do
-        if emitted then { done = true }
+        if state.emitted then { done = true }
         else
-            emitted = true
+            state.emitted = true
             { done = false, value = value }
         end
     end)
@@ -51,11 +51,11 @@ end
 --- Repeat one value a finite number of times.
 fn repeat<'a>(value: 'a, count: integer) -> Iterator<'a, never> ! never do
     host.validate_count(count)
-    let emitted = 0
+    let state: {emitted: integer} = {emitted = 0}
     from(fn() -> Step<'a> ! never do
-        if emitted >= count then { done = true }
+        if state.emitted >= count then { done = true }
         else
-            emitted = emitted + 1
+            state.emitted = state.emitted + 1
             { done = false, value = value }
         end
     end)
@@ -64,12 +64,12 @@ end
 --- Yield ascending integers from start up to, but excluding, end.
 fn range(start: integer, stop: integer) -> Iterator<integer, never> ! never do
     host.validate_range(start, stop)
-    let current = start
+    let state: {current: integer} = {current = start}
     from(fn() -> Step<integer> ! never do
-        if current >= stop then { done = true }
+        if state.current >= stop then { done = true }
         else
-            let value = current
-            current = current + 1
+            let value = state.current
+            state.current = state.current + 1
             { done = false, value = value }
         end
     end)
@@ -114,14 +114,14 @@ end
 --- Yield at most count values without consuming any later source value.
 fn take<'a, 'e>(iterator: Iterator<'a, 'e>, count: integer) -> Iterator<'a, 'e> ! never do
     host.validate_count(count)
-    let remaining = count
+    let state: {remaining: integer} = {remaining = count}
     from(fn() -> Step<'a> ! 'e do
-        if remaining == 0 then { done = true }
+        if state.remaining == 0 then { done = true }
         else
             let step = iterator()
             if step.done then step
             else
-                remaining = remaining - 1
+                state.remaining = state.remaining - 1
                 { done = false, value = step.value }
             end
         end
@@ -131,20 +131,20 @@ end
 --- Lazily discard count values, then yield the remaining source values.
 fn drop<'a, 'e>(iterator: Iterator<'a, 'e>, count: integer) -> Iterator<'a, 'e> ! never do
     host.validate_count(count)
-    let remaining = count
+    let state: {remaining: integer} = {remaining = count}
     from(fn() -> Step<'a> ! 'e do
-        let step = host.drop_next(iterator, remaining)
-        remaining = 0
+        let step = host.drop_next(iterator, state.remaining)
+        state.remaining = 0
         step
     end)
 end
 
 --- Pair every value with its zero-based integer index.
 fn enumerate<'a, 'e>(iterator: Iterator<'a, 'e>) -> Iterator<[integer, 'a], 'e> ! never do
-    let index = 0
+    let state: {index: integer} = {index = 0}
     host.typed_iterator(fn() do
-        let step = enumerate_next(iterator, index)
-        if not step.done then index = index + 1 end
+        let step = enumerate_next(iterator, state.index)
+        if not step.done then state.index = state.index + 1 end
         step
     end)
 end
@@ -163,12 +163,11 @@ fn zip_longest<'a, 'b, 'fill, 'e, 'f>(
     right: Iterator<'b, 'f>,
     fill: 'fill,
 ) -> Iterator<['a | 'fill, 'b | 'fill], 'e | 'f> ! never do
-    let left_done: boolean = false
-    let right_done: boolean = false
+    let state: {left_done: boolean, right_done: boolean} = {left_done = false, right_done = false}
     host.typed_iterator(fn() do
-        let step = zip_longest_next(left, right, fill, left_done, right_done)
-        left_done = step.left_done
-        right_done = step.right_done
+        let step = zip_longest_next(left, right, fill, state.left_done, state.right_done)
+        state.left_done = step.left_done
+        state.right_done = step.right_done
         if step.done then { done = true }
         else { done = false, value = step.value }
         end

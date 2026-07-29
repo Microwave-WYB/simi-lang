@@ -631,15 +631,15 @@ fn shadowed_host_names_remain_ordinary_simi_functions() {
 }
 
 #[test]
-fn reassigned_and_arbitrary_host_functions_keep_public_trace_boundaries() {
+fn overridden_and_arbitrary_host_functions_keep_public_trace_boundaries() {
     for (name, source) in [
         (
-            "assigned-before",
-            "let replacement = {fail = fn() do raise \"boom\" end} host = replacement fn invoke() do host.fail() end invoke",
+            "shadowed-before",
+            "let host = {fail = fn() do raise \"boom\" end} fn invoke() do host.fail() end invoke",
         ),
         (
-            "assigned-after",
-            "fn invoke() do host.fail() end let replacement = {fail = fn() do raise \"boom\" end} host = replacement invoke",
+            "mutated-after",
+            "fn invoke() do host.fail() end host.fail = fn() do raise \"boom\" end invoke",
         ),
     ] {
         let engine = Engine::builder()

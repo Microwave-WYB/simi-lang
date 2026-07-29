@@ -38,12 +38,12 @@ fn type_comparisons_cover_every_stable_label_and_unify_functions() {
 fn type_call_evaluates_its_argument_once() {
     let result = value(
         r#"
-        let evaluations = 0
+        let state = {evaluations = 0}
         fn once() do
-            evaluations = evaluations + 1
+            state.evaluations = state.evaluations + 1
             1
         end
-        [type(once()) == "integer", evaluations]
+        [type(once()) == "integer", state.evaluations]
         "#,
     );
 

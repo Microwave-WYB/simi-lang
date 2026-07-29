@@ -34,12 +34,12 @@ let status = "unreleased"
 language <> " " <> status
 ```
 
-The right-hand expression is evaluated before the new binding is installed. Assignment is different: it updates the nearest existing binding and never creates one implicitly.
+The right-hand expression is evaluated before the new binding is installed. As a source-breaking alpha.2 rule, a binding cannot be reassigned. Introduce a new binding for a new value, pass state through recursive parameters or `iter.fold`, or keep evolving state in an explicitly mutable container field.
 
 ```simi
-let visits = 1
-visits = visits + 1
-visits
+let visits = {count = 1}
+visits.count = visits.count + 1
+visits.count
 ```
 
 Bindings may hold any value, including mutable containers and functions. Structural binding patterns are introduced in [Control flow and patterns](control-flow-and-patterns.md).
@@ -96,18 +96,18 @@ end
 [read_first(), read_second(), value]
 ```
 
-Assignment follows each closure's lexical view. Here `set_first` updates the first binding, while the top-level assignment updates the later binding:
+Bindings remain immutable through closures. To evolve captured state explicitly, capture a mutable container instead:
 
 ```simi
-let value = 1
-let read_first = fn() do value end
-let set_first = fn(next) do value = next end
+let state: {value: integer} = {value = 1}
+let read_first = fn() do state.value end
+let set_first = fn(next: integer) do state.value = next end
 
-let value = 2
-value = 3
+let state = {value = 2}
+state.value = 3
 set_first(4)
 
-[read_first(), value]
+[read_first(), state.value]
 ```
 
 This precise shadowing rule makes captured state predictable even when a scope reuses a convenient name.
@@ -202,13 +202,13 @@ let add_ten = make_adder(10)
 [add_two(5), add_ten(5)]
 ```
 
-Captured bindings remain assignable. Separate calls create separate captured state:
+Captured bindings remain immutable. Separate calls can still retain separate explicit mutable state:
 
 ```simi
-fn make_counter(start) do
-    let count = start
+fn make_counter(start: integer) do
+    let state: {count: integer} = {count = start}
     fn() do
-        count = count + 1
+        state.count = state.count + 1
     end
 end
 
@@ -217,7 +217,7 @@ let second = make_counter(10)
 [first(), first(), second(), first()]
 ```
 
-The assignment is also the body’s final expression, so each call returns the new count.
+The field assignment is also the body’s final expression, so each call returns the new count.
 
 ## Functions as arguments and results
 

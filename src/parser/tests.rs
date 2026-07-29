@@ -806,7 +806,10 @@ fn parses_float_unary_and_operator_precedence() {
 
 #[test]
 fn assignment_rhs_preserves_pipeline_and_equality_precedence() {
-    for (source, expected) in [("a = b |> f()", "pipeline"), ("a = b == c", "equality")] {
+    for (source, expected) in [
+        ("a.field = b |> f()", "pipeline"),
+        ("a.field = b == c", "equality"),
+    ] {
         let program = parse_source(source).unwrap();
         let StmtKind::Expr(expression) = &program.items[0].kind else {
             panic!("expected expression statement");
@@ -1026,6 +1029,20 @@ fn synthetic_overlapping_spans_follow_the_old_endpoint_merge_contract() {
     assert_eq!(left.span, Span::new(10, 20));
     assert_eq!(right.span, Span::new(8, 9));
     assert_eq!(expression.span, Span::new(8, 20));
+}
+
+#[test]
+fn rejects_variable_assignment_targets_as_immutable_bindings() {
+    for (source, start, end) in [("value = 2", 0, 5), ("outer.field = inner = 2", 14, 19)] {
+        let error = parse_source(source).unwrap_err();
+        assert_eq!(
+            error.message,
+            "bindings are immutable and cannot be reassigned; \
+             declare a new binding with let or mutate a list or map field",
+            "{source}"
+        );
+        assert_eq!(error.span, Span::new(start, end), "{source}");
+    }
 }
 
 #[test]

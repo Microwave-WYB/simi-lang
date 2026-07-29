@@ -8,10 +8,6 @@ use crate::runtime::{
 use crate::span::Span;
 
 pub(super) enum PreparedTarget {
-    Variable {
-        name: String,
-        span: Span,
-    },
     List {
         values: SharedList,
         raw_index: i64,
@@ -76,16 +72,10 @@ impl Interpreter {
     ) -> EvaluationResult<PreparedTarget> {
         match &target.kind {
             AssignmentTargetKind::Variable(name) => {
-                if env.get(name).is_none() {
-                    return Err(EvaluationError::Runtime(RuntimeError::new(
-                        target.span,
-                        format!("cannot assign to undefined name `{name}`"),
-                    )));
-                }
-                Ok(PreparedTarget::Variable {
-                    name: name.clone(),
-                    span: target.span,
-                })
+                Err(EvaluationError::Runtime(RuntimeError::new(
+                    target.span,
+                    format!("bindings are immutable; cannot reassign `{name}`"),
+                )))
             }
             AssignmentTargetKind::Field { object, name } => {
                 let object = self.evaluate_expression(object, env)?;
@@ -145,17 +135,8 @@ impl Interpreter {
         &self,
         target: PreparedTarget,
         value: Value,
-        env: &Environment,
     ) -> EvaluationResult<Value> {
         match target {
-            PreparedTarget::Variable { name, span } => {
-                if !env.assign(&name, value.clone()) {
-                    return Err(EvaluationError::Runtime(RuntimeError::new(
-                        span,
-                        format!("cannot assign to undefined name `{name}`"),
-                    )));
-                }
-            }
             PreparedTarget::List {
                 values,
                 raw_index,

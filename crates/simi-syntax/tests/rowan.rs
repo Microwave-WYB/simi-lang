@@ -727,3 +727,46 @@ fn top_level_named_function_declarations_remain_accepted() {
     let parse = parse_source("fn add(left, right) do left + right end\nadd(1, 2)\n");
     assert!(parse.diagnostics().is_empty(), "{:?}", parse.diagnostics());
 }
+
+#[test]
+fn binding_reassignment_is_rejected_at_the_target_with_lossless_recovery() {
+    let source = "let value = 1\nvalue = 2\nvalue\n";
+    let parse = parse_source(source);
+    assert_eq!(parse.syntax().to_string(), source);
+    assert_eq!(parse.diagnostics().len(), 1, "{:?}", parse.diagnostics());
+    let diagnostic = &parse.diagnostics()[0];
+    assert_eq!(diagnostic.kind, DiagnosticKind::Parse);
+    let start = source.find("value = 2").expect("reassignment offset");
+    assert_eq!(diagnostic.span.start, start);
+    assert_eq!(diagnostic.span.end, start + "value".len());
+    assert_eq!(
+        diagnostic.message,
+        "bindings are immutable and cannot be reassigned; \
+         declare a new binding with let or mutate a list or map field"
+    );
+    // Lossless recovery keeps the assignment expression in the tree.
+    assert_eq!(
+        parse
+            .syntax()
+            .descendants()
+            .filter(|node| node.kind() == SyntaxKind::ASSIGN_EXPR)
+            .count(),
+        1
+    );
+}
+
+#[test]
+fn field_and_index_assignment_targets_remain_accepted() {
+    for source in [
+        "settings.enabled = true\n",
+        "values[0] = 3\n",
+        "outer.inner[key] = outer.inner[key] + 1\n",
+    ] {
+        let parse = parse_source(source);
+        assert!(
+            parse.diagnostics().is_empty(),
+            "{source}: {:?}",
+            parse.diagnostics()
+        );
+    }
+}

@@ -26,14 +26,14 @@ fn iterator_loop_returns_break_payload_and_ignores_continue_payloads() {
     let value = eval(
         r#"
         let iter = require("std/iter")
-        let iterations = 0
+        let state = {iterations = 0}
         let result = iter.loop(fn() do
-            iterations = iterations + 1
-            if iterations == 3 then iter.break({ result = iterations })
+            state.iterations = state.iterations + 1
+            if state.iterations == 3 then iter.break({ result = state.iterations })
             else iter.continue("ignored")
             end
         end)
-        [result, iterations]
+        [result, state.iterations]
         "#,
     )
     .unwrap()
@@ -70,10 +70,10 @@ fn native_iterator_loop_is_stack_safe_for_a_million_iterations() {
     let value = eval(
         r#"
         let iter = require("std/iter")
-        let count = 0
+        let state = {count = 0}
         iter.loop(fn() do
-            count = count + 1
-            if count == 1000000 then iter.break(count)
+            state.count = state.count + 1
+            if state.count == 1000000 then iter.break(state.count)
             else iter.continue(nil)
             end
         end)

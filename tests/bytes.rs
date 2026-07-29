@@ -47,13 +47,13 @@ fn bytes_literals_evaluate_value_segments_left_to_right_once() {
     let value = engine()
         .eval(
             r#"
-            let observed = 0
+            let state = {observed = 0}
             fn segment(value) do
-                observed = observed * 10 + value
+                state.observed = state.observed * 10 + value
                 value
             end
             let data = #[segment(1), segment(2), segment(3)]
-            [inspect(data), observed]
+            [inspect(data), state.observed]
             "#,
         )
         .expect("bytes literal should have no hard diagnostic")

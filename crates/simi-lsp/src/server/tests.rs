@@ -288,6 +288,26 @@ fn nested_named_function_declarations_publish_a_diagnostic_at_the_fn_token() {
 }
 
 #[test]
+fn binding_reassignment_publishes_a_diagnostic_at_the_target_name() {
+    let source = "let value = 1\nvalue = 2";
+    let mut backend = Backend::new();
+    let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
+    assert_eq!(diagnostics.diagnostics.len(), 1);
+    let diagnostic = &diagnostics.diagnostics[0];
+    assert_eq!(
+        diagnostic.code,
+        Some(lsp_types::NumberOrString::String("syntax_error".to_owned()))
+    );
+    assert_eq!(
+        diagnostic.message,
+        "Syntax error\n\nBindings are immutable and cannot be reassigned; \
+         declare a new binding with let or mutate a list or map field."
+    );
+    assert_eq!(diagnostic.range.start, Position::new(1, 0));
+    assert_eq!(diagnostic.range.end, Position::new(1, 5));
+}
+
+#[test]
 fn completion_suppresses_exact_visible_identifiers_during_recovery() {
     let source = "fn fib(n) do\n    case n\n    of\nend";
     let mut backend = Backend::new();
@@ -1871,16 +1891,16 @@ ns"#;
 }
 
 #[test]
-fn explicit_any_hover_does_not_fall_back_to_a_later_assignment() {
+fn explicit_any_hover_does_not_fall_back_to_later_shadowing() {
     let source = r#"let value: any = 1
 value
-value = "later"
+let value = "later"
 value"#;
     let mut backend = Backend::default();
     let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
     assert!(diagnostics.diagnostics.is_empty());
 
-    for (occurrence, expected) in [(1, "any"), (2, "any"), (3, "\"later\"")] {
+    for (occurrence, expected) in [(1, "any"), (3, "\"later\"")] {
         let hover: Option<Hover> = serde_json::from_value(
             request(
                 &mut backend,

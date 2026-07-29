@@ -153,8 +153,7 @@ fn trailing_argument_appends_to_calls_and_composes_with_pipelines() {
         r#"
         fn pair(left, right) do [left, right] end
         fn wrap(value) do [value] end
-        let assigned = nil
-        assigned = pair(6) <| 7
+        let assigned = pair(6) <| 7
         [
             pair(1) <| 2,
             wrap() <| wrap() <| 3,

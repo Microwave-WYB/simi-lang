@@ -95,10 +95,10 @@ fn local_recursion_uses_let_bound_anonymous_functions() {
     let value = evaluate(
         r#"
             fn make_counter() do
-                let count = 0
+                let state = {count = 0}
                 let next = fn() do
-                    count = count + 1
-                    if count < 3 then next() else count end
+                    state.count = state.count + 1
+                    if state.count < 3 then next() else state.count end
                 end
                 next
             end
