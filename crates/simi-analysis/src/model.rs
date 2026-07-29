@@ -105,7 +105,6 @@ pub enum AnalysisDiagnosticCode {
     CyclicTypeAlias,
     InvalidType,
     Todo,
-    DestructuringLetMayFail,
     DestructuringLetNeverMatches,
 }
 
@@ -124,7 +123,6 @@ impl AnalysisDiagnosticCode {
             Self::CyclicTypeAlias => "cyclic_type_alias",
             Self::InvalidType => "invalid_type",
             Self::Todo => "todo",
-            Self::DestructuringLetMayFail => "destructuring_let_may_fail",
             Self::DestructuringLetNeverMatches => "destructuring_let_never_matches",
         }
     }

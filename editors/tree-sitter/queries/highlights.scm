@@ -106,7 +106,7 @@
 (bytes_pattern_fixed_capture
   name: (identifier) @variable)
 
-(bytes_pattern_remainder
+(rest_pattern
   name: (identifier) @variable)
 
 ["#" "(" ")" "[" "]" "{" "}"] @punctuation.bracket

@@ -585,16 +585,16 @@ module.exports = grammar({
       "[",
       optional(choice(
         seq(
-          commaSep1($._bytes_pattern_sized_segment),
-          optional(seq(",", $.bytes_pattern_remainder)),
+          commaSep1($._bytes_pattern_segment),
+          optional(seq(",", $.rest_pattern)),
           optional(","),
         ),
-        seq($.bytes_pattern_remainder, optional(",")),
+        seq($.rest_pattern, optional(",")),
       )),
       "]",
     ),
 
-    _bytes_pattern_sized_segment: ($) => choice(
+    _bytes_pattern_segment: ($) => choice(
       $.string,
       field("name", choice($.wildcard_pattern, $.identifier)),
       $.bytes_pattern_fixed_capture,
@@ -603,16 +603,7 @@ module.exports = grammar({
     bytes_pattern_fixed_capture: ($) => seq(
       field("name", choice($.wildcard_pattern, $.identifier)),
       ":",
-      "bytes",
-      "(",
       field("length", $.integer),
-      ")",
-    ),
-
-    bytes_pattern_remainder: ($) => seq(
-      field("name", choice($.wildcard_pattern, $.identifier)),
-      ":",
-      "bytes",
     ),
 
     map_pattern: ($) => seq(

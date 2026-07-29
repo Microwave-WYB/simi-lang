@@ -117,20 +117,21 @@ end
 
 ### Bytes patterns
 
-Bytes patterns use `#[]`. String segments match their exact UTF-8 byte prefixes, a bare binding captures one byte as an integer, and `name:bytes(n)` captures exactly `n` bytes. A final `name:bytes` capture receives the entire remaining suffix; it must be final.
+Bytes patterns use `#[]`. String segments match their exact UTF-8 byte prefixes, a bare binding captures one byte as an integer, and `name:width` captures exactly `width` bytes. A final `..rest` capture receives the entire remaining suffix, while `.._` discards it; a remainder must be final. A width of `0` captures empty bytes.
 
 ```simi
+let integer = require("std/integer")
 let packet = #["PNG", 1, 0, 2, 255]
 
 case packet of
-    #["PNG", version, length:bytes(2), payload:bytes] =>
-        [version, inspect(length), inspect(payload)]
+    #["PNG", version, length:2, ..payload] =>
+        [version, integer.decode(length, "u16be"), inspect(payload)]
     _ =>
         nil
 end
 ```
 
-Bytes patterns work anywhere structural patterns do, including `let` and `catch`. A pattern with no final remainder must consume the whole bytes value. As with other refutable `let` patterns, a mismatch is a hard diagnostic; use `case` when failure is expected.
+Bytes patterns work anywhere structural patterns do, including `let` and `catch`. A pattern with no final remainder must consume the whole bytes value. Patterns only capture raw bytes; decode integers and floats in the selected arm with `std/integer` or `std/float`. A byte-pattern `let` is an assertion: a mismatch is a hard diagnostic, and unknown byte length or content does not produce a speculative warning. Use `case` when failure is expected.
 
 ### Destructuring with `let`
 
@@ -150,7 +151,7 @@ This default applies only to direct binding fields. Other field patterns, and ev
 
 The right side is evaluated once, and matching is atomic: no bindings are installed unless the entire pattern succeeds. A mismatch in `let` is a hard diagnostic. Use `case` instead when mismatch is an ordinary possibility.
 
-When analysis has enough type information, it reports an error for a pattern that cannot match and a warning for one that may fail, recommending `case` for explicit recovery. These are erased diagnostics only: ignoring a warning or skipping analysis never changes the runtime's atomic hard-failure behavior.
+When analysis has enough type information, it reports an error for a pattern it can prove cannot match. A pattern that may fail does not warn: `let` patterns are assertions, so use `case` when mismatch is expected and should be handled. These are erased diagnostics only: skipping analysis never changes the runtime's atomic hard-failure behavior.
 
 Rest captures are independent shallow containers. A list rest is an O(1) copy-on-write view, while a map rest is a new shallow map. Nested values inside either capture retain their existing alias identities. The next page develops these copy rules.
 
