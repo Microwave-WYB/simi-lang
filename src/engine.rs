@@ -220,8 +220,6 @@ impl EngineBuilder {
                 .modules()
                 .iter()
                 .any(|entry| entry.name() == module.name())
-                && !(stdlib::is_official_catalog(catalog)
-                    && (module.name() == "std" || module.name().starts_with("std/")))
         }) {
             self.configuration_errors.push(format!(
                 "direct module `{}` conflicts with a resolved package catalog module",

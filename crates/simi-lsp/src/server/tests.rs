@@ -400,7 +400,7 @@ fn requires_keyword_has_completion_and_hover_help() {
     assert_eq!(item.kind, Some(CompletionItemKind::KEYWORD));
     assert_eq!(
         item.detail.as_deref(),
-        Some("requires {alias = {git = url, rev = revision}}")
+        Some("requires {std = {simi = revision}}")
     );
 
     let hover_source = "requires {}";
@@ -423,7 +423,7 @@ fn requires_keyword_has_completion_and_hover_help() {
     };
     assert_eq!(
         markup.value,
-        "keyword `requires`\n\nDeclares static package requirements before executable source items.\n\nSyntax: requires {alias = {git = url, rev = revision}}"
+        "keyword `requires`\n\nDeclares static package requirements before executable source items. Use `{simi = revision}` for the official standard-library catalog, `{git = url, rev = revision}` for Git packages, or `{path = path}` for development packages.\n\nSyntax: requires {std = {simi = revision}}"
     );
 }
 
@@ -2546,7 +2546,7 @@ fn static_requirement_metadata_diagnostics_are_published_over_lsp() {
         (
             "requires {tools = {git = \"\", rev = \"v1\"}}",
             "invalid_package_requirements",
-            "Requirement `tools` must declare either `git` and `rev`, or `path`.",
+            "Requirement `tools` must declare exactly one of `{simi = revision}`, `{git = url, rev = revision}`, or `{path = path}`.",
             "tools",
         ),
         (

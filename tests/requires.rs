@@ -88,6 +88,76 @@ fn official_stdlib_requires_an_exact_catalog_revision() {
 }
 
 #[test]
+fn official_catalog_rejects_extra_overridden_and_revision_mismatched_std_entries() {
+    let official = simi::stdlib::official_catalog();
+    let extra = PackageCatalog::new(
+        official.modules().iter().cloned().chain(std::iter::once(
+            CatalogModule::new(
+                "std/evil",
+                "{}",
+                "std",
+                "std/evil.simi",
+                CatalogModuleVisibility::Public,
+            )
+            .unwrap(),
+        )),
+        official.requirements().iter().cloned(),
+    )
+    .unwrap();
+    let overridden = PackageCatalog::new(
+        official.modules().iter().map(|module| {
+            if module.name() == "std/iter" {
+                CatalogModule::new(
+                    "std/iter",
+                    "{overridden = true}",
+                    "std",
+                    "std/iter.simi",
+                    CatalogModuleVisibility::Public,
+                )
+                .unwrap()
+            } else {
+                module.clone()
+            }
+        }),
+        official.requirements().iter().cloned(),
+    )
+    .unwrap();
+    let wrong_revision = PackageCatalog::new(
+        official.modules().iter().cloned(),
+        [CatalogRequirement::new(
+            "std",
+            RequirementSource::Official {
+                revision: "not-the-distribution-revision".to_owned(),
+            },
+        )],
+    )
+    .unwrap();
+
+    for catalog in [extra, overridden, wrong_revision] {
+        let Err(error) = Engine::builder().catalog(catalog).build().eval("42") else {
+            panic!("non-exact official catalog must be rejected");
+        };
+        assert!(error.to_string().contains(
+            "only the exact distribution official catalog may supply the reserved `std/` namespace"
+        ));
+    }
+
+    let Err(error) = Engine::builder()
+        .stdlib()
+        .module(simi::Module::source("std/iter", "{}").build())
+        .build()
+        .eval("42")
+    else {
+        panic!("direct module must not override an official catalog module");
+    };
+    assert!(
+        error
+            .to_string()
+            .contains("conflicts with a resolved package catalog module")
+    );
+}
+
+#[test]
 fn resolved_catalog_satisfies_exact_requirements_and_isolated_per_engine() {
     let source = format!(
         "{REQUIREMENT}\nlet tools = require(\"tools\")\nlist.append(tools.items, 7)\n[tools.value, list.length(tools.items)]"

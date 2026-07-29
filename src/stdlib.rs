@@ -47,17 +47,32 @@ fn catalog_module(name: &str, source: &str) -> CatalogModule {
 
 pub(crate) fn is_official_catalog(catalog: &PackageCatalog) -> bool {
     let official = official_catalog();
-    official.modules().iter().all(|module| {
-        catalog
+    let is_std_module =
+        |module: &CatalogModule| module.name() == "std" || module.name().starts_with("std/");
+    let is_std_requirement = |requirement: &CatalogRequirement| requirement.package() == "std";
+
+    // A catalog can combine the official source package with unrelated packages, but its
+    // reserved `std/*` entries and `std` revision must be an exact match. `EngineBuilder`
+    // installs trusted native hosts for those entries, so additions or replacements must remain
+    // untrusted and be rejected before installation.
+    official
+        .modules()
+        .iter()
+        .all(|module| catalog.modules().contains(module))
+        && catalog
             .modules()
             .iter()
-            .any(|candidate| candidate == module)
-    }) && official.requirements().iter().all(|requirement| {
-        catalog
+            .filter(|module| is_std_module(module))
+            .all(|module| official.modules().contains(module))
+        && official
             .requirements()
             .iter()
-            .any(|candidate| candidate == requirement)
-    })
+            .all(|requirement| catalog.requirements().contains(requirement))
+        && catalog
+            .requirements()
+            .iter()
+            .filter(|requirement| is_std_requirement(requirement))
+            .all(|requirement| official.requirements().contains(requirement))
 }
 
 pub(crate) fn official_module(name: &str) -> Option<Module> {
