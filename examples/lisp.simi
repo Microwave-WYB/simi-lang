@@ -388,32 +388,20 @@ fn apply(value: Value | nil, arguments: [..Value]) -> Value
     end
 
 fn equal(left: Value | nil, right: Value | nil) -> boolean
-    case left of
-        left when type(left) == "integer" =>
-            case right of
-                right when type(right) == "integer" => left == right
-                _ => false
-            end
-        left when type(left) == "boolean" =>
-            case right of
-                right when type(right) == "boolean" => left == right
-                _ => false
-            end
-        left when type(left) == "list" =>
-            case right of
-                right when type(right) == "list" => list_equal(left, right, 0)
-                _ => false
-            end
-        _ => symbols_equal(left, right)
+    case [left, right] of
+        [left, right] when type(left) == "integer" and type(right) == "integer" =>
+            left == right
+        [left, right] when type(left) == "boolean" and type(right) == "boolean" =>
+            left == right
+        [left, right] when type(left) == "list" and type(right) == "list" =>
+            list_equal(left, right, 0)
+        [left, right] => symbols_equal(left, right)
     end
 
 fn symbols_equal(left: Value | nil, right: Value | nil) -> boolean
-    case left of
-        {kind = "symbol", name = left_name} =>
-            case right of
-                {kind = "symbol", name = right_name} => left_name == right_name
-                _ => false
-            end
+    case [left, right] of
+        [{kind = "symbol", name = left_name}, {kind = "symbol", name = right_name}] =>
+            left_name == right_name
         _ => false
     end
 
