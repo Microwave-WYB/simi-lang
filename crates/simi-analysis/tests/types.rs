@@ -150,17 +150,14 @@ fn append(prefix: bytes)
 #[test]
 fn bytes_patterns_constrain_scrutinees_and_infer_capture_bindings() {
     let source = r#"
-let #[byte, fixed:bytes(2), remaining:bytes] = #[1, 2, 3, 4]
+let #[byte, fixed:2, ..remaining] = #[1, 2, 3, 4]
 let selected = case #["PNG", 1, 2] of
-    #["PNG", version, data:bytes] => [version, data]
+    #["PNG", version, ..data] => [version, data]
 end
 "#;
     let (inference, resolution) = inferred(source);
     assert!(
-        inference.diagnostics.iter().all(|diagnostic| {
-            diagnostic.code == AnalysisDiagnosticCode::DestructuringLetMayFail
-                && diagnostic.severity == AnalysisDiagnosticSeverity::Warning
-        }),
+        inference.diagnostics.is_empty(),
         "{:?}",
         inference.diagnostics
     );
@@ -170,6 +167,18 @@ end
     assert_eq!(
         type_of(&inference, &resolution, "selected").display(),
         "[integer, bytes]"
+    );
+}
+
+#[test]
+fn impossible_bytes_let_patterns_remain_analysis_errors() {
+    let (inference, _) = inferred("let #[byte] = \"not bytes\"");
+    assert!(
+        inference.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == AnalysisDiagnosticCode::DestructuringLetNeverMatches
+        }),
+        "{:?}",
+        inference.diagnostics
     );
 }
 
@@ -471,6 +480,21 @@ fn fibonacci_example_is_syntax_and_type_clean() {
     );
 }
 
+#[test]
+fn lisp_example_is_a_fully_typed_recursive_interpreter() {
+    let source = include_str!("../../../examples/lisp.simi");
+    let (inference, resolution) = inferred(source);
+    assert!(
+        inference.diagnostics.is_empty(),
+        "type diagnostics: {:?}",
+        inference.diagnostics
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "final_environment"),
+        Type::Named("Environment".to_owned())
+    );
+}
+
 fn type_of(
     inference: &simi_analysis::TypeInference,
     resolution: &simi_analysis::Resolution,
@@ -706,6 +730,31 @@ fn map_index_signatures_type_dynamic_reads_and_reject_wrong_keys() {
             .map(|diagnostic| diagnostic.code.as_str())
             .collect::<Vec<_>>(),
         vec!["type_mismatch"]
+    );
+}
+
+#[test]
+fn closed_recursive_records_keep_declared_fields_out_of_index_signatures() {
+    let source = r#"
+type Environment = {
+    values: {[string]: integer},
+    parent: Environment | nil,
+}
+
+fn environment(parent: Environment | nil) -> Environment
+    {values = {}, parent = parent}
+
+let root: Environment = environment(nil)
+"#;
+    let (inference, resolution) = inferred(source);
+    assert!(
+        inference.diagnostics.is_empty(),
+        "{:?}",
+        inference.diagnostics
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "root"),
+        Type::Named("Environment".to_owned())
     );
 }
 
@@ -1093,6 +1142,88 @@ let unchanged: [] = bridge([], fn(other)
     for name in ["inferred", "unchanged", "xs", "other"] {
         assert_eq!(type_of(&inference, &resolution, name).display(), "[]");
     }
+}
+
+#[test]
+fn open_record_contexts_widen_unsealed_empty_map_fields() {
+    let source = r#"
+fn return_value() -> {value: {..}}
+    {value = {}}
+
+fn environment(parent: string) -> {values: {..}, parent: string}
+    {values = {}, parent = parent}
+
+fn accept(value: {value: {..}}) -> {value: {..}}
+    value
+
+let exact = {}
+let assigned: {value: {..}} = {value = {}}
+let argument = accept({value = {}})
+let returned = return_value()
+let environment_value = environment("parent")
+"#;
+    let (inference, resolution) = inferred(source);
+    assert!(
+        inference.diagnostics.is_empty(),
+        "{:?}",
+        inference.diagnostics
+    );
+    assert_eq!(type_of(&inference, &resolution, "exact").display(), "{}");
+    assert_eq!(
+        type_of(&inference, &resolution, "assigned").display(),
+        "{ value: { .. } }"
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "argument").display(),
+        "{ value: { .. } }"
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "returned").display(),
+        "{ value: { .. } }"
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "environment_value").display(),
+        "{ values: { .. }, parent: string }"
+    );
+}
+
+#[test]
+fn maps_do_not_promise_required_any_fields_that_nil_deletion_can_remove() {
+    let source = r#"
+fn environment(parent: any) -> {values: {..}, parent: any}
+    {values = {}, parent = parent}
+"#;
+    let (inference, _) = inferred(source);
+    assert!(
+        inference.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == AnalysisDiagnosticCode::TypeMismatch
+                && diagnostic.detail.contains("{ values: {}, .. }")
+        }),
+        "{:?}",
+        inference.diagnostics
+    );
+}
+
+#[test]
+fn open_records_preserve_required_fields_through_direct_mutation_and_recursion() {
+    let source = r#"
+fn advance(state: {index: integer, ..}) -> {index: integer, ..} do
+    state.index = state.index + 1
+    if state.index < 2 then advance(state) else state end
+end
+
+let cursor = advance({index = 0})
+"#;
+    let (inference, resolution) = inferred(source);
+    assert!(
+        inference.diagnostics.is_empty(),
+        "{:?}",
+        inference.diagnostics
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "cursor").display(),
+        "{ index: integer, .. }"
+    );
 }
 
 #[test]
@@ -2524,7 +2655,7 @@ fn map_local_binding_shorthand_infers_the_referenced_value_type() {
 }
 
 #[test]
-fn destructuring_let_patterns_report_match_certainty_without_changing_bindings() {
+fn destructuring_let_patterns_report_only_impossible_matches_without_changing_bindings() {
     let source = r#"
 alias maybe_values = [..integer] | nil
 let [first, second] = [1, 2]
@@ -2571,23 +2702,11 @@ end
         2,
         "{reported:?}"
     );
-    assert_eq!(
-        codes
-            .iter()
-            .filter(|(code, _, _)| *code == AnalysisDiagnosticCode::DestructuringLetMayFail)
-            .count(),
-        4,
-        "{reported:?}"
-    );
     assert!(
-        codes.iter().all(|(code, severity, detail)| match code {
-            AnalysisDiagnosticCode::DestructuringLetNeverMatches => {
-                *severity == AnalysisDiagnosticSeverity::Error && detail.contains("incompatible")
-            }
-            AnalysisDiagnosticCode::DestructuringLetMayFail => {
-                *severity == AnalysisDiagnosticSeverity::Warning && detail.contains("Use `case`")
-            }
-            _ => true,
+        codes.iter().all(|(code, severity, detail)| {
+            *code == AnalysisDiagnosticCode::DestructuringLetNeverMatches
+                && *severity == AnalysisDiagnosticSeverity::Error
+                && detail.contains("incompatible")
         }),
         "{reported:?}"
     );
@@ -2636,7 +2755,7 @@ end
 }
 
 #[test]
-fn closed_map_destructuring_over_unknown_keys_retains_extra_key_failure() {
+fn closed_map_destructuring_over_unknown_keys_remains_an_assertion() {
     let closed_source = r#"
 fn indexed(values: {[string]: integer}) do
     let {value} = values
@@ -2650,11 +2769,7 @@ end
     let db = AnalysisDatabase::default();
     let file = db.add_file(closed_source);
     let reported = diagnostics(&db, file);
-    assert_eq!(reported.len(), 2, "{reported:?}");
-    assert!(reported.iter().all(|diagnostic| {
-        diagnostic.code == AnalysisDiagnosticCode::DestructuringLetMayFail
-            && diagnostic.severity == AnalysisDiagnosticSeverity::Warning
-    }));
+    assert!(reported.is_empty(), "{reported:?}");
 
     let rest_source = r#"
 fn indexed(values: {[string]: integer}) do
@@ -2763,6 +2878,11 @@ fn portable_builtins_use_registered_module_shapes_for_global_type() {
             "fn to_string(value)
     nil { to_string = to_string }",
         ),
+        (
+            "std/bytes",
+            "fn length(data: bytes) -> integer
+    0 { length = length }",
+        ),
     ]
     .into_iter()
     .map(|(name, source)| {
@@ -2771,7 +2891,7 @@ fn portable_builtins_use_registered_module_shapes_for_global_type() {
     })
     .collect::<HashMap<_, _>>();
 
-    let source = "list map number";
+    let source = "list map number bytes";
     let (inference, resolution) = inferred_with_modules(source, &modules);
     assert!(
         inference.diagnostics.is_empty(),
@@ -2779,7 +2899,7 @@ fn portable_builtins_use_registered_module_shapes_for_global_type() {
         inference.diagnostics
     );
 
-    for name in ["list", "map", "number"] {
+    for name in ["list", "map", "number", "bytes"] {
         let ty = type_of_any(&inference, &resolution, name, 0);
         assert!(
             !ty.display().contains("any"),
@@ -2790,9 +2910,9 @@ fn portable_builtins_use_registered_module_shapes_for_global_type() {
 
 #[test]
 fn portable_builtins_fallback_to_any_when_shapes_absent() {
-    let source = "list map iter number string";
+    let source = "list map iter number string bytes";
     let (inference, resolution) = inferred(source);
-    for name in ["list", "map", "iter", "number", "string"] {
+    for name in ["list", "map", "iter", "number", "string", "bytes"] {
         assert_eq!(
             type_of_any(&inference, &resolution, name, 0).display(),
             "any",
@@ -2890,6 +3010,90 @@ let invalid = [..1]
             .diagnostics
             .iter()
             .any(|diagnostic| diagnostic.code == AnalysisDiagnosticCode::TypeMismatch),
+        "{:?}",
+        inference.diagnostics
+    );
+}
+
+#[test]
+fn named_recursive_types_keep_recursive_edges_collapsed_and_check_structure() {
+    let source = r#"
+type Expr =
+    | {kind: "integer", value: integer}
+    | {kind: "list", items: [..Expr]}
+let leaf: Expr = {kind = "integer", value = 1}
+let tree: Expr = {kind = "list", items = [leaf, {kind = "list", items = []}]}
+let invalid: Expr = {kind = "unexpected", value = 1}
+let invalid_nested: Expr = {kind = "list", items = ["wrong"]}
+"#;
+    let (inference, resolution) = inferred(source);
+    assert_eq!(
+        type_of(&inference, &resolution, "leaf"),
+        Type::Named("Expr".to_owned())
+    );
+    assert_eq!(
+        type_of(&inference, &resolution, "tree"),
+        Type::Named("Expr".to_owned())
+    );
+    assert!(
+        inference.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == AnalysisDiagnosticCode::TypeMismatch
+                && diagnostic.detail.contains("Expr")
+        }),
+        "{:?}",
+        inference.diagnostics
+    );
+    assert!(
+        inference.diagnostics.len() < 5,
+        "{:?}",
+        inference.diagnostics
+    );
+}
+
+#[test]
+fn named_recursive_map_fields_narrow_nil_from_named_owners() {
+    let source = r#"
+type Environment = {parent: Environment | nil, ..}
+fn parent_or_self(env: Environment) -> Environment
+    if type(env.parent) == "nil" then env else env.parent end
+"#;
+    let (inference, _) = inferred(source);
+    assert!(
+        inference.diagnostics.is_empty(),
+        "{:?}",
+        inference.diagnostics
+    );
+}
+
+#[test]
+fn named_recursive_map_types_reject_deleting_required_fields() {
+    let source = r#"
+type Environment = {values: {..}, parent: Environment | nil, ..}
+let env: Environment = {values = {}, parent = nil}
+env.values = nil
+let accepted: Environment = env
+"#;
+    let (inference, _) = inferred(source);
+    assert!(
+        inference.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == AnalysisDiagnosticCode::TypeMismatch
+                && diagnostic.detail == "Expected `{ .. }`, but found `nil`."
+        }),
+        "{:?}",
+        inference.diagnostics
+    );
+}
+
+#[test]
+fn named_recursive_map_types_allow_compatible_required_field_mutation() {
+    let source = r#"
+type Environment = {values: {..}, parent: Environment | nil, ..}
+let env: Environment = {values = {}, parent = nil}
+env.values = {count = 1}
+"#;
+    let (inference, _) = inferred(source);
+    assert!(
+        inference.diagnostics.is_empty(),
         "{:?}",
         inference.diagnostics
     );

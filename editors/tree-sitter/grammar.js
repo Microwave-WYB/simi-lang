@@ -41,6 +41,7 @@ module.exports = grammar({
     [$.callable_type_parameter, $.type_annotation],
     [$.callable_type_parameter, $.declared_parameter],
     [$.callable_type_parameter, $.parameter],
+    [$.type_declaration, $._primary_expression],
   ],
 
   rules: {
@@ -63,6 +64,7 @@ module.exports = grammar({
 
     _statement: ($) => choice(
       $.alias_declaration,
+      $.type_declaration,
       $.let_statement,
       $._expression,
     ),
@@ -85,6 +87,17 @@ module.exports = grammar({
       "alias",
       field("name", $.identifier),
       optional(field("parameters", $.type_parameters)),
+      "=",
+      field("type", $._type),
+    ),
+
+    // `type` is contextual because the shadowable `type(value)` builtin remains
+    // an ordinary call. The canonical Rowan grammar verifies the first
+    // identifier is exactly `type`; this editor grammar keeps the declaration
+    // shape permissive so it can also recover ordinary calls correctly.
+    type_declaration: ($) => seq(
+      field("keyword", $.identifier),
+      field("name", $.identifier),
       "=",
       field("type", $._type),
     ),
@@ -585,16 +598,16 @@ module.exports = grammar({
       "[",
       optional(choice(
         seq(
-          commaSep1($._bytes_pattern_sized_segment),
-          optional(seq(",", $.bytes_pattern_remainder)),
+          commaSep1($._bytes_pattern_segment),
+          optional(seq(",", $.rest_pattern)),
           optional(","),
         ),
-        seq($.bytes_pattern_remainder, optional(",")),
+        seq($.rest_pattern, optional(",")),
       )),
       "]",
     ),
 
-    _bytes_pattern_sized_segment: ($) => choice(
+    _bytes_pattern_segment: ($) => choice(
       $.string,
       field("name", choice($.wildcard_pattern, $.identifier)),
       $.bytes_pattern_fixed_capture,
@@ -603,16 +616,7 @@ module.exports = grammar({
     bytes_pattern_fixed_capture: ($) => seq(
       field("name", choice($.wildcard_pattern, $.identifier)),
       ":",
-      "bytes",
-      "(",
       field("length", $.integer),
-      ")",
-    ),
-
-    bytes_pattern_remainder: ($) => seq(
-      field("name", choice($.wildcard_pattern, $.identifier)),
-      ":",
-      "bytes",
     ),
 
     map_pattern: ($) => seq(

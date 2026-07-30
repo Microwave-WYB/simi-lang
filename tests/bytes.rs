@@ -81,7 +81,7 @@ fn bytes_literals_reject_dynamic_text_invalid_categories_and_out_of_range_intege
 }
 
 #[test]
-fn standard_bytes_module_is_require_only_and_converts_immutable_values() {
+fn standard_bytes_module_is_a_prelude_alias_and_converts_immutable_values() {
     let value = simi::eval(
         r#"
         let bytes = require("std/bytes")
@@ -105,10 +105,15 @@ fn standard_bytes_module_is_require_only_and_converts_immutable_values() {
         "[\"bytes\", 3, nil, \"bytes[7f ff]\", \"bytes[7f ff 01]\", [0, 127, 255]]"
     );
 
-    assert!(matches!(
-        simi::eval("bytes.length(#[1])"),
-        Err(SimiError::Runtime(_))
-    ));
+    let alias = simi::eval(
+        r#"
+        bytes.marker = "shared"
+        require("std/bytes").marker
+        "#,
+    )
+    .expect("bytes should be a portable prelude global")
+    .expect("bytes alias access should not raise");
+    assert_eq!(alias.render(), "\"shared\"");
 }
 
 #[test]

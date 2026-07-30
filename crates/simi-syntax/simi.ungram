@@ -1,8 +1,9 @@
 Root = RequiresDecl? Stmt*
 RequiresDecl = 'requires' MapExpr
-Stmt = FunctionDecl | AliasDecl | LetStmt | ExprStmt
+Stmt = FunctionDecl | AliasDecl | TypeDecl | LetStmt | ExprStmt
 FunctionDecl = 'fn' 'ident' CallableTypeParamList? ParamList (ReturnAnnotation EffectAnnotation?)? Body
 AliasDecl = 'alias' 'ident' TypeParamList? '=' TypeExpr
+TypeDecl = 'type' 'ident' '=' TypeExpr
 LetStmt = 'let' Pattern TypeAnnotation? '=' Expr
 ExprStmt = Expr
 ParamList = '(' (Param (',' Param)* ','?)? ')'
@@ -68,7 +69,7 @@ WildcardPattern = 'ident'
 LiteralPattern = 'int' | 'float' | 'string' | 'nil' | 'true' | 'false'
 ListPattern = '[' (Pattern (',' Pattern)* (',' RestPattern)? ','? | RestPattern ','?)? ']'
 BytesPattern = '#' '[' (BytesPatternSegment (',' BytesPatternSegment)* ','?)? ']'
-BytesPatternSegment = 'string' | 'ident' (':' 'ident' ('(' 'int' ')')?)?
+BytesPatternSegment = 'string' | 'ident' (':' 'int')? | RestPattern
 MapPattern = '{' (MapPatternField (',' MapPatternField)* (',' RestPattern)? ','? | RestPattern ','?)? '}'
 MapPatternField = 'ident' ('=' Pattern)?
 RestPattern = '..' 'ident'?

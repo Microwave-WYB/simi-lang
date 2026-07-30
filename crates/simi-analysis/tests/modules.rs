@@ -284,7 +284,7 @@ fn hidden(value)
 #[test]
 fn portable_prelude_modules_provide_members_and_remain_shadowable() {
     let db = AnalysisDatabase::default();
-    let source = "list.append map.clear iter.map number.to_string string.upper";
+    let source = "list.append map.clear iter.map number.to_string string.upper bytes.length";
     let file = db.add_file(source);
     let modules = [
         (
@@ -312,6 +312,11 @@ fn portable_prelude_modules_provide_members_and_remain_shadowable() {
             "fn upper(value)
     nil { upper = upper }",
         ),
+        (
+            "std/bytes",
+            "fn length(value)
+    nil { length = length }",
+        ),
     ]
     .into_iter()
     .map(|(name, source)| {
@@ -319,9 +324,9 @@ fn portable_prelude_modules_provide_members_and_remain_shadowable() {
         (name.to_owned(), module_shape(&db, module))
     })
     .collect::<HashMap<_, _>>();
-    assert_eq!(imported_modules(&db, file).len(), 5);
+    assert_eq!(imported_modules(&db, file).len(), 6);
 
-    for member in ["append", "clear", "map", "to_string", "upper"] {
+    for member in ["append", "clear", "map", "to_string", "upper", "length"] {
         let field = member_at(
             &db,
             file,
@@ -333,12 +338,13 @@ fn portable_prelude_modules_provide_members_and_remain_shadowable() {
         assert_eq!(field.field.name, member);
     }
 
-    let incomplete = "iter.";
-    let incomplete_file = db.add_file(incomplete);
-    let completions =
-        member_completions(&db, incomplete_file, &modules, incomplete, incomplete.len());
-    assert_eq!(completions.len(), 1);
-    assert_eq!(completions[0].name, "map");
+    for (incomplete, expected) in [("iter.", "map"), ("bytes.", "length")] {
+        let incomplete_file = db.add_file(incomplete);
+        let completions =
+            member_completions(&db, incomplete_file, &modules, incomplete, incomplete.len());
+        assert_eq!(completions.len(), 1);
+        assert_eq!(completions[0].name, expected);
+    }
 
     let shadowed = "let string = {} string.";
     let shadowed_file = db.add_file(shadowed);

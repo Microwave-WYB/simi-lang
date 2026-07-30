@@ -66,9 +66,15 @@ const KEYWORDS: &[KeywordHelp] = &[
         contextual: false,
     },
     KeywordHelp {
+        word: "type",
+        syntax: "type name = union",
+        documentation: "Declares a named, recursive, runtime-erased structural type.",
+        contextual: true,
+    },
+    KeywordHelp {
         word: "requires",
-        syntax: "requires {std = {simi = revision}}",
-        documentation: "Declares static package requirements before executable source items. Use `{simi = revision}` for the official standard-library catalog, `{git = url, rev = revision}` for Git packages, or `{path = path}` for development packages.",
+        syntax: "requires {name = {git = url, rev = revision}}",
+        documentation: "Declares static package requirements before executable source items. Use `{git = url, rev = revision}` for Git packages or `{path = path}` for development packages. The runtime supplies portable `std/*` modules; do not declare `std` here.",
         contextual: false,
     },
     KeywordHelp {
@@ -235,6 +241,7 @@ fn contains(token: &SyntaxToken, offset: usize) -> bool {
 
 fn is_contextual_keyword(token: &SyntaxToken, word: &str) -> bool {
     token.parent_ancestors().any(|node| match word {
+        "type" => node.kind() == K::TYPE_DECL,
         "any" | "never" | "boolean" | "integer" | "float" | "string" => matches!(
             node.kind(),
             K::TYPE_EXPR
@@ -260,7 +267,7 @@ mod tests {
         let expected = [
             "alias", "and", "any", "boolean", "case", "catch", "do", "else", "elseif", "end",
             "false", "float", "fn", "if", "integer", "let", "nil", "not", "of", "or", "panic",
-            "raise", "requires", "string", "tap", "then", "todo", "true", "when", "never",
+            "raise", "requires", "string", "tap", "then", "todo", "true", "type", "when", "never",
         ]
         .into_iter()
         .collect::<BTreeSet<_>>();

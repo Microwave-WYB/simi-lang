@@ -29,12 +29,7 @@
 
 ## The standard library catalog
 
-`Engine::new()` provides the bundled, shadowable `list` and `map` prelude. `Engine::with_stdlib()` and root `eval` additionally attach the distribution-supplied official standard-library catalog, which provides the `iter`, `number`, and `string` aliases and their canonical `std/*` module paths. Standalone scripts declare its exact revision before using a non-prelude module:
-
-```simi
-requires {std = {simi = "0.1.0-alpha.1"}}
-let iter = require("std/iter")
-```
+Normal `Engine::new()` evaluations, `Engine::with_stdlib()`, root `eval`, and CLI scripts provide the runtime-owned portable `list`, `map`, `iter`, `number`, `string`, and `bytes` prelude globals. Their canonical `std/*` module paths are also available through `require` and share cached identity with those aliases. The runtime selects its matching portable catalog; source files do not declare or pin `std`.
 
 Direct use is ordinary in a standard-library engine:
 
@@ -61,7 +56,7 @@ The cache belongs to an `Engine`. Module state persists across evaluations made 
 
 Source-backed modules are evaluated lazily on first use and then cached. A circular lazy load raises `{error = "circular_module_dependency", module = name}`.
 
-Hosts can register direct modules explicitly. The bundled `list` and `map` prelude remains runtime-core behavior; non-prelude `std/*` facades are supplied only by the exact official catalog or by an explicitly registered host module. Source-backed modules use explicit `require("std/...")` calls for dependencies. A raised or circular load remains a language raise from `Engine::eval`.
+Hosts can register direct modules explicitly. The runtime owns the portable `std/*` catalog and rejects host catalogs that try to supply the reserved `std/` namespace. Source-backed modules may use explicit `require("std/...")` calls for portable dependencies. A raised or circular load remains a language raise from `Engine::eval`.
 
 ## Conversion and string helpers
 
@@ -88,10 +83,9 @@ name
 
 ## Byte helpers
 
-The official-catalog `std/bytes` module is available explicitly through `require`; it intentionally does not add a `bytes` prelude global. It provides immutable octet inspection, O(1) range views, concatenation, and conversion to or from integer lists. List input must contain only integers from `0` through `255`.
+The runtime-owned `bytes` prelude global and canonical `std/bytes` module share the same cached value. It provides immutable octet inspection, O(1) range views, concatenation, and conversion to or from integer lists. List input must contain only integers from `0` through `255`.
 
 ```simi
-let bytes = require("std/bytes")
 let header = bytes.from_list([137, 80, 78, 71])
 let body = bytes.slice(header, 1, 20)
 
@@ -102,7 +96,7 @@ let body = bytes.slice(header, 1, 20)
 
 ## Numeric encoding
 
-The require-only `std/integer` and `std/float` modules encode and decode numbers into bytes with explicit endianness.
+The require-able `std/integer` and `std/float` modules encode and decode numbers into bytes with explicit endianness.
 
 ### Integer encoding
 
@@ -128,7 +122,7 @@ let value = float.decode(#[0, 0, 128, 127], "f32le")
 
 ## Unicode codecs
 
-The require-only `std/utf8` and `std/utf16` modules encode strings to bytes and perform strict decoding.
+The require-able `std/utf8` and `std/utf16` modules encode strings to bytes and perform strict decoding.
 
 ### UTF-8
 
@@ -154,7 +148,7 @@ let text = utf16.decode_le(little)
 
 ## Prelude globals
 
-Normal `Engine::new()` evaluations provide `require`, `type`, `inspect`, `list`, and `map` as ordinary shadowable globals. `Engine::with_stdlib()` and root `eval` additionally provide `iter`, `number`, and `string`; their canonical paths share cached identity with those aliases. `require("std/bytes")` is an explicit official-catalog module. `type` returns stable runtime category labels. `inspect` produces cycle-safe, human-readable text; it is not serialization.
+Normal `Engine::new()` evaluations, `Engine::with_stdlib()`, and root `eval` provide `require`, `type`, `inspect`, `list`, `map`, `iter`, `number`, `string`, and `bytes` as ordinary shadowable globals; their canonical paths share cached identity with those aliases. `type` returns stable runtime category labels. `inspect` produces cycle-safe, human-readable text; it is not serialization.
 
 ```simi
 let values = []

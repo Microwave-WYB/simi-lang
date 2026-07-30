@@ -48,6 +48,11 @@ struct AliasDef {
     body: SyntaxNode,
 }
 
+#[derive(Clone)]
+struct NamedTypeDef {
+    body: SyntaxNode,
+}
+
 #[derive(Clone, Default)]
 struct VarState {
     binding: Option<Type>,
@@ -67,6 +72,7 @@ pub fn infer_types(
     let source = source_text(db, file);
     let root = parsed.syntax();
     let aliases = collect_aliases(&root);
+    let named_types = collect_named_types(&root);
     let trusted_builtin_symbols = resolution
         .hir
         .symbols
@@ -80,6 +86,7 @@ pub fn infer_types(
         modules,
         source: &source,
         aliases,
+        named_types,
         alias_stack: HashSet::new(),
         vars: Vec::new(),
         deferred_empty_list_infers: HashSet::new(),
@@ -214,7 +221,7 @@ fn builtin_types(
             ))),
             "type" => callable_type(vec![Type::Any], Type::String),
             "inspect" => callable_type(vec![Type::Any], Type::String),
-            "list" | "map" | "iter" | "number" | "string" => modules
+            "list" | "map" | "iter" | "number" | "string" | "bytes" => modules
                 .get(&format!("std/{}", symbol.name))
                 .and_then(|shape| shape.ty.clone())
                 .unwrap_or(Type::Any),
@@ -254,6 +261,7 @@ struct Context<'a> {
     modules: &'a HashMap<String, ModuleShape>,
     source: &'a str,
     aliases: HashMap<String, AliasDef>,
+    named_types: HashMap<String, NamedTypeDef>,
     alias_stack: HashSet<String>,
     vars: Vec<VarState>,
     deferred_empty_list_infers: HashSet<u32>,
@@ -462,6 +470,28 @@ fn collect_aliases(root: &SyntaxNode) -> HashMap<String, AliasDef> {
         .collect()
 }
 
+fn collect_named_types(root: &SyntaxNode) -> HashMap<String, NamedTypeDef> {
+    let Some(root) = syntax::Root::cast(root.clone()) else {
+        return HashMap::new();
+    };
+    root.statements()
+        .filter_map(|statement| {
+            let syntax::Stmt::TypeDecl(declaration) = statement else {
+                return None;
+            };
+            let contextual = direct_token(declaration.syntax(), K::TYPE_KW).is_none();
+            let name = support::tokens(declaration.syntax(), K::IDENT)
+                .nth(usize::from(contextual))?
+                .text()
+                .to_owned();
+            let body = support::child::<syntax::TypeExpr>(declaration.syntax())?
+                .syntax()
+                .clone();
+            Some((name, NamedTypeDef { body }))
+        })
+        .collect()
+}
+
 fn known_module_argument_is_pure(module: &str, field: &str, index: usize) -> bool {
     match module {
         "std/list" => {
@@ -471,7 +501,7 @@ fn known_module_argument_is_pure(module: &str, field: &str, index: usize) -> boo
             ) || (field != "fold" && index != 0)
         }
         "std/map" => index != 0 || field != "clear",
-        "std/iter" | "std/number" | "std/string" | "std/io" => true,
+        "std/iter" | "std/number" | "std/string" | "std/bytes" | "std/io" => true,
         _ => false,
     }
 }

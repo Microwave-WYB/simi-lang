@@ -64,14 +64,13 @@ pub fn run(file: &Path, mode: ResolutionMode) -> Result<ScriptResult, CliError> 
         let path = lock_path(file);
         fs::write(&path, &resolved.lockfile).map_err(|source| CliError::Io { path, source })?;
     }
-    let has_official_stdlib = crate::stdlib::is_official_catalog(&resolved.catalog);
-    let builder = Engine::builder().prelude().catalog(resolved.catalog);
-    let builder = if has_official_stdlib {
-        builder.stdio()
-    } else {
-        builder
-    };
-    builder.build().eval(&source).map_err(CliError::Simi)
+    Engine::builder()
+        .prelude()
+        .catalog(resolved.catalog)
+        .stdio()
+        .build()
+        .eval(&source)
+        .map_err(CliError::Simi)
 }
 
 pub fn lock(file: &Path, offline: bool) -> Result<PathBuf, CliError> {
@@ -237,7 +236,6 @@ mod tests {
         fs::write(
             &path,
             r#"
-            requires {std = {simi = "0.1.0-alpha.1"}}
             let io = require("std/io")
             [type(io.println), type(io.eprintln)]
             "#,
@@ -249,21 +247,17 @@ mod tests {
     }
 
     #[test]
-    fn cli_requires_the_official_catalog_for_non_prelude_modules() {
+    fn cli_provides_runtime_owned_standard_library_without_a_source_pin() {
         let path = std::env::temp_dir().join(format!("simi-stdlib-{}.simi", std::process::id()));
-        fs::write(&path, "require(\"std/iter\")").unwrap();
-        let result = match run(&path, ResolutionMode::Update).unwrap() {
-            Err(raised) => raised,
-            Ok(value) => panic!(
-                "missing stdlib module unexpectedly returned {}",
-                value.render()
-            ),
-        };
+        fs::write(
+            &path,
+            "[iter.to_list(list.iter([4]))[0], number.to_string(5), string.upper(\"simi\"), bytes.length(#[1, 2]), type(require(\"std/iter\")), type(require(\"std/bytes\"))]",
+        )
+        .unwrap();
+        let result = run(&path, ResolutionMode::Update).unwrap().unwrap();
         fs::remove_file(&path).unwrap();
-        assert_eq!(
-            result.value.render(),
-            "{error=\"module_not_found\", module=\"std/iter\"}"
-        );
+        fs::remove_file(lock_path(&path)).unwrap();
+        assert_eq!(result.render(), "[4, \"5\", \"SIMI\", 2, \"map\", \"map\"]");
     }
 
     #[test]

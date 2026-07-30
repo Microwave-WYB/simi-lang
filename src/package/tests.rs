@@ -125,7 +125,7 @@ fn rejects_missing_or_symlinked_declared_public_sources() {
 }
 
 #[test]
-fn parses_and_rejects_nonstatic_leading_requirements() {
+fn parses_path_and_git_requirements_and_rejects_runtime_owned_std_pins() {
     let requires = parse_requires(
         r#"requires {
             remote = {git = "https://example.invalid/tools.git", rev = "v1"},
@@ -145,13 +145,9 @@ fn parses_and_rejects_nonstatic_leading_requirements() {
         requires.entries[1].source,
         RequirementSource::Path { ref path } if path == "dev/local"
     ));
-    let official = parse_requires(r#"requires {std = {simi = "0.1.0-alpha.1"}}"#)
-        .unwrap()
-        .expect("official stdlib header");
-    assert!(matches!(
-        official.entries[0].source,
-        RequirementSource::Official { ref revision } if revision == "0.1.0-alpha.1"
-    ));
+    let stale_std = parse_requires(r#"requires {std = {simi = "0.1.0-alpha.1"}}"#)
+        .expect_err("the runtime owns the standard library catalog");
+    assert!(stale_std.message.contains("supplied by the runtime"));
 
     for source in [
         "requires {tools = {git = url, rev = \"v1\"}}",

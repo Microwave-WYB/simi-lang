@@ -4,8 +4,6 @@ use simi::{
 };
 
 const REQUIREMENT: &str = r#"requires {tools = {path = "deps/tools"}}"#;
-const OFFICIAL_REQUIREMENT: &str = r#"requires {std = {simi = "0.1.0-alpha.1"}}"#;
-
 fn catalog() -> PackageCatalog {
     PackageCatalog::new(
         [CatalogModule::new(
@@ -47,31 +45,40 @@ fn bare_and_portable_engines_reject_unresolved_package_metadata_before_execution
 }
 
 #[test]
-fn official_stdlib_requires_an_exact_catalog_revision() {
-    let source = format!("{OFFICIAL_REQUIREMENT}\ntype(require(\"std/iter\"))");
-    let error = match Engine::new().eval(&source) {
-        Err(error) => error,
-        Ok(_) => panic!("bare engine must reject the unresolved official requirement"),
-    };
-    assert!(error.to_string().contains("no resolved package catalog"));
-
-    for result in [Engine::with_stdlib().eval(&source), eval(&source)] {
-        assert_eq!(result.unwrap().unwrap().render(), "\"map\"");
+fn portable_prelude_is_runtime_owned_and_stdio_remains_opt_in() {
+    let source = r#"[
+        type(list),
+        type(map),
+        type(iter),
+        type(number),
+        type(string),
+        type(bytes),
+        type(require("std/iter")),
+        type(require("std/bytes")),
+    ]"#;
+    for result in [
+        Engine::new().eval(source),
+        Engine::with_stdlib().eval(source),
+        eval(source),
+    ] {
+        assert_eq!(
+            result.unwrap().unwrap().render(),
+            "[\"map\", \"map\", \"map\", \"map\", \"map\", \"map\", \"map\", \"map\"]"
+        );
     }
 
-    let incompatible = match Engine::with_stdlib().eval("requires {std = {simi = \"0.0.0\"}}\n42") {
-        Err(error) => error,
-        Ok(_) => panic!("incompatible official revision must be rejected"),
-    };
-    assert!(
-        incompatible
-            .to_string()
-            .contains("does not satisfy requirement `std`")
-    );
+    let no_capability = Engine::new().eval("require(\"std/io\")").unwrap();
+    assert!(no_capability.is_err());
 
-    let no_capability =
-        Engine::with_stdlib().eval(&format!("{OFFICIAL_REQUIREMENT}\nrequire(\"std/io\")"));
-    assert!(no_capability.unwrap().is_err());
+    let stdio = Engine::builder().prelude().stdio().build();
+    assert_eq!(
+        stdio
+            .eval("type(require(\"std/io\"))")
+            .unwrap()
+            .unwrap()
+            .render(),
+        "\"map\""
+    );
 
     let catalog_only = Engine::builder()
         .catalog(simi::stdlib::official_catalog())
@@ -88,7 +95,7 @@ fn official_stdlib_requires_an_exact_catalog_revision() {
 }
 
 #[test]
-fn official_catalog_rejects_extra_overridden_and_revision_mismatched_std_entries() {
+fn official_catalog_rejects_extra_and_overridden_std_entries() {
     let official = simi::stdlib::official_catalog();
     let extra = PackageCatalog::new(
         official.modules().iter().cloned().chain(std::iter::once(
@@ -122,18 +129,7 @@ fn official_catalog_rejects_extra_overridden_and_revision_mismatched_std_entries
         official.requirements().iter().cloned(),
     )
     .unwrap();
-    let wrong_revision = PackageCatalog::new(
-        official.modules().iter().cloned(),
-        [CatalogRequirement::new(
-            "std",
-            RequirementSource::Official {
-                revision: "not-the-distribution-revision".to_owned(),
-            },
-        )],
-    )
-    .unwrap();
-
-    for catalog in [extra, overridden, wrong_revision] {
+    for catalog in [extra, overridden] {
         let Err(error) = Engine::builder().catalog(catalog).build().eval("42") else {
             panic!("non-exact official catalog must be rejected");
         };
@@ -158,7 +154,10 @@ fn official_catalog_rejects_extra_overridden_and_revision_mismatched_std_entries
         assert!(
             error
                 .to_string()
-                .contains("conflicts with a resolved package catalog module")
+                .contains("conflicts with the bundled prelude module")
+                || error
+                    .to_string()
+                    .contains("conflicts with a resolved package catalog module")
         );
     }
 

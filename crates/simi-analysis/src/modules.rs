@@ -29,7 +29,10 @@ pub fn module_shape(db: &dyn salsa::Database, file: FileId) -> ModuleShape {
 
     for statement in root.statements() {
         // Type aliases are erased and therefore do not replace the final runtime value.
-        if matches!(statement, syntax::Stmt::AliasDecl(_)) {
+        if matches!(
+            statement,
+            syntax::Stmt::AliasDecl(_) | syntax::Stmt::TypeDecl(_)
+        ) {
             continue;
         }
         // A module exports the value of its final runtime item. Clear the
@@ -108,7 +111,9 @@ pub fn module_shape(db: &dyn salsa::Database, file: FileId) -> ModuleShape {
                 }
             }
             syntax::Stmt::FunctionDecl(_) => {}
-            syntax::Stmt::AliasDecl(_) => unreachable!("aliases continue above"),
+            syntax::Stmt::AliasDecl(_) | syntax::Stmt::TypeDecl(_) => {
+                unreachable!("erased type declarations continue above")
+            }
         }
     }
 
@@ -354,6 +359,7 @@ fn prelude_module(name: &str) -> Option<&'static str> {
         "iter" => Some("std/iter"),
         "number" => Some("std/number"),
         "string" => Some("std/string"),
+        "bytes" => Some("std/bytes"),
         _ => None,
     }
 }

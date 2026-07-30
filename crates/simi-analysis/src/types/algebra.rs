@@ -433,12 +433,13 @@ pub(super) fn type_order(ty: &Type) -> u8 {
         Type::Bytes => 5,
         Type::ListExact(_) | Type::ListRest(_) => 6,
         Type::Map { .. } => 7,
-        Type::Function(_) => 8,
-        Type::Generic(_) | Type::Infer(_) => 9,
-        Type::Nil => 10,
-        Type::Unknown => 11,
-        Type::Any => 12,
-        Type::FunctionArgs(_) | Type::Union(_) => 13,
+        Type::Named(_) => 8,
+        Type::Function(_) => 9,
+        Type::Generic(_) | Type::Infer(_) => 10,
+        Type::Nil => 11,
+        Type::Unknown => 12,
+        Type::Any => 13,
+        Type::FunctionArgs(_) | Type::Union(_) => 14,
     }
 }
 pub(super) fn type_contains_singleton(ty: &Type) -> bool {
@@ -534,6 +535,7 @@ pub(super) fn is_subtype(actual: &Type, expected: &Type) -> bool {
             let index_matches = expected_index.as_ref().is_none_or(|(key, value)| {
                 actual
                     .iter()
+                    .filter(|(name, _)| !expected.iter().any(|(field, _)| field == name))
                     .all(|(_, actual)| is_subtype(&Type::String, key) && is_subtype(actual, value))
                     && actual_index
                         .as_ref()

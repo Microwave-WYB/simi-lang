@@ -30,7 +30,8 @@ fn open(backend: &mut Backend, source: &str) -> Vec<Notification> {
             }
         }))
         .unwrap(),
-    )
+    );
+    vec![backend.wait_for_diagnostics()]
 }
 
 fn diagnostics_from(notification: Notification) -> PublishDiagnosticsParams {
@@ -73,6 +74,22 @@ fn text_position(source: &str, needle: &str, occurrence: usize) -> Position {
         .unwrap_or_else(|| panic!("missing occurrence {occurrence} of {needle}"))
         .0;
     position::position(source, offset).unwrap()
+}
+
+#[test]
+fn typed_lisp_example_has_no_diagnostics_with_real_portable_module_shapes() {
+    let mut backend = Backend::with_module_sources([
+        ("std/list", include_str!("../../../../stdlib/list.simi")),
+        ("std/string", include_str!("../../../../stdlib/string.simi")),
+    ]);
+    let diagnostics = diagnostics_from(
+        open(&mut backend, include_str!("../../../../examples/lisp.simi")).remove(0),
+    );
+    assert!(
+        diagnostics.diagnostics.is_empty(),
+        "{:#?}",
+        diagnostics.diagnostics
+    );
 }
 
 #[test]
@@ -128,8 +145,8 @@ fn ordered_incremental_unicode_changes_replace_and_clear_diagnostics() {
             },
         ],
     };
-    let changed = backend.change(params).unwrap();
-    let diagnostics = diagnostics_from(changed.into_iter().next().unwrap());
+    assert!(backend.change(params).unwrap().is_empty());
+    let diagnostics = diagnostics_from(backend.wait_for_diagnostics());
     assert_eq!(diagnostics.version, Some(2));
     assert!(diagnostics.diagnostics.is_empty());
     let document = backend.documents.get(&uri()).unwrap();
@@ -159,6 +176,49 @@ fn ordered_incremental_unicode_changes_replace_and_clear_diagnostics() {
     let diagnostics = diagnostics_from(closed.into_iter().next().unwrap());
     assert_eq!(diagnostics.version, None);
     assert!(diagnostics.diagnostics.is_empty());
+}
+
+#[test]
+fn rapid_edits_coalesce_to_the_latest_diagnostics_without_publishing_stale_results() {
+    let mut backend = Backend::new();
+    assert!(
+        backend
+            .open(
+                serde_json::from_value(json!({
+                    "textDocument": {
+                        "uri": uri(),
+                        "languageId": "simi",
+                        "version": 1,
+                        "text": "let = 1"
+                    }
+                }))
+                .unwrap(),
+            )
+            .is_empty()
+    );
+
+    for version in 2..=8 {
+        assert!(
+            backend
+                .change(DidChangeTextDocumentParams {
+                    text_document: VersionedTextDocumentIdentifier {
+                        uri: uri(),
+                        version,
+                    },
+                    content_changes: vec![TextDocumentContentChangeEvent {
+                        range: None,
+                        range_length: None,
+                        text: "let value = 1".to_owned(),
+                    }],
+                })
+                .unwrap()
+                .is_empty()
+        );
+    }
+
+    let diagnostics = diagnostics_from(backend.wait_for_diagnostics());
+    assert_eq!(diagnostics.version, Some(8));
+    assert!(diagnostics.diagnostics.is_empty(), "{diagnostics:?}");
 }
 
 #[test]
@@ -401,7 +461,7 @@ fn requires_keyword_has_completion_and_hover_help() {
     assert_eq!(item.kind, Some(CompletionItemKind::KEYWORD));
     assert_eq!(
         item.detail.as_deref(),
-        Some("requires {std = {simi = revision}}")
+        Some("requires {name = {git = url, rev = revision}}")
     );
 
     let hover_source = "requires {}";
@@ -424,7 +484,7 @@ fn requires_keyword_has_completion_and_hover_help() {
     };
     assert_eq!(
         markup.value,
-        "keyword `requires`\n\nDeclares static package requirements before executable source items. Use `{simi = revision}` for the official standard-library catalog, `{git = url, rev = revision}` for Git packages, or `{path = path}` for development packages.\n\nSyntax: requires {std = {simi = revision}}"
+        "keyword `requires`\n\nDeclares static package requirements before executable source items. Use `{git = url, rev = revision}` for Git packages or `{path = path}` for development packages. The runtime supplies portable `std/*` modules; do not declare `std` here.\n\nSyntax: requires {name = {git = url, rev = revision}}"
     );
 }
 
@@ -1117,11 +1177,11 @@ fn iterator_pair_adapter_hover_preserves_item_and_source_effect_types() {
 
 #[test]
 fn portable_prelude_members_have_the_same_lsp_metadata_as_require() {
-    let source = "number.to_string";
-    let mut backend = Backend::with_module_sources([(
-        "std/number",
-        include_str!("../../../../stdlib/number.simi"),
-    )]);
+    let source = "number.to_string\nbytes.length";
+    let mut backend = Backend::with_module_sources([
+        ("std/number", include_str!("../../../../stdlib/number.simi")),
+        ("std/bytes", include_str!("../../../../stdlib/bytes.simi")),
+    ]);
     open(&mut backend, source);
     let hover: Option<Hover> = serde_json::from_value(
         request(
@@ -1141,6 +1201,56 @@ fn portable_prelude_members_have_the_same_lsp_metadata_as_require() {
     assert_simi_hover(
         &markup,
         "fn(value: integer | float) -> string ! never\n\nRender a number using canonical Simi notation.",
+    );
+
+    let hover: Option<Hover> = serde_json::from_value(
+        request(
+            &mut backend,
+            HoverRequest::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": text_position(source, "length", 0),
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let HoverContents::Markup(markup) = hover.expect("bytes prelude hover").contents else {
+        panic!("expected markup")
+    };
+    assert_simi_hover(
+        &markup,
+        "fn(data: bytes) -> integer ! never\n\nReturn the number of octets in bytes.",
+    );
+
+    let incomplete = "bytes.";
+    let mut backend = Backend::with_module_sources([(
+        "std/bytes",
+        include_str!("../../../../stdlib/bytes.simi"),
+    )]);
+    open(&mut backend, incomplete);
+    let completion: Option<CompletionResponse> = serde_json::from_value(
+        request(
+            &mut backend,
+            Completion::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": position::position(incomplete, incomplete.len()).unwrap(),
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let CompletionResponse::Array(items) = completion.expect("bytes member completions") else {
+        panic!("expected completion array")
+    };
+    let length = items
+        .iter()
+        .find(|item| item.label == "length")
+        .expect("bytes.length completion");
+    assert_eq!(
+        length.detail.as_deref(),
+        Some("length : fn(data: bytes) -> integer ! never")
     );
 }
 
@@ -1239,7 +1349,7 @@ fn bytes_literals_hover_as_bytes_and_reject_dynamic_text_segments() {
 #[test]
 fn bytes_pattern_captures_hover_as_integer_and_bytes() {
     let source = r#"let result = case #[1, 2, 3] of
-    #[byte, fixed:bytes(1), rest:bytes] => [byte, fixed, rest]
+    #[byte, fixed:1, ..rest] => [byte, fixed, rest]
 end"#;
     let mut backend = Backend::new();
     let published = diagnostics_from(open(&mut backend, source).remove(0));
@@ -1268,6 +1378,24 @@ end"#;
         };
         assert_simi_hover(&markup, expected);
     }
+}
+
+#[test]
+fn legacy_bytes_pattern_capture_syntax_publishes_a_migration_diagnostic() {
+    let source = "case #[1] of #[field:bytes(1)] => nil end";
+    let mut backend = Backend::new();
+    let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
+    assert_eq!(diagnostics.diagnostics.len(), 1, "{diagnostics:?}");
+    let diagnostic = &diagnostics.diagnostics[0];
+    assert_eq!(
+        diagnostic.code,
+        Some(lsp_types::NumberOrString::String("syntax_error".to_owned()))
+    );
+    assert_eq!(
+        diagnostic.message,
+        "Syntax error\n\nLegacy `:bytes` byte capture syntax was removed; write `name:width` or `..name`."
+    );
+    assert_eq!(diagnostic.range.start, text_position(source, "bytes", 0));
 }
 
 #[test]
@@ -2130,21 +2258,24 @@ fn type_errors_are_published_and_clear_after_incremental_repair() {
 
     let repaired =
         "let declared: integer = 1\nfn one(value: integer) -> integer do value end\none(1)\n";
-    let notifications = backend
-        .change(DidChangeTextDocumentParams {
-            text_document: VersionedTextDocumentIdentifier {
-                uri: uri(),
-                version: 2,
-            },
-            content_changes: vec![TextDocumentContentChangeEvent {
-                range: None,
-                range_length: None,
-                text: repaired.to_owned(),
-            }],
-        })
-        .unwrap();
     assert!(
-        diagnostics_from(notifications.into_iter().next().unwrap())
+        backend
+            .change(DidChangeTextDocumentParams {
+                text_document: VersionedTextDocumentIdentifier {
+                    uri: uri(),
+                    version: 2,
+                },
+                content_changes: vec![TextDocumentContentChangeEvent {
+                    range: None,
+                    range_length: None,
+                    text: repaired.to_owned(),
+                }],
+            })
+            .unwrap()
+            .is_empty()
+    );
+    assert!(
+        diagnostics_from(backend.wait_for_diagnostics())
             .diagnostics
             .is_empty()
     );
@@ -2343,7 +2474,7 @@ fn real_string_module_hover_wraps_export_map_at_presentation_width() {
 }
 
 #[test]
-fn closed_map_destructuring_over_unknown_keys_publishes_extra_key_warnings() {
+fn closed_map_destructuring_over_unknown_keys_remains_an_assertion() {
     let source = r#"fn indexed_closed(values: {[string]: integer}) do
     let {value} = values
     value
@@ -2362,19 +2493,11 @@ fn open_rest(values: {..}) do
 end"#;
     let mut backend = Backend::new();
     let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
-    assert_eq!(diagnostics.diagnostics.len(), 2, "{diagnostics:?}");
-    assert!(diagnostics.diagnostics.iter().all(|diagnostic| {
-        diagnostic.code
-            == Some(lsp_types::NumberOrString::String(
-                "destructuring_let_may_fail".to_owned(),
-            ))
-            && diagnostic.severity == Some(lsp_types::DiagnosticSeverity::WARNING)
-            && diagnostic.message.contains("Use `case`")
-    }));
+    assert!(diagnostics.diagnostics.is_empty(), "{diagnostics:?}");
 }
 
 #[test]
-fn destructuring_let_certainty_diagnostics_publish_warnings_and_errors() {
+fn destructuring_let_certainty_diagnostics_publish_only_impossible_matches() {
     let source = concat!(
         "fn first(values: any) do\n",
         "    let [first, ..rest] = values\n",
@@ -2384,29 +2507,18 @@ fn destructuring_let_certainty_diagnostics_publish_warnings_and_errors() {
     );
     let mut backend = Backend::new();
     let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
-    assert_eq!(diagnostics.diagnostics.len(), 2, "{diagnostics:?}");
+    assert_eq!(diagnostics.diagnostics.len(), 1, "{diagnostics:?}");
     assert_eq!(
         diagnostics.diagnostics[0].code,
-        Some(lsp_types::NumberOrString::String(
-            "destructuring_let_may_fail".to_owned()
-        ))
-    );
-    assert_eq!(
-        diagnostics.diagnostics[0].severity,
-        Some(lsp_types::DiagnosticSeverity::WARNING)
-    );
-    assert!(diagnostics.diagnostics[0].message.contains("Use `case`"));
-    assert_eq!(
-        diagnostics.diagnostics[1].code,
         Some(lsp_types::NumberOrString::String(
             "destructuring_let_never_matches".to_owned()
         ))
     );
     assert_eq!(
-        diagnostics.diagnostics[1].severity,
+        diagnostics.diagnostics[0].severity,
         Some(lsp_types::DiagnosticSeverity::ERROR)
     );
-    assert!(diagnostics.diagnostics[1].message.contains("incompatible"));
+    assert!(diagnostics.diagnostics[0].message.contains("incompatible"));
 
     let hover: Option<Hover> = serde_json::from_value(
         request(
@@ -2564,7 +2676,7 @@ fn static_requirement_metadata_diagnostics_are_published_over_lsp() {
         (
             "requires {tools = {git = \"\", rev = \"v1\"}}",
             "invalid_package_requirements",
-            "Requirement `tools` must declare exactly one of `{simi = revision}`, `{git = url, rev = revision}`, or `{path = path}`.",
+            "Requirement `tools` must declare exactly one of `{git = url, rev = revision}` or `{path = path}`.",
             "tools",
         ),
         (
@@ -2707,4 +2819,135 @@ fn real_utf16_module_hover_uses_typed_facade() {
         &markup,
         "fn(data: bytes) -> string | nil ! never\n\nStrictly decode little-endian UTF-16 bytes into a string, or nil when malformed.",
     );
+}
+
+#[test]
+fn named_recursive_type_hover_keeps_recursive_edges_collapsed() {
+    let source = r#"type Expr =
+    | {kind: "integer", value: integer}
+    | {kind: "list", items: [..Expr]}
+let value: Expr = {kind = "integer", value = 1}"#;
+    let mut backend = Backend::new();
+    let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
+    assert!(diagnostics.diagnostics.is_empty(), "{diagnostics:?}");
+    let hover: Option<Hover> = serde_json::from_value(
+        request(
+            &mut backend,
+            HoverRequest::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": text_position(source, "Expr", 1),
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let HoverContents::Markup(markup) = hover.expect("named type hover").contents else {
+        panic!("expected markup")
+    };
+    assert!(markup.value.contains("type Expr ="), "{}", markup.value);
+    assert!(markup.value.contains("[..Expr]"), "{}", markup.value);
+    assert!(
+        markup.value.contains("erased at runtime"),
+        "{}",
+        markup.value
+    );
+}
+
+#[test]
+fn named_type_and_alias_references_hover_in_later_annotations() {
+    let source = r#"alias Name = string
+type Value = {name: Name, parent: Value | nil}
+fn use(name: Name, value: Value) -> Value
+    value
+let current: Value = {name = "root", parent = nil}"#;
+    let mut backend = Backend::new();
+    let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
+    assert!(diagnostics.diagnostics.is_empty(), "{diagnostics:?}");
+    for (name, occurrence, declaration, description) in [
+        (
+            "Name",
+            2,
+            "alias Name = string",
+            "Transparent type alias. It is erased at runtime.",
+        ),
+        (
+            "Value",
+            2,
+            "type Value = {name: Name, parent: Value | nil}",
+            "Named recursive type. It is erased at runtime.",
+        ),
+        (
+            "Value",
+            4,
+            "type Value = {name: Name, parent: Value | nil}",
+            "Named recursive type. It is erased at runtime.",
+        ),
+    ] {
+        let hover: Option<Hover> = serde_json::from_value(
+            request(
+                &mut backend,
+                HoverRequest::METHOD,
+                json!({
+                    "textDocument": { "uri": uri() },
+                    "position": text_position(source, name, occurrence),
+                }),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let HoverContents::Markup(markup) = hover
+            .unwrap_or_else(|| panic!("missing hover for {name} occurrence {occurrence}"))
+            .contents
+        else {
+            panic!("expected markup")
+        };
+        assert!(markup.value.contains(declaration), "{}", markup.value);
+        assert!(markup.value.contains(description), "{}", markup.value);
+    }
+}
+
+#[test]
+fn repeated_lisp_hovers_reuse_inference_for_the_open_document_revision() {
+    let source = include_str!("../../../../examples/lisp.simi");
+    let mut backend = Backend::with_module_sources([
+        ("std/list", include_str!("../../../../stdlib/list.simi")),
+        ("std/string", include_str!("../../../../stdlib/string.simi")),
+    ]);
+    let started = std::time::Instant::now();
+    let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
+    let first_inference = started.elapsed();
+    assert!(diagnostics.diagnostics.is_empty(), "{diagnostics:?}");
+    assert_eq!(backend.inference_computations(), 0);
+
+    let started = std::time::Instant::now();
+    for (name, occurrence) in [("evaluate", 0), ("expect_boolean", 1), ("apply", 1)] {
+        let _: Option<Hover> = serde_json::from_value(
+            request(
+                &mut backend,
+                HoverRequest::METHOD,
+                json!({
+                    "textDocument": { "uri": uri() },
+                    "position": text_position(source, name, occurrence),
+                }),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+    }
+    let repeated_hovers = started.elapsed();
+    assert_eq!(backend.inference_computations(), 1);
+    eprintln!(
+        "background diagnostics: {first_inference:?}; three cached hovers: {repeated_hovers:?}"
+    );
+
+    let changed: DidChangeTextDocumentParams = serde_json::from_value(json!({
+        "textDocument": { "uri": uri(), "version": 2 },
+        "contentChanges": [{ "text": source }],
+    }))
+    .unwrap();
+    assert!(backend.change(changed).unwrap().is_empty());
+    let diagnostics = diagnostics_from(backend.wait_for_diagnostics());
+    assert!(diagnostics.diagnostics.is_empty(), "{diagnostics:?}");
+    assert_eq!(backend.inference_computations(), 1);
 }

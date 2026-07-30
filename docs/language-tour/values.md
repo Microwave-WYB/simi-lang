@@ -114,7 +114,7 @@ let payload = #[0, 127, 255]
 #[header, payload]
 ```
 
-Unsupported segment categories and out-of-range integers are hard diagnostics. `type(value)` returns `"bytes"`, equality compares byte contents, and zero-based indexing returns an integer from `0` through `255` or `nil` beyond the end. Negative and non-integer indices are hard diagnostics. `inspect` renders bytes deterministically as hexadecimal, for example `bytes[00 7f ff]`. The explicit portable `std/bytes` module supplies length, clamped O(1) range views, concatenation, and integer-list conversion; it does not add a `bytes` prelude global.
+Unsupported segment categories and out-of-range integers are hard diagnostics. `type(value)` returns `"bytes"`, equality compares byte contents, and zero-based indexing returns an integer from `0` through `255` or `nil` beyond the end. Negative and non-integer indices are hard diagnostics. `inspect` renders bytes deterministically as hexadecimal, for example `bytes[00 7f ff]`. The explicit portable `std/bytes` module supplies length, clamped O(1) range views, concatenation, and integer-list conversion.
 
 ## Lists
 

@@ -189,11 +189,7 @@ impl ResolveContext<'_> {
         base: &Path,
     ) -> Result<(), String> {
         validate_source(&requirement.source)?;
-        if let RequirementSource::Official { revision } = &requirement.source {
-            return self.resolve_official_stdlib(requirement, revision);
-        }
         let (root, commit, source) = match &requirement.source {
-            RequirementSource::Official { .. } => unreachable!("handled above"),
             RequirementSource::Path { path } => (resolve_path_requirement(base, path)?, None, None),
             RequirementSource::Git { git, rev } => {
                 let commit = self.git_commit(git, rev)?;
@@ -207,6 +203,14 @@ impl ResolveContext<'_> {
         };
         let tree = PackageTree::load(&root)
             .map_err(|error| format!("invalid package `{}`: {error}", requirement.alias))?;
+        if !compatible_simi_revision(tree.manifest().simi(), crate::stdlib::DISTRIBUTION_REVISION) {
+            return Err(format!(
+                "package `{}` requires Simi `{}`, which is incompatible with this Simi distribution `{}`",
+                tree.manifest().name(),
+                tree.manifest().simi(),
+                crate::stdlib::DISTRIBUTION_REVISION,
+            ));
+        }
         let package = tree.manifest().name().to_owned();
         let source = source.unwrap_or_else(|| ResolvedSource::Path(tree.root().to_owned()));
         let node = ResolvedNode {
@@ -285,47 +289,6 @@ impl ResolveContext<'_> {
         self.visiting.remove(&package);
         resolved?;
         self.entries.insert(package, node);
-        Ok(())
-    }
-
-    fn resolve_official_stdlib(
-        &mut self,
-        requirement: &Requirement,
-        revision: &str,
-    ) -> Result<(), String> {
-        if requirement.alias != "std" {
-            return Err("the official standard-library requirement alias must be `std`".to_owned());
-        }
-        if revision != crate::stdlib::OFFICIAL_REVISION {
-            return Err(format!(
-                "official standard-library revision `{revision}` is incompatible with this Simi distribution (expected `{}`)",
-                crate::stdlib::OFFICIAL_REVISION
-            ));
-        }
-        let catalog = crate::stdlib::official_catalog();
-        let node = ResolvedNode {
-            requirement: LockedRequirement {
-                source: requirement.source.clone(),
-                package: "std".to_owned(),
-                commit: None,
-                tree_digest: digest_entries(
-                    catalog
-                        .modules()
-                        .iter()
-                        .map(|module| (module.source_path(), module.source().as_bytes())),
-                ),
-            },
-            source: ResolvedSource::Path(PathBuf::from("<distribution stdlib>")),
-        };
-        self.validate_locked_node(&node)?;
-        if let Some(existing) = self.entries.get("std") {
-            return self.reuse_or_conflict("std", existing, &node);
-        }
-        for module in catalog.modules() {
-            self.modules
-                .insert(module.name().to_owned(), module.clone());
-        }
-        self.entries.insert("std".to_owned(), node);
         Ok(())
     }
 
@@ -570,12 +533,12 @@ impl ResolveContext<'_> {
     }
 }
 
+fn compatible_simi_revision(declared: &str, running: &str) -> bool {
+    declared == running || declared.split('.').take(2).eq(running.split('.').take(2))
+}
+
 fn validate_source(source: &RequirementSource) -> Result<(), String> {
     match source {
-        RequirementSource::Official { revision } if revision.is_empty() => {
-            Err("official standard-library revision must not be empty".to_owned())
-        }
-        RequirementSource::Official { .. } => Ok(()),
         RequirementSource::Git { git, rev } if git.is_empty() || rev.is_empty() => {
             Err("Git requirement `git` and `rev` must not be empty".to_owned())
         }
@@ -1160,7 +1123,7 @@ mod tests {
         fs::create_dir_all(package_root.join("src")).unwrap();
         fs::write(
             package_root.join("simi.package.simi"),
-            r#"{name = "tools", simi = "0.1", modules = ["tools"]}"#,
+            r#"{name = "tools", simi = "0.1.0-alpha.1", modules = ["tools"]}"#,
         )
         .unwrap();
         fs::write(
@@ -1233,7 +1196,7 @@ let string = require("std/string")
         fs::create_dir_all(package_root.join("src")).unwrap();
         fs::write(
             package_root.join("simi.package.simi"),
-            r#"{name = "tools", simi = "0.1", modules = ["tools"]}"#,
+            r#"{name = "tools", simi = "0.1.0-alpha.1", modules = ["tools"]}"#,
         )
         .unwrap();
         fs::write(
@@ -1270,7 +1233,7 @@ let string = require("std/string")
         fs::create_dir_all(package_root.join("src")).unwrap();
         fs::write(
             package_root.join("simi.package.simi"),
-            r#"{name = "tools", simi = "0.1", modules = ["tools"]}"#,
+            r#"{name = "tools", simi = "0.1.0-alpha.1", modules = ["tools"]}"#,
         )
         .unwrap();
         fs::write(package_root.join("tools.simi"), "require(\"./src/a.simi\")").unwrap();
@@ -1304,7 +1267,7 @@ let string = require("std/string")
         fs::create_dir_all(package_root.join("src")).unwrap();
         fs::write(
             package_root.join("simi.package.simi"),
-            r#"{name = "tools", simi = "0.1", modules = ["tools"]}"#,
+            r#"{name = "tools", simi = "0.1.0-alpha.1", modules = ["tools"]}"#,
         )
         .unwrap();
         fs::write(
@@ -1338,7 +1301,7 @@ let string = require("std/string")
         fs::create_dir_all(&package_root).unwrap();
         fs::write(
             package_root.join("simi.package.simi"),
-            r#"{name = "tools", simi = "0.1", modules = ["tools"]}"#,
+            r#"{name = "tools", simi = "0.1.0-alpha.1", modules = ["tools"]}"#,
         )
         .unwrap();
         fs::write(
@@ -1377,7 +1340,7 @@ let string = require("std/string")
         fs::create_dir_all(package_root.join("src")).unwrap();
         fs::write(
             package_root.join("simi.package.simi"),
-            r#"{name = "tools", simi = "0.1", modules = ["tools"]}"#,
+            r#"{name = "tools", simi = "0.1.0-alpha.1", modules = ["tools"]}"#,
         )
         .unwrap();
         fs::write(
@@ -1396,34 +1359,52 @@ let string = require("std/string")
     }
 
     #[test]
-    fn official_stdlib_is_resolved_offline_and_locked_by_exact_revision() {
-        let root = temporary("official-stdlib");
+    fn runtime_owned_stdlib_is_resolved_without_a_source_requirement() {
+        let root = temporary("runtime-owned-stdlib");
         let app = root.join("app.simi");
-        fs::write(
-            &app,
-            format!(
-                "requires {{std = {{simi = \"{}\"}}}}\nrequire(\"std/iter\")",
-                crate::stdlib::OFFICIAL_REVISION
-            ),
-        )
-        .unwrap();
+        fs::write(&app, "require(\"std/iter\")").unwrap();
         let cache = root.join("cache");
         let resolved = resolve_script_with_cache(&app, ResolutionMode::Update, &cache).unwrap();
-        assert!(resolved.lockfile.contains("simi = "));
-        assert!(
-            resolved
-                .catalog
-                .modules()
-                .iter()
-                .any(|module| module.name() == "std/iter")
-        );
+        assert!(!resolved.lockfile.contains("std"));
+        assert!(resolved.catalog.modules().is_empty());
         fs::write(lock_path(&app), &resolved.lockfile).unwrap();
         let locked = resolve_script_with_cache(&app, ResolutionMode::Locked, &cache).unwrap();
         assert_eq!(locked.catalog, resolved.catalog);
 
+        let stale_lock = resolved.lockfile.replace(
+            "requirements = {},",
+            "requirements = {\n        std = {source = {simi = \"0.1.0-alpha.1\"}, package = \"std\", tree_digest = \"sha256:stale\"},\n    },",
+        );
+        fs::write(lock_path(&app), stale_lock).unwrap();
+        let error = resolve_script_with_cache(&app, ResolutionMode::Locked, &cache).unwrap_err();
+        assert!(error.contains("runtime-owned `std` catalog"), "{error}");
+
         fs::write(&app, "requires {std = {simi = \"incompatible\"}}\n42").unwrap();
         let error = resolve_script_with_cache(&app, ResolutionMode::Update, &cache).unwrap_err();
-        assert!(error.contains("incompatible"), "{error}");
+        assert!(error.contains("supplied by the runtime"), "{error}");
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn rejects_package_manifests_for_an_incompatible_simi_distribution() {
+        let root = temporary("incompatible-package-runtime");
+        let package = root.join("deps/tools");
+        fs::create_dir_all(&package).unwrap();
+        fs::write(
+            package.join("simi.package.simi"),
+            r#"{name = "tools", simi = "incompatible", modules = ["tools"]}"#,
+        )
+        .unwrap();
+        fs::write(package.join("tools.simi"), "{}").unwrap();
+        let app = root.join("app.simi");
+        fs::write(&app, "requires {tools = {path = \"deps/tools\"}}\n42").unwrap();
+
+        let error = resolve_script_with_cache(&app, ResolutionMode::Update, &root.join("cache"))
+            .unwrap_err();
+        assert!(
+            error.contains("incompatible with this Simi distribution"),
+            "{error}"
+        );
         fs::remove_dir_all(root).unwrap();
     }
 

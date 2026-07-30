@@ -57,7 +57,7 @@ impl Builder {
                 0,
             );
         }
-        for name in ["list", "map", "iter", "number", "string"] {
+        for name in ["list", "map", "iter", "number", "string", "bytes"] {
             this.declare(
                 root_scope,
                 name.to_owned(),
@@ -155,7 +155,7 @@ impl Builder {
                 }
                 self.body(node.syntax(), function_scope);
             }
-            syntax::Stmt::AliasDecl(_) => {}
+            syntax::Stmt::AliasDecl(_) | syntax::Stmt::TypeDecl(_) => {}
             syntax::Stmt::LetStmt(node) => {
                 if let Some(value) = support::child::<syntax::Expr>(node.syntax()) {
                     self.expression(value, scope);
@@ -362,7 +362,10 @@ impl Builder {
             }
             syntax::Pattern::Bytes(node) => {
                 for segment in support::children::<syntax::BytesPatternSegment>(node.syntax()) {
-                    if let Some(token) = direct_token(segment.syntax(), K::IDENT)
+                    let binding = support::child::<syntax::RestPattern>(segment.syntax())
+                        .and_then(|rest| direct_token(rest.syntax(), K::IDENT))
+                        .or_else(|| direct_token(segment.syntax(), K::IDENT));
+                    if let Some(token) = binding
                         && !token.text().starts_with('_')
                     {
                         self.declare(

@@ -63,8 +63,7 @@ fn bytes_literals_are_lossless_typed_expressions() {
 
 #[test]
 fn bytes_patterns_are_lossless_typed_patterns_and_recover() {
-    let source =
-        r#"case packet of #["猫", version, header:bytes(2), payload:bytes] => payload end"#;
+    let source = r#"case packet of #["猫", version, header:2, ..payload] => payload end"#;
     let parse = parse_source(source);
     assert!(parse.diagnostics().is_empty(), "{:?}", parse.diagnostics());
     assert_eq!(parse.syntax().to_string(), source);
@@ -77,17 +76,25 @@ fn bytes_patterns_are_lossless_typed_patterns_and_recover() {
         4
     );
 
-    let source = "case value of #[rest:bytes, later] => nil end fn later()
+    let source = "case value of #[..rest, later] => nil end fn later()
     nil";
     let parse = parse_source(source);
     assert!(
         parse
             .diagnostics()
             .iter()
-            .any(|diagnostic| diagnostic.message == "unsized bytes capture must be final"),
+            .any(|diagnostic| diagnostic.message == "bytes pattern remainder must be final"),
         "{:?}",
         parse.diagnostics()
     );
+    let legacy = parse_source("case value of #[field:bytes(2)] => nil end");
+    assert!(
+        legacy.diagnostics().iter().any(|diagnostic| diagnostic.message
+            == "legacy `:bytes` byte capture syntax was removed; write `name:width` or `..name`"),
+        "{:?}",
+        legacy.diagnostics()
+    );
+
     assert!(
         Root::cast(parse.syntax().clone())
             .expect("root")
@@ -792,4 +799,21 @@ fn field_and_index_assignment_targets_remain_accepted() {
             parse.diagnostics()
         );
     }
+}
+
+#[test]
+fn named_recursive_types_are_lossless_declarations() {
+    let source = r#"type Expr =
+    | {kind: "integer", value: integer}
+    | {kind: "list", items: [..Expr]}
+let value: Expr = {kind = "integer", value = 1}"#;
+    let parse = parse_source(source);
+    assert!(parse.diagnostics().is_empty(), "{:?}", parse.diagnostics());
+    assert_eq!(parse.syntax().to_string(), source);
+    assert!(
+        parse
+            .syntax()
+            .descendants()
+            .any(|node| node.kind() == SyntaxKind::TYPE_DECL)
+    );
 }

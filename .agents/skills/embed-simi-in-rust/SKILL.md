@@ -14,7 +14,7 @@ Use the [embedding tour](../../../docs/language-tour/errors-and-embedding.md) as
 ## Choose the evaluation surface
 
 - Use `simi::eval(source)` for a fresh engine with the portable standard library.
-- Use `Engine::new()` or `Engine::with_stdlib()` for the portable shadowable `list`, `map`, `iter`, `number`, and `string` prelude; canonical `std/*` paths remain require-able and share their cached values.
+- Use `Engine::new()` or `Engine::with_stdlib()` for the portable shadowable `list`, `map`, `iter`, `number`, `string`, and `bytes` prelude; canonical `std/*` paths remain require-able and share their cached values.
 - Use `Engine::builder().build()` when the host must provide a complete explicit configuration.
 - Use `Engine::builder().stdlib().stdio().build()` only when text standard IO should be granted.
 - Reuse an `Engine` when registered module instances and their cached mutable state should persist across evaluations.

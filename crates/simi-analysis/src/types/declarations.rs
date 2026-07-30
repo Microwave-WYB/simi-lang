@@ -77,7 +77,7 @@ impl Context<'_> {
     }
     pub(super) fn statement(&mut self, statement: syntax::Stmt) -> Type {
         match statement {
-            syntax::Stmt::AliasDecl(_) => Type::Nil,
+            syntax::Stmt::AliasDecl(_) | syntax::Stmt::TypeDecl(_) => Type::Nil,
             syntax::Stmt::FunctionDecl(function) => {
                 self.infer_function_decl(function);
                 Type::Nil
@@ -118,16 +118,7 @@ impl Context<'_> {
                 if let Some(pattern) = support::child::<syntax::Pattern>(statement.syntax()) {
                     let resolved_value = self.resolve_type(final_ty.clone());
                     match let_pattern_match_certainty(resolved_value.clone(), &pattern) {
-                        MatchCertainty::Always => {}
-                        MatchCertainty::Sometimes => self.warning(
-                            AnalysisDiagnosticCode::DestructuringLetMayFail,
-                            "Destructuring let pattern may not match",
-                            format!(
-                                "This pattern may not match a value of type `{}`. Use `case` when mismatch is expected.",
-                                resolved_value.display()
-                            ),
-                            span(pattern.syntax()),
-                        ),
+                        MatchCertainty::Always | MatchCertainty::Sometimes => {}
                         MatchCertainty::Never => self.diagnostic(
                             AnalysisDiagnosticCode::DestructuringLetNeverMatches,
                             "Destructuring let pattern cannot match",

@@ -14,6 +14,22 @@ alias and a runtime binding may therefore have the same lowercase name. Scripts
 without annotations remain complete Simi programs, and annotations must not
 change evaluation, mutation, errors, module behavior, or host result layering.
 
+`alias` is a transparent, non-recursive abbreviation. Use `type` for a named,
+recursive structural type. A named type remains erased at runtime, and recursive
+references stay named rather than expanding indefinitely:
+
+```simi
+type Expr =
+    | {kind: "integer", value: integer}
+    | {kind: "list", items: [..Expr]}
+
+let expression: Expr = {kind = "list", items = []}
+```
+
+ADT-style `type` definitions use closed map variants with literal discriminants;
+`{kind: string, ..}` is not an equivalent replacement because it admits arbitrary
+variant names. Hover displays the declaration and keeps recursive edges as `Expr`.
+
 Annotations are inline and optional:
 
 ```simi
@@ -40,7 +56,7 @@ any
 
 `number` is a built-in erased alias for `integer | float`; it is not a distinct runtime category. Numeric APIs may use either spelling. `bytes` describes immutable packed byte values, including values constructed by `#[]`. `never` is the bottom type. An empty list literal has the exact shape `[]`; `never` still appears when an expression has no normal return path or as the bottom member removed while unions are normalized. `any` is the explicit dynamic escape hatch: operations involving it remain valid but lose static precision. Insufficient evidence is tracked as an internal unknown type and presented publicly as `any`.
 
-Destructuring `let` patterns are checked against their inferred right-hand type. A pattern that is guaranteed to match has no diagnostic; a pattern that may fail produces an advisory warning recommending `case`; and a pattern that cannot match produces an analysis error. Direct map bindings in `let` receive `nil` when a field is absent, so their inferred type is `T | nil` when map presence is not proven. In a `#[]` bytes pattern, a bare binding is `integer`, while `name:bytes(n)` and a final `name:bytes` capture are `bytes`. These classifications are erased and never weaken or replace the runtime's atomic hard diagnostic for a failed `let` match.
+Destructuring `let` patterns are runtime assertions. The analyzer reports a pattern it can prove impossible, but does not warn merely because a pattern may fail; use `case` when mismatch is expected and should be handled. Direct map bindings in `let` receive `nil` when a field is absent, so their inferred type is `T | nil` when map presence is not proven. In a `#[]` bytes pattern, a bare binding is `integer`, while `name:width` and a final `..name` capture are `bytes`. These classifications are erased and never weaken or replace the runtime's atomic hard diagnostic for a failed `let` match.
 
 The static integer spelling is `integer`. Runtime reflection deliberately remains
 unchanged for compatibility:
