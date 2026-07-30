@@ -14,6 +14,8 @@ impl Context<'_> {
         let member = self.call_member(&callee_node);
         let callee = self.expression(callee_node.clone());
         let callee = self.instantiate_callee(&callee_node, callee);
+        let contract_complete = self.callable_parameter_contract_complete(&callee_node);
+        let argument_contract_known = self.callable_parameter_contract_known(&callee_node);
         let callable = type_may_be_callable(&self.resolve_type(callee.clone()));
         let mut argument_nodes = support::child::<syntax::ArgList>(stage.syntax())
             .map(|list| expr_children(list.syntax()).collect::<Vec<_>>())
@@ -37,10 +39,9 @@ impl Context<'_> {
         {
             self.apply_call_effect(module, field, &effect_nodes, &arguments);
         }
-        let contract_complete = self.callable_parameter_contract_complete(&callee_node);
         self.invalidate_unmodeled_call_arguments(
             member.as_ref(),
-            contract_complete,
+            argument_contract_known,
             &effect_nodes,
             &arguments,
         );
@@ -49,6 +50,7 @@ impl Context<'_> {
                 &callee_node,
                 &effect_nodes,
                 member.is_some() || contract_complete,
+                argument_contract_known,
             );
         }
         self.record_call_raised_effects(
@@ -59,6 +61,7 @@ impl Context<'_> {
             &arguments,
             member.as_ref(),
             contract_complete,
+            argument_contract_known,
             callable,
         );
         if result == Type::Never {
@@ -92,6 +95,8 @@ impl Context<'_> {
         let member = self.call_member(&callee_node);
         let callee = self.expression(callee_node.clone());
         let callee = self.instantiate_callee(&callee_node, callee);
+        let contract_complete = self.callable_parameter_contract_complete(&callee_node);
+        let argument_contract_known = self.callable_parameter_contract_known(&callee_node);
         let callable = type_may_be_callable(&self.resolve_type(callee.clone()));
         let mut argument_nodes = support::child::<syntax::ArgList>(call.syntax())
             .map(|list| expr_children(list.syntax()).collect::<Vec<_>>())
@@ -105,10 +110,9 @@ impl Context<'_> {
         {
             self.apply_call_effect(module, field, &argument_nodes, &arguments);
         }
-        let contract_complete = self.callable_parameter_contract_complete(&callee_node);
         self.invalidate_unmodeled_call_arguments(
             member.as_ref(),
-            contract_complete,
+            argument_contract_known,
             &argument_nodes,
             &arguments,
         );
@@ -117,6 +121,7 @@ impl Context<'_> {
                 &callee_node,
                 &argument_nodes,
                 member.is_some() || contract_complete,
+                argument_contract_known,
             );
         }
         self.record_call_raised_effects(
@@ -127,6 +132,7 @@ impl Context<'_> {
             &arguments,
             member.as_ref(),
             contract_complete,
+            argument_contract_known,
             callable,
         );
         result
@@ -427,6 +433,8 @@ impl Context<'_> {
         let member = self.call_member(&callee_node);
         let callee = self.expression(callee_node.clone());
         let callee = self.instantiate_callee(&callee_node, callee);
+        let contract_complete = self.callable_parameter_contract_complete(&callee_node);
+        let argument_contract_known = self.callable_parameter_contract_known(&callee_node);
         let callable = type_may_be_callable(&self.resolve_type(callee.clone()));
         let arguments = support::child::<syntax::ArgList>(node.syntax())
             .map(|list| expr_children(list.syntax()).collect::<Vec<_>>())
@@ -443,10 +451,9 @@ impl Context<'_> {
         {
             self.apply_call_effect(module, field, &arguments, &argument_types);
         }
-        let contract_complete = self.callable_parameter_contract_complete(&callee_node);
         self.invalidate_unmodeled_call_arguments(
             member.as_ref(),
-            contract_complete,
+            argument_contract_known,
             &arguments,
             &argument_types,
         );
@@ -455,6 +462,7 @@ impl Context<'_> {
                 &callee_node,
                 &arguments,
                 member.is_some() || contract_complete,
+                argument_contract_known,
             );
         }
         self.record_call_raised_effects(
@@ -465,6 +473,7 @@ impl Context<'_> {
             &argument_types,
             member.as_ref(),
             contract_complete,
+            argument_contract_known,
             callable,
         );
         result
@@ -479,6 +488,7 @@ impl Context<'_> {
         argument_types: &[Type],
         member: Option<&(String, String)>,
         contract_complete: bool,
+        argument_contract_known: bool,
         callable: bool,
     ) {
         if self.resolve_type(raised.clone()) == Type::Never {
@@ -488,12 +498,17 @@ impl Context<'_> {
         self.restore_flow(&raised_entry);
         self.invalidate_unmodeled_call_arguments(
             member,
-            contract_complete,
+            argument_contract_known,
             arguments,
             argument_types,
         );
         if callable {
-            self.apply_callable_effects(callee, arguments, member.is_some() || contract_complete);
+            self.apply_callable_effects(
+                callee,
+                arguments,
+                member.is_some() || contract_complete,
+                argument_contract_known,
+            );
         }
         self.record_raised(raised);
         self.restore_flow(&normal_exit);
@@ -553,13 +568,22 @@ impl Context<'_> {
         callee: &syntax::Expr,
         arguments: &[syntax::Expr],
         modeled: bool,
+        _argument_contract_known: bool,
     ) {
         let callee_effects = self.callable_capture_effects(callee);
         let callee_assignments = self.callable_assignment_effects(callee);
         let known_builtin = expression_symbol(callee, self.resolution)
             .is_some_and(|symbol| self.trusted_builtin_symbols.contains(&symbol));
         if callee_effects.is_none() && !modeled && !known_builtin {
-            self.widen_all_regions();
+            if let Some(captures) = self.direct_source_function_captures(callee) {
+                for symbol in captures {
+                    if let Some(region) = self.symbol_regions.get(&symbol).copied() {
+                        self.widen_region_individually(region);
+                    }
+                }
+            } else {
+                self.widen_all_regions();
+            }
         }
 
         let mut affected = callee_effects.unwrap_or_default();
@@ -594,16 +618,6 @@ impl Context<'_> {
         self.callable_assignment_effects.remove(&symbol);
         self.trusted_builtin_symbols.remove(&symbol);
     }
-    pub(super) fn widen_all_regions(&mut self) {
-        let regions = self
-            .symbol_regions
-            .values()
-            .copied()
-            .collect::<HashSet<_>>();
-        for region in regions {
-            self.widen_region_individually(region);
-        }
-    }
     pub(super) fn widen_region_individually(&mut self, region: u32) {
         let aliases = self
             .symbol_regions
@@ -620,6 +634,67 @@ impl Context<'_> {
             self.symbol_types.insert(alias, widened.clone());
             self.symbol_bounds.insert(alias, widened);
         }
+    }
+    pub(super) fn widen_all_regions(&mut self) {
+        let regions = self
+            .symbol_regions
+            .values()
+            .copied()
+            .collect::<HashSet<_>>();
+        for region in regions {
+            self.widen_region_individually(region);
+        }
+    }
+    fn direct_source_function_captures(&self, callee: &syntax::Expr) -> Option<HashSet<SymbolId>> {
+        let symbol = self.direct_source_function_symbol(callee)?;
+        let function = &self.resolution.hir.symbols[symbol];
+        let declaration = function.declaration?;
+        let function_scope = self
+            .resolution
+            .hir
+            .scopes
+            .iter()
+            .find_map(|(scope, data)| {
+                (data.parent == Some(function.scope)
+                    && data.function_depth
+                        == self.resolution.hir.scopes[function.scope].function_depth + 1
+                    && data.span.start <= declaration.start
+                    && declaration.start < data.span.end)
+                    .then_some(scope)
+            })?;
+        Some(
+            self.resolution
+                .captures
+                .iter()
+                .filter(|capture| capture.function_scope == function_scope)
+                .map(|capture| capture.symbol)
+                .collect(),
+        )
+    }
+    fn direct_source_function_symbol(&self, callee: &syntax::Expr) -> Option<SymbolId> {
+        match callee {
+            syntax::Expr::Name(name) => direct_token(name.syntax(), K::IDENT)
+                .and_then(|token| self.resolution.symbol_at(token_span(&token).start))
+                .filter(|symbol| self.resolution.hir.symbols[*symbol].kind == SymbolKind::Function),
+            syntax::Expr::Paren(paren) => child_expr(paren.syntax(), 0)
+                .and_then(|inner| self.direct_source_function_symbol(&inner)),
+            _ => None,
+        }
+    }
+    fn callable_parameter_contract_known(&self, callee: &syntax::Expr) -> bool {
+        if self.callable_parameter_contract_complete(callee) {
+            return true;
+        }
+        let Some(symbol) = self.direct_source_function_symbol(callee) else {
+            return false;
+        };
+        let Some(Type::Function(callable)) = self.symbol_types.get(&symbol) else {
+            return false;
+        };
+        callable
+            .parameters
+            .iter()
+            .all(|parameter| !contains_infer(&parameter.ty) && !contains_any(&parameter.ty))
     }
     pub(super) fn callable_parameter_contract_complete(&self, callee: &syntax::Expr) -> bool {
         match callee {
@@ -716,5 +791,43 @@ impl Context<'_> {
             }
             self.invalidate_mutated_owner(argument);
         }
+    }
+}
+
+fn contains_any(ty: &Type) -> bool {
+    match ty {
+        Type::Any | Type::Unknown | Type::Infer(_) => true,
+        Type::ListExact(items) | Type::Union(items) => items.iter().any(contains_any),
+        Type::ListRest(item) => contains_any(item),
+        Type::Map { fields, index, .. } => {
+            fields.iter().any(|(_, value)| contains_any(value))
+                || index
+                    .as_ref()
+                    .is_some_and(|(key, value)| contains_any(key) || contains_any(value))
+        }
+        Type::Function(callable) => {
+            callable
+                .parameters
+                .iter()
+                .any(|parameter| contains_any(&parameter.ty))
+                || contains_any(&callable.result)
+                || contains_any(&callable.raised)
+        }
+        Type::FunctionArgs(parameters) => parameters
+            .iter()
+            .any(|parameter| contains_any(&parameter.ty)),
+        Type::Never
+        | Type::Nil
+        | Type::Boolean
+        | Type::Int
+        | Type::Float
+        | Type::String
+        | Type::Bytes
+        | Type::Named(_)
+        | Type::LiteralInt(_)
+        | Type::LiteralFloat(_)
+        | Type::LiteralString(_)
+        | Type::LiteralBoolean(_)
+        | Type::Generic(_) => false,
     }
 }

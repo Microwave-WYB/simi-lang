@@ -90,6 +90,48 @@ fn typed_lisp_example_has_no_diagnostics_with_real_portable_module_shapes() {
         "{:#?}",
         diagnostics.diagnostics
     );
+    let source = include_str!("../../../../examples/lisp.simi");
+    for occurrence in 32..=52 {
+        let hover: Option<Hover> = serde_json::from_value(
+            request(
+                &mut backend,
+                HoverRequest::METHOD,
+                json!({
+                    "textDocument": { "uri": uri() },
+                    "position": text_position(source, "items", occurrence),
+                }),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let HoverContents::Markup(markup) = hover
+            .unwrap_or_else(|| panic!("evaluate_list items hover {occurrence}"))
+            .contents
+        else {
+            panic!("expected markup")
+        };
+        assert_eq!(
+            assert_simi_hover_raw(&markup),
+            "[..Expr]",
+            "occurrence {occurrence}"
+        );
+    }
+    let hover: Option<Hover> = serde_json::from_value(
+        request(
+            &mut backend,
+            HoverRequest::METHOD,
+            json!({
+                "textDocument": { "uri": uri() },
+                "position": text_position(source, "head", 0),
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let HoverContents::Markup(markup) = hover.expect("evaluate_list head hover").contents else {
+        panic!("expected markup")
+    };
+    assert_simi_hover(&markup, "Expr");
 }
 
 #[test]

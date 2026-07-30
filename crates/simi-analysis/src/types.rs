@@ -9,7 +9,7 @@ use crate::db::{FileId, parse, resolve, source_text};
 use crate::model::{
     AnalysisDiagnostic, AnalysisDiagnosticCode, AnalysisDiagnosticSeverity, CallableParameter,
     CallableType, GenericConstraint, LiteralFloat, ModuleShape, RaisedAnnotation, Resolution,
-    SymbolId, Type, TypeInference,
+    SymbolId, SymbolKind, Type, TypeInference,
 };
 use crate::modules::member_at;
 

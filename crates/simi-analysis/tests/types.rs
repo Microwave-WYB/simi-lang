@@ -1855,6 +1855,59 @@ precise
 }
 
 #[test]
+fn forward_source_calls_preserve_annotated_mutable_arguments() {
+    let db = AnalysisDatabase::default();
+    let source = r#"
+type Expr =
+    | {kind: "integer", value: integer}
+    | {kind: "list", items: [..Expr]}
+fn caller(items: [..Expr]) -> [..Expr] do
+    helper(items)
+    items
+end
+fn helper(items: [..Expr]) -> [..Expr]
+    items
+"#;
+    let file = db.add_file(source);
+    let resolution = resolve(&db, file);
+    let inference = infer_types(&db, file, &HashMap::new());
+    assert!(
+        inference.diagnostics.is_empty(),
+        "{:?}",
+        inference.diagnostics
+    );
+    assert_eq!(
+        type_at(source, &inference, &resolution, "items", 3),
+        "[..Expr]"
+    );
+}
+
+#[test]
+fn forward_source_calls_widen_unconstrained_mutable_arguments() {
+    let db = AnalysisDatabase::default();
+    let source = r#"
+fn caller(items: [..integer]) do
+    helper(items)
+    items
+end
+fn helper(items: any)
+    items[0] = "wrong"
+"#;
+    let file = db.add_file(source);
+    let resolution = resolve(&db, file);
+    let inference = infer_types(&db, file, &HashMap::new());
+    assert!(
+        inference.diagnostics.is_empty(),
+        "{:?}",
+        inference.diagnostics
+    );
+    assert_eq!(
+        type_at(source, &inference, &resolution, "items", 2),
+        "[..any]"
+    );
+}
+
+#[test]
 fn unmodeled_calls_follow_any_alias_regions_and_analyzed_callbacks() {
     let db = AnalysisDatabase::default();
     let list_file = db.add_file(include_str!("../../../stdlib/list.simi"));
