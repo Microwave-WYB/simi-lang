@@ -30,7 +30,8 @@ fn open(backend: &mut Backend, source: &str) -> Vec<Notification> {
             }
         }))
         .unwrap(),
-    )
+    );
+    vec![backend.wait_for_diagnostics()]
 }
 
 fn diagnostics_from(notification: Notification) -> PublishDiagnosticsParams {
@@ -144,8 +145,8 @@ fn ordered_incremental_unicode_changes_replace_and_clear_diagnostics() {
             },
         ],
     };
-    let changed = backend.change(params).unwrap();
-    let diagnostics = diagnostics_from(changed.into_iter().next().unwrap());
+    assert!(backend.change(params).unwrap().is_empty());
+    let diagnostics = diagnostics_from(backend.wait_for_diagnostics());
     assert_eq!(diagnostics.version, Some(2));
     assert!(diagnostics.diagnostics.is_empty());
     let document = backend.documents.get(&uri()).unwrap();
@@ -175,6 +176,49 @@ fn ordered_incremental_unicode_changes_replace_and_clear_diagnostics() {
     let diagnostics = diagnostics_from(closed.into_iter().next().unwrap());
     assert_eq!(diagnostics.version, None);
     assert!(diagnostics.diagnostics.is_empty());
+}
+
+#[test]
+fn rapid_edits_coalesce_to_the_latest_diagnostics_without_publishing_stale_results() {
+    let mut backend = Backend::new();
+    assert!(
+        backend
+            .open(
+                serde_json::from_value(json!({
+                    "textDocument": {
+                        "uri": uri(),
+                        "languageId": "simi",
+                        "version": 1,
+                        "text": "let = 1"
+                    }
+                }))
+                .unwrap(),
+            )
+            .is_empty()
+    );
+
+    for version in 2..=8 {
+        assert!(
+            backend
+                .change(DidChangeTextDocumentParams {
+                    text_document: VersionedTextDocumentIdentifier {
+                        uri: uri(),
+                        version,
+                    },
+                    content_changes: vec![TextDocumentContentChangeEvent {
+                        range: None,
+                        range_length: None,
+                        text: "let value = 1".to_owned(),
+                    }],
+                })
+                .unwrap()
+                .is_empty()
+        );
+    }
+
+    let diagnostics = diagnostics_from(backend.wait_for_diagnostics());
+    assert_eq!(diagnostics.version, Some(8));
+    assert!(diagnostics.diagnostics.is_empty(), "{diagnostics:?}");
 }
 
 #[test]
@@ -2214,21 +2258,24 @@ fn type_errors_are_published_and_clear_after_incremental_repair() {
 
     let repaired =
         "let declared: integer = 1\nfn one(value: integer) -> integer do value end\none(1)\n";
-    let notifications = backend
-        .change(DidChangeTextDocumentParams {
-            text_document: VersionedTextDocumentIdentifier {
-                uri: uri(),
-                version: 2,
-            },
-            content_changes: vec![TextDocumentContentChangeEvent {
-                range: None,
-                range_length: None,
-                text: repaired.to_owned(),
-            }],
-        })
-        .unwrap();
     assert!(
-        diagnostics_from(notifications.into_iter().next().unwrap())
+        backend
+            .change(DidChangeTextDocumentParams {
+                text_document: VersionedTextDocumentIdentifier {
+                    uri: uri(),
+                    version: 2,
+                },
+                content_changes: vec![TextDocumentContentChangeEvent {
+                    range: None,
+                    range_length: None,
+                    text: repaired.to_owned(),
+                }],
+            })
+            .unwrap()
+            .is_empty()
+    );
+    assert!(
+        diagnostics_from(backend.wait_for_diagnostics())
             .diagnostics
             .is_empty()
     );
@@ -2871,7 +2918,7 @@ fn repeated_lisp_hovers_reuse_inference_for_the_open_document_revision() {
     let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
     let first_inference = started.elapsed();
     assert!(diagnostics.diagnostics.is_empty(), "{diagnostics:?}");
-    assert_eq!(backend.inference_computations(), 1);
+    assert_eq!(backend.inference_computations(), 0);
 
     let started = std::time::Instant::now();
     for (name, occurrence) in [("evaluate", 0), ("expect_boolean", 1), ("apply", 1)] {
@@ -2890,14 +2937,17 @@ fn repeated_lisp_hovers_reuse_inference_for_the_open_document_revision() {
     }
     let repeated_hovers = started.elapsed();
     assert_eq!(backend.inference_computations(), 1);
-    eprintln!("first inference: {first_inference:?}; three cached hovers: {repeated_hovers:?}");
+    eprintln!(
+        "background diagnostics: {first_inference:?}; three cached hovers: {repeated_hovers:?}"
+    );
 
     let changed: DidChangeTextDocumentParams = serde_json::from_value(json!({
         "textDocument": { "uri": uri(), "version": 2 },
         "contentChanges": [{ "text": source }],
     }))
     .unwrap();
-    let diagnostics = diagnostics_from(backend.change(changed).unwrap().remove(0));
+    assert!(backend.change(changed).unwrap().is_empty());
+    let diagnostics = diagnostics_from(backend.wait_for_diagnostics());
     assert!(diagnostics.diagnostics.is_empty(), "{diagnostics:?}");
-    assert_eq!(backend.inference_computations(), 2);
+    assert_eq!(backend.inference_computations(), 1);
 }
