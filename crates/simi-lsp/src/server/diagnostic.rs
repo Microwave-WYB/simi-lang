@@ -10,8 +10,7 @@ impl Backend {
         };
         let text = source_text(&self.db, document.file);
         let mut analysis_diagnostics = diagnostics(&self.db, document.file).as_ref().clone();
-        analysis_diagnostics
-            .extend(infer_types(&self.db, document.file, &self.module_shapes).diagnostics);
+        analysis_diagnostics.extend(self.inference(document.file).diagnostics.iter().cloned());
         analysis_diagnostics.sort_by_key(|diagnostic| {
             (
                 diagnostic.span.start,

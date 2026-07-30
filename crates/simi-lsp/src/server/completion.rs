@@ -42,7 +42,7 @@ impl Backend {
         }
 
         let imported = imported_members(&self.db, document.file, &self.module_shapes);
-        let inference = infer_types(&self.db, document.file, &self.module_shapes);
+        let inference = self.inference(document.file);
         let mut names = BTreeSet::new();
         let mut items = Vec::new();
         for symbol in visible {
