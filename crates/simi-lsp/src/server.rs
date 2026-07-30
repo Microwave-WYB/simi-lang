@@ -1,5 +1,7 @@
+use std::cell::RefCell;
 use std::collections::{BTreeSet, HashMap};
 use std::error::Error;
+use std::sync::Arc;
 
 use lsp_server::{Connection, ErrorCode, Message, Notification, Response, ResponseError};
 use lsp_types::notification::{
@@ -25,8 +27,8 @@ use serde::de::DeserializeOwned;
 use serde_json::Value;
 use simi_analysis::{
     AnalysisDatabase, AnalysisDiagnosticSeverity, FileId, ModuleShape, RenameError, Resolution,
-    Span, SymbolKind, Type, diagnostics, document_symbols, expression_type_at, field_type_at,
-    imported_members, infer_types, member_at, member_completions, module_at, module_shape, parse,
+    Span, SymbolKind, Type, TypeInference, diagnostics, document_symbols, expression_type_at,
+    field_type_at, imported_members, member_at, member_completions, module_at, module_shape, parse,
     references, resolve, source_text, symbol_type_at, wildcard_type_at,
 };
 
@@ -60,6 +62,9 @@ pub struct Backend {
     db: AnalysisDatabase,
     documents: HashMap<Url, Document>,
     module_shapes: HashMap<String, ModuleShape>,
+    inferences: RefCell<HashMap<FileId, Arc<TypeInference>>>,
+    #[cfg(test)]
+    inference_computations: std::cell::Cell<usize>,
     shutdown_requested: bool,
 }
 
@@ -182,6 +187,7 @@ impl Backend {
                 ProtocolError::invalid(format!("invalid document change: {error:?}"))
             })?;
         self.db.set_source(document.file, changed);
+        self.inferences.borrow_mut().remove(&document.file);
         self.documents.insert(
             uri.clone(),
             Document {
@@ -194,7 +200,9 @@ impl Backend {
 
     pub fn close(&mut self, params: DidCloseTextDocumentParams) -> Vec<Notification> {
         let uri = params.text_document.uri;
-        self.documents.remove(&uri);
+        if let Some(document) = self.documents.remove(&uri) {
+            self.inferences.borrow_mut().remove(&document.file);
+        }
         vec![Notification::new(
             PublishDiagnostics::METHOD.to_owned(),
             PublishDiagnosticsParams::new(uri, Vec::new(), None),
@@ -275,6 +283,27 @@ impl Backend {
         // Resolution is reacquired for every request so arena IDs never cross source revisions.
         let resolution = resolve(&self.db, document.file);
         Ok((document, text, resolution, offset))
+    }
+
+    fn inference(&self, file: FileId) -> Arc<TypeInference> {
+        if let Some(inference) = self.inferences.borrow().get(&file) {
+            return inference.clone();
+        }
+        #[cfg(test)]
+        self.inference_computations
+            .set(self.inference_computations.get() + 1);
+        let inference = Arc::new(simi_analysis::infer_types(
+            &self.db,
+            file,
+            &self.module_shapes,
+        ));
+        self.inferences.borrow_mut().insert(file, inference.clone());
+        inference
+    }
+
+    #[cfg(test)]
+    fn inference_computations(&self) -> usize {
+        self.inference_computations.get()
     }
 
     fn location(&self, uri: Url, text: &str, span: Span) -> Result<Location, ProtocolError> {

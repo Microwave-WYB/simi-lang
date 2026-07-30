@@ -2806,3 +2806,98 @@ let value: Expr = {kind = "integer", value = 1}"#;
         markup.value
     );
 }
+
+#[test]
+fn named_type_and_alias_references_hover_in_later_annotations() {
+    let source = r#"alias Name = string
+type Value = {name: Name, parent: Value | nil}
+fn use(name: Name, value: Value) -> Value
+    value
+let current: Value = {name = "root", parent = nil}"#;
+    let mut backend = Backend::new();
+    let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
+    assert!(diagnostics.diagnostics.is_empty(), "{diagnostics:?}");
+    for (name, occurrence, declaration, description) in [
+        (
+            "Name",
+            2,
+            "alias Name = string",
+            "Transparent type alias. It is erased at runtime.",
+        ),
+        (
+            "Value",
+            2,
+            "type Value = {name: Name, parent: Value | nil}",
+            "Named recursive type. It is erased at runtime.",
+        ),
+        (
+            "Value",
+            4,
+            "type Value = {name: Name, parent: Value | nil}",
+            "Named recursive type. It is erased at runtime.",
+        ),
+    ] {
+        let hover: Option<Hover> = serde_json::from_value(
+            request(
+                &mut backend,
+                HoverRequest::METHOD,
+                json!({
+                    "textDocument": { "uri": uri() },
+                    "position": text_position(source, name, occurrence),
+                }),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let HoverContents::Markup(markup) = hover
+            .unwrap_or_else(|| panic!("missing hover for {name} occurrence {occurrence}"))
+            .contents
+        else {
+            panic!("expected markup")
+        };
+        assert!(markup.value.contains(declaration), "{}", markup.value);
+        assert!(markup.value.contains(description), "{}", markup.value);
+    }
+}
+
+#[test]
+fn repeated_lisp_hovers_reuse_inference_for_the_open_document_revision() {
+    let source = include_str!("../../../../examples/lisp.simi");
+    let mut backend = Backend::with_module_sources([
+        ("std/list", include_str!("../../../../stdlib/list.simi")),
+        ("std/string", include_str!("../../../../stdlib/string.simi")),
+    ]);
+    let started = std::time::Instant::now();
+    let diagnostics = diagnostics_from(open(&mut backend, source).remove(0));
+    let first_inference = started.elapsed();
+    assert!(diagnostics.diagnostics.is_empty(), "{diagnostics:?}");
+    assert_eq!(backend.inference_computations(), 1);
+
+    let started = std::time::Instant::now();
+    for (name, occurrence) in [("evaluate", 0), ("expect_boolean", 1), ("apply", 1)] {
+        let _: Option<Hover> = serde_json::from_value(
+            request(
+                &mut backend,
+                HoverRequest::METHOD,
+                json!({
+                    "textDocument": { "uri": uri() },
+                    "position": text_position(source, name, occurrence),
+                }),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+    }
+    let repeated_hovers = started.elapsed();
+    assert_eq!(backend.inference_computations(), 1);
+    eprintln!("first inference: {first_inference:?}; three cached hovers: {repeated_hovers:?}");
+
+    let changed: DidChangeTextDocumentParams = serde_json::from_value(json!({
+        "textDocument": { "uri": uri(), "version": 2 },
+        "contentChanges": [{ "text": source }],
+    }))
+    .unwrap();
+    let diagnostics = diagnostics_from(backend.change(changed).unwrap().remove(0));
+    assert!(diagnostics.diagnostics.is_empty(), "{diagnostics:?}");
+    assert_eq!(backend.inference_computations(), 2);
+}
