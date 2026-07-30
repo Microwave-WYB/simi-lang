@@ -3,35 +3,31 @@
 ---- It demonstrates recursive closed types, parsing, lexical environments,
 ---- closures, special forms, and meaningful raised interpreter errors.
 
-alias Name = string
-alias Token = string
-alias Tokens = [..Token]
-alias MaybeValue = Value | nil
 
 type Expr =
     | {kind: "integer", value: integer}
     | {kind: "boolean", value: boolean}
-    | {kind: "symbol", name: Name}
+    | {kind: "symbol", name: string}
     | {kind: "list", items: [..Expr]}
 
 type Value =
     | integer
     | boolean
-    | {kind: "symbol", name: Name}
+    | {kind: "symbol", name: string}
     | [..Value]
     | Closure
     | Builtin
 
 type Closure = {
     kind: "closure",
-    parameters: [..Name],
+    parameters: [..string],
     body: Expr,
     environment: Environment,
 }
 
 type Builtin = {
     kind: "builtin",
-    name: Name,
+    name: string,
     operation:
         | "add"
         | "subtract"
@@ -46,7 +42,7 @@ type Builtin = {
 }
 
 type Environment = {
-    values: {[Name]: Value},
+    values: {[string]: Value},
     parent: Environment | nil,
 }
 
@@ -58,7 +54,7 @@ fn integer_expression(value: integer) -> Expr
 fn boolean_expression(value: boolean) -> Expr
     {kind = "boolean", value = value}
 
-fn symbol_expression(name: Name) -> Expr
+fn symbol_expression(name: string) -> Expr
     {kind = "symbol", name = name}
 
 fn list_expression(items: [..Expr]) -> Expr
@@ -73,7 +69,7 @@ type ParseResult = {expression: Expr, next: integer}
 fn is_space(character: string) -> boolean
     character == " " or character == "\n" or character == "\t" or character == "\r"
 
-fn scan(source: string, index: integer, tokens: Tokens) -> Tokens
+fn scan(source: string, index: integer, tokens: [..string]) -> [..string]
     if index >= string.length(source) then
         tokens
     else
@@ -92,7 +88,7 @@ fn scan(source: string, index: integer, tokens: Tokens) -> Tokens
         end
     end
 
-fn scan_word(source: string, index: integer, start: integer, tokens: Tokens) -> Tokens
+fn scan_word(source: string, index: integer, start: integer, tokens: [..string]) -> [..string]
     if index >= string.length(source) then
         list.append(tokens, string.slice(source, start, index))
         tokens
@@ -115,24 +111,24 @@ fn scan_word(source: string, index: integer, start: integer, tokens: Tokens) -> 
         end
     end
 
-fn tokenize(source: string) -> Tokens
+fn tokenize(source: string) -> [..string]
     scan(source, 0, [])
 
-fn token_at(tokens: Tokens, index: integer) -> Token | nil
+fn token_at(tokens: [..string], index: integer) -> string | nil
     if index >= list.length(tokens) then nil else tokens[index] end
 
-fn take(tokens: Tokens, index: integer) -> Token
+fn take(tokens: [..string], index: integer) -> string
     case token_at(tokens, index) of
         nil => raise {error = "lisp_parse_error", message = "unexpected end of input"}
         token => token
     end
 
-fn parse_list(tokens: Tokens, index: integer) -> ParseResult do
+fn parse_list(tokens: [..string], index: integer) -> ParseResult do
     let items: [..Expr] = []
     parse_list_items(tokens, index + 1, items)
 end
 
-fn parse_list_items(tokens: Tokens, index: integer, items: [..Expr]) -> ParseResult
+fn parse_list_items(tokens: [..string], index: integer, items: [..Expr]) -> ParseResult
     case token_at(tokens, index) of
         nil => raise {error = "lisp_parse_error", message = "missing closing parenthesis"}
         ")" => {expression = list_expression(items), next = index + 1}
@@ -143,7 +139,7 @@ fn parse_list_items(tokens: Tokens, index: integer, items: [..Expr]) -> ParseRes
         end
     end
 
-fn parse_atom(token: Token) -> Expr
+fn parse_atom(token: string) -> Expr
     case token of
         "#t" => boolean_expression(true)
         "#f" => boolean_expression(false)
@@ -153,7 +149,7 @@ fn parse_atom(token: Token) -> Expr
         end
     end
 
-fn parse_expression(tokens: Tokens, index: integer) -> ParseResult
+fn parse_expression(tokens: [..string], index: integer) -> ParseResult
     case take(tokens, index) of
         "(" => parse_list(tokens, index)
         ")" => raise {error = "lisp_parse_error", message = "unexpected closing parenthesis"}
@@ -177,7 +173,7 @@ fn environment(parent: Environment | nil) -> Environment do
     env
 end
 
-fn lookup(env: Environment, name: Name) -> Value
+fn lookup(env: Environment, name: string) -> Value
     case env.values[name] of
         nil =>
             case env.parent of
@@ -205,39 +201,39 @@ fn expect_expression(expression: Expr | nil, form: string) -> Expr
         expression => expression
     end
 
-fn expect_symbol(expression: Expr, form: string) -> Name
+fn expect_symbol(expression: Expr, form: string) -> string
     case expression of
         {kind = "symbol", name = name} => name
         _ => raise {error = "lisp_invalid_form", form = form, message = "expected a symbol"}
     end
 
-fn expect_name(name: Name | nil, form: string) -> Name
+fn expect_name(name: string | nil, form: string) -> string
     case name of
         nil => raise {error = "lisp_invalid_form", form = form, message = "expected a name"}
         name => name
     end
 
-fn expect_value(value: MaybeValue, form: string) -> Value
+fn expect_value(value: Value | nil, form: string) -> Value
     case value of
         nil => raise {error = "lisp_type_error", form = form, expected = "value", actual = "nil"}
         value => value
     end
 
-fn expect_list(value: MaybeValue, form: string) -> [..Value]
+fn expect_list(value: Value | nil, form: string) -> [..Value]
     if type(value) == "list" then
         value
     else
         raise {error = "lisp_type_error", form = form, expected = "list", actual = type(value)}
     end
 
-fn expect_integer(value: MaybeValue, form: string) -> integer
+fn expect_integer(value: Value | nil, form: string) -> integer
     if type(value) == "integer" then
         value
     else
         raise {error = "lisp_type_error", form = form, expected = "integer", actual = type(value)}
     end
 
-fn expect_boolean(value: MaybeValue, form: string) -> boolean
+fn expect_boolean(value: Value | nil, form: string) -> boolean
     if type(value) == "boolean" then
         value
     else
@@ -265,13 +261,13 @@ fn datum_items(expressions: [..Expr], index: integer, values: [..Value]) -> [..V
         datum_items(expressions, index + 1, values)
     end
 
-fn parameters(expression: Expr) -> [..Name]
+fn parameters(expression: Expr) -> [..string]
     case expression of
         {kind = "list", items = items} => parameter_items(items, 0, [])
         _ => raise {error = "lisp_invalid_form", form = "lambda", message = "expected a parameter list"}
     end
 
-fn parameter_items(items: [..Expr], index: integer, names: [..Name]) -> [..Name]
+fn parameter_items(items: [..Expr], index: integer, names: [..string]) -> [..string]
     if index == list.length(items) then
         names
     else
@@ -287,13 +283,13 @@ fn evaluate(expression: Expr, env: Environment) -> Value
         {kind = "list", items = items} => evaluate_list(items, env)
     end
 
-fn is_named(expression: Expr, name: Name) -> boolean
+fn is_named(expression: Expr, name: string) -> boolean
     case expression of
         {kind = "symbol", name = actual} => actual == name
         _ => false
     end
 
-fn closure(parameters: [..Name], body: Expr, captured: Environment) -> Closure
+fn closure(parameters: [..string], body: Expr, captured: Environment) -> Closure
     {kind = "closure", parameters = parameters, body = body, environment = captured}
 
 fn evaluate_list(items: [..Expr], env: Environment) -> Value
@@ -376,7 +372,7 @@ fn evaluate_or(items: [..Expr], index: integer, env: Environment) -> boolean
         if value then true else evaluate_or(items, index + 1, env) end
     end
 
-fn bind(parameters: [..Name], arguments: [..Value], env: Environment, index: integer) -> nil
+fn bind(parameters: [..string], arguments: [..Value], env: Environment, index: integer) -> nil
     if index == list.length(parameters) then
         nil
     else
@@ -384,7 +380,7 @@ fn bind(parameters: [..Name], arguments: [..Value], env: Environment, index: int
         bind(parameters, arguments, env, index + 1)
     end
 
-fn apply(value: MaybeValue, arguments: [..Value]) -> Value
+fn apply(value: Value | nil, arguments: [..Value]) -> Value
     case value of
         {kind = "builtin", name = name, operation = operation} =>
             apply_builtin({kind = "builtin", name = name, operation = operation}, arguments)
@@ -397,7 +393,7 @@ fn apply(value: MaybeValue, arguments: [..Value]) -> Value
         _ => raise {error = "lisp_not_callable", actual = type(value)}
     end
 
-fn equal(left: MaybeValue, right: MaybeValue) -> boolean
+fn equal(left: Value | nil, right: Value | nil) -> boolean
     if type(left) == "integer" and type(right) == "integer" then
         left == right
     elseif type(left) == "boolean" and type(right) == "boolean" then
@@ -408,7 +404,7 @@ fn equal(left: MaybeValue, right: MaybeValue) -> boolean
         symbols_equal(left, right)
     end
 
-fn symbols_equal(left: MaybeValue, right: MaybeValue) -> boolean
+fn symbols_equal(left: Value | nil, right: Value | nil) -> boolean
     case left of
         {kind = "symbol", name = left_name} =>
             case right of
@@ -443,22 +439,22 @@ fn apply_builtin(builtin: Builtin, arguments: [..Value]) -> Value
         {operation = "empty", name = name, ..} => empty(name, arguments)
     end
 
-fn add(name: Name, arguments: [..Value]) -> Value do
+fn add(name: string, arguments: [..Value]) -> Value do
     expect_arity(arguments, 2, name)
     expect_integer(arguments[0], name) + expect_integer(arguments[1], name)
 end
 
-fn subtract(name: Name, arguments: [..Value]) -> Value do
+fn subtract(name: string, arguments: [..Value]) -> Value do
     expect_arity(arguments, 2, name)
     expect_integer(arguments[0], name) - expect_integer(arguments[1], name)
 end
 
-fn multiply(name: Name, arguments: [..Value]) -> Value do
+fn multiply(name: string, arguments: [..Value]) -> Value do
     expect_arity(arguments, 2, name)
     expect_integer(arguments[0], name) * expect_integer(arguments[1], name)
 end
 
-fn divide(name: Name, arguments: [..Value]) -> Value do
+fn divide(name: string, arguments: [..Value]) -> Value do
     expect_arity(arguments, 2, name)
     let divisor = expect_integer(arguments[1], name)
     if divisor == 0 then
@@ -468,24 +464,24 @@ fn divide(name: Name, arguments: [..Value]) -> Value do
     end
 end
 
-fn equals(name: Name, arguments: [..Value]) -> Value do
+fn equals(name: string, arguments: [..Value]) -> Value do
     expect_arity(arguments, 2, name)
     equal(arguments[0], arguments[1])
 end
 
-fn negate(name: Name, arguments: [..Value]) -> Value do
+fn negate(name: string, arguments: [..Value]) -> Value do
     expect_arity(arguments, 1, name)
     not expect_boolean(arguments[0], name)
 end
 
-fn cons(name: Name, arguments: [..Value]) -> Value do
+fn cons(name: string, arguments: [..Value]) -> Value do
     expect_arity(arguments, 2, name)
     let values: [..Value] = [expect_value(arguments[0], name)]
     list.extend(values, expect_list(arguments[1], name))
     values
 end
 
-fn car(name: Name, arguments: [..Value]) -> Value do
+fn car(name: string, arguments: [..Value]) -> Value do
     expect_arity(arguments, 1, name)
     let values = expect_list(arguments[0], name)
     if list.length(values) == 0 then
@@ -495,7 +491,7 @@ fn car(name: Name, arguments: [..Value]) -> Value do
     end
 end
 
-fn cdr(name: Name, arguments: [..Value]) -> Value do
+fn cdr(name: string, arguments: [..Value]) -> Value do
     expect_arity(arguments, 1, name)
     let values = expect_list(arguments[0], name)
     if list.length(values) == 0 then
@@ -505,7 +501,7 @@ fn cdr(name: Name, arguments: [..Value]) -> Value do
     end
 end
 
-fn empty(name: Name, arguments: [..Value]) -> Value do
+fn empty(name: string, arguments: [..Value]) -> Value do
     expect_arity(arguments, 0, name)
     let values: [..Value] = []
     values
