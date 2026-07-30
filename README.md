@@ -22,8 +22,14 @@ greet("Simi")
 ```simi
 let iter = require("std/iter")
 
-iter.fold_while(list.iter([1, 2, 3]), 0, fn(total, value)
-    if value == 3 then iter.break(total) else iter.continue(total + value) end)
+[1, 2, 3]
+|> list.iter()
+|> iter.fold_while(0) <| fn(total, value)
+    if value == 3 then
+        iter.break(total)
+    else
+        iter.continue(total + value)
+    end
 ```
 
 Save this as `quicksort.simi`, install Simi using one of the options below, and run:
@@ -40,15 +46,15 @@ Start with [Hello, world!](docs/language-tour/hello-world.md), continue through 
 
 > **Status:** Simi is under active development. Alpha releases are distributed only as GitHub Release artifacts; crates.io publication is deferred. Versioned prereleases and the moving `latest` development release include the exact source commit in every download name.
 
-### Latest release
+### v0.1.0-alpha.3
 
-The easiest way to try Simi is the [latest release](https://github.com/Microwave-WYB/simi-lang/releases/tag/latest). Choose the CLI download for your system:
+The easiest way to try Simi is the [v0.1.0-alpha.3 prerelease](https://github.com/Microwave-WYB/simi-lang/releases/tag/v0.1.0-alpha.3). Choose the CLI download for your system:
 
-| System | Download name ends with |
-| --- | --- |
-| Linux x86-64 | `x86_64-unknown-linux-gnu.tar.gz` |
-| macOS Intel | `x86_64-apple-darwin.tar.gz` |
-| Windows x86-64 | `x86_64-pc-windows-msvc.zip` |
+| System         | Download name ends with           |
+| -------------- | --------------------------------- |
+| Linux x86-64   | `x86_64-unknown-linux-gnu.tar.gz` |
+| macOS Intel    | `x86_64-apple-darwin.tar.gz`      |
+| Windows x86-64 | `x86_64-pc-windows-msvc.zip`      |
 
 Extract the download, then copy `simi` or `simi.exe` to a directory on your `PATH`. The included `README.md` has platform-specific steps. Each download also has a matching `.sha256` checksum file.
 
@@ -70,7 +76,7 @@ cargo install --git https://github.com/Microwave-WYB/simi-lang --bin simi
 
 ### Visual Studio Code
 
-Download the `simi-vscode-...vsix` file for your system from either the [latest release](https://github.com/Microwave-WYB/simi-lang/releases/tag/latest) or a successful `main` CI artifact. Install it and reload VS Code:
+Download the `simi-vscode-...vsix` file for your system from the [v0.1.0-alpha.3 prerelease](https://github.com/Microwave-WYB/simi-lang/releases/tag/v0.1.0-alpha.3) or a successful `main` CI artifact. Install it and reload VS Code:
 
 ```sh
 code --install-extension ./simi-vscode-<full-sha>-<target>.vsix
