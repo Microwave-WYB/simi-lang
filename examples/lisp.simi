@@ -220,24 +220,21 @@ fn expect_value(value: Value | nil, form: string) -> Value
     end
 
 fn expect_list(value: Value | nil, form: string) -> [..Value]
-    if type(value) == "list" then
-        value
-    else
-        raise {error = "lisp_type_error", form = form, expected = "list", actual = type(value)}
+    case value of
+        value when type(value) == "list" => value
+        _ => raise {error = "lisp_type_error", form = form, expected = "list", actual = type(value)}
     end
 
 fn expect_integer(value: Value | nil, form: string) -> integer
-    if type(value) == "integer" then
-        value
-    else
-        raise {error = "lisp_type_error", form = form, expected = "integer", actual = type(value)}
+    case value of
+        value when type(value) == "integer" => value
+        _ => raise {error = "lisp_type_error", form = form, expected = "integer", actual = type(value)}
     end
 
 fn expect_boolean(value: Value | nil, form: string) -> boolean
-    if type(value) == "boolean" then
-        value
-    else
-        raise {error = "lisp_type_error", form = form, expected = "boolean", actual = type(value)}
+    case value of
+        value when type(value) == "boolean" => value
+        _ => raise {error = "lisp_type_error", form = form, expected = "boolean", actual = type(value)}
     end
 
 fn datum(expression: Expr) -> Value
@@ -293,42 +290,39 @@ fn closure(parameters: [..string], body: Expr, captured: Environment) -> Closure
     {kind = "closure", parameters = parameters, body = body, environment = captured}
 
 fn evaluate_list(items: [..Expr], env: Environment) -> Value
-    if list.length(items) == 0 then
-        raise {error = "lisp_empty_list", form = "application"}
-    elseif is_named(expect_expression(items[0], "application"), "quote") then do
-        expect_arity_expr(items, 2, "quote")
-        datum(expect_expression(items[1], "quote"))
-    end
-    elseif is_named(expect_expression(items[0], "application"), "if") then do
-        expect_arity_expr(items, 4, "if")
-        if expect_boolean(evaluate(expect_expression(items[1], "if"), env), "if") then
-            evaluate(expect_expression(items[2], "if"), env)
-        else
-            evaluate(expect_expression(items[3], "if"), env)
+    case items of
+        [] => raise {error = "lisp_empty_list", form = "application"}
+        [{kind = "symbol", name = "quote"}, ..] => do
+            expect_arity_expr(items, 2, "quote")
+            datum(expect_expression(items[1], "quote"))
         end
-    end
-    elseif is_named(expect_expression(items[0], "application"), "let") then do
-        expect_arity_expr(items, 4, "let")
-        let name = expect_symbol(expect_expression(items[1], "let"), "let")
-        let value = evaluate(expect_expression(items[2], "let"), env)
-        let child = environment(env)
-        child.values[name] = value
-        evaluate(expect_expression(items[3], "let"), child)
-    end
-    elseif is_named(expect_expression(items[0], "application"), "define") then do
-        expect_arity_expr(items, 3, "define")
-        env.values[expect_symbol(expect_expression(items[1], "define"), "define")] = evaluate(expect_expression(items[2], "define"), env)
-    end
-    elseif is_named(expect_expression(items[0], "application"), "lambda") then do
-        expect_arity_expr(items, 3, "lambda")
-        closure(parameters(expect_expression(items[1], "lambda")), expect_expression(items[2], "lambda"), env)
-    end
-    elseif is_named(expect_expression(items[0], "application"), "and") then
-        evaluate_and(items, 1, env)
-    elseif is_named(expect_expression(items[0], "application"), "or") then
-        evaluate_or(items, 1, env)
-    else
-        apply(evaluate(expect_expression(items[0], "application"), env), evaluate_arguments(items, 1, env))
+        [{kind = "symbol", name = "if"}, ..] => do
+            expect_arity_expr(items, 4, "if")
+            if expect_boolean(evaluate(expect_expression(items[1], "if"), env), "if") then
+                evaluate(expect_expression(items[2], "if"), env)
+            else
+                evaluate(expect_expression(items[3], "if"), env)
+            end
+        end
+        [{kind = "symbol", name = "let"}, ..] => do
+            expect_arity_expr(items, 4, "let")
+            let name = expect_symbol(expect_expression(items[1], "let"), "let")
+            let value = evaluate(expect_expression(items[2], "let"), env)
+            let child = environment(env)
+            child.values[name] = value
+            evaluate(expect_expression(items[3], "let"), child)
+        end
+        [{kind = "symbol", name = "define"}, ..] => do
+            expect_arity_expr(items, 3, "define")
+            env.values[expect_symbol(expect_expression(items[1], "define"), "define")] = evaluate(expect_expression(items[2], "define"), env)
+        end
+        [{kind = "symbol", name = "lambda"}, ..] => do
+            expect_arity_expr(items, 3, "lambda")
+            closure(parameters(expect_expression(items[1], "lambda")), expect_expression(items[2], "lambda"), env)
+        end
+        [{kind = "symbol", name = "and"}, ..] => evaluate_and(items, 1, env)
+        [{kind = "symbol", name = "or"}, ..] => evaluate_or(items, 1, env)
+        [head, ..] => apply(evaluate(head, env), evaluate_arguments(items, 1, env))
     end
 
 fn expect_arity_expr(values: [..Expr], expected: integer, form: string) -> nil
@@ -394,14 +388,23 @@ fn apply(value: Value | nil, arguments: [..Value]) -> Value
     end
 
 fn equal(left: Value | nil, right: Value | nil) -> boolean
-    if type(left) == "integer" and type(right) == "integer" then
-        left == right
-    elseif type(left) == "boolean" and type(right) == "boolean" then
-        left == right
-    elseif type(left) == "list" and type(right) == "list" then
-        list_equal(left, right, 0)
-    else
-        symbols_equal(left, right)
+    case left of
+        left when type(left) == "integer" =>
+            case right of
+                right when type(right) == "integer" => left == right
+                _ => false
+            end
+        left when type(left) == "boolean" =>
+            case right of
+                right when type(right) == "boolean" => left == right
+                _ => false
+            end
+        left when type(left) == "list" =>
+            case right of
+                right when type(right) == "list" => list_equal(left, right, 0)
+                _ => false
+            end
+        _ => symbols_equal(left, right)
     end
 
 fn symbols_equal(left: Value | nil, right: Value | nil) -> boolean
