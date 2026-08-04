@@ -810,7 +810,7 @@ dependencies = [
 
 [[package]]
 name = "simi"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.3"
 dependencies = [
  "clap",
  "gc",
@@ -823,7 +823,7 @@ dependencies = [
 
 [[package]]
 name = "simi-analysis"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.3"
 dependencies = [
  "la-arena",
  "rowan",
@@ -833,7 +833,7 @@ dependencies = [
 
 [[package]]
 name = "simi-lsp"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.3"
 dependencies = [
  "crossbeam-channel",
  "line-index",
@@ -847,14 +847,14 @@ dependencies = [
 
 [[package]]
 name = "simi-syntax"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.3"
 dependencies = [
  "rowan",
 ]
 
 [[package]]
 name = "simi-xtask"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.3"
 dependencies = [
  "ungrammar",
 ]

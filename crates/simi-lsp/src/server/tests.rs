@@ -750,7 +750,7 @@ fn memory_transport_performs_initialize_shutdown_and_exit_lifecycle() {
     let result: InitializeResult = serde_json::from_value(response.result.unwrap()).unwrap();
     let server_info = result.server_info.unwrap();
     assert_eq!(server_info.name, "simi-lsp");
-    assert_eq!(server_info.version.as_deref(), Some("0.1.0-alpha.1"));
+    assert_eq!(server_info.version.as_deref(), Some("0.1.0-alpha.3"));
     client
         .sender
         .send(Message::Notification(Notification::new(

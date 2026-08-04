@@ -2,7 +2,7 @@
   "name": "simi-language",
   "displayName": "Simi Language Support",
   "description": "Syntax highlighting and language-server support for the Simi scripting language.",
-  "version": "0.1.0-alpha.1",
+  "version": "0.1.0-alpha.3",
   "publisher": "simi",
   "license": "MIT",
   "repository": {

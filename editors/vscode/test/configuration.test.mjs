@@ -24,7 +24,7 @@ test("extension manifest associates .simi files with the TextMate grammar", asyn
     { language: "simi", path: "./snippets/simi.json" },
   ]);
   assert.equal(manifest.main, "./src/extension.js");
-  assert.equal(manifest.version, "0.1.0-alpha.1");
+  assert.equal(manifest.version, "0.1.0-alpha.3");
   assert.equal(lockfile.version, manifest.version);
   assert.equal(lockfile.packages[""].version, manifest.version);
   assert.equal(manifest.license, "MIT");
